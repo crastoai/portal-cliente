@@ -1,0 +1,88 @@
+import { Navigate, Route, Routes } from "react-router-dom";
+import { useAuth } from "./lib/auth";
+import Login from "./pages/Login";
+import ClientShell from "./layout/ClientShell";
+import AdminShell from "./layout/AdminShell";
+import PartnerShell from "./layout/PartnerShell";
+
+import Inicio from "./pages/client/Inicio";
+import Modulos from "./pages/client/Modulos";
+import Implementacao from "./pages/client/Implementacao";
+import Catalogo from "./pages/client/Catalogo";
+import Credenciais from "./pages/client/Credenciais";
+import Resultados from "./pages/client/Resultados";
+import Financeiro from "./pages/client/Financeiro";
+import Usuarios from "./pages/client/Usuarios";
+import Suporte from "./pages/client/Suporte";
+
+import VisaoGeral from "./pages/admin/VisaoGeral";
+import Clientes from "./pages/admin/Clientes";
+import ClienteDetalhe from "./pages/admin/ClienteDetalhe";
+import Propostas from "./pages/admin/Propostas";
+import Servicos from "./pages/admin/Servicos";
+import Conectores from "./pages/admin/Conectores";
+import CatalogoModulos from "./pages/admin/CatalogoModulos";
+import Custos from "./pages/admin/Custos";
+import Receita from "./pages/admin/Receita";
+import Integracoes from "./pages/admin/Integracoes";
+
+import Entregas from "./pages/partner/Entregas";
+import Comissoes from "./pages/partner/Comissoes";
+
+function homeFor(role?: string) {
+  if (role === "crasto_admin") return "/admin";
+  if (role === "connector") return "/parceiro";
+  return "/app";
+}
+
+export default function App() {
+  const { session, profile, loading } = useAuth();
+  if (loading || (session && !profile)) {
+    return <div style={{ padding: 40, color: "var(--crasto-text-muted)" }}>Carregando…</div>;
+  }
+  const home = homeFor(profile?.role);
+
+  return (
+    <Routes>
+      <Route path="/login" element={session ? <Navigate to={home} replace /> : <Login />} />
+
+      {session && (
+        <>
+          <Route path="/app" element={<ClientShell />}>
+            <Route index element={<Inicio />} />
+            <Route path="modulos" element={<Modulos />} />
+            <Route path="implementacao" element={<Implementacao />} />
+            <Route path="solucoes" element={<Catalogo />} />
+            <Route path="credenciais" element={<Credenciais />} />
+            <Route path="resultados" element={<Resultados />} />
+            <Route path="financeiro" element={<Financeiro />} />
+            <Route path="usuarios" element={<Usuarios />} />
+            <Route path="suporte" element={<Suporte />} />
+          </Route>
+
+          <Route path="/admin" element={<AdminShell />}>
+            <Route index element={<VisaoGeral />} />
+            <Route path="clientes" element={<Clientes />} />
+            <Route path="detalhe" element={<ClienteDetalhe />} />
+            <Route path="cliente/:id" element={<ClienteDetalhe />} />
+            <Route path="cliente" element={<ClienteDetalhe />} />
+            <Route path="propostas" element={<Propostas />} />
+            <Route path="servicos" element={<Servicos />} />
+            <Route path="conectores" element={<Conectores />} />
+            <Route path="catalogo" element={<CatalogoModulos />} />
+            <Route path="custos" element={<Custos />} />
+            <Route path="receita" element={<Receita />} />
+            <Route path="integracoes" element={<Integracoes />} />
+          </Route>
+
+          <Route path="/parceiro" element={<PartnerShell />}>
+            <Route index element={<Entregas />} />
+            <Route path="comissoes" element={<Comissoes />} />
+          </Route>
+        </>
+      )}
+
+      <Route path="*" element={<Navigate to={session ? home : "/login"} replace />} />
+    </Routes>
+  );
+}

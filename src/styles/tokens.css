@@ -1,0 +1,733 @@
+/* =============================================================
+   Crasto.ai — Design System
+   White-first · navy + grays + black · glass on light surfaces
+   -------------------------------------------------------------
+   HIERARQUIA DE FUNDO DE PÁGINA (canvas)
+   · LIGHT (padrão da marca): branco sólido — inalterado.
+   · DARK:  opção 1 (padrão) = gradiente navy com brilho nos cantos
+            (papel de parede crasto.ai) → --crasto-page-bg
+            opção 2 (chapado) = navy sólido → --crasto-page-bg-flat
+            (use .crasto-bg-navy-flat pra trocar uma página/seção).
+   body usa var(--crasto-page-bg), então o canvas resolve sozinho por tema.
+   ============================================================= */
+
+/* Fonts: load CRASTO Google Fonts in consuming HTML
+   @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@100..900&family=JetBrains+Mono:wght@100..900&display=swap');
+*/
+
+:root {
+  /* ========== COLORS ========================================== */
+
+  /* Navy — the brand color. Used for primary text and primary surfaces. */
+  --crasto-navy:        #010E26;   /* primary navy */
+  --crasto-navy-deep:   #000714;   /* deep, used for full-bleed dark moments */
+  --crasto-navy-darker: #00030A;   /* darkest, footers / borders */
+  --crasto-blue:        #6E9CE8;   /* mid azul-escuro */
+  --crasto-blue-soft:   #6E9CE8;   /* hover state on navy / borders on navy */
+
+  /* Navy transparency stops (for hairlines, hovers, soft surfaces) */
+  --crasto-navy-80: rgba(1, 14, 38, 0.80);
+  --crasto-navy-60: rgba(1, 14, 38, 0.60);
+  --crasto-navy-40: rgba(1, 14, 38, 0.40);
+  --crasto-navy-30: rgba(1, 14, 38, 0.30);
+  --crasto-navy-25: rgba(1, 14, 38, 0.25);
+  --crasto-navy-22: rgba(1, 14, 38, 0.22);
+  --crasto-navy-20: rgba(1, 14, 38, 0.20);
+  --crasto-navy-18: rgba(1, 14, 38, 0.18);
+  --crasto-navy-16: rgba(1, 14, 38, 0.16);
+  --crasto-navy-14: rgba(1, 14, 38, 0.14);
+  --crasto-navy-12: rgba(1, 14, 38, 0.12);
+  --crasto-navy-10: rgba(1, 14, 38, 0.10);
+  --crasto-navy-08: rgba(1, 14, 38, 0.08);
+  --crasto-navy-06: rgba(1, 14, 38, 0.06);
+  --crasto-navy-05: rgba(1, 14, 38, 0.05);
+  --crasto-navy-04: rgba(1, 14, 38, 0.04);
+  --crasto-navy-03: rgba(1, 14, 38, 0.03);
+  --crasto-navy-02: rgba(1, 14, 38, 0.02);
+
+  /* Grayscale — the secondary palette */
+  --crasto-gray-50:  #F7F8FA;   /* page bg (alt) */
+  --crasto-gray-100: #F0F2F5;   /* subtle surface */
+  --crasto-gray-200: #E4E7EC;   /* hairline border */
+  --crasto-gray-300: #D0D5DD;   /* stronger border */
+  --crasto-gray-400: #98A2B3;   /* muted text on light */
+  --crasto-gray-500: #667085;   /* secondary text */
+  --crasto-gray-600: #475467;   /* tertiary text */
+  --crasto-gray-700: #344054;   /* body emphasis */
+  --crasto-gray-800: #1D2939;   /* close to navy */
+  --crasto-gray-900: #101828;   /* near black */
+
+  --crasto-black: #000000;
+  --crasto-white: #FFFFFF;
+
+  /* Page / surface tokens — LIGHT-FIRST */
+  --crasto-bg:           var(--crasto-white);
+  --crasto-bg-2:         var(--crasto-gray-50);
+  --crasto-bg-3:         var(--crasto-gray-100);
+  --crasto-surface:      var(--crasto-white);
+  --crasto-surface-elev: var(--crasto-white);
+
+  /* Page CANVAS — fundo de página por tema (ver nota "HIERARQUIA DE FUNDO" no topo).
+     Light = branco sólido. Dark sobrescreve --crasto-page-bg → gradiente navy. */
+  --crasto-page-bg:      var(--crasto-bg);   /* opção 1 por tema */
+  --crasto-page-bg-flat: var(--crasto-bg);   /* opção 2 (chapado) */
+
+  /* Semantic text */
+  --crasto-text-primary:  var(--crasto-navy);
+  --crasto-text-body:     var(--crasto-gray-700);
+  --crasto-text-muted:    #5C6677;   /* AA ≥4.5 em cards tint (#f0f2f3) · era gray-500 */
+  --crasto-text-faint:    var(--crasto-gray-400);
+  --crasto-text-inverse:  var(--crasto-white);
+
+  /* Semantic borders */
+  --crasto-border-hairline: var(--crasto-gray-200);
+  --crasto-border:          var(--crasto-gray-300);
+  --crasto-border-soft:     rgba(1, 14, 38, 0.08);  /* hairline editorial · 392+ usos */
+  --crasto-border-strong:   var(--crasto-navy-40);
+
+  /* Status — desaturated, navy-adjacent */
+  --crasto-success: #1F8A5B;
+  --crasto-warning: #010E26;
+  --crasto-danger:  #B83A3A;
+
+  /* ========== EDITORIAL INK SCALE =============================
+     Aliases curtos · 100% mapeados nos CSS dos componentes (700+ usos)
+     Não remover sem migrar todas as referências.
+     ============================================================ */
+  --crasto-text:        var(--crasto-gray-700);   /* corpo padrão */
+  --crasto-text-soft:   #5C6677;   /* secondary 289+ usos · AA em cards tint · era gray-500 */
+  --crasto-ink-2:       #5E6B82;               /* texto secundário editorial · 76+ usos */
+  --crasto-ink-3:       #5F6981;               /* texto terciário · timestamps · 102+ usos · AA ≥4.5 em off-white */
+
+  /* ========== ACCENT (navy / cinza · paleta restrita) ==========
+     Paleta canônica CRASTO: branco · off-white · cinza · azul-escuro · navy · preto.
+     Sem gold/amarelo/dourado em nenhum nível — accent é só intensidade
+     editorial dentro da própria família navy + cinza.
+     ============================================================ */
+  --crasto-accent:       var(--crasto-navy);        /* navy primário · CTA · headers fortes */
+  --crasto-accent-deep:  var(--crasto-navy-deep);   /* navy mais profundo · gradient stops */
+  --crasto-accent-soft:  var(--crasto-gray-300);    /* cinza claro · gradient highlights */
+  --crasto-accent-warm:  var(--crasto-navy-deep);   /* alias semântico legado · navy-deep */
+  --crasto-accent-light: var(--crasto-gray-300);    /* alias semântico legado · cinza claro */
+
+  /* ========== CORAL (destrutivo only) ========================= */
+  --crasto-coral:       #B85C5C;               /* destrutivo · cancel · error */
+  --crasto-coral-dark:  #8C2C2C;               /* destrutivo texto */
+  --crasto-coral-deep:  #A14848;               /* destrutivo hover */
+
+  /* ========== ALIASES (compat) ================================
+     Aliases curtos pra Geist Display / Mono · 159+ usos
+     ============================================================ */
+  --crasto-display: var(--crasto-font-display);
+  --crasto-mono:    var(--crasto-font-mono);
+
+  /* ========== BG SOFT (surfaces) ============================== */
+  --crasto-bg-soft: rgba(1, 14, 38, 0.025);   /* card soft alternate */
+}
+
+/* =============================================================
+   DARK MODE · [data-theme="dark"] no <html>
+   Mantém navy como cor central · troca surfaces white → navy-dark
+   ============================================================= */
+[data-theme="dark"] {
+  /* =================================================
+     SURFACES · escala com mais separação entre camadas
+     Tons levemente warm pra não ficar "preto técnico"
+     ================================================= */
+  --crasto-bg:           #0B1220;    /* canvas principal · warm dark */
+  --crasto-bg-2:         #131C30;    /* surface alt · separação clara */
+  --crasto-bg-3:         #1B273F;    /* surface elevated */
+  --crasto-surface:      #131C30;    /* card base */
+  --crasto-surface-elev: #1B273F;    /* card elevado · modals/popovers */
+  --crasto-bg-soft:      rgba(255, 255, 255, 0.04);
+
+  /* ===== PAGE CANVAS · DARK =========================================
+     Opção 1 (PADRÃO): gradiente navy com brilho azul nos cantos —
+     o "papel de parede" crasto.ai. body usa var(--crasto-page-bg).
+     Base navy da marca (#031238 → #021A4A → #010E26) com glow luminoso
+     no canto superior-esquerdo (forte) e inferior-direito (sutil).
+     Opção 2: navy chapado via --crasto-page-bg-flat (.crasto-bg-navy-flat).
+     --crasto-bg continua SÓLIDO (#0B1220) p/ preenchimentos de componente. */
+  --crasto-page-bg:
+    radial-gradient(ellipse 90% 70% at 6% -6%,   rgba(110, 156, 232, 0.22) 0%, transparent 56%),
+    radial-gradient(ellipse 85% 75% at 106% 108%, rgba(110, 156, 232, 0.13) 0%, transparent 56%),
+    linear-gradient(157deg, #031238 0%, #021A4A 50%, #010E26 100%);
+  --crasto-page-bg-flat: var(--crasto-navy);   /* navy chapado · opção 2 */
+
+  /* =================================================
+     GRAYS CLAROS como SUPERFÍCIE · adaptam no dark
+     Razão: gray-50/100 são usados SÓ como background
+     (0 usos como texto) em ~66 lugares · seções, painéis,
+     command palette, docs, mockups. No dark precisam virar
+     painel escuro sutil, senão viram "mancha clara" (ex: o
+     rodapé que clareava embaixo, o container dos cards da home).
+     gray-200+ NÃO adaptam (são usados como texto claro). */
+  --crasto-gray-50:  #0F1729;        /* painel sutil · 1 passo acima do canvas */
+  --crasto-gray-100: #17213A;        /* painel · 2 passos acima */
+  /* STAGE · backdrops/wells/avatares que usam gray-200/300/400 como FUNDO.
+     Não dá pra adaptar gray-200/300/400 direto (são usados como TEXTO claro
+     em contexto escuro). Então: tokens de palco que no light valem o mesmo
+     cinza (no-op) e no dark viram superfície escura. Migração CRASTO
+     scripts/fix-stage-bg.mjs (só backgrounds). */
+  --crasto-stage-soft: #1B273F;      /* era gray-200 (#E4E7EC) */
+  --crasto-stage-1:    #131C30;      /* era gray-300 (#D0D5DD) */
+  --crasto-stage-2:    #0B1220;      /* era gray-400 (#98A2B3) */
+
+  /* =================================================
+     TEXT · cores SÓLIDAS (não rgba com opacity)
+     Razão: rgba(white, 0.X) sobre dark = alfa-composted
+     em cinza escurecido, perde contraste WCAG
+     ================================================= */
+  --crasto-text-primary: #F4F6FA;   /* near-white · headlines, links primários */
+  --crasto-text-body:    #D0D5DD;   /* gray-300 sólido · body text · WCAG AAA */
+  --crasto-text-muted:   #AEB8C6;   /* secondary · passa AA mesmo sobre vidro elevado · ainda claramente "quieto" vs body */
+  --crasto-text-faint:   #9CA5B5;   /* helper · o mais discreto, mas legível sobre vidro */
+  --crasto-text-inverse: var(--crasto-navy);
+
+  --crasto-text:      #D0D5DD;
+  --crasto-text-soft: #AEB8C6;
+  --crasto-ink-2:     #B4BBC9;
+  --crasto-ink-3:     #AEB8C6;
+
+  /* =================================================
+     BORDERS · mais visíveis que antes (0.06 → 0.12)
+     ================================================= */
+  --crasto-border-hairline: rgba(255, 255, 255, 0.10);
+  --crasto-border:          rgba(255, 255, 255, 0.18);
+  --crasto-border-soft:     rgba(255, 255, 255, 0.12);
+  --crasto-border-strong:   rgba(255, 255, 255, 0.30);
+
+  /* =================================================
+     NAVY ALPHAS · TODOS invertidos pra rgba(white, X)
+     Razão: em dark, navy alpha real fica invisível sobre
+     bg dark. Atmospheres radiais, hairlines, backgrounds
+     sutis precisam usar white com mesma intensidade.
+     ================================================= */
+  --crasto-navy-02: rgba(255, 255, 255, 0.025);
+  --crasto-navy-03: rgba(255, 255, 255, 0.035);
+  --crasto-navy-04: rgba(255, 255, 255, 0.045);
+  --crasto-navy-05: rgba(255, 255, 255, 0.055);
+  --crasto-navy-06: rgba(255, 255, 255, 0.07);
+  --crasto-navy-08: rgba(255, 255, 255, 0.09);
+  --crasto-navy-10: rgba(255, 255, 255, 0.11);
+  --crasto-navy-12: rgba(255, 255, 255, 0.13);
+  --crasto-navy-14: rgba(255, 255, 255, 0.15);
+  --crasto-navy-16: rgba(255, 255, 255, 0.17);
+  --crasto-navy-18: rgba(255, 255, 255, 0.19);
+  --crasto-navy-20: rgba(255, 255, 255, 0.22);
+  --crasto-navy-22: rgba(255, 255, 255, 0.24);
+  --crasto-navy-25: rgba(255, 255, 255, 0.28);
+  --crasto-navy-30: rgba(255, 255, 255, 0.32);
+  --crasto-navy-40: rgba(255, 255, 255, 0.42);
+  --crasto-navy-60: rgba(255, 255, 255, 0.55);
+  --crasto-navy-80: rgba(255, 255, 255, 0.72);
+
+  color-scheme: dark;
+}
+
+/* If prefers-color-scheme: dark and no explicit theme set */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    /* Note: light é nosso padrão da marca · esse bloco só ativa
+       quando NÃO há [data-theme] no <html> · útil pra evitar flash
+       em casos extremos (SSR sem hidratação) */
+    --crasto-bg:           #0B1220;
+    --crasto-bg-2:         #131C30;
+    --crasto-surface:      #131C30;
+    /* canvas dark · opção 1 (gradiente navy) espelhado p/ dark automático */
+    --crasto-page-bg:
+      radial-gradient(ellipse 90% 70% at 6% -6%,   rgba(110, 156, 232, 0.22) 0%, transparent 56%),
+      radial-gradient(ellipse 85% 75% at 106% 108%, rgba(110, 156, 232, 0.13) 0%, transparent 56%),
+      linear-gradient(157deg, #031238 0%, #021A4A 50%, #010E26 100%);
+    --crasto-page-bg-flat: var(--crasto-navy);
+    --crasto-text-primary: #F4F6FA;
+    --crasto-text-body:    #D0D5DD;
+    --crasto-text:         #D0D5DD;
+    --crasto-text-soft:    #98A2B3;
+    --crasto-ink-2:        #B4BBC9;
+    --crasto-ink-3:        #98A2B3;
+    --crasto-border-soft:  rgba(255, 255, 255, 0.12);
+    color-scheme: dark;
+  }
+}
+
+/* =================================================
+   GLASS SURFACES · tokens semânticos (resolvem dark sozinhos)
+   =================================================
+   --crasto-glass-card  · superfície de card glass forte
+   --crasto-glass-card-2· superfície de card glass média (alt)
+   Componentes usam var(--crasto-glass-card) em vez de gradient
+   branco hardcoded → adapta light/dark automaticamente.
+   Substituição em massa feita CRASTO scripts/migrate-glass.mjs
+   ================================================= */
+:root {
+  --crasto-glass-card:   linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 248, 250, 0.74));
+  --crasto-glass-card-2: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(247, 248, 250, 0.62));
+  /* Superfície branca FIXA · pra botões/cards SOBRE hero navy (navy nos
+     2 temas) · NÃO adapta · sempre clara porque texto sobre ela é navy */
+  --crasto-surface-onnavy: linear-gradient(180deg, #FFFFFF 0%, #F5F7FA 100%);
+  /* Edge highlight (a "linha de luz" no topo dos cards glass) · forte em
+     light, sutil em dark · senão vira moldura branca berrante no escuro */
+  --crasto-edge-hi: rgba(255, 255, 255, 0.95);
+  /* Edge highlight inferior/sutil · 1px de luz na base · quase nulo em dark */
+  --crasto-edge-lo: rgba(255, 255, 255, 0.4);
+  /* Sheen · o "brilho" branco que desce do topo dos cards glass (::before).
+     Forte em light (vidro pega luz), quase nulo em dark (vidro escuro reflete
+     pouco) · senão o topo do card vira um lavado branco berrante no escuro */
+  --crasto-glass-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.6), transparent);
+}
+
+[data-theme="dark"] {
+  --crasto-glass-card:   linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025));
+  --crasto-glass-card-2: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.018));
+  /* onnavy NÃO muda · permanece branco mesmo em dark */
+  --crasto-edge-hi: rgba(255, 255, 255, 0.08);
+  --crasto-edge-lo: rgba(255, 255, 255, 0.05);
+  --crasto-glass-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent);
+  /* accent-warm = alias legado de navy-deep · só usado como COR DE TEXTO (33x,
+     ênfase: keynote, main stage…) · navy-deep não adapta → invisível no dark.
+     Vira texto claro pra continuar legível sobre superfícies escuras. */
+  --crasto-accent-warm: var(--crasto-text-primary);
+  /* coral-dark = texto destrutivo/erro (#8C2C2C) · 42 usos como cor de texto
+     sobre fundo coral-tint · escuro demais no dark → coral CLARO legível,
+     mantendo o sinal "erro/destrutivo" */
+  --crasto-coral-dark: #E89B9B;
+  /* danger (#B83A3A) usado como texto de erro em campos · clareia no dark */
+  --crasto-danger: #E58A8A;
+}
+
+/* Google Search ad · headline azul precisa virar variante dark-safe */
+[data-theme="dark"] .vds-pa-gs-headline,
+[data-theme="dark"] .vds-pa-gs-sitelinks strong {
+  color: #8AB4F8;  /* Google blue acessível em dark · WCAG AA */
+}
+
+/* Anatomy rows · quote/content slides em dark */
+[data-theme="dark"] .vds-slide.quote .vds-quote-body,
+[data-theme="dark"] .vds-slide.content h3 {
+  color: var(--crasto-text-primary) !important;
+}
+
+[data-theme="dark"] .vds-slide-bullets strong,
+[data-theme="dark"] .vds-slide-bullets p {
+  color: var(--crasto-text-body) !important;
+}
+
+/* =============================================================
+   SYSTEM TOKENS · fora de :root principal pra resolver dependência
+   circular com os media queries acima. Tudo abaixo é base do DS.
+   ============================================================= */
+:root {
+  /* ========== TYPOGRAPHY ====================================== */
+
+  /* Single-family system: Geist (variable sans, Vercel).
+     Same family for display + UI. Geist Mono para código.
+     Italic é synthesized em Geist (não tem italic axis) — contraste
+     editorial vem por peso + cor (não por inclinação). */
+  --crasto-font-display: 'Montserrat', 'Inter', system-ui, -apple-system, sans-serif;
+  --crasto-font:         'Montserrat', 'Inter', system-ui, -apple-system, sans-serif;
+  --crasto-font-mono:    'JetBrains Mono', 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Weights */
+  --crasto-fw-light:    300;
+  --crasto-fw-regular:  400;
+  --crasto-fw-medium:   500;
+  --crasto-fw-semibold: 600;
+  --crasto-fw-bold:     700;
+  --crasto-fw-black:    900;
+
+  /* Type scale */
+  --crasto-fs-hero:    5rem;       /* 80px */
+  --crasto-fs-display: 3.5rem;     /* 56px */
+  --crasto-fs-h1:      2.5rem;     /* 40px */
+  --crasto-fs-h2:      2rem;       /* 32px */
+  --crasto-fs-h3:      1.5rem;     /* 24px */
+  --crasto-fs-h4:      1.125rem;   /* 18px */
+  --crasto-fs-body:    1rem;       /* 16px */
+  --crasto-fs-sm:      0.875rem;   /* 14px */
+  --crasto-fs-xs:      0.75rem;    /* 12px */
+  --crasto-fs-label:   0.6875rem;  /* 11px */
+
+  /* Letter-spacing buckets — Geist precisa menos tight no display */
+  --crasto-ls-brand: 0.32em;
+  --crasto-ls-mark:  0.22em;
+  --crasto-ls-label: 0.18em;
+  --crasto-ls-wide:  0.08em;
+  --crasto-ls-tight: -0.015em;
+  --crasto-ls-tighter: -0.025em;
+
+  /* Line heights */
+  --crasto-lh-tight:  1.02;
+  --crasto-lh-snug:   1.2;
+  --crasto-lh-normal: 1.5;
+  --crasto-lh-loose:  1.65;
+
+  /* ========== SPACING ========================================= */
+  --crasto-space-1:   4px;
+  --crasto-space-2:   8px;
+  --crasto-space-3:   12px;
+  --crasto-space-4:   16px;
+  --crasto-space-5:   20px;
+  --crasto-space-6:   24px;
+  --crasto-space-8:   32px;
+  --crasto-space-10:  40px;
+  --crasto-space-12:  48px;
+  --crasto-space-16:  64px;
+  --crasto-space-20:  80px;
+  --crasto-space-24:  96px;
+  --crasto-space-32:  128px;
+
+  /* ========== RADII =========================================== */
+  --crasto-radius-xs:   4px;
+  --crasto-radius-sm:   8px;
+  --crasto-radius-md:   12px;
+  --crasto-radius-lg:   20px;
+  --crasto-radius-xl:   28px;
+  --crasto-radius-2xl:  40px;
+  --crasto-radius-pill: 999px;
+
+  /* ========== BORDERS ========================================= */
+  --crasto-border-fine:   0.5px solid var(--crasto-border-hairline);
+  --crasto-border-1:      1px solid var(--crasto-border);
+  --crasto-border-strong: 1px solid var(--crasto-navy-40);
+
+  /* ========== SHADOWS ========================================= */
+  /* Navy-tinted, gentle. The brand never uses gray-black shadows. */
+  --crasto-shadow-xs: 0 1px 2px rgba(1,14,38,0.04);
+  --crasto-shadow-sm: 0 2px 6px rgba(1,14,38,0.05), 0 1px 2px rgba(1,14,38,0.03);
+  --crasto-shadow-md: 0 6px 18px rgba(1,14,38,0.07), 0 1px 3px rgba(1,14,38,0.04);
+  --crasto-shadow-lg: 0 16px 40px rgba(1,14,38,0.10), 0 2px 8px rgba(1,14,38,0.05);
+  --crasto-shadow-xl: 0 32px 80px rgba(1,14,38,0.14), 0 4px 16px rgba(1,14,38,0.06);
+
+  /* Glass-specific shadow: inner highlight + soft outer drop */
+  --crasto-shadow-glass-light:
+    inset 0 1px 0 rgba(255,255,255,0.95),
+    inset 0 -1px 0 rgba(255,255,255,0.30),
+    0 12px 32px rgba(1,14,38,0.08),
+    0 2px 8px rgba(1,14,38,0.04);
+
+  --crasto-shadow-glass-dark:
+    inset 0 1px 0 rgba(255,255,255,0.25),
+    inset 0 -1px 0 rgba(255,255,255,0.06),
+    0 16px 40px rgba(0,0,0,0.30),
+    0 4px 12px rgba(0,0,0,0.15);
+
+  --crasto-shadow-focus: 0 0 0 3px rgba(1,14,38,0.15);
+
+  /* ========== BLUR =========================================== */
+  --crasto-blur-sm: blur(8px)  saturate(140%);
+  --crasto-blur-md: blur(16px) saturate(160%);
+  --crasto-blur-lg: blur(28px) saturate(180%);
+  --crasto-blur-xl: blur(48px) saturate(180%);
+
+  /* ========== MOTION ========================================== */
+  --crasto-ease:        cubic-bezier(0.32, 0.08, 0.24, 1);
+  --crasto-ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --crasto-t-fast:      120ms var(--crasto-ease);
+  --crasto-t:           180ms var(--crasto-ease);
+  --crasto-t-slow:      360ms var(--crasto-ease);
+
+  /* ========== LAYOUT ========================================== */
+  --crasto-container: 1280px;
+  --crasto-content:   760px;
+  --crasto-narrow:    560px;
+
+  /* ========== SIGNATURE ATMOSPHERES =========================== */
+  /* Mesh light — base cinza-azulada com 4 stops de cor navy */
+  --crasto-mesh-light:
+    radial-gradient(ellipse 60% 70% at 12% 0%,  rgba(110,156,232,0.28) 0%,  transparent 55%),
+    radial-gradient(ellipse 50% 60% at 95% 8%,  rgba(110,156,232,0.22) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 80% at 100% 100%, rgba(1,14,38,0.30) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 60% at 5% 100%, rgba(110,156,232,0.18) 0%, transparent 55%),
+    linear-gradient(135deg, #CCD4DD 0%, #A7B2C0 100%);
+
+  /* Mesh navy — fundo dark dramático com glow azul */
+  --crasto-mesh-navy:
+    radial-gradient(ellipse 60% 70% at 12% 0%,  rgba(110,156,232,0.55) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 60% at 95% 8%,  rgba(110,156,232,0.50)  0%, transparent 60%),
+    radial-gradient(ellipse 70% 80% at 100% 100%, rgba(1,14,38,0.85) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 60% at 5% 100%, rgba(110,156,232,0.40) 0%, transparent 55%),
+    linear-gradient(135deg, #010E26 0%, #000714 100%);
+
+  /* Noise texture: data-URI SVG turbulence em 4% opacity */
+  --crasto-noise:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.12 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/></svg>");
+
+  /* Glow navy — aura sutil pra elementos navy sólidos */
+  --crasto-glow-navy:
+    0 0 0 1px rgba(1,14,38,0.05),
+    0 8px 24px rgba(1,14,38,0.20),
+    0 16px 48px rgba(1,14,38,0.14);
+
+  --crasto-glow-navy-strong:
+    0 0 0 1px rgba(1,14,38,0.10),
+    0 16px 48px rgba(1,14,38,0.30),
+    0 32px 80px rgba(1,14,38,0.20);
+}
+
+/* =============================================================
+   SIGNATURE UTILITIES
+   ============================================================= */
+
+/* Atmosphere wrappers — drop on any container */
+.crasto-mesh-light {
+  background: var(--crasto-mesh-light);
+  position: relative;
+}
+.crasto-mesh-navy {
+  background: var(--crasto-mesh-navy);
+  color: var(--crasto-white);
+  position: relative;
+}
+
+/* Page-canvas opt-in · o body já usa a opção 1 (gradiente) por tema.
+   Use estas só pra forçar um fundo específico numa página/seção. */
+.crasto-bg-page {            /* opção 1 · gradiente navy (papel de parede) no dark */
+  background: var(--crasto-page-bg);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+.crasto-bg-navy-flat {       /* opção 2 · navy chapado */
+  background: var(--crasto-page-bg-flat);
+}
+
+/* Noise overlay — add on top of any mesh */
+.crasto-noise::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--crasto-noise);
+  background-repeat: repeat;
+  mix-blend-mode: overlay;
+  opacity: 0.6;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* =============================================================
+   BASE
+   ============================================================= */
+
+html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+
+body {
+  font-family: var(--crasto-font);
+  font-weight: var(--crasto-fw-regular);
+  font-size: var(--crasto-fs-body);
+  line-height: var(--crasto-lh-loose);
+  color: var(--crasto-text-body);
+  /* Canvas por tema · light = branco sólido · dark = gradiente navy (papel de parede).
+     fixed mantém o brilho ancorado nos cantos do viewport ao rolar. */
+  background: var(--crasto-page-bg);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+/* Headings · color usa :where() pra ter specificity ZERO.
+   Qualquer container com `color: #fff` (cards navy escuros, glass dark, etc)
+   sobrescreve sem precisar de override por classe — o color herda da cadeia. */
+:where(h1, h2, h3, h4) { color: var(--crasto-text-primary); }
+h1, h2, h3, h4 { margin: 0; }
+h1 { font-family: var(--crasto-font-display); font-weight: 500; font-size: var(--crasto-fs-h1); line-height: var(--crasto-lh-tight); letter-spacing: var(--crasto-ls-tighter); }
+h2 { font-family: var(--crasto-font-display); font-weight: 500; font-size: var(--crasto-fs-h2); line-height: var(--crasto-lh-snug);  letter-spacing: var(--crasto-ls-tighter); }
+h3 { font-family: var(--crasto-font); font-weight: var(--crasto-fw-semibold); font-size: var(--crasto-fs-h3); line-height: var(--crasto-lh-snug); letter-spacing: var(--crasto-ls-tight); }
+h4 { font-family: var(--crasto-font); font-weight: var(--crasto-fw-semibold); font-size: var(--crasto-fs-h4); }
+
+/* Cards/heroes em superfície navy escura — herdam color pra ficarem brancos.
+   Resolve bug onde `h1,h2,h3,h4 { color: var(--crasto-text-primary) }` global
+   sobrescrevia `color: #fff` setado no container ancestral.
+
+   Cobre: .crasto-mesh-navy · .crasto-glass-dark · [data-on-dark] (utility opt-in)
+   e cards específicos que usam fundo navy direto (sem class semântica). */
+.crasto-mesh-navy h1, .crasto-mesh-navy h2, .crasto-mesh-navy h3, .crasto-mesh-navy h4,
+.crasto-glass-dark h1, .crasto-glass-dark h2, .crasto-glass-dark h3, .crasto-glass-dark h4,
+[data-on-dark] h1, [data-on-dark] h2, [data-on-dark] h3, [data-on-dark] h4,
+.vds-bs-promise h1, .vds-bs-promise h2, .vds-bs-promise h3, .vds-bs-promise h4 {
+  color: inherit;
+}
+
+/* ===============================================================
+   FIX SISTÊMICO · gradient text em containers escuros
+   ===============================================================
+   Quando um <em> dentro de h1-h4 está em container escuro (mesh navy,
+   glass dark, on-dark, ou cards navy customizados), o gradient navy→
+   navy-deep com -webkit-text-fill-color: transparent fica INVISÍVEL
+   (texto escuro sobre fundo escuro).
+
+   Solução: dentro desses containers, qualquer `em` ganha gradient
+   white→gray-200 que contrasta corretamente. Specificity alta (3 níveis)
+   pra sobrescrever a regra do componente.
+   =============================================================== */
+.crasto-mesh-navy :is(h1, h2, h3, h4) em,
+.crasto-glass-dark :is(h1, h2, h3, h4) em,
+[data-on-dark] :is(h1, h2, h3, h4) em,
+.vds-bs-promise :is(h1, h2, h3, h4) em,
+.vds-cnx-offer.featured :is(h1, h2, h3, h4) em,
+.vds-wiz-aside :is(h1, h2, h3, h4) em,
+.vds-st-overview :is(h1, h2, h3, h4) em,
+.vds-faq-contact :is(h1, h2, h3, h4) em,
+.vds-auth-card :is(h1, h2, h3, h4) em,
+.vds-auth-card-2fa :is(h1, h2, h3, h4) em,
+.vds-live-hero :is(h1, h2, h3, h4) em,
+.vds-mm :is(h1, h2, h3, h4) em {
+  background: linear-gradient(135deg, var(--crasto-white) 0%, rgba(255, 255, 255, 0.78) 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: var(--crasto-white); /* fallback se gradient não suportado */
+}
+
+/* ── Fix sistêmico · clip do glifo itálico em gradient-text ──────────────
+   `background-clip: text` pinta o gradiente só dentro da caixa inline do <em>.
+   O glifo itálico inclina pra direita e seu traço final ("o", "t", "s"…)
+   ultrapassa a borda da caixa em ~3–6px — região que o gradiente não pinta,
+   então o último glifo aparece cortado. (Palavras terminadas em "." não mostram
+   o bug: o ponto ocupa essa folga.) padding-right estende a caixa de pintura
+   pra cobrir o overhang; margin-right negativo cancela 100% do deslocamento de
+   layout (medido: texto seguinte move 0px). No-op visual em <em> sem gradiente. */
+:is(h1, h2, h3, h4, h5) em,
+:is(h1, h2, h3, h4, h5) i {
+  padding-right: 0.16em;
+  margin-right: -0.16em;
+}
+
+
+p { margin: 0; }
+a { color: var(--crasto-navy); text-decoration: none; }
+a:hover { text-decoration: underline; }
+/* links crus (sem classe) · navy some no dark → azul claro legível */
+[data-theme="dark"] a:not([class]) { color: #8FB8F6; }
+
+/* =============================================================
+   GLASS — light-first
+   ============================================================= */
+
+/* Light glass: white-tinted, used on gray-50 / gray-100 surfaces */
+.crasto-glass {
+  background: linear-gradient(180deg, rgba(255,255,255,0.70) 0%, rgba(255,255,255,0.42) 100%);
+  backdrop-filter: var(--crasto-blur-md);
+  -webkit-backdrop-filter: var(--crasto-blur-md);
+  border: 1px solid rgba(255,255,255,0.80);
+  border-radius: var(--crasto-radius-lg);
+  box-shadow: var(--crasto-shadow-glass-light);
+}
+
+.crasto-glass-strong {
+  background: linear-gradient(180deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.58) 100%);
+  backdrop-filter: var(--crasto-blur-lg);
+  -webkit-backdrop-filter: var(--crasto-blur-lg);
+  border: 1px solid rgba(255,255,255,0.95);
+  border-radius: var(--crasto-radius-lg);
+  box-shadow: var(--crasto-shadow-glass-light);
+}
+
+/* Dark glass: used in the rare full-bleed navy moments (footer, CTA) */
+.crasto-glass-dark {
+  background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.03) 100%);
+  backdrop-filter: var(--crasto-blur-md);
+  -webkit-backdrop-filter: var(--crasto-blur-md);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: var(--crasto-radius-lg);
+  box-shadow: var(--crasto-shadow-glass-dark);
+  color: var(--crasto-white);
+}
+
+/* Liquid pill — for status / announcement labels */
+.crasto-liquid {
+  background: linear-gradient(180deg, rgba(255,255,255,0.80), rgba(255,255,255,0.55));
+  backdrop-filter: var(--crasto-blur-md);
+  -webkit-backdrop-filter: var(--crasto-blur-md);
+  border: 1px solid rgba(255,255,255,0.95);
+  border-radius: var(--crasto-radius-pill);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,1), 0 4px 16px rgba(1,14,38,0.08);
+}
+
+/* Dark: vidro branco hardcoded vira vidro escuro translúcido (senão estes
+   utilitários viram blocos brancos berrantes no tema escuro) */
+[data-theme="dark"] .crasto-glass {
+  background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 100%);
+  border-color: rgba(255,255,255,0.10);
+}
+[data-theme="dark"] .crasto-glass-strong {
+  background: linear-gradient(180deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.05) 100%);
+  border-color: rgba(255,255,255,0.14);
+}
+[data-theme="dark"] .crasto-liquid {
+  background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05));
+  border-color: rgba(255,255,255,0.14);
+  box-shadow: inset 0 1px 0 var(--crasto-edge-hi), 0 4px 16px rgba(0,0,0,0.3);
+}
+
+/* .vds-onlight · superfície SEMPRE clara (demos de vidro claro, peças que
+   mostram fundo branco de propósito) · re-pina o texto pra escuro nos 2 temas
+   senão o texto claro do dark fica branco-no-branco. */
+.vds-onlight {
+  --crasto-text-primary: var(--crasto-navy);
+  --crasto-text-body: var(--crasto-gray-700);
+  --crasto-text-muted: var(--crasto-gray-500);
+  --crasto-text-soft: var(--crasto-gray-500);
+  --crasto-text-faint: var(--crasto-gray-400);
+}
+
+/* =============================================================
+   SURFACES
+   ============================================================= */
+
+.crasto-surface {
+  background: var(--crasto-surface);
+  border: var(--crasto-border-fine);
+  border-radius: var(--crasto-radius-md);
+}
+
+.crasto-card {
+  background: var(--crasto-white);
+  border: var(--crasto-border-fine);
+  border-radius: var(--crasto-radius-lg);
+  padding: var(--crasto-space-6);
+}
+
+.crasto-card-dark {
+  background: var(--crasto-navy);
+  border-radius: var(--crasto-radius-lg);
+  padding: var(--crasto-space-6);
+  color: var(--crasto-white);
+}
+
+/* =============================================================
+   TYPE UTILITIES
+   ============================================================= */
+
+.crasto-hero {
+  font-family: var(--crasto-font-display);
+  font-size: clamp(2.5rem, 6vw, var(--crasto-fs-hero));
+  font-weight: 500;
+  line-height: var(--crasto-lh-tight);
+  letter-spacing: var(--crasto-ls-tighter);
+  color: var(--crasto-text-primary);
+}
+
+.crasto-display {
+  font-family: var(--crasto-font-display);
+  font-size: clamp(2rem, 4.5vw, var(--crasto-fs-display));
+  font-weight: 500;
+  line-height: var(--crasto-lh-tight);
+  letter-spacing: var(--crasto-ls-tighter);
+  color: var(--crasto-text-primary);
+}
+
+.crasto-label {
+  font-family: var(--crasto-font);
+  font-size: var(--crasto-fs-label);
+  font-weight: var(--crasto-fw-semibold);
+  letter-spacing: var(--crasto-ls-label);
+  text-transform: uppercase;
+  color: var(--crasto-text-muted);
+}
+
+.crasto-wordmark {
+  font-family: var(--crasto-font);
+  font-weight: 300;
+  letter-spacing: var(--crasto-ls-brand);
+  text-transform: uppercase;
+  color: currentColor;
+}

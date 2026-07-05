@@ -1,0 +1,253 @@
+/* ============================================
+   <Button> · Crasto.ai Design System · premium
+   ============================================ */
+.crasto-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: var(--crasto-radius-pill);
+  font-family: var(--crasto-font);
+  font-weight: 500;
+  letter-spacing: -0.008em;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition:
+    background .22s ease,
+    border-color .22s ease,
+    color .22s ease,
+    transform .2s cubic-bezier(.2,.7,.2,1),
+    box-shadow .22s ease,
+    filter .2s ease;
+}
+
+/* Shine sweep · líquido editorial · revela no hover */
+.crasto-btn::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 65%;
+  height: 100%;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.22) 45%,
+    rgba(255, 255, 255, 0.06) 60%,
+    transparent 100%
+  );
+  pointer-events: none;
+  transition: left .65s cubic-bezier(.2,.7,.2,1);
+}
+.crasto-btn:hover:not(:disabled)::after {
+  left: 120%;
+}
+
+/* Press state · sutil afundar */
+.crasto-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.985);
+  transition-duration: .1s;
+}
+
+.crasto-btn:disabled,
+.crasto-btn--loading {
+  cursor: not-allowed;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.crasto-btn--full { width: 100%; }
+
+.crasto-btn__label {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+}
+
+.crasto-btn__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+
+/* ===== Sizes ===== */
+.crasto-btn--sm {
+  padding: 7px 14px;
+  font-size: 12px;
+}
+
+.crasto-btn--md {
+  padding: 10px 18px;
+  font-size: 13px;
+}
+
+.crasto-btn--lg {
+  padding: 13px 24px;
+  font-size: 14px;
+}
+
+/* ===== Variants ===== */
+
+/* Primary · navy fill com glow + shine */
+.crasto-btn--primary {
+  background: linear-gradient(180deg, var(--crasto-navy), var(--crasto-navy-deep));
+  border-color: var(--crasto-navy);
+  color: var(--crasto-white);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.18) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.10) inset,
+    0 8px 18px -6px var(--crasto-navy-40);
+}
+
+.crasto-btn--primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.10) inset,
+    0 14px 28px -8px var(--crasto-navy-60),
+    0 4px 12px -4px var(--crasto-navy-30);
+  filter: brightness(1.06);
+}
+
+.crasto-btn--primary:active:not(:disabled) {
+  box-shadow:
+    0 2px 6px -2px var(--crasto-navy-40) inset,
+    0 4px 10px -6px var(--crasto-navy-40);
+}
+
+/* Secondary · liquid glass white */
+.crasto-btn--secondary {
+  --crasto-text-primary: var(--crasto-navy); --crasto-text-body: var(--crasto-gray-700); --crasto-text-muted: var(--crasto-gray-500); --crasto-text-faint: var(--crasto-gray-400);
+  background: var(--crasto-surface-onnavy);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border-color: var(--crasto-edge-hi);
+  color: var(--crasto-text-primary);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 0 0 0.5px var(--crasto-navy-10),
+    0 4px 10px -4px var(--crasto-navy-12);
+}
+
+.crasto-btn--secondary:hover:not(:disabled) {
+  background: var(--crasto-glass-card);
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 1) inset,
+    0 0 0 0.5px var(--crasto-navy-18),
+    0 12px 24px -8px var(--crasto-navy-18);
+}
+
+.crasto-btn--secondary:active:not(:disabled) {
+  box-shadow:
+    0 1px 3px var(--crasto-navy-12) inset,
+    0 0 0 0.5px var(--crasto-navy-14);
+}
+
+/* Ghost · transparente · ganha glass sutil no hover */
+.crasto-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--crasto-ink-2);
+}
+
+.crasto-btn--ghost:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--crasto-navy-06), var(--crasto-navy-03));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--crasto-text-primary);
+}
+
+/* Destructive · coral */
+.crasto-btn--destructive {
+  background: transparent;
+  border-color: rgba(184, 92, 92, 0.34);
+  color: var(--crasto-coral-dark);
+}
+
+.crasto-btn--destructive:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--crasto-coral), var(--crasto-coral-deep));
+  border-color: transparent;
+  color: var(--crasto-white);
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.18) inset,
+    0 12px 24px -6px rgba(184, 92, 92, 0.48);
+}
+
+.crasto-btn--destructive:active:not(:disabled) {
+  box-shadow:
+    0 2px 6px -2px rgba(184, 92, 92, 0.40) inset;
+}
+
+/* Accent · navy intensificado · o CTA mais premium · USAR COM PARCIMÔNIA.
+   Navy profundo (3 stops) + brilho radial superior (vidro abaulado) + glow forte.
+   Distinto do primary pela profundidade e pelo sheen. Texto branco (~15:1). */
+.crasto-btn--accent {
+  background:
+    radial-gradient(125% 130% at 50% -28%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 56%),
+    linear-gradient(180deg, var(--crasto-navy) 0%, var(--crasto-navy-deep) 56%, var(--crasto-navy-darker) 100%);
+  border-color: var(--crasto-navy-deep);
+  color: var(--crasto-white);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.30) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.28) inset,
+    0 10px 26px -6px var(--crasto-navy-60),
+    0 2px 8px -2px var(--crasto-navy-40);
+}
+
+.crasto-btn--accent:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.07);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.40) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.28) inset,
+    0 18px 38px -8px var(--crasto-navy-60),
+    0 6px 16px -4px var(--crasto-navy-40);
+}
+
+.crasto-btn--accent:active:not(:disabled) {
+  box-shadow:
+    0 2px 8px -2px rgba(0, 0, 0, 0.40) inset,
+    0 4px 12px -6px var(--crasto-navy-60);
+}
+
+/* ===== Loading spinner ===== */
+.crasto-btn__spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: crasto-btn-spin .8s linear infinite;
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes crasto-btn-spin {
+  to { transform: rotate(360deg); }
+}
+
+.crasto-btn--loading .crasto-btn__label {
+  opacity: 0.7;
+}
+
+/* Focus-visible · ring editorial */
+.crasto-btn:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--crasto-white),
+    0 0 0 4px var(--crasto-navy-40);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crasto-btn::after { display: none; }
+  .crasto-btn { transition: none !important; }
+}
