@@ -35,6 +35,23 @@ export default function Propostas() {
   const org = orgs.find((o) => o.id === orgId);
   const total = useMemo(() => items.reduce((s, id) => s + (vals[id] ?? 0), 0), [items, vals]);
   const commission = Math.round(total * 0.2);
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState("");
+
+  async function gerar() {
+    if (!orgId) { setToast("Escolha um cliente."); setTimeout(() => setToast(""), 4000); return; }
+    setBusy(true);
+    const { data: prop, error } = await supabase.schema("commerce").from("proposals")
+      .insert({ organization_id: orgId, title: `Proposta — ${org?.name ?? ""}`.trim(), status: "sent", subtotal: total, commission_total: commission, attachments: Object.fromEntries([...att].map((a) => [a, true])) })
+      .select("id").single();
+    if (!error && prop) {
+      const rows = items.map((id) => { const s = svcs.find((x) => x.id === id); return { proposal_id: (prop as any).id, organization_id: orgId, service_id: id, description: s?.name ?? "Item", qty: 1, unit_price: vals[id] ?? 0 }; });
+      await supabase.schema("commerce").from("proposal_items").insert(rows);
+    }
+    setBusy(false);
+    setToast(error ? "Erro ao gerar: " + error.message : "Proposta gerada e enviada ✓");
+    setTimeout(() => setToast(""), 6000);
+  }
 
   return (
     <div>
@@ -95,10 +112,11 @@ export default function Propostas() {
           <div className="sumrow tot"><span>Total da proposta</span><span className="tnum">{money(total)}</span></div>
           <div className="sumrow"><span>Comissão conector (20%)</span><span className="tnum" style={{ color: "#B8863A" }}>{money(commission)}</span></div>
           <div className="paycheck">🟢 <b>IA se paga em ~28 dias</b><div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", marginTop: 4, fontWeight: 400 }}>Baseado no Plano Diretor: economia + receita projetada &gt; investimento em 30d.</div></div>
-          <button className="crasto-btn crasto-btn--primary crasto-btn--md" style={{ width: "100%", marginTop: 14 }}><span className="crasto-btn__label">Gerar proposta personalizada</span></button>
+          <button className="crasto-btn crasto-btn--primary crasto-btn--md" style={{ width: "100%", marginTop: 14 }} disabled={busy} onClick={gerar}><span className="crasto-btn__label">{busy ? "Gerando…" : "Gerar proposta personalizada"}</span></button>
           <button className="crasto-btn crasto-btn--secondary crasto-btn--md" style={{ width: "100%", marginTop: 8 }}><span className="crasto-btn__icon"><ArrowRight size={14} /></span><span className="crasto-btn__label">Enviar p/ assinatura (Autentique)</span></button>
         </div>
       </div>
+      {toast && <div className="toast">{toast}</div>}
     </div>
   );
 }

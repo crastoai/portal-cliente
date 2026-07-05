@@ -32,14 +32,19 @@ export function Empty({ children }: { children: ReactNode }) {
 export function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = []) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
+  const [n, setN] = useState(0);
   useEffect(() => {
     let alive = true;
     setLoading(true);
     fn().then((d) => { if (alive) { setData(d); setLoading(false); } }).catch(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
-  return { data, loading };
+  }, [...deps, n]);
+  return { data, loading, reload: () => setN((x) => x + 1) };
+}
+
+export function Field({ label, children }: { label: string; children: ReactNode }) {
+  return <label className="frow"><span>{label}</span>{children}</label>;
 }
 
 export function Loader() {

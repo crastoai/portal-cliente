@@ -1,4 +1,5 @@
 import { UserPlus, Clock } from "lucide-react";
+import { Link } from "react-router-dom";
 import { PageHead, useAsync, money, initials } from "../../ui/ui";
 import { fetchClients, healthScore, timeAgo, modShort } from "../../lib/adminData";
 
@@ -12,7 +13,7 @@ export default function VisaoGeral() {
   return (
     <div>
       <PageHead eyebrow="Painel Admin · Crasto.AI" title="Visão geral do negócio" sub="A saúde da operação num relance."
-        right={<button className="crasto-btn crasto-btn--primary crasto-btn--sm"><span className="crasto-btn__icon"><UserPlus size={15} /></span><span className="crasto-btn__label">Cadastrar cliente</span></button>} />
+        right={<Link to="/admin/clientes" className="crasto-btn crasto-btn--primary crasto-btn--sm"><span className="crasto-btn__icon"><UserPlus size={15} /></span><span className="crasto-btn__label">Cadastrar cliente</span></Link>} />
 
       <div className="kpis">
         <div className="kpi navy"><div className="lab">MRR (receita recorrente)</div><div className="val tnum">{money(mrr)}</div><div className="delta">soma dos contratos</div></div>
