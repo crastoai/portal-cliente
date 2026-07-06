@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { MessageCircle, Search, Send, Grid3x3, Pencil, Trash2, UserPlus, Plus, Upload, Download, FileText, Building2, Globe, Cake } from "lucide-react";
 import { services as api, errorMessage } from "../../services";
-import { PageHead, Pill, Empty, useAsync, initials, Field } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, initials, Field, money } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 import { COUNTRIES, countryOf, STAGES, stageOf } from "../../lib/countries";
@@ -18,7 +18,7 @@ export default function ClienteDetalhe() {
   const tr = useT();
   const { data, loading, reload } = useAsync(async () => {
     if (!id) return null;
-    const [org, mods, cm, users, people, phones, docs, acts, impl, health, taxids] = await Promise.all([
+    const [org, mods, cm, users, people, phones, docs, acts, impl, health, taxids, proposals] = await Promise.all([
       api.identity.organizations.getById(id),
       api.catalog.vdiModules.listActiveByName(),
       api.delivery.clientModules.listByOrg(id),
@@ -30,8 +30,9 @@ export default function ClienteDetalhe() {
       api.delivery.implementations.getByOrg(id),
       api.delivery.systemHealth.getByOrg(id),
       api.crm.taxIds.listByOrg(id),
+      api.commerce.proposals.listByOrg(id),
     ]);
-    return { org: org as Org, mods: (mods as any[]) ?? [], cm: (cm as any[]) ?? [], users: (users as any[]) ?? [], people: (people as any[]) ?? [], phones: (phones as any[]) ?? [], docs: (docs as any[]) ?? [], acts: (acts as any[]) ?? [], progress: (impl as any)?.overall_progress ?? 0, health: (health as any)?.status ?? null, taxids: (taxids as any[]) ?? [] };
+    return { org: org as Org, mods: (mods as any[]) ?? [], cm: (cm as any[]) ?? [], users: (users as any[]) ?? [], people: (people as any[]) ?? [], phones: (phones as any[]) ?? [], docs: (docs as any[]) ?? [], acts: (acts as any[]) ?? [], progress: (impl as any)?.overall_progress ?? 0, health: (health as any)?.status ?? null, taxids: (taxids as any[]) ?? [], proposals: (proposals as any[]) ?? [] };
   }, [id]);
 
   const [edit, setEdit] = useState(false);
@@ -47,7 +48,7 @@ export default function ClienteDetalhe() {
 
   if (loading) return <><PageHead eyebrow="CRM" title="Detalhe" /><Empty>Carregando…</Empty></>;
   if (!data?.org) return <><PageHead eyebrow="CRM" title="Detalhe" /><Empty>Não encontrado.</Empty></>;
-  const { org, mods, cm, users, people, phones, docs, acts, progress, health, taxids } = data;
+  const { org, mods, cm, users, people, phones, docs, acts, progress, health, taxids, proposals } = data;
   const activeSet = new Set(cm.map((c) => c.vdi_module_id));
   const co = countryOf(org.country); const st = stageOf(org.stage);
 
@@ -91,6 +92,20 @@ export default function ClienteDetalhe() {
     const first = (data?.taxids?.length ?? 0) === 0;
     await api.crm.taxIds.add({ organization_id: id, kind: taxid.kind, value: taxid.value.trim(), address: taxid.address.trim() || null, is_primary: first });
     setTaxid({ kind: "CNPJ", value: "", address: "" }); reload();
+  }
+  async function acceptProposal(pid: string) {
+    if (!confirm(tr("Marcar esta proposta como GANHA? Isso define o plano do cliente e registra a comissão do agente."))) return;
+    setBusy(true);
+    try { await api.commerce.proposals.accept(pid); reload(); flash(tr("Proposta marcada como ganha ✓")); }
+    catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); }
+    finally { setBusy(false); }
+  }
+  async function reopenProposal(pid: string) {
+    if (!confirm(tr("Reabrir a proposta? A comissão vinculada será removida."))) return;
+    setBusy(true);
+    try { await api.commerce.proposals.reopen(pid); reload(); }
+    catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); }
+    finally { setBusy(false); }
   }
   async function setPrimaryTaxid(tid: string) { await api.crm.taxIds.setPrimary(id!, tid); reload(); }
   async function delTaxid(tid: string) { await api.crm.taxIds.remove(tid); reload(); }
@@ -160,6 +175,25 @@ export default function ClienteDetalhe() {
           </div>
         </div>
       ))}
+
+      {/* Propostas / contrato ganho */}
+      <div className="sec-h" style={{ marginTop: 20 }}><h2>{tr("Propostas & contrato")}</h2><Pill tone="mute">{tr("marcar como ganha liga o MRR")}</Pill></div>
+      {(proposals ?? []).length === 0 ? <div className="mt" style={{ padding: "4px 2px 14px" }}>{tr("Nenhuma proposta gerada. Use o Gerador de propostas.")}</div> : (
+        <div style={{ marginBottom: 22 }}>
+          {(proposals ?? []).map((p) => {
+            const won = p.status === "accepted";
+            return (
+              <div className="crmrow" key={p.id}>
+                <Pill tone={won ? "ok" : p.status === "rejected" ? "crit" : "info"}>{won ? tr("Ganha") : p.status === "rejected" ? tr("Recusada") : p.status === "draft" ? tr("Rascunho") : tr("Enviada")}</Pill>
+                <div style={{ flex: 1 }}><div className="nm">{p.title || tr("Proposta")}</div><div className="mt tnum">{money(p.subtotal)}{won && p.accepted_at ? ` · ${tr("ganha em")} ${fmtDate(p.accepted_at)}` : ""}</div></div>
+                {won
+                  ? <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} onClick={() => reopenProposal(p.id)}><span className="crasto-btn__label">{tr("Reabrir")}</span></button>
+                  : <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={() => acceptProposal(p.id)}><span className="crasto-btn__label">{tr("Marcar como ganha")}</span></button>}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="kpis" style={{ marginBottom: 22 }}>
         <div className="kpi g"><div className="lab">{tr("Implantação")}</div><div className="val tnum">{progress}<small>%</small></div><div className="delta">{health === "green" ? tr("no ar") : "—"}</div></div>

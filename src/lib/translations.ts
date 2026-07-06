@@ -701,4 +701,20 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Falha ao reenviar:": { en: "Failed to resend:", es: "Error al reenviar:" },
   "✉️ Acesso reenviado para {e}.": { en: "✉️ Access resent to {e}.", es: "✉️ Acceso reenviado a {e}." },
   "Senha redefinida, mas e-mail não enviado: {err}": { en: "Password reset, but email not sent: {err}", es: "Contraseña restablecida, pero correo no enviado: {err}" },
+
+  // ---- Admin · Propostas & contrato (ciclo comercial) ----
+  "Propostas & contrato": { en: "Proposals & contract", es: "Propuestas y contrato" },
+  "marcar como ganha liga o MRR": { en: "marking as won activates MRR", es: "marcar como ganada activa el MRR" },
+  "Nenhuma proposta gerada. Use o Gerador de propostas.": { en: "No proposals generated. Use the Proposal generator.", es: "Sin propuestas generadas. Usa el Generador de propuestas." },
+  "Ganha": { en: "Won", es: "Ganada" },
+  "Recusada": { en: "Rejected", es: "Rechazada" },
+  "Enviada": { en: "Sent", es: "Enviada" },
+  "Proposta": { en: "Proposal", es: "Propuesta" },
+  "ganha em": { en: "won on", es: "ganada el" },
+  "Reabrir": { en: "Reopen", es: "Reabrir" },
+  "Marcar como ganha": { en: "Mark as won", es: "Marcar como ganada" },
+  "Marcar esta proposta como GANHA? Isso define o plano do cliente e registra a comissão do agente.": { en: "Mark this proposal as WON? This sets the client's plan and records the agent's commission.", es: "¿Marcar esta propuesta como GANADA? Esto define el plan del cliente y registra la comisión del agente." },
+  "Proposta marcada como ganha ✓": { en: "Proposal marked as won ✓", es: "Propuesta marcada como ganada ✓" },
+  "Reabrir a proposta? A comissão vinculada será removida.": { en: "Reopen the proposal? The linked commission will be removed.", es: "¿Reabrir la propuesta? La comisión vinculada será eliminada." },
+  "Erro:": { en: "Error:", es: "Error:" },
 };

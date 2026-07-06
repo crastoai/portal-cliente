@@ -2,7 +2,7 @@
 // Bounded context: COMMERCE (schema commerce) — propostas e itens de proposta.
 // ============================================================================
 import { supabase } from "../lib/supabase";
-import { unwrap } from "./core/result";
+import { unwrap, unwrapList } from "./core/result";
 import type { Proposal } from "./core/types";
 
 const com = () => supabase.schema("commerce");
@@ -11,6 +11,13 @@ export const proposals = {
   /** Cria a proposta e retorna o registro (com id) para inserir os itens. */
   create: async (payload: Record<string, any>) =>
     unwrap(await com().from("proposals").insert(payload).select("*").single()) as unknown as Proposal,
+  /** Propostas de um cliente (para o admin marcar como ganha). */
+  listByOrg: async (orgId: string) =>
+    unwrapList<Record<string, any>>(await com().from("proposals").select("id,title,subtotal,status,accepted_at,connector_id,created_at").eq("organization_id", orgId).order("created_at", { ascending: false })),
+  /** Marca a proposta como GANHA (liga MRR + plano + comissão). */
+  accept: async (proposal_id: string) => unwrap(await supabase.rpc("admin_accept_proposal", { p_proposal_id: proposal_id })),
+  /** Reabre (desfaz o ganho). */
+  reopen: async (proposal_id: string) => unwrap(await supabase.rpc("admin_reopen_proposal", { p_proposal_id: proposal_id })),
   addItems: async (rows: Record<string, any>[]) =>
     rows.length ? unwrap(await com().from("proposal_items").insert(rows)) : null,
   /** Gera o contrato .docx (molde do jurídico) e devolve link de download. */
