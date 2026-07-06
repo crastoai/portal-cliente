@@ -6,6 +6,17 @@ import { supabase } from "../lib/supabase";
 import { unwrap, unwrapList, ServiceError } from "./core/result";
 import type { Organization, Profile, Connector } from "./core/types";
 
+// Invoca uma Edge Function com 1 retry em falha de REDE (ex.: função reiniciando após
+// deploy → "Failed to send a request"). Não trata erro de negócio (que volta em data.ok=false).
+async function invokeRetry(name: string, body: unknown) {
+  let res = await supabase.functions.invoke(name, { body });
+  if (res.error) {
+    await new Promise((r) => setTimeout(r, 1800));
+    res = await supabase.functions.invoke(name, { body });
+  }
+  return res;
+}
+
 // Fluxo nativo de senha do Supabase (recovery seguro) — usado nas telas de login/reset.
 export const auth = {
   /** Envia o e-mail de redefinição (branded, via Resend/SMTP configurado no Auth). */
@@ -46,13 +57,13 @@ export const profiles = {
 export const users = {
   /** Cria o login do responsável via Edge Function `admin-create-user` (+ envia e-mail de boas-vindas). */
   create: async (body: { email: string; full_name: string; organization_id: string; role: string; password?: string }): Promise<{ ok: boolean; email?: string; password?: string; error?: string; email_sent?: boolean; email_error?: string }> => {
-    const { data, error } = await supabase.functions.invoke("admin-create-user", { body });
+    const { data, error } = await invokeRetry("admin-create-user", body);
     if (error) return { ok: false, error: error.message };
     return (data as any) ?? { ok: false, error: "sem resposta do servidor" };
   },
   /** Redefine a senha de um usuário existente e REENVIA o e-mail de acesso branded. */
   resendAccess: async (body: { user_id: string; email: string; full_name?: string; password?: string }): Promise<{ ok: boolean; email?: string; password?: string; email_sent?: boolean; email_error?: string; error?: string }> => {
-    const { data, error } = await supabase.functions.invoke("admin-resend-access", { body });
+    const { data, error } = await invokeRetry("admin-resend-access", body);
     if (error) return { ok: false, error: error.message };
     return (data as any) ?? { ok: false, error: "sem resposta do servidor" };
   },
@@ -61,7 +72,7 @@ export const users = {
 export const clients = {
   /** Exclui organização + logins + dados via Edge Function `admin-delete-client` (atômico). */
   remove: async (orgId: string): Promise<{ ok: boolean; error?: string }> => {
-    const { data, error } = await supabase.functions.invoke("admin-delete-client", { body: { organization_id: orgId } });
+    const { data, error } = await invokeRetry("admin-delete-client", { organization_id: orgId });
     if (error) return { ok: false, error: error.message };
     return (data as any) ?? { ok: false, error: "sem resposta do servidor" };
   },
