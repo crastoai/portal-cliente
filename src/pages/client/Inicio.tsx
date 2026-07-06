@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { MessageCircle, Search, Send } from "lucide-react";
-import { supabase } from "../../lib/supabase";
+import { services } from "../../services";
 import { useAuth } from "../../lib/auth";
 
 type Health = { status: "green" | "amber" | "red"; message: string | null };
@@ -21,19 +21,19 @@ export default function Inicio() {
   useEffect(() => {
     (async () => {
       const [h, i, cm] = await Promise.all([
-        supabase.schema("delivery").from("system_health").select("status,message").maybeSingle(),
-        supabase.schema("delivery").from("implementations").select("overall_progress,due_date,status").maybeSingle(),
-        supabase.schema("delivery").from("client_modules").select("id,status,vdi_module_id"),
+        services.delivery.systemHealth.getMine(),
+        services.delivery.implementations.getMine(),
+        services.delivery.clientModules.listMine(),
       ]);
-      const rows = (cm.data as { id: string; status: string; vdi_module_id: string }[]) ?? [];
+      const rows = cm ?? [];
       const ids = rows.map((r) => r.vdi_module_id);
       let vmap: Record<string, Mod["vdi"]> = {};
       if (ids.length) {
-        const vm = await supabase.schema("catalog").from("vdi_modules").select("id,name,description,category").in("id", ids);
-        vmap = Object.fromEntries((((vm.data as unknown) as { id: string }[]) ?? []).map((v) => [v.id, v as unknown as Mod["vdi"]]));
+        const vm = await services.catalog.vdiModules.listByIds(ids, "id,name,description,category");
+        vmap = Object.fromEntries((vm as { id: string }[]).map((v) => [v.id, v as unknown as Mod["vdi"]]));
       }
-      setHealth((h.data as Health) ?? null);
-      setImpl((i.data as Impl) ?? null);
+      setHealth((h as unknown as Health) ?? null);
+      setImpl((i as unknown as Impl) ?? null);
       setMods(rows.map((r) => ({ id: r.id, status: r.status, vdi: vmap[r.vdi_module_id] ?? null })));
       setLoading(false);
     })();

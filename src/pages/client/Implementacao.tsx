@@ -1,5 +1,5 @@
 import { FileText, KeyRound, Check } from "lucide-react";
-import { supabase } from "../../lib/supabase";
+import { services } from "../../services";
 import { PageHead, Pill, Empty, useAsync } from "../../ui/ui";
 
 type Task = { id: string; name: string; planned_start: string; planned_end: string; actual_start: string | null; actual_end: string | null; status: string; sort_order: number };
@@ -11,11 +11,11 @@ const d = (s: string | null) => (s ? new Date(s + "T00:00:00").getTime() : 0);
 export default function Implementacao() {
   const { data, loading } = useAsync(async () => {
     const [i, t, p] = await Promise.all([
-      supabase.schema("delivery").from("implementations").select("overall_progress,due_date,status,started_at").maybeSingle(),
-      supabase.schema("delivery").from("project_tasks").select("*").order("sort_order"),
-      supabase.schema("support").from("pending_actions").select("id,type,description,status").order("status", { ascending: false }),
+      services.delivery.implementations.getMine(),
+      services.delivery.projectTasks.listMine(),
+      services.support.pendingActions.listMine(),
     ]);
-    return { impl: i.data as Impl | null, tasks: (t.data as Task[]) ?? [], pend: (p.data as Pend[]) ?? [] };
+    return { impl: i as unknown as Impl | null, tasks: (t as unknown as Task[]) ?? [], pend: (p as unknown as Pend[]) ?? [] };
   }, []);
 
   if (loading) return <><PageHead eyebrow="Portal do Cliente" title="Minha implementação" /><Empty>Carregando…</Empty></>;

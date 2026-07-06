@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, ArrowRight } from "lucide-react";
-import { supabase } from "../../lib/supabase";
+import { services as api, errorMessage } from "../../services";
 import { PageHead, money } from "../../ui/ui";
+import { TAX_RATE, taxOf } from "../../lib/config";
 
 type Org = { id: string; name: string; cnpj: string | null };
 type Svc = { id: string; name: string; unit: string; price_table: number };
@@ -19,11 +20,11 @@ export default function Propostas() {
   useEffect(() => {
     (async () => {
       const [o, s] = await Promise.all([
-        supabase.from("organizations").select("id,name,cnpj").order("name"),
-        supabase.schema("catalog").from("services").select("id,name,unit,price_table").order("price_table", { ascending: false }),
+        api.identity.organizations.listForProposals(),
+        api.catalog.services.listForProposals(),
       ]);
-      const os = (o.data as Org[]) ?? [];
-      const ss = (s.data as Svc[]) ?? [];
+      const os = (o as unknown as Org[]) ?? [];
+      const ss = (s as unknown as Svc[]) ?? [];
       setOrgs(os); setSvcs(ss);
       if (os[0]) setOrgId(os[0].id);
       const first3 = ss.slice(0, 3);
@@ -37,19 +38,21 @@ export default function Propostas() {
   const commission = Math.round(total * 0.2);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
+  const [special, setSpecial] = useState(false);
+  const tax = special ? 0 : taxOf(total);
 
   async function gerar() {
     if (!orgId) { setToast("Escolha um cliente."); setTimeout(() => setToast(""), 4000); return; }
     setBusy(true);
-    const { data: prop, error } = await supabase.schema("commerce").from("proposals")
-      .insert({ organization_id: orgId, title: `Proposta — ${org?.name ?? ""}`.trim(), status: "sent", subtotal: total, commission_total: commission, attachments: Object.fromEntries([...att].map((a) => [a, true])) })
-      .select("id").single();
-    if (!error && prop) {
+    try {
+      const prop = await api.commerce.proposals.create({ organization_id: orgId, title: `Proposta — ${org?.name ?? ""}`.trim(), status: "sent", subtotal: total, commission_total: commission, special_sale: special, tax_rate: TAX_RATE, attachments: Object.fromEntries([...att].map((a) => [a, true])) });
       const rows = items.map((id) => { const s = svcs.find((x) => x.id === id); return { proposal_id: (prop as any).id, organization_id: orgId, service_id: id, description: s?.name ?? "Item", qty: 1, unit_price: vals[id] ?? 0 }; });
-      await supabase.schema("commerce").from("proposal_items").insert(rows);
+      await api.commerce.proposals.addItems(rows);
+      setToast("Proposta gerada e enviada ✓");
+    } catch (e) {
+      setToast("Erro ao gerar: " + errorMessage(e));
     }
     setBusy(false);
-    setToast(error ? "Erro ao gerar: " + error.message : "Proposta gerada e enviada ✓");
     setTimeout(() => setToast(""), 6000);
   }
 
@@ -109,10 +112,16 @@ export default function Propostas() {
             const s = svcs.find((x) => x.id === id);
             return <div className="sumrow" key={id}><span>{s?.name}</span><span className="tnum">{money(vals[id] ?? 0)}</span></div>;
           })}
-          <div className="sumrow tot"><span>Total da proposta</span><span className="tnum">{money(total)}</span></div>
-          <div className="sumrow"><span>Comissão conector (20%)</span><span className="tnum" style={{ color: "#B8863A" }}>{money(commission)}</span></div>
+          <div className="sumrow"><span>Subtotal (serviços)</span><span className="tnum">{money(total)}</span></div>
+          <div className="sumrow"><span>Imposto ({String(TAX_RATE).replace(".", ",")}%){special ? " — isento (venda especial)" : ""}</span><span className="tnum" style={{ color: special ? "var(--crasto-text-muted)" : "var(--crasto-danger)" }}>{money(tax)}</span></div>
+          <div className="sumrow tot"><span>Total {special ? "(sem NF)" : "com imposto"}</span><span className="tnum">{money(total + tax)}</span></div>
+          <div className="sumrow"><span>Comissão indicador (20%)</span><span className="tnum" style={{ color: "#B8863A" }}>{money(commission)}</span></div>
+          <label className="frow" style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, margin: "12px 0 4px", padding: "10px 12px", borderRadius: 10, background: special ? "rgba(184,134,58,.10)" : "var(--crasto-bg-3)", border: "1px solid var(--crasto-border-soft)" }}>
+            <input type="checkbox" checked={special} onChange={(e) => setSpecial(e.target.checked)} style={{ width: "auto", marginTop: 2 }} />
+            <span style={{ margin: 0 }}><b>Venda especial</b> (sem Nota Fiscal) — faz todo o fluxo mas <b>não emite NF</b> e não aplica imposto. Ex.: vendas-teste, cortesias, permutas.</span>
+          </label>
           <div className="paycheck">🟢 <b>IA se paga em ~28 dias</b><div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", marginTop: 4, fontWeight: 400 }}>Baseado no Plano Diretor: economia + receita projetada &gt; investimento em 30d.</div></div>
-          <button className="crasto-btn crasto-btn--primary crasto-btn--md" style={{ width: "100%", marginTop: 14 }} disabled={busy} onClick={gerar}><span className="crasto-btn__label">{busy ? "Gerando…" : "Gerar proposta personalizada"}</span></button>
+          <button className="crasto-btn crasto-btn--primary crasto-btn--md" style={{ width: "100%", marginTop: 14 }} disabled={busy} onClick={gerar}><span className="crasto-btn__label">{busy ? "Gerando…" : special ? "Gerar venda especial (sem NF)" : "Gerar proposta personalizada"}</span></button>
           <button className="crasto-btn crasto-btn--secondary crasto-btn--md" style={{ width: "100%", marginTop: 8 }}><span className="crasto-btn__icon"><ArrowRight size={14} /></span><span className="crasto-btn__label">Enviar p/ assinatura (Autentique)</span></button>
         </div>
       </div>

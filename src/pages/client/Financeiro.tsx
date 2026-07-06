@@ -1,4 +1,4 @@
-import { supabase } from "../../lib/supabase";
+import { services } from "../../services";
 import { useAuth } from "../../lib/auth";
 import { PageHead, Pill, Empty, useAsync, money } from "../../ui/ui";
 
@@ -9,10 +9,10 @@ export default function Financeiro() {
   const { profile } = useAuth();
   const { data, loading } = useAsync(async () => {
     const [inv, org] = await Promise.all([
-      supabase.schema("billing").from("invoices").select("id,description,amount,due_date,status").order("due_date", { ascending: false }),
-      profile?.organization_id ? supabase.from("organizations").select("name,plan").eq("id", profile.organization_id).maybeSingle() : Promise.resolve({ data: null }),
+      services.billing.invoices.listMine(),
+      profile?.organization_id ? services.identity.organizations.getById(profile.organization_id) : Promise.resolve(null),
     ]);
-    return { inv: (inv.data as Inv[]) ?? [], org: (org.data as Org) ?? null };
+    return { inv: (inv as unknown as Inv[]) ?? [], org: (org as unknown as Org) ?? null };
   }, [profile?.organization_id]);
 
   const inv = data?.inv ?? [];

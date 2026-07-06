@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Eye, Copy, ShieldCheck } from "lucide-react";
-import { supabase } from "../../lib/supabase";
+import { services } from "../../services";
 import { PageHead, Empty, useAsync } from "../../ui/ui";
 
 type Cred = { id: string; label: string | null; login: string | null; sso_enabled: boolean };
 
 export default function Credenciais() {
   const { data, loading } = useAsync(
-    async () => (await supabase.schema("delivery").from("module_credentials").select("id,label,login,sso_enabled")).data as Cred[],
+    async () => (await services.delivery.moduleCredentials.listMine()) as unknown as Cred[],
     []
   );
   const [revealed, setRevealed] = useState<Record<string, string>>({});
@@ -15,8 +15,8 @@ export default function Credenciais() {
 
   async function reveal(id: string) {
     if (revealed[id]) { const n = { ...revealed }; delete n[id]; setRevealed(n); return; }
-    const { data: secret } = await supabase.rpc("reveal_module_secret", { p_cred_id: id });
-    setRevealed({ ...revealed, [id]: (secret as string) ?? "—" });
+    const secret = await services.analytics.client.revealModuleSecret<string>(id);
+    setRevealed({ ...revealed, [id]: secret ?? "—" });
   }
 
   return (

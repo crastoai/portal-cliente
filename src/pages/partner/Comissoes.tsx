@@ -1,10 +1,10 @@
-import { supabase } from "../../lib/supabase";
+import { services } from "../../services";
 import { PageHead, Pill, Empty, useAsync, money } from "../../ui/ui";
 
 type Comm = { org: string; sale_amount: number; commission_amount: number; nf_status: string };
 
 export default function Comissoes() {
-  const { data, loading } = useAsync(async () => (await supabase.rpc("connector_commissions")).data as Comm[], []);
+  const { data, loading } = useAsync(async () => await services.analytics.client.connectorCommissions<Comm[]>(), []);
   const rows = data ?? [];
   const total = rows.reduce((s, r) => s + Number(r.commission_amount), 0);
   const paid = rows.filter((r) => r.nf_status === "paid").reduce((s, r) => s + Number(r.commission_amount), 0);

@@ -1,11 +1,11 @@
 import { Plug } from "lucide-react";
-import { supabase } from "../../lib/supabase";
+import { services } from "../../services";
 import { PageHead, Pill, useAsync } from "../../ui/ui";
 
 type Integ = { key: string; display_name: string; status: string };
 
 export default function Integracoes() {
-  const { data } = useAsync(async () => (await supabase.schema("automation").from("integrations").select("key,display_name,status").order("display_name")).data as Integ[], []);
+  const { data } = useAsync(async () => (await services.automation.integrations.list()) as unknown as Integ[], []);
   const items = data ?? [];
   const tone = (s: string) => (s === "connected" ? "ok" : s === "error" ? "warn" : "mute");
   const label = (s: string) => (s === "connected" ? "Conectado" : s === "error" ? "Ação necessária" : "Desconectado");

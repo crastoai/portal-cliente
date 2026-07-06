@@ -1,16 +1,15 @@
 import { MessageCircle, Search, Send, Grid3x3 } from "lucide-react";
-import { supabase } from "../../lib/supabase";
+import { services } from "../../services";
 import { PageHead, Pill, Empty, useAsync } from "../../ui/ui";
 
 type Mod = { id: string; status: string; vdi: { name: string; description: string | null; category: string | null } | null };
 
 async function fetchModules(): Promise<Mod[]> {
-  const cm = await supabase.schema("delivery").from("client_modules").select("id,status,vdi_module_id");
-  const rows = (cm.data as { id: string; status: string; vdi_module_id: string }[]) ?? [];
+  const rows = await services.delivery.clientModules.listMine();
   const ids = rows.map((r) => r.vdi_module_id);
   if (!ids.length) return [];
-  const vm = await supabase.schema("catalog").from("vdi_modules").select("id,name,description,category").in("id", ids);
-  const map = Object.fromEntries(((vm.data as { id: string }[]) ?? []).map((v) => [v.id, v]));
+  const vm = await services.catalog.vdiModules.listByIds(ids, "id,name,description,category");
+  const map = Object.fromEntries((vm as { id: string }[]).map((v) => [v.id, v]));
   return rows.map((r) => ({ id: r.id, status: r.status, vdi: (map[r.vdi_module_id] as Mod["vdi"]) ?? null }));
 }
 

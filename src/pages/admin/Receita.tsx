@@ -1,10 +1,10 @@
-import { supabase } from "../../lib/supabase";
+import { services } from "../../services";
 import { PageHead, useAsync, money } from "../../ui/ui";
 
 type Over = { mrr: number; profit: number; clients: number; commissions_pending: number };
 
 export default function Receita() {
-  const { data } = useAsync(async () => (await supabase.rpc("admin_overview")).data as Over, []);
+  const { data } = useAsync(async () => await services.analytics.admin.overview<Over>(), []);
   const o = data;
   return (
     <div>

@@ -1,5 +1,5 @@
 import { MessageCircle, Mail, ShieldCheck, Sparkles } from "lucide-react";
-import { supabase } from "../../lib/supabase";
+import { services } from "../../services";
 import { PageHead, Empty, useAsync } from "../../ui/ui";
 
 type Hours = { period: string; plan_hours: number; used_hours: number; balance: number; status: string };
@@ -8,11 +8,11 @@ type Ticket = { id: string; subject: string; status: string };
 export default function Suporte() {
   const { data } = useAsync(async () => {
     const [h, t] = await Promise.all([
-      supabase.rpc("client_support_hours"),
-      supabase.schema("support").from("tickets").select("id,subject,status").order("created_at", { ascending: false }),
+      services.analytics.client.supportHours<Hours[]>(),
+      services.support.tickets.listMine(),
     ]);
-    const hours = ((h.data as Hours[]) ?? [])[0] ?? null;
-    return { hours, tickets: (t.data as Ticket[]) ?? [] };
+    const hours = (h ?? [])[0] ?? null;
+    return { hours, tickets: (t as unknown as Ticket[]) ?? [] };
   }, []);
   const hours = data?.hours ?? null;
   const usedPct = hours ? Math.min(100, (Number(hours.used_hours) / Math.max(1, Number(hours.plan_hours))) * 100) : 0;

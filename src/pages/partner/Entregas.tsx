@@ -1,4 +1,4 @@
-import { supabase } from "../../lib/supabase";
+import { services } from "../../services";
 import { PageHead, Pill, Empty, useAsync, initials } from "../../ui/ui";
 
 type Row = { id: string; name: string; progress: number | null; status: string | null; health: string | null; mods: number };
@@ -6,16 +6,16 @@ type Row = { id: string; name: string; progress: number | null; status: string |
 export default function Entregas() {
   const { data, loading } = useAsync(async () => {
     const [o, i, h, cm] = await Promise.all([
-      supabase.from("organizations").select("id,name"),
-      supabase.schema("delivery").from("implementations").select("organization_id,overall_progress,status"),
-      supabase.schema("delivery").from("system_health").select("organization_id,status"),
-      supabase.schema("delivery").from("client_modules").select("organization_id"),
+      services.identity.organizations.listBrief(),
+      services.delivery.implementations.listBrief(),
+      services.delivery.systemHealth.listBrief(),
+      services.delivery.clientModules.listAll(),
     ]);
-    const im = Object.fromEntries(((i.data as any[]) ?? []).map((r) => [r.organization_id, r]));
-    const hm = Object.fromEntries(((h.data as any[]) ?? []).map((r) => [r.organization_id, r.status]));
+    const im = Object.fromEntries((i as any[]).map((r) => [r.organization_id, r]));
+    const hm = Object.fromEntries((h as any[]).map((r) => [r.organization_id, r.status]));
     const counts: Record<string, number> = {};
-    ((cm.data as any[]) ?? []).forEach((r) => (counts[r.organization_id] = (counts[r.organization_id] || 0) + 1));
-    return ((o.data as any[]) ?? []).map((r) => ({ id: r.id, name: r.name, progress: im[r.id]?.overall_progress ?? null, status: im[r.id]?.status ?? null, health: hm[r.id] ?? null, mods: counts[r.id] || 0 }));
+    (cm as any[]).forEach((r) => (counts[r.organization_id] = (counts[r.organization_id] || 0) + 1));
+    return (o as any[]).map((r) => ({ id: r.id, name: r.name, progress: im[r.id]?.overall_progress ?? null, status: im[r.id]?.status ?? null, health: hm[r.id] ?? null, mods: counts[r.id] || 0 }));
   }, []);
   const rows = data ?? [];
   const delivered = rows.filter((r) => r.status === "delivered").length;

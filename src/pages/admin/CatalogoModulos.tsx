@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Plus, Grid3x3, Pencil, Trash2, Clock } from "lucide-react";
-import { supabase } from "../../lib/supabase";
+import { services as api, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, Field } from "../../ui/ui";
 import Modal from "../../ui/Modal";
 
@@ -11,10 +11,10 @@ const EMPTY = { id: "", name: "", department: "", description: "", external_url:
 export default function CatalogoModulos() {
   const { data, loading, reload } = useAsync(async () => {
     const [m, c] = await Promise.all([
-      supabase.schema("catalog").from("vdi_modules").select("*").order("department").order("name"),
-      supabase.schema("catalog").from("vdi_catalog").select("name,department,description").order("name"),
+      api.catalog.vdiModules.listAll(),
+      api.catalog.vdiCatalog.listNames(),
     ]);
-    return { mods: (m.data as V[]) ?? [], cat: (c.data as Cat[]) ?? [] };
+    return { mods: (m as unknown as V[]) ?? [], cat: (c as unknown as Cat[]) ?? [] };
   }, []);
   const rows = data?.mods ?? []; const cat = data?.cat ?? [];
   const depts = Array.from(new Set(cat.map((c) => c.department).filter(Boolean))) as string[];
@@ -29,7 +29,7 @@ export default function CatalogoModulos() {
   async function openEdit(m: V) {
     setF({ id: m.id, name: m.name, department: m.department ?? "", description: m.description ?? "", external_url: m.external_url ?? "", internal_url: m.internal_url ?? "", status: m.status, customization: m.customization ?? "standard", tools_cost_by: m.tools_cost_by ?? "client", setup_workdays: String(m.setup_workdays ?? 7), client_deadline_days: String(m.client_deadline_days ?? 30), version: m.version ?? "v1", remix_date: m.remix_date ?? "" });
     setErr(""); setClients(null); setOpen(true);
-    const { data: cl } = await supabase.rpc("admin_module_clients", { p_module: m.id });
+    const cl = await api.analytics.admin.moduleClients<any[]>(m.id);
     setClients((cl as any) ?? []);
   }
   function onName(name: string) {
@@ -45,16 +45,17 @@ export default function CatalogoModulos() {
       customization: f.customization, tools_cost_by: f.tools_cost_by, setup_workdays: Number(f.setup_workdays) || 7,
       client_deadline_days: Number(f.client_deadline_days) || 30, version: f.version || "v1", remix_date: f.remix_date || null,
     };
-    const { error } = editing ? await supabase.schema("catalog").from("vdi_modules").update(payload).eq("id", f.id) : await supabase.schema("catalog").from("vdi_modules").insert(payload);
-    setBusy(false);
-    if (error) { setErr(error.message); return; }
-    setOpen(false); reload();
+    try {
+      if (editing) await api.catalog.vdiModules.update(f.id, payload);
+      else await api.catalog.vdiModules.create(payload);
+      setOpen(false); reload();
+    } catch (e) { setErr(errorMessage(e)); }
+    finally { setBusy(false); }
   }
   async function del(m: V) {
     if (!confirm(`Excluir o módulo "${m.name}"?`)) return;
-    const { error } = await supabase.schema("catalog").from("vdi_modules").delete().eq("id", m.id);
-    if (error) { setToast("Não foi possível excluir (módulo em uso por clientes?)."); setTimeout(() => setToast(""), 6000); return; }
-    reload();
+    try { await api.catalog.vdiModules.remove(m.id); reload(); }
+    catch { setToast("Não foi possível excluir (módulo em uso por clientes?)."); setTimeout(() => setToast(""), 6000); }
   }
 
   return (

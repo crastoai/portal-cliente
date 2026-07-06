@@ -1,5 +1,5 @@
 import { UserPlus } from "lucide-react";
-import { supabase } from "../../lib/supabase";
+import { services } from "../../services";
 import { useAuth } from "../../lib/auth";
 import { PageHead, Pill, Empty, useAsync, initials } from "../../ui/ui";
 
@@ -8,7 +8,7 @@ type U = { id: string; full_name: string | null; email: string | null; role: str
 export default function Usuarios() {
   const { profile } = useAuth();
   const { data, loading } = useAsync(
-    async () => (await supabase.from("profiles").select("id,full_name,email,role").eq("organization_id", profile?.organization_id ?? "")).data as U[],
+    async () => (await services.identity.profiles.listByOrg(profile?.organization_id ?? "")) as unknown as U[],
     [profile?.organization_id]
   );
   const users = data ?? [];

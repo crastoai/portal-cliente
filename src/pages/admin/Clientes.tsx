@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { UserPlus, Search } from "lucide-react";
 import { Link } from "react-router-dom";
-import { supabase } from "../../lib/supabase";
+import { services as api, errorMessage } from "../../services";
 import { PageHead, Empty, useAsync, money, initials, Field, Pill } from "../../ui/ui";
 import Modal from "../../ui/Modal";
 import { fetchClients, timeAgo } from "../../lib/adminData";
@@ -33,18 +33,17 @@ export default function Clientes() {
     if (!f.name.trim()) { setErr("Informe o nome da empresa."); return; }
     setBusy(true); setErr("");
     const co = countryOf(f.country);
-    const { data: org, error } = await supabase.from("organizations").insert({
-      name: f.name.trim(), stage: f.stage, country: f.country, tax_id: f.tax_id || null, tax_id_type: co.idType,
-      founded_on: f.founded_on || null, website: f.website || null, owner_name: f.owner_name || null, plan: f.plan || null,
-    }).select("id").single();
-    if (error) { setErr("Erro ao criar: " + error.message); setBusy(false); return; }
+    let org: { id: string; name: string };
+    try {
+      org = await api.identity.organizations.create({
+        name: f.name.trim(), stage: f.stage, country: f.country, tax_id: f.tax_id || null, tax_id_type: co.idType,
+        founded_on: f.founded_on || null, website: f.website || null, owner_name: f.owner_name || null, plan: f.plan || null,
+      });
+    } catch (e) { setErr("Erro ao criar: " + errorMessage(e)); setBusy(false); return; }
     let msg = `"${f.name}" cadastrado como ${stageOf(f.stage).label}.`;
     if (f.email.trim()) {
-      const { data: res, error: fe } = await supabase.functions.invoke("admin-create-user", {
-        body: { email: f.email.trim(), full_name: f.contact_name || f.owner_name || f.name, organization_id: (org as any).id, role: "client_owner" },
-      });
-      const r = res as any;
-      if (fe || !r?.ok) msg += ` (login não criado: ${r?.error || fe?.message || "erro"})`;
+      const r = await api.identity.users.create({ email: f.email.trim(), full_name: f.contact_name || f.owner_name || f.name, organization_id: org.id, role: "client_owner" });
+      if (!r.ok) msg += ` (login não criado: ${r.error || "erro"})`;
       else msg += `  Login: ${r.email} · senha: ${r.password}`;
     }
     setBusy(false); setOpen(false); setF({ ...EMPTY }); setToast(msg); setTimeout(() => setToast(""), 16000); reload();

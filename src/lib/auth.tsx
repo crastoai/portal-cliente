@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
+import { services } from "../services";
 
 export type Profile = {
   id: string;
@@ -27,8 +28,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   async function loadProfile(uid: string) {
-    const { data } = await supabase.from("profiles").select("*").eq("id", uid).single();
-    setProfile((data as Profile) ?? null);
+    try {
+      const p = await services.identity.profiles.getById(uid);
+      setProfile((p as Profile) ?? null);
+    } catch {
+      setProfile(null);
+    }
   }
 
   useEffect(() => {

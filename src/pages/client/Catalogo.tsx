@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Check } from "lucide-react";
-import { supabase } from "../../lib/supabase";
+import { services } from "../../services";
 import { PageHead, Empty, useAsync } from "../../ui/ui";
 
 type V = { id: string; name: string; description: string | null; category: string | null };
 
 export default function Catalogo() {
   const { data, loading } = useAsync(
-    async () => (await supabase.schema("catalog").from("vdi_modules").select("id,name,description,category").eq("active", true).order("category")).data as V[],
+    async () => (await services.catalog.vdiModules.listActive()) as unknown as V[],
     []
   );
   const [sel, setSel] = useState<Set<string>>(new Set());

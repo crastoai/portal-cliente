@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { MessageCircle, Search, Send, Grid3x3, Pencil, Trash2, UserPlus, Plus, Upload, Download, FileText, Building2, Globe, Cake } from "lucide-react";
-import { supabase } from "../../lib/supabase";
+import { services as api, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, initials, Field } from "../../ui/ui";
 import Modal from "../../ui/Modal";
 import { COUNTRIES, countryOf, STAGES, stageOf } from "../../lib/countries";
@@ -17,18 +17,18 @@ export default function ClienteDetalhe() {
   const { data, loading, reload } = useAsync(async () => {
     if (!id) return null;
     const [org, mods, cm, users, people, phones, docs, acts, impl, health] = await Promise.all([
-      supabase.from("organizations").select("*").eq("id", id).maybeSingle(),
-      supabase.schema("catalog").from("vdi_modules").select("id,name,category").eq("active", true).order("name"),
-      supabase.schema("delivery").from("client_modules").select("id,vdi_module_id,status").eq("organization_id", id),
-      supabase.from("profiles").select("id,full_name,email,role").eq("organization_id", id),
-      supabase.schema("crm").from("people").select("*").eq("organization_id", id).order("is_primary", { ascending: false }),
-      supabase.schema("crm").from("phones").select("*").eq("organization_id", id),
-      supabase.schema("crm").from("documents").select("*").eq("organization_id", id).order("uploaded_at", { ascending: false }),
-      supabase.schema("crm").from("activities").select("*").eq("organization_id", id).order("occurred_at", { ascending: false }),
-      supabase.schema("delivery").from("implementations").select("overall_progress").eq("organization_id", id).maybeSingle(),
-      supabase.schema("delivery").from("system_health").select("status").eq("organization_id", id).maybeSingle(),
+      api.identity.organizations.getById(id),
+      api.catalog.vdiModules.listActiveByName(),
+      api.delivery.clientModules.listByOrg(id),
+      api.identity.profiles.listByOrg(id),
+      api.crm.people.listByOrg(id),
+      api.crm.phones.listByOrg(id),
+      api.crm.documents.listByOrg(id),
+      api.crm.activities.listByOrg(id),
+      api.delivery.implementations.getByOrg(id),
+      api.delivery.systemHealth.getByOrg(id),
     ]);
-    return { org: org.data as Org, mods: (mods.data as any[]) ?? [], cm: (cm.data as any[]) ?? [], users: (users.data as any[]) ?? [], people: (people.data as any[]) ?? [], phones: (phones.data as any[]) ?? [], docs: (docs.data as any[]) ?? [], acts: (acts.data as any[]) ?? [], progress: (impl.data as any)?.overall_progress ?? 0, health: (health.data as any)?.status ?? null };
+    return { org: org as Org, mods: (mods as any[]) ?? [], cm: (cm as any[]) ?? [], users: (users as any[]) ?? [], people: (people as any[]) ?? [], phones: (phones as any[]) ?? [], docs: (docs as any[]) ?? [], acts: (acts as any[]) ?? [], progress: (impl as any)?.overall_progress ?? 0, health: (health as any)?.status ?? null };
   }, [id]);
 
   const [edit, setEdit] = useState(false);
@@ -50,52 +50,49 @@ export default function ClienteDetalhe() {
   async function saveEdit() {
     setBusy(true);
     const cc = countryOf(ef.country);
-    await supabase.from("organizations").update({ name: ef.name, stage: ef.stage, country: ef.country, tax_id: ef.tax_id, tax_id_type: cc.idType, founded_on: ef.founded_on || null, website: ef.website, owner_name: ef.owner_name, plan: ef.plan, notes: ef.notes, status: ef.status }).eq("id", id);
-    setBusy(false); setEdit(false); reload(); flash("Dados atualizados ✓");
+    try {
+      await api.identity.organizations.update(id!, { name: ef.name, stage: ef.stage, country: ef.country, tax_id: ef.tax_id, tax_id_type: cc.idType, founded_on: ef.founded_on || null, website: ef.website, owner_name: ef.owner_name, plan: ef.plan, notes: ef.notes, status: ef.status });
+      setEdit(false); reload(); flash("Dados atualizados ✓");
+    } catch (e) { flash("Erro ao salvar: " + errorMessage(e)); }
+    finally { setBusy(false); }
   }
-  async function setStage(stage: string) { await supabase.from("organizations").update({ stage }).eq("id", id); reload(); }
+  async function setStage(stage: string) { await api.identity.organizations.setStage(id!, stage); reload(); }
   async function toggleModule(mid: string, on: boolean) {
-    if (on) await supabase.schema("delivery").from("client_modules").delete().eq("organization_id", id).eq("vdi_module_id", mid);
-    else await supabase.schema("delivery").from("client_modules").insert({ organization_id: id, vdi_module_id: mid, status: "active" });
+    if (on) await api.delivery.clientModules.detach(id!, mid);
+    else await api.delivery.clientModules.attach(id!, mid);
     reload();
   }
   async function del() {
     if (!confirm(`Apagar "${org.name}" e TODOS os dados/logins? Não dá pra desfazer.`)) return;
     setBusy(true);
-    const { data: r, error } = await supabase.functions.invoke("admin-delete-client", { body: { organization_id: id } });
+    const r = await api.identity.clients.remove(id!);
     setBusy(false);
-    if ((r as any)?.ok) nav("/admin/clientes", { replace: true });
-    else flash("Erro ao apagar: " + ((r as any)?.error || error?.message || "tente novamente"));
+    if (r.ok) nav("/admin/clientes", { replace: true });
+    else flash("Erro ao apagar: " + (r.error || "tente novamente"));
   }
   async function doInvite() {
     if (!inv.email.trim()) { setErr("Informe o e-mail."); return; }
     setBusy(true); setErr("");
-    const { data: r, error } = await supabase.functions.invoke("admin-create-user", { body: { email: inv.email.trim(), full_name: inv.name, organization_id: id, role: inv.role } });
-    setBusy(false); const rr = r as any;
-    if (error || !rr?.ok) { setErr(rr?.error || "Erro."); return; }
-    setInvite(false); setInv({ email: "", name: "", role: "client_member" }); reload(); flash(`Login: ${rr.email} · senha: ${rr.password}`);
+    const r = await api.identity.users.create({ email: inv.email.trim(), full_name: inv.name, organization_id: id!, role: inv.role });
+    setBusy(false);
+    if (!r.ok) { setErr(r.error || "Erro."); return; }
+    setInvite(false); setInv({ email: "", name: "", role: "client_member" }); reload(); flash(`Login: ${r.email} · senha: ${r.password}`);
   }
-  async function addPerson() { if (!person.full_name.trim()) return; await supabase.schema("crm").from("people").insert({ organization_id: id, full_name: person.full_name.trim(), role: person.role || null, email: person.email || null, birthday: person.birthday || null }); setPerson({ full_name: "", role: "", email: "", birthday: "" }); reload(); }
-  async function addPhone() { if (!phone.number.trim()) return; await supabase.schema("crm").from("phones").insert({ organization_id: id, label: phone.label, country_code: phone.country_code, number: phone.number.trim(), person_id: phone.person_id || null }); setPhone({ label: "mobile", country_code: "+55", number: "", person_id: "" }); reload(); }
-  async function addActivity() { if (!act.title.trim()) return; await supabase.schema("crm").from("activities").insert({ organization_id: id, type: act.type, title: act.title.trim(), description: act.description || null }); setAct({ type: "note", title: "", description: "" }); reload(); }
-  async function delRow(schema: string, table: string, rid: string) { await supabase.schema(schema as any).from(table).delete().eq("id", rid); reload(); }
-  async function r2op(op: string, key: string, body?: BodyInit, ct?: string) {
-    const { data: { session } } = await supabase.auth.getSession();
-    const h: Record<string, string> = { Authorization: `Bearer ${session?.access_token}`, apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string, "x-op": op, "x-key": key };
-    if (ct) h["x-content-type"] = ct;
-    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/r2`, { method: "POST", headers: h, body: body ?? "" });
-    return res.json();
-  }
+  async function addPerson() { if (!person.full_name.trim()) return; await api.crm.people.add({ organization_id: id, full_name: person.full_name.trim(), role: person.role || null, email: person.email || null, birthday: person.birthday || null }); setPerson({ full_name: "", role: "", email: "", birthday: "" }); reload(); }
+  async function addPhone() { if (!phone.number.trim()) return; await api.crm.phones.add({ organization_id: id, label: phone.label, country_code: phone.country_code, number: phone.number.trim(), person_id: phone.person_id || null }); setPhone({ label: "mobile", country_code: "+55", number: "", person_id: "" }); reload(); }
+  async function addActivity() { if (!act.title.trim()) return; await api.crm.activities.add({ organization_id: id, type: act.type, title: act.title.trim(), description: act.description || null }); setAct({ type: "note", title: "", description: "" }); reload(); }
+  async function delRow(_schema: string, table: string, rid: string) { await api.crm.removeRow(table as any, rid); reload(); }
   async function uploadDoc(file: File, kind: string) {
     setBusy(true);
-    const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const key = `${id}/${Date.now()}-${safe}`;
-    const r = await r2op("upload", key, file, file.type || "application/octet-stream");
-    if (r?.ok) await supabase.schema("crm").from("documents").insert({ organization_id: id, kind, file_name: file.name, storage_path: key });
-    setBusy(false); reload(); flash(r?.ok ? "Documento enviado ✓ (Cloudflare R2)" : "Erro no upload: " + (r?.error || ""));
+    try {
+      const key = await api.storage.upload(id!, file);
+      await api.crm.documents.add({ organization_id: id, kind, file_name: file.name, storage_path: key });
+      flash("Documento enviado ✓ (Cloudflare R2)");
+    } catch (e) { flash("Erro no upload: " + errorMessage(e)); }
+    setBusy(false); reload();
   }
-  async function downloadDoc(path: string) { const r = await r2op("get", path); if (r?.url) window.open(r.url, "_blank"); }
-  async function delDoc(d: any) { await r2op("delete", d.storage_path); await supabase.schema("crm").from("documents").delete().eq("id", d.id); reload(); }
+  async function downloadDoc(path: string) { const url = await api.storage.getUrl(path); if (url) window.open(url, "_blank"); }
+  async function delDoc(d: any) { await api.storage.remove(d.storage_path); await api.crm.documents.remove(d.id); reload(); }
 
   return (
     <div>

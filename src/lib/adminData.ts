@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { services } from "../services";
 
 export type Client = {
   id: string; name: string; plan: string | null; email: string | null;
@@ -8,8 +8,7 @@ export type Client = {
 };
 
 export async function fetchClients(): Promise<Client[]> {
-  const { data } = await supabase.rpc("admin_clients");
-  return (data as Client[]) ?? [];
+  return (await services.analytics.admin.clients<Client[]>()) ?? [];
 }
 
 export function healthScore(c: Client) {

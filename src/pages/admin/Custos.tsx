@@ -1,4 +1,4 @@
-import { supabase } from "../../lib/supabase";
+import { services } from "../../services";
 import { PageHead, Pill, useAsync, money } from "../../ui/ui";
 
 type Pnl = { organization_name: string; total_cost: number; total_sale: number; tax: number; profit: number };
@@ -8,9 +8,9 @@ type Hours = { org: string; plan_hours: number; used_hours: number; balance: num
 export default function Custos() {
   const { data } = useAsync(async () => {
     const [p, c, h] = await Promise.all([
-      supabase.rpc("admin_client_pnl"), supabase.rpc("admin_costs_by_provider"), supabase.rpc("admin_support_hours"),
+      services.analytics.admin.clientPnl<Pnl[]>(), services.analytics.admin.costsByProvider<Prov[]>(), services.analytics.admin.supportHours<Hours[]>(),
     ]);
-    return { pnl: (p.data as Pnl[]) ?? [], prov: (c.data as Prov[]) ?? [], hours: (h.data as Hours[]) ?? [] };
+    return { pnl: p ?? [], prov: c ?? [], hours: h ?? [] };
   }, []);
   const pnl = data?.pnl ?? []; const prov = data?.prov ?? []; const hours = data?.hours ?? [];
 
