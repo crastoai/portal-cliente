@@ -18,18 +18,16 @@ export default function Clientes() {
   async function submit() {
     if (!f.name.trim()) { setErr("Informe o nome do cliente."); return; }
     setBusy(true); setErr("");
-    const { data: org, error } = await supabase.from("organizations").insert({ name: f.name.trim(), cnpj: f.cnpj || null, plan: f.plan || null }).select("id").single();
-    if (error) { setErr("Erro ao criar cliente: " + error.message); setBusy(false); return; }
+    const { data: res, error } = await supabase.functions.invoke("admin-create-client", {
+      body: { name: f.name.trim(), cnpj: f.cnpj, plan: f.plan, owner_email: f.email, owner_name: f.owner || f.name },
+    });
+    setBusy(false);
+    const r = res as any;
+    if (error || !r?.ok) { setErr(r?.error || error?.message || "Erro ao criar cliente."); return; }
     let msg = `Cliente "${f.name}" criado.`;
-    if (f.email.trim()) {
-      const { data: res, error: fnErr } = await supabase.functions.invoke("admin-create-user", {
-        body: { email: f.email.trim(), full_name: f.owner || f.name, organization_id: (org as any).id, role: "client_owner" },
-      });
-      if (fnErr || !(res as any)?.ok) msg += ` (aviso: não consegui criar o login — ${(res as any)?.error || fnErr?.message || "erro"})`;
-      else msg += ` Login: ${(res as any).email} · senha temporária: ${(res as any).password}`;
-    }
-    setBusy(false); setOpen(false); setF({ name: "", cnpj: "", plan: "", email: "", owner: "" });
-    setToast(msg); setTimeout(() => setToast(""), 12000); reload();
+    if (r.owner) msg += `  Login: ${r.owner.email}  ·  senha temporária: ${r.owner.password}`;
+    setOpen(false); setF({ name: "", cnpj: "", plan: "", email: "", owner: "" });
+    setToast(msg); setTimeout(() => setToast(""), 16000); reload();
   }
 
   return (
