@@ -11,6 +11,12 @@ const sup = () => supabase.schema("support");
 export const tickets = {
   listMine: async () =>
     unwrapList<Ticket>(await sup().from("tickets").select("id,subject,status").order("created_at", { ascending: false })),
+  /** Abre um chamado: grava + notifica o suporte + confirma ao cliente (edge function). */
+  open: async (body: { subject: string; description?: string }): Promise<{ ok: boolean; number?: string; notified?: boolean; confirmed?: boolean; error?: string }> => {
+    const { data, error } = await supabase.functions.invoke("client-support-ticket", { body });
+    if (error) return { ok: false, error: error.message };
+    return (data as any) ?? { ok: false, error: "sem resposta do servidor" };
+  },
 };
 
 export const pendingActions = {

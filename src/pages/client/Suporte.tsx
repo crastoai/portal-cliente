@@ -1,12 +1,19 @@
+import { useState } from "react";
 import { MessageCircle, Mail, ShieldCheck, Sparkles } from "lucide-react";
-import { services } from "../../services";
-import { PageHead, Empty, useAsync } from "../../ui/ui";
+import { services, errorMessage } from "../../services";
+import { PageHead, Empty, useAsync, Pill, Field } from "../../ui/ui";
+import { useSettings } from "../../lib/settings";
+import Modal from "../../ui/Modal";
 
 type Hours = { period: string; plan_hours: number; used_hours: number; balance: number; status: string };
 type Ticket = { id: string; subject: string; status: string };
 
+const stLabel = (s: string) => ({ open: "Aberto", in_progress: "Em andamento", resolved: "Resolvido", closed: "Fechado" } as any)[s] || s;
+const stTone = (s: string) => (s === "resolved" || s === "closed" ? "ok" : s === "in_progress" ? "warn" : "info");
+
 export default function Suporte() {
-  const { data } = useAsync(async () => {
+  const { supportWhatsapp } = useSettings();
+  const { data, reload } = useAsync(async () => {
     const [h, t] = await Promise.all([
       services.analytics.client.supportHours<Hours[]>(),
       services.support.tickets.listMine(),
@@ -17,17 +24,41 @@ export default function Suporte() {
   const hours = data?.hours ?? null;
   const usedPct = hours ? Math.min(100, (Number(hours.used_hours) / Math.max(1, Number(hours.plan_hours))) * 100) : 0;
 
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState({ subject: "", description: "" });
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [toast, setToast] = useState("");
+
+  function openWhatsApp() {
+    const digits = (supportWhatsapp || "").replace(/\D/g, "");
+    if (!digits) { setToast("Canal de WhatsApp ainda não configurado."); setTimeout(() => setToast(""), 5000); return; }
+    const msg = encodeURIComponent("Olá! Sou cliente da Crasto.AI e preciso de ajuda com o meu portal.");
+    window.open(`https://wa.me/${digits}?text=${msg}`, "_blank", "noopener");
+  }
+
+  async function submitTicket() {
+    if (!f.subject.trim()) { setErr("Informe o assunto."); return; }
+    setBusy(true); setErr("");
+    try {
+      const r = await services.support.tickets.open({ subject: f.subject.trim(), description: f.description });
+      if (!r.ok) { setErr(r.error || "Não foi possível abrir o chamado."); return; }
+      setOpen(false); setF({ subject: "", description: "" }); reload();
+      setToast(`✓ Chamado #${r.number} aberto.${r.confirmed ? " Enviamos uma confirmação para o seu e-mail." : ""}`);
+      setTimeout(() => setToast(""), 8000);
+    } catch (e) { setErr(errorMessage(e)); }
+    finally { setBusy(false); }
+  }
+
   return (
     <div>
-      <PageHead eyebrow="Portal do Cliente" title="Suporte & Ajuda" sub="Abra um chamado, acompanhe seu plano e aprenda a usar cada módulo." />
+      <PageHead eyebrow="Portal do Cliente" title="Suporte & Ajuda" sub="Abra um chamado, acompanhe seu plano e aprenda a usar cada solução." />
 
       <div className="grid2" style={{ marginBottom: 18 }}>
         <div className="card">
           <h3>Abrir um chamado</h3>
           <div className="csub">Nosso time responde em até 1 dia útil.</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <button className="arow" style={{ textAlign: "left", cursor: "pointer" }}><span className="ico" style={{ background: "#1FA855" }}><MessageCircle size={16} /></span><span><span className="t">Falar no WhatsApp</span><br /><span className="s">Resposta mais rápida</span></span></button>
-            <button className="arow" style={{ textAlign: "left", cursor: "pointer" }}><span className="ico" style={{ background: "var(--crasto-text-primary)" }}><Mail size={16} /></span><span><span className="t">Abrir ticket por e-mail</span><br /><span className="s">Para assuntos detalhados</span></span></button>
+            <button className="arow" style={{ textAlign: "left", cursor: "pointer" }} onClick={openWhatsApp}><span className="ico" style={{ background: "#1FA855" }}><MessageCircle size={16} /></span><span><span className="t">Falar no WhatsApp</span><br /><span className="s">Resposta mais rápida</span></span></button>
+            <button className="arow" style={{ textAlign: "left", cursor: "pointer" }} onClick={() => { setF({ subject: "", description: "" }); setErr(""); setOpen(true); }}><span className="ico" style={{ background: "var(--crasto-text-primary)" }}><Mail size={16} /></span><span><span className="t">Abrir ticket por e-mail</span><br /><span className="s">Para assuntos detalhados</span></span></button>
           </div>
         </div>
         <div className="card">
@@ -55,8 +86,17 @@ export default function Suporte() {
 
       <div className="sec-h"><h2>Meus chamados</h2></div>
       {(data?.tickets ?? []).length === 0 ? <Empty>Você ainda não abriu chamados.</Empty> : (data?.tickets ?? []).map((t) => (
-        <div className="lead" key={t.id}><div className="av">#</div><div><div className="nm">{t.subject}</div><div className="mt">{t.status}</div></div></div>
+        <div className="lead" key={t.id}><div className="av">#</div><div style={{ flex: 1 }}><div className="nm">{t.subject}</div></div><Pill tone={stTone(t.status)}>{stLabel(t.status)}</Pill></div>
       ))}
+
+      <Modal title="Abrir ticket por e-mail" open={open} onClose={() => setOpen(false)}
+        footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setOpen(false)}><span className="crasto-btn__label">Cancelar</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={submitTicket}><span className="crasto-btn__label">{busy ? "Enviando…" : "Enviar chamado"}</span></button></>}>
+        {err && <div className="formerr">{err}</div>}
+        <Field label="Assunto *"><input value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} placeholder="Ex.: Meu agente não está respondendo" /></Field>
+        <Field label="Descreva o que está acontecendo"><textarea value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} rows={5} placeholder="Conte os detalhes: o que aconteceu, quando, prints se tiver…" /></Field>
+        <div className="note" style={{ marginTop: 4 }}><span>Nosso time recebe na hora e responde em até <b>1 dia útil</b>. Você recebe uma confirmação por e-mail e acompanha aqui em "Meus chamados".</span></div>
+      </Modal>
+      {toast && <div className="toast">{toast}</div>}
     </div>
   );
 }

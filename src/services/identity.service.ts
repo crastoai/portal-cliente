@@ -61,6 +61,12 @@ export const users = {
     if (error) return { ok: false, error: error.message };
     return (data as any) ?? { ok: false, error: "sem resposta do servidor" };
   },
+  /** Cliente (dono) convida um membro da própria organização + e-mail de acesso. */
+  invite: async (body: { email: string; full_name?: string; role?: string }): Promise<{ ok: boolean; email_sent?: boolean; email_error?: string; error?: string }> => {
+    const { data, error } = await invokeRetry("client-invite-user", body);
+    if (error) return { ok: false, error: error.message };
+    return (data as any) ?? { ok: false, error: "sem resposta do servidor" };
+  },
   /** Redefine a senha de um usuário existente e REENVIA o e-mail de acesso branded. */
   resendAccess: async (body: { user_id: string; email: string; full_name?: string; password?: string }): Promise<{ ok: boolean; email?: string; password?: string; email_sent?: boolean; email_error?: string; error?: string }> => {
     const { data, error } = await invokeRetry("admin-resend-access", body);
