@@ -4,6 +4,7 @@ import { services as api, errorMessage } from "../../services";
 import { PageHead, money } from "../../ui/ui";
 import { taxOf, fmtRate } from "../../lib/config";
 import { useSettings } from "../../lib/settings";
+import { useT } from "../../lib/i18n";
 
 type Org = { id: string; name: string; cnpj: string | null };
 type Svc = { id: string; name: string; unit: string; price_table: number; category?: string | null };
@@ -27,6 +28,7 @@ function itemKind(s?: Svc): "workshop" | "agent" | "automation" | "generic" {
 
 export default function Propostas() {
   const { taxRate } = useSettings();
+  const t = useT();
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [svcs, setSvcs] = useState<Svc[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -203,7 +205,7 @@ export default function Propostas() {
   const available = svcs.filter((s) => !items.includes(s.id));
 
   async function gerar() {
-    if (!orgId) { setToast("Escolha um cliente."); setTimeout(() => setToast(""), 4000); return; }
+    if (!orgId) { setToast(t("Escolha um cliente.")); setTimeout(() => setToast(""), 4000); return; }
     setBusy(true);
     try {
       const prop = await api.commerce.proposals.create({
@@ -219,8 +221,8 @@ export default function Propostas() {
       setContract({ id: (prop as any).id, orgName: org?.name ?? "" });
       setSignerName(org?.name ?? "");
       setContractUrl(""); setCmsg("");
-      setToast("Proposta gerada e enviada ✓");
-    } catch (e) { setToast("Erro ao gerar: " + errorMessage(e)); }
+      setToast(t("Proposta gerada e enviada ✓"));
+    } catch (e) { setToast(t("Erro ao gerar:") + " " + errorMessage(e)); }
     setBusy(false);
     setTimeout(() => setToast(""), 6000);
   }
@@ -230,15 +232,15 @@ export default function Propostas() {
     setCbusy(true); setCmsg("");
     const r = await api.commerce.proposals.generateContract(contract.id);
     setCbusy(false);
-    if (!r.ok) { setCmsg("Erro ao gerar contrato: " + (r.error || "")); return; }
+    if (!r.ok) { setCmsg(t("Erro ao gerar contrato:") + " " + (r.error || "")); return; }
     setContractUrl(r.download_url || "");
-    setCmsg("Contrato gerado ✓");
+    setCmsg(t("Contrato gerado ✓"));
     if (r.download_url) window.open(r.download_url, "_blank");
   }
 
   async function enviarAssinatura() {
     if (!contract) return;
-    if (!signerClient.trim()) { setCmsg("Informe o e-mail do cliente para assinatura."); return; }
+    if (!signerClient.trim()) { setCmsg(t("Informe o e-mail do cliente para assinatura.")); return; }
     const signers = [
       { email: signerClient.trim(), name: signerName || contract.orgName, action: "SIGN" },
       { email: "comercial@crasto.ai", name: "Crasto.AI", action: "SIGN" },
@@ -247,8 +249,8 @@ export default function Propostas() {
     setCbusy(true); setCmsg("");
     const r = await api.commerce.proposals.sendAutentique({ proposal_id: contract.id, signers, sandbox, doc_name: `Contrato Crasto.AI × ${contract.orgName}` });
     setCbusy(false);
-    if (!r.ok) { setCmsg("Erro no Autentique: " + (r.error || "")); return; }
-    setCmsg(sandbox ? `Teste OK (sandbox) — nenhum e-mail real enviado. Doc ${r.autentique_id}.` : `Enviado para assinatura ✓${r.link ? " · link: " + r.link : ""}`);
+    if (!r.ok) { setCmsg(t("Erro no Autentique:") + " " + (r.error || "")); return; }
+    setCmsg(sandbox ? t("Teste OK (sandbox) — nenhum e-mail real enviado. Doc {id}.", { id: r.autentique_id ?? "" }) : t("Enviado para assinatura ✓") + (r.link ? " · link: " + r.link : ""));
   }
 
   return (
@@ -259,8 +261,8 @@ export default function Propostas() {
           {/* Chat/voz com IA (Claude Max via ponte) */}
           <div style={{ marginBottom: 18, padding: 14, borderRadius: 12, background: "var(--crasto-bg-3)", border: "1px solid var(--crasto-border-soft)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--crasto-text-primary)" }}>Assistente da proposta</span>
-              <span style={{ fontSize: 10.5, color: "var(--crasto-text-muted)", fontWeight: 500 }}>fale ou escreva — ex.: "anota que o site é cortesia"</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--crasto-text-primary)" }}>{t("Assistente da proposta")}</span>
+              <span style={{ fontSize: 10.5, color: "var(--crasto-text-muted)", fontWeight: 500 }}>{t("fale ou escreva — ex.: \"anota que o site é cortesia\"")}</span>
             </div>
             {chatLog.length > 0 && (
               <div style={{ maxHeight: 130, overflowY: "auto", marginBottom: 9, display: "grid", gap: 6 }}>
@@ -270,43 +272,43 @@ export default function Propostas() {
               </div>
             )}
             <div style={{ display: "flex", gap: 6 }}>
-              <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendChat()} placeholder={chatBusy ? "Pensando…" : "Dê uma instrução…"} disabled={chatBusy}
+              <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendChat()} placeholder={chatBusy ? t("Pensando…") : t("Dê uma instrução…")} disabled={chatBusy}
                 style={{ flex: 1, fontSize: 13, padding: "8px 11px", border: "1px solid var(--crasto-border-soft)", borderRadius: 9, background: "var(--crasto-bg-2)", color: "var(--crasto-text-body)" }} />
-              <button type="button" onClick={dictateChat} title="Falar (voz→texto)" aria-label="Falar" style={{ display: "grid", placeItems: "center", width: 36, borderRadius: 9, cursor: "pointer", border: "1px solid " + (listening === "__chat__" ? "var(--crasto-navy)" : "var(--crasto-border-soft)"), background: listening === "__chat__" ? "var(--crasto-navy-05)" : "var(--crasto-bg-2)", color: listening === "__chat__" ? "var(--crasto-navy)" : "var(--crasto-text-muted)" }}><Mic size={15} /></button>
-              <button type="button" onClick={sendChat} disabled={chatBusy || !chatInput.trim()} className="crasto-btn crasto-btn--primary crasto-btn--sm"><span className="crasto-btn__label">Enviar</span></button>
+              <button type="button" onClick={dictateChat} title={t("Falar (voz→texto)")} aria-label={t("Falar (voz→texto)")} style={{ display: "grid", placeItems: "center", width: 36, borderRadius: 9, cursor: "pointer", border: "1px solid " + (listening === "__chat__" ? "var(--crasto-navy)" : "var(--crasto-border-soft)"), background: listening === "__chat__" ? "var(--crasto-navy-05)" : "var(--crasto-bg-2)", color: listening === "__chat__" ? "var(--crasto-navy)" : "var(--crasto-text-muted)" }}><Mic size={15} /></button>
+              <button type="button" onClick={sendChat} disabled={chatBusy || !chatInput.trim()} className="crasto-btn crasto-btn--primary crasto-btn--sm"><span className="crasto-btn__label">{t("Enviar")}</span></button>
             </div>
           </div>
 
           {propNotes.length > 0 && (
             <div className="note" style={{ marginBottom: 14 }}>
-              <b>Observações da proposta:</b>
+              <b>{t("Observações da proposta:")}</b>
               <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>{propNotes.map((n, i) => <li key={i} style={{ fontSize: 12.5 }}>{n}</li>)}</ul>
             </div>
           )}
 
-          <div className="pstep"><span className="stepn">1</span><h3>Cliente</h3></div>
+          <div className="pstep"><span className="stepn">1</span><h3>{t("Cliente")}</h3></div>
           <label className="frow" style={{ marginBottom: 0 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--crasto-text-body)" }}>Digite o nome ou CNPJ — busca no CRM</span>
-            <input className="selorg" list="orglist" value={orgQuery} onChange={(e) => pickOrg(e.target.value)} placeholder="Comece a digitar…" autoComplete="off" />
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--crasto-text-body)" }}>{t("Digite o nome ou CNPJ — busca no CRM")}</span>
+            <input className="selorg" list="orglist" value={orgQuery} onChange={(e) => pickOrg(e.target.value)} placeholder={t("Comece a digitar…")} autoComplete="off" />
             <datalist id="orglist">{orgs.map((o) => <option key={o.id} value={o.name}>{o.cnpj ? `CNPJ ${o.cnpj}` : ""}</option>)}</datalist>
           </label>
           {org && (
             <div className="crmcard">
-              <div><div className="cn">{org.name}</div><div className="cc">{bill?.value ? `${bill.kind} ${bill.value}` : "Cliente do CRM"}</div></div>
-              <span className="pill ok"><span className="d" />No CRM</span>
+              <div><div className="cn">{org.name}</div><div className="cc">{bill?.value ? `${bill.kind} ${bill.value}` : t("Cliente do CRM")}</div></div>
+              <span className="pill ok"><span className="d" />{t("No CRM")}</span>
             </div>
           )}
           {cnpjOpts.length > 0 && (
             <label className="frow" style={{ marginTop: 10 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--crasto-text-body)" }}>Faturar para o CNPJ</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--crasto-text-body)" }}>{t("Faturar para o CNPJ")}</span>
               <select className="selorg" value={billId} onChange={(e) => setBillId(e.target.value)}>
-                {cnpjOpts.map((c) => <option key={c.id} value={c.id}>{c.value}{c.is_primary ? " (principal)" : ""}</option>)}
+                {cnpjOpts.map((c) => <option key={c.id} value={c.id}>{c.value}{c.is_primary ? t(" (principal)") : ""}</option>)}
               </select>
               {bill?.address && <span style={{ fontSize: 12, color: "var(--crasto-text-muted)", marginTop: 6 }}>📍 {bill.address}</span>}
             </label>
           )}
 
-          <div className="pstep"><span className="stepn">2</span><h3>Serviços do catálogo</h3></div>
+          <div className="pstep"><span className="stepn">2</span><h3>{t("Serviços do catálogo")}</h3></div>
           {items.map((id) => {
             const s = svcs.find((x) => x.id === id);
             if (!s) return null;
@@ -317,35 +319,35 @@ export default function Propostas() {
             return (
               <div key={id} style={{ borderBottom: "1px solid var(--crasto-border-soft)", padding: "11px 0" }}>
                 <div className="propitem" style={{ border: 0, padding: 0 }}>
-                  <div><div className="pn">{s.name}</div><div className="pt">{s.unit.replace("_", " ")} · tabela {fmt(s.price_table)}</div></div>
+                  <div><div className="pn">{s.name}</div><div className="pt">{s.unit.replace("_", " ")} · {t("tabela")} {fmt(s.price_table)}</div></div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <div className="pinp"><span>{inUSD ? "US$" : "R$"}</span>
                       <input value={(vals[id] ?? 0).toLocaleString("pt-BR")} onChange={(e) => setVals({ ...vals, [id]: parseInt(e.target.value.replace(/\D/g, "")) || 0 })} />
                     </div>
-                    <button type="button" onClick={() => removeItem(id)} title="Remover serviço" aria-label="Remover serviço" style={{ display: "grid", placeItems: "center", width: 28, height: 28, borderRadius: 8, cursor: "pointer", border: "1px solid var(--crasto-border-soft)", background: "var(--crasto-bg-3)", color: "var(--crasto-text-muted)" }}><X size={14} /></button>
+                    <button type="button" onClick={() => removeItem(id)} title={t("Remover serviço")} aria-label={t("Remover serviço")} style={{ display: "grid", placeItems: "center", width: 28, height: 28, borderRadius: 8, cursor: "pointer", border: "1px solid var(--crasto-border-soft)", background: "var(--crasto-bg-3)", color: "var(--crasto-text-muted)" }}><X size={14} /></button>
                   </div>
                 </div>
                 {/* especificidades conforme o tipo do serviço */}
                 {kind === "workshop" && (
                   <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                    <input type="number" min={1} value={sp.people ?? ""} onChange={(e) => setSp({ people: e.target.value })} placeholder="Nº de pessoas" style={{ ...spInput, width: 130 }} />
+                    <input type="number" min={1} value={sp.people ?? ""} onChange={(e) => setSp({ people: e.target.value })} placeholder={t("Nº de pessoas")} style={{ ...spInput, width: 130 }} />
                     <select value={sp.modality ?? ""} onChange={(e) => setSp({ modality: e.target.value })} style={{ ...spInput, flex: 1, minWidth: 140 }}>
-                      <option value="">Modalidade…</option>{MODALIDADES.map((m) => <option key={m} value={m}>{m}</option>)}
+                      <option value="">{t("Modalidade…")}</option>{MODALIDADES.map((m) => <option key={m} value={m}>{t(m)}</option>)}
                     </select>
                   </div>
                 )}
                 {kind === "agent" && (
                   <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                    <input type="number" min={1} value={sp.agents ?? ""} onChange={(e) => setSp({ agents: e.target.value })} placeholder="Nº de agentes de IA" style={{ ...spInput, width: 160 }} />
-                    <input value={sp.routines ?? ""} onChange={(e) => setSp({ routines: e.target.value })} placeholder="Rotinas automatizáveis (ex.: triagem, follow-up)" style={{ ...spInput, flex: 1, minWidth: 180 }} />
+                    <input type="number" min={1} value={sp.agents ?? ""} onChange={(e) => setSp({ agents: e.target.value })} placeholder={t("Nº de agentes de IA")} style={{ ...spInput, width: 160 }} />
+                    <input value={sp.routines ?? ""} onChange={(e) => setSp({ routines: e.target.value })} placeholder={t("Rotinas automatizáveis (ex.: triagem, follow-up)")} style={{ ...spInput, flex: 1, minWidth: 180 }} />
                   </div>
                 )}
                 {kind === "automation" && (
-                  <input value={sp.routines ?? ""} onChange={(e) => setSp({ routines: e.target.value })} placeholder="Rotinas/fluxos a automatizar" style={{ ...spInput, marginTop: 8, width: "100%" }} />
+                  <input value={sp.routines ?? ""} onChange={(e) => setSp({ routines: e.target.value })} placeholder={t("Rotinas/fluxos a automatizar")} style={{ ...spInput, marginTop: 8, width: "100%" }} />
                 )}
                 <div style={{ display: "flex", gap: 6, marginTop: 7, alignItems: "stretch" }}>
-                  <input value={notes[id] || ""} onChange={(e) => setNotes({ ...notes, [id]: e.target.value })} placeholder="+ nota deste item (entra no contrato / NF)" style={{ flex: 1, fontSize: 12, padding: "6px 10px", border: "1px dashed var(--crasto-border)", borderRadius: 8, background: "transparent", color: "var(--crasto-text-body)" }} />
-                  <button type="button" onClick={() => dictate(id)} title="Ditar por voz (grátis)" aria-label="Ditar por voz" style={{ display: "grid", placeItems: "center", width: 34, borderRadius: 8, cursor: "pointer", border: "1px solid " + (listening === id ? "var(--crasto-navy)" : "var(--crasto-border-soft)"), background: listening === id ? "var(--crasto-navy-05)" : "var(--crasto-bg-3)", color: listening === id ? "var(--crasto-navy)" : "var(--crasto-text-muted)" }}>
+                  <input value={notes[id] || ""} onChange={(e) => setNotes({ ...notes, [id]: e.target.value })} placeholder={t("+ nota deste item (entra no contrato / NF)")} style={{ flex: 1, fontSize: 12, padding: "6px 10px", border: "1px dashed var(--crasto-border)", borderRadius: 8, background: "transparent", color: "var(--crasto-text-body)" }} />
+                  <button type="button" onClick={() => dictate(id)} title={t("Ditar por voz (grátis)")} aria-label={t("Ditar por voz (grátis)")} style={{ display: "grid", placeItems: "center", width: 34, borderRadius: 8, cursor: "pointer", border: "1px solid " + (listening === id ? "var(--crasto-navy)" : "var(--crasto-border-soft)"), background: listening === id ? "var(--crasto-navy-05)" : "var(--crasto-bg-3)", color: listening === id ? "var(--crasto-navy)" : "var(--crasto-text-muted)" }}>
                     <Mic size={14} className={listening === id ? "pulse" : ""} />
                   </button>
                 </div>
@@ -353,43 +355,43 @@ export default function Propostas() {
             );
           })}
 
-          {items.length === 0 && <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)", padding: "8px 2px" }}>Nenhum serviço na proposta. Adicione abaixo.</div>}
+          {items.length === 0 && <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)", padding: "8px 2px" }}>{t("Nenhum serviço na proposta. Adicione abaixo.")}</div>}
 
           {/* seletor: adicionar serviço do catálogo */}
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12 }}>
             <span style={{ display: "grid", placeItems: "center", width: 30, height: 30, borderRadius: 8, background: "var(--crasto-navy-05)", color: "var(--crasto-navy)", flexShrink: 0 }}><Plus size={15} /></span>
             <select value="" onChange={(e) => { addItem(e.target.value); e.target.value = ""; }} disabled={available.length === 0}
               style={{ flex: 1, fontSize: 13, padding: "9px 11px", border: "1px solid var(--crasto-border-soft)", borderRadius: 9, background: "var(--crasto-bg-2)", color: "var(--crasto-text-body)", cursor: available.length ? "pointer" : "not-allowed" }}>
-              <option value="">{available.length ? "Adicionar serviço do catálogo…" : "Todos os serviços do catálogo já foram adicionados"}</option>
-              {available.map((s) => <option key={s.id} value={s.id}>{s.name} — tabela {fmt(s.price_table)}</option>)}
+              <option value="">{available.length ? t("Adicionar serviço do catálogo…") : t("Todos os serviços do catálogo já foram adicionados")}</option>
+              {available.map((s) => <option key={s.id} value={s.id}>{s.name} — {t("tabela")} {fmt(s.price_table)}</option>)}
             </select>
           </div>
 
-          <div className="pstep"><span className="stepn">3</span><h3>Agente indicador</h3></div>
+          <div className="pstep"><span className="stepn">3</span><h3>{t("Agente indicador")}</h3></div>
           {agents.length === 0 ? (
-            <div className="crmcard"><div><div className="cn">Nenhum agente cadastrado</div><div className="cc">Cadastre em "Agentes indicadores" para atribuir comissão.</div></div></div>
+            <div className="crmcard"><div><div className="cn">{t("Nenhum agente cadastrado")}</div><div className="cc">{t("Cadastre em \"Agentes indicadores\" para atribuir comissão.")}</div></div></div>
           ) : (
             <>
               <label className="frow" style={{ marginBottom: 0 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--crasto-text-body)" }}>Quem indicou este cliente</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--crasto-text-body)" }}>{t("Quem indicou este cliente")}</span>
                 <select className="selorg" value={agentId} onChange={(e) => setAgentId(e.target.value)}>
-                  {agents.map((a) => <option key={a.id} value={a.id}>{a.name} — {a.agent_type === "conector" ? "Conector" : "Indicador"} ({a.commission_default}%)</option>)}
+                  {agents.map((a) => <option key={a.id} value={a.id}>{a.name} — {a.agent_type === "conector" ? t("Conector") : t("Indicador")} ({a.commission_default}%)</option>)}
                 </select>
               </label>
               {agent && (
                 <div className="crmcard">
-                  <div><div className="cn">{agent.name}</div><div className="cc">Comissão {commissionPct}% · pagamento por {HANDL[agent.payment_handling] || agent.payment_handling}</div></div>
-                  <span className={"pill " + (agent.agent_type === "conector" ? "info" : "ok")}><span className="d" />{agent.agent_type === "conector" ? "Conector" : "Indicador"}</span>
+                  <div><div className="cn">{agent.name}</div><div className="cc">{t("Comissão {p}% · pagamento por {h}", { p: commissionPct, h: t(HANDL[agent.payment_handling] || agent.payment_handling) })}</div></div>
+                  <span className={"pill " + (agent.agent_type === "conector" ? "info" : "ok")}><span className="d" />{agent.agent_type === "conector" ? t("Conector") : t("Indicador")}</span>
                 </div>
               )}
             </>
           )}
 
-          <div className="pstep"><span className="stepn">4</span><h3>Anexos</h3></div>
+          <div className="pstep"><span className="stepn">4</span><h3>{t("Anexos")}</h3></div>
           {/* documentos reais do cliente (do CRM) */}
-          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--crasto-text-body)", margin: "2px 0 8px" }}>Documentos do cliente</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--crasto-text-body)", margin: "2px 0 8px" }}>{t("Documentos do cliente")}</div>
           {clientDocs.length === 0 ? (
-            <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)", marginBottom: 10 }}>Nenhum documento no cadastro deste cliente. Envie um abaixo ou anexe pelo cadastro do cliente.</div>
+            <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)", marginBottom: 10 }}>{t("Nenhum documento no cadastro deste cliente. Envie um abaixo ou anexe pelo cadastro do cliente.")}</div>
           ) : (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
               {clientDocs.map((d) => {
@@ -404,11 +406,11 @@ export default function Propostas() {
             </div>
           )}
           <label className="crasto-btn crasto-btn--secondary crasto-btn--sm" style={{ cursor: orgId ? "pointer" : "not-allowed", opacity: orgId ? 1 : .5 }}>
-            <span className="crasto-btn__icon"><Upload size={14} /></span><span className="crasto-btn__label">{uploading ? "Enviando…" : "Enviar anexo"}</span>
+            <span className="crasto-btn__icon"><Upload size={14} /></span><span className="crasto-btn__label">{uploading ? t("Enviando…") : t("Enviar anexo")}</span>
             <input type="file" hidden disabled={!orgId || uploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadAnexo(f); e.target.value = ""; }} />
           </label>
           {/* peças estratégicas Crasto (opcionais) */}
-          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--crasto-text-body)", margin: "16px 0 8px" }}>Peças estratégicas Crasto</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--crasto-text-body)", margin: "16px 0 8px" }}>{t("Peças estratégicas Crasto")}</div>
           <div className="attgrid">
             {ANEXOS.map((a) => (
               <label key={a} className={"att" + (att.has(a) ? " on" : "")} onClick={() => { const n = new Set(att); n.has(a) ? n.delete(a) : n.add(a); setAtt(n); }}>
@@ -420,47 +422,47 @@ export default function Propostas() {
 
         <div className="card summary">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-            <h3 style={{ margin: 0 }}>Resumo da proposta</h3>
+            <h3 style={{ margin: 0 }}>{t("Resumo da proposta")}</h3>
             <div style={{ display: "inline-flex", border: "1px solid var(--crasto-border-soft)", borderRadius: 999, overflow: "hidden" }}>
               {(["BRL", "USD"] as const).map((c) => (
                 <button key={c} onClick={() => setCurrency(c)} style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", border: 0, cursor: "pointer", background: currency === c ? "var(--crasto-navy)" : "transparent", color: currency === c ? "#fff" : "var(--crasto-text-muted)" }}>{c}</button>
               ))}
             </div>
           </div>
-          <div className="csub">{inUSD ? `Câmbio do dia: R$ ${fx.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} / US$` : "Valores editáveis · base = preço de tabela"}</div>
-          {currency === "USD" && fx === 0 && <div className="csub" style={{ color: "var(--crasto-danger)" }}>Cotação indisponível — usando BRL.</div>}
+          <div className="csub">{inUSD ? t("Câmbio do dia: R$ {fx} / US$", { fx: fx.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) }) : t("Valores editáveis · base = preço de tabela")}</div>
+          {currency === "USD" && fx === 0 && <div className="csub" style={{ color: "var(--crasto-danger)" }}>{t("Cotação indisponível — usando BRL.")}</div>}
           {items.map((id) => {
             const s = svcs.find((x) => x.id === id);
             return <div className="sumrow" key={id}><span>{s?.name}</span><span className="tnum">{fmt(vals[id] ?? 0)}</span></div>;
           })}
-          <div className="sumrow"><span>Subtotal (serviços)</span><span className="tnum">{fmt(total)}</span></div>
-          <div className="sumrow"><span>Imposto ({fmtRate(taxRate)}%){special ? " — isento (venda especial)" : ""}</span><span className="tnum" style={{ color: special ? "var(--crasto-text-muted)" : "var(--crasto-danger)" }}>{fmt(tax)}</span></div>
-          <div className="sumrow tot"><span>Total {special ? "(sem NF)" : "com imposto"}</span><span className="tnum">{fmt(total + tax)}</span></div>
-          <div className="sumrow"><span>Comissão {agent?.agent_type === "conector" ? "conector" : "indicador"} ({commissionPct}%)</span><span className="tnum" style={{ color: "#B8863A" }}>{fmt(commission)}</span></div>
+          <div className="sumrow"><span>{t("Subtotal (serviços)")}</span><span className="tnum">{fmt(total)}</span></div>
+          <div className="sumrow"><span>{t("Imposto")} ({fmtRate(taxRate)}%){special ? t(" — isento (venda especial)") : ""}</span><span className="tnum" style={{ color: special ? "var(--crasto-text-muted)" : "var(--crasto-danger)" }}>{fmt(tax)}</span></div>
+          <div className="sumrow tot"><span>{special ? t("Total (sem NF)") : t("Total com imposto")}</span><span className="tnum">{fmt(total + tax)}</span></div>
+          <div className="sumrow"><span>{t("Comissão")} {agent?.agent_type === "conector" ? t("conector") : t("indicador")} ({commissionPct}%)</span><span className="tnum" style={{ color: "#B8863A" }}>{fmt(commission)}</span></div>
           <label className="frow specialbox" style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, margin: "12px 0 4px", padding: "12px 14px", borderRadius: 12, background: special ? "var(--crasto-navy-05)" : "var(--crasto-bg-3)", border: special ? "1px solid var(--crasto-navy-20)" : "1px solid var(--crasto-border-soft)" }}>
             <input type="checkbox" checked={special} onChange={(e) => setSpecial(e.target.checked)} style={{ width: "auto", marginTop: 2 }} />
-            <span style={{ margin: 0 }}><b>Venda especial</b> (sem Nota Fiscal) — faz todo o fluxo mas <b>não emite NF</b> e não aplica imposto. Ex.: vendas-teste, cortesias, permutas.</span>
+            <span style={{ margin: 0 }}>{t("Venda especial (sem Nota Fiscal) — faz todo o fluxo mas não emite NF e não aplica imposto. Ex.: vendas-teste, cortesias, permutas.")}</span>
           </label>
-          <div className="paycheck">🟢 <b>IA se paga em ~28 dias</b><div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", marginTop: 4, fontWeight: 400 }}>Baseado no Plano Diretor: economia + receita projetada &gt; investimento em 30d.</div></div>
-          <button className="crasto-btn crasto-btn--primary crasto-btn--md" style={{ width: "100%", marginTop: 14 }} disabled={busy} onClick={gerar}><span className="crasto-btn__label">{busy ? "Gerando…" : special ? "Gerar venda especial (sem NF)" : "Gerar proposta personalizada"}</span></button>
+          <div className="paycheck">🟢 <b>{t("IA se paga em ~28 dias")}</b><div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", marginTop: 4, fontWeight: 400 }}>{t("Baseado no Plano Diretor: economia + receita projetada > investimento em 30d.")}</div></div>
+          <button className="crasto-btn crasto-btn--primary crasto-btn--md" style={{ width: "100%", marginTop: 14 }} disabled={busy} onClick={gerar}><span className="crasto-btn__label">{busy ? t("Gerando…") : special ? t("Gerar venda especial (sem NF)") : t("Gerar proposta personalizada")}</span></button>
 
           {contract && (
             <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--crasto-border-soft)" }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--crasto-text-primary)", marginBottom: 2 }}>Contrato — {contract.orgName}</div>
-              <div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", marginBottom: 10 }}>Gerado do molde jurídico (fidelidade máxima). Revise o .docx antes de enviar.</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--crasto-text-primary)", marginBottom: 2 }}>{t("Contrato — {org}", { org: contract.orgName })}</div>
+              <div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", marginBottom: 10 }}>{t("Gerado do molde jurídico (fidelidade máxima). Revise o .docx antes de enviar.")}</div>
               <button className="crasto-btn crasto-btn--secondary crasto-btn--md" style={{ width: "100%" }} disabled={cbusy} onClick={gerarContrato}>
-                <span className="crasto-btn__icon"><FileText size={14} /></span><span className="crasto-btn__label">{cbusy ? "Processando…" : contractUrl ? "Baixar contrato (.docx)" : "Gerar contrato (.docx)"}</span>
+                <span className="crasto-btn__icon"><FileText size={14} /></span><span className="crasto-btn__label">{cbusy ? t("Processando…") : contractUrl ? t("Baixar contrato (.docx)") : t("Gerar contrato (.docx)")}</span>
               </button>
-              {contractUrl && <a href={contractUrl} target="_blank" rel="noreferrer" style={{ display: "block", fontSize: 12, color: "#3E6FB8", marginTop: 6 }}>Abrir contrato gerado ↗</a>}
+              {contractUrl && <a href={contractUrl} target="_blank" rel="noreferrer" style={{ display: "block", fontSize: 12, color: "#3E6FB8", marginTop: 6 }}>{t("Abrir contrato gerado ↗")}</a>}
 
               <div style={{ marginTop: 12, display: "grid", gap: 7 }}>
-                <input value={signerClient} onChange={(e) => setSignerClient(e.target.value)} placeholder="E-mail do cliente (signatário)" style={{ fontSize: 13, padding: "8px 11px", border: "1px solid var(--crasto-border-soft)", borderRadius: 9, background: "var(--crasto-bg-3)", color: "var(--crasto-text-body)" }} />
+                <input value={signerClient} onChange={(e) => setSignerClient(e.target.value)} placeholder={t("E-mail do cliente (signatário)")} style={{ fontSize: 13, padding: "8px 11px", border: "1px solid var(--crasto-border-soft)", borderRadius: 9, background: "var(--crasto-bg-3)", color: "var(--crasto-text-body)" }} />
                 <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--crasto-text-body)" }}>
                   <input type="checkbox" checked={sandbox} onChange={(e) => setSandbox(e.target.checked)} style={{ width: "auto" }} />
-                  Modo teste (sandbox) — não envia e-mail real de assinatura
+                  {t("Modo teste (sandbox) — não envia e-mail real de assinatura")}
                 </label>
                 <button className="crasto-btn crasto-btn--primary crasto-btn--md" style={{ width: "100%" }} disabled={cbusy} onClick={enviarAssinatura}>
-                  <span className="crasto-btn__icon"><ArrowRight size={14} /></span><span className="crasto-btn__label">{cbusy ? "Enviando…" : sandbox ? "Testar envio (sandbox)" : "Enviar p/ assinatura (Autentique)"}</span>
+                  <span className="crasto-btn__icon"><ArrowRight size={14} /></span><span className="crasto-btn__label">{cbusy ? t("Enviando…") : sandbox ? t("Testar envio (sandbox)") : t("Enviar p/ assinatura (Autentique)")}</span>
                 </button>
               </div>
               {cmsg && <div style={{ fontSize: 12, marginTop: 9, padding: "8px 11px", borderRadius: 9, background: "var(--crasto-navy-05)", color: "var(--crasto-text-primary)" }}>{cmsg}</div>}
