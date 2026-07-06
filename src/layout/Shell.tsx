@@ -42,7 +42,7 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
           <Brandmark />
           Crasto.AI
         </span>
-        <LangSwitcher compact />
+        <LangSwitcher />
         <ThemeToggle />
       </div>
 
@@ -72,13 +72,13 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
           ))}
         </nav>
 
+        <div className="side-lang"><LangSwitcher up /></div>
         <div className="side-user">
           <span className="su-av" style={logoTone ? { background: logoTone } : undefined}>{ini}</span>
           <div className="su-meta">
             <div className="su-nm">{who}</div>
             <div className="su-em">{profile?.email}</div>
           </div>
-          <LangSwitcher />
           <ThemeToggle />
           <button className="su-out" title={t("Sair")} onClick={() => signOut()}><LogOut size={16} /></button>
         </div>
