@@ -25,6 +25,12 @@ export const proposals = {
     if (error) return { ok: false, error: error.message };
     return data;
   },
+  /** Chat/voz: interpreta uma instrução via ponte de IA (Claude Max). */
+  ai: async (instruction: string, context: unknown): Promise<{ ok: boolean; offline?: boolean; reply?: string; actions?: any[]; error?: string }> => {
+    const { data, error } = await supabase.functions.invoke("proposal-ai", { body: { instruction, context } });
+    if (error) return { ok: false, error: error.message };
+    return data;
+  },
 };
 
 export const commerce = { proposals };

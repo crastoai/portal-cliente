@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, ArrowRight, Upload, FileText } from "lucide-react";
+import { Check, ArrowRight, Upload, FileText, Mic } from "lucide-react";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, money } from "../../ui/ui";
 import { taxOf, fmtRate } from "../../lib/config";
@@ -56,6 +56,63 @@ export default function Propostas() {
   const [sandbox, setSandbox] = useState(true);
   const [cbusy, setCbusy] = useState(false);
   const [cmsg, setCmsg] = useState("");
+  const [listening, setListening] = useState<string>(""); // id do item sendo ditado
+  // chat/voz com IA (Fase 4)
+  const [chatInput, setChatInput] = useState("");
+  const [chatBusy, setChatBusy] = useState(false);
+  const [chatLog, setChatLog] = useState<{ role: "you" | "ai"; text: string }[]>([]);
+  const [propNotes, setPropNotes] = useState<string[]>([]);
+
+  // voz -> texto (Web Speech API nativa, grátis) ditando para a nota do item
+  function dictate(id: string) {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) { setToast("Ditado por voz não suportado neste navegador (use o Chrome)."); setTimeout(() => setToast(""), 4000); return; }
+    if (listening) return;
+    const rec = new SR();
+    rec.lang = "pt-BR"; rec.interimResults = false; rec.maxAlternatives = 1;
+    setListening(id);
+    rec.onresult = (e: any) => {
+      const txt = e.results?.[0]?.[0]?.transcript || "";
+      setNotes((prev) => ({ ...prev, [id]: (prev[id] ? prev[id] + " " : "") + txt }));
+    };
+    rec.onerror = () => { setListening(""); };
+    rec.onend = () => setListening("");
+    rec.start();
+  }
+
+  function dictateChat() {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) { setToast("Ditado por voz não suportado (use o Chrome)."); setTimeout(() => setToast(""), 4000); return; }
+    if (listening) return;
+    const rec = new SR(); rec.lang = "pt-BR"; rec.interimResults = false;
+    setListening("__chat__");
+    rec.onresult = (e: any) => setChatInput((p) => (p ? p + " " : "") + (e.results?.[0]?.[0]?.transcript || ""));
+    rec.onerror = () => setListening(""); rec.onend = () => setListening("");
+    rec.start();
+  }
+
+  async function sendChat() {
+    const msg = chatInput.trim();
+    if (!msg || chatBusy) return;
+    setChatBusy(true); setChatInput("");
+    setChatLog((l) => [...l, { role: "you", text: msg }]);
+    const context = { cliente: org?.name, itens: items.map((id) => svcs.find((x) => x.id === id)?.name).filter(Boolean), venda_especial: special };
+    const r = await api.commerce.ai(msg, context);
+    setChatBusy(false);
+    if (!r.ok) { setChatLog((l) => [...l, { role: "ai", text: (r.offline ? "🔌 " : "⚠️ ") + (r.error || "erro") }]); return; }
+    // aplica as ações sugeridas
+    for (const a of r.actions || []) {
+      if (a.type === "item_note" && a.item) {
+        const hit = items.find((id) => (svcs.find((x) => x.id === id)?.name || "").toLowerCase().includes(String(a.item).toLowerCase()));
+        if (hit) setNotes((prev) => ({ ...prev, [hit]: (prev[hit] ? prev[hit] + " · " : "") + (a.note || "") }));
+      } else if (a.type === "proposal_note" && a.note) {
+        setPropNotes((p) => [...p, a.note]);
+      } else if (a.type === "set_special") {
+        setSpecial(!!a.value);
+      }
+    }
+    setChatLog((l) => [...l, { role: "ai", text: r.reply || "Feito." }]);
+  }
 
   useEffect(() => {
     (async () => {
@@ -185,6 +242,34 @@ export default function Propostas() {
       <PageHead eyebrow="Painel Admin" title="Gerador de propostas" sub="Monte uma proposta personalizada com a espinha dorsal Crasto.AI." />
       <div className="propgrid">
         <div className="card">
+          {/* Chat/voz com IA (Claude Max via ponte) */}
+          <div style={{ marginBottom: 18, padding: 14, borderRadius: 12, background: "var(--crasto-bg-3)", border: "1px solid var(--crasto-border-soft)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--crasto-text-primary)" }}>Assistente da proposta</span>
+              <span style={{ fontSize: 10.5, color: "var(--crasto-text-muted)", fontWeight: 500 }}>fale ou escreva — ex.: "anota que o site é cortesia"</span>
+            </div>
+            {chatLog.length > 0 && (
+              <div style={{ maxHeight: 130, overflowY: "auto", marginBottom: 9, display: "grid", gap: 6 }}>
+                {chatLog.map((m, i) => (
+                  <div key={i} style={{ fontSize: 12.5, lineHeight: 1.45, padding: "6px 10px", borderRadius: 8, background: m.role === "you" ? "var(--crasto-navy-05)" : "var(--crasto-bg-2)", color: "var(--crasto-text-body)", justifySelf: m.role === "you" ? "end" : "start", maxWidth: "88%" }}>{m.text}</div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 6 }}>
+              <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendChat()} placeholder={chatBusy ? "Pensando…" : "Dê uma instrução…"} disabled={chatBusy}
+                style={{ flex: 1, fontSize: 13, padding: "8px 11px", border: "1px solid var(--crasto-border-soft)", borderRadius: 9, background: "var(--crasto-bg-2)", color: "var(--crasto-text-body)" }} />
+              <button type="button" onClick={dictateChat} title="Falar (voz→texto)" aria-label="Falar" style={{ display: "grid", placeItems: "center", width: 36, borderRadius: 9, cursor: "pointer", border: "1px solid " + (listening === "__chat__" ? "var(--crasto-navy)" : "var(--crasto-border-soft)"), background: listening === "__chat__" ? "var(--crasto-navy-05)" : "var(--crasto-bg-2)", color: listening === "__chat__" ? "var(--crasto-navy)" : "var(--crasto-text-muted)" }}><Mic size={15} /></button>
+              <button type="button" onClick={sendChat} disabled={chatBusy || !chatInput.trim()} className="crasto-btn crasto-btn--primary crasto-btn--sm"><span className="crasto-btn__label">Enviar</span></button>
+            </div>
+          </div>
+
+          {propNotes.length > 0 && (
+            <div className="note" style={{ marginBottom: 14 }}>
+              <b>Observações da proposta:</b>
+              <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>{propNotes.map((n, i) => <li key={i} style={{ fontSize: 12.5 }}>{n}</li>)}</ul>
+            </div>
+          )}
+
           <div className="pstep"><span className="stepn">1</span><h3>Cliente</h3></div>
           <label className="frow" style={{ marginBottom: 0 }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: "var(--crasto-text-body)" }}>Digite o nome ou CNPJ — busca no CRM</span>
@@ -241,7 +326,12 @@ export default function Propostas() {
                 {kind === "automation" && (
                   <input value={sp.routines ?? ""} onChange={(e) => setSp({ routines: e.target.value })} placeholder="Rotinas/fluxos a automatizar" style={{ ...spInput, marginTop: 8, width: "100%" }} />
                 )}
-                <input value={notes[id] || ""} onChange={(e) => setNotes({ ...notes, [id]: e.target.value })} placeholder="+ nota deste item (entra no contrato / NF)" style={{ marginTop: 7, width: "100%", fontSize: 12, padding: "6px 10px", border: "1px dashed var(--crasto-border)", borderRadius: 8, background: "transparent", color: "var(--crasto-text-body)" }} />
+                <div style={{ display: "flex", gap: 6, marginTop: 7, alignItems: "stretch" }}>
+                  <input value={notes[id] || ""} onChange={(e) => setNotes({ ...notes, [id]: e.target.value })} placeholder="+ nota deste item (entra no contrato / NF)" style={{ flex: 1, fontSize: 12, padding: "6px 10px", border: "1px dashed var(--crasto-border)", borderRadius: 8, background: "transparent", color: "var(--crasto-text-body)" }} />
+                  <button type="button" onClick={() => dictate(id)} title="Ditar por voz (grátis)" aria-label="Ditar por voz" style={{ display: "grid", placeItems: "center", width: 34, borderRadius: 8, cursor: "pointer", border: "1px solid " + (listening === id ? "var(--crasto-navy)" : "var(--crasto-border-soft)"), background: listening === id ? "var(--crasto-navy-05)" : "var(--crasto-bg-3)", color: listening === id ? "var(--crasto-navy)" : "var(--crasto-text-muted)" }}>
+                    <Mic size={14} className={listening === id ? "pulse" : ""} />
+                  </button>
+                </div>
               </div>
             );
           })}
