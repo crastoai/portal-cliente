@@ -3,6 +3,7 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, initials, money, Field } from "../../ui/ui";
 import { useSettings } from "../../lib/settings";
+import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 
 type C = {
@@ -23,6 +24,7 @@ const HANDL = { nota_fiscal: "Com Nota Fiscal", por_fora: "Por fora", reembolso:
 
 export default function Conectores() {
   const { commissionIndicador, commissionConector } = useSettings();
+  const t = useT();
   const { data, reload } = useAsync(async () => {
     const [c, m] = await Promise.all([api.identity.connectors.list(), api.analytics.admin.commissions<Comm[]>()]);
     return { conns: (c as unknown as C[]) ?? [], comms: m ?? [] };
@@ -47,7 +49,7 @@ export default function Conectores() {
   function setType(t: string) { setF((p: any) => ({ ...p, agent_type: t, commission_default: String(t === "indicador" ? commissionIndicador : commissionConector) })); }
 
   async function submit() {
-    if (!f.name.trim()) { setErr("Informe o nome do agente."); return; }
+    if (!f.name.trim()) { setErr(t("Informe o nome do agente.")); return; }
     setBusy(true); setErr("");
     const payload = {
       name: f.name.trim(), agent_type: f.agent_type, commission_default: Number(f.commission_default) || 0, active: f.active,
@@ -63,53 +65,53 @@ export default function Conectores() {
     finally { setBusy(false); }
   }
   async function del(c: C) {
-    if (!confirm(`Excluir o agente "${c.name}"?`)) return;
+    if (!confirm(t("Excluir o agente \"{n}\"?", { n: c.name }))) return;
     try { await api.identity.connectors.remove(c.id); reload(); }
-    catch { setToast("Não foi possível excluir (agente com clientes indicados?)."); setTimeout(() => setToast(""), 6000); }
+    catch { setToast(t("Não foi possível excluir (agente com clientes indicados?).")); setTimeout(() => setToast(""), 6000); }
   }
 
   return (
     <div>
-      <PageHead eyebrow="Painel Admin" title="Agentes indicadores" sub={`Quem indica clientes. Indicador (participa) = ${commissionIndicador}% · Conector (só apresentou) = ${commissionConector}% no contrato de 1 ano.`}
-        right={<button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={openNew}><span className="crasto-btn__icon"><Plus size={15} /></span><span className="crasto-btn__label">Novo agente</span></button>} />
+      <PageHead eyebrow="Painel Admin" title="Agentes indicadores" sub={t("Quem indica clientes. Indicador (participa) = {i}% · Conector (só apresentou) = {c}% no contrato de 1 ano.", { i: commissionIndicador, c: commissionConector })}
+        right={<button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={openNew}><span className="crasto-btn__icon"><Plus size={15} /></span><span className="crasto-btn__label">{t("Novo agente")}</span></button>} />
       <div className="tbl-wrap" style={{ marginBottom: 24 }}>
         <table className="tbl">
-          <thead><tr><th>Agente</th><th>Tipo</th><th>Comissão</th><th>Recebimento</th><th>NF</th><th>Contrato</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>{t("Agente")}</th><th>{t("Tipo")}</th><th>{t("Comissão")}</th><th>{t("Recebimento")}</th><th>{t("NF")}</th><th>{t("Contrato")}</th><th>{t("Status")}</th><th></th></tr></thead>
           <tbody>
-            {conns.length === 0 ? <tr><td colSpan={8} style={{ color: "var(--crasto-text-muted)" }}>Nenhum agente cadastrado.</td></tr> : conns.map((c) => (
+            {conns.length === 0 ? <tr><td colSpan={8} style={{ color: "var(--crasto-text-muted)" }}>{t("Nenhum agente cadastrado.")}</td></tr> : conns.map((c) => (
               <tr key={c.id}>
                 <td><div className="cust"><div className="logo">{initials(c.name)}</div><div><div className="nm">{c.name}</div><div className="em">{c.email || (c.phone ? `${c.phone_country_code} ${c.phone}` : "—")}</div></div></div></td>
-                <td><Pill tone={c.agent_type === "indicador" ? "ok" : "info"}>{c.agent_type === "indicador" ? "Indicador" : "Conector"}</Pill></td>
+                <td><Pill tone={c.agent_type === "indicador" ? "ok" : "info"}>{c.agent_type === "indicador" ? t("Indicador") : t("Conector")}</Pill></td>
                 <td className="tnum" style={{ fontWeight: 700, color: "var(--crasto-text-primary)" }}>{c.commission_default}%</td>
-                <td>{(PAYM as any)[c.payment_method] || c.payment_method}<div style={{ fontSize: 11, color: "var(--crasto-text-muted)" }}>{(HANDL as any)[c.payment_handling] || c.payment_handling}</div></td>
-                <td><Pill tone={c.issues_invoice ? "ok" : "mute"}>{c.issues_invoice ? "Emite" : "Não"}</Pill></td>
-                <td className="tnum">{c.contract_months}m</td>
-                <td><Pill tone={c.active ? "ok" : "mute"}>{c.active ? "Ativo" : "Inativo"}</Pill></td>
-                <td><div style={{ display: "flex", gap: 6 }}><button className="icobtn" title="Editar" onClick={() => openEdit(c)}><Pencil size={14} /></button><button className="icobtn" title="Excluir" onClick={() => del(c)}><Trash2 size={14} /></button></div></td>
+                <td>{t((PAYM as any)[c.payment_method] || c.payment_method)}<div style={{ fontSize: 11, color: "var(--crasto-text-muted)" }}>{t((HANDL as any)[c.payment_handling] || c.payment_handling)}</div></td>
+                <td><Pill tone={c.issues_invoice ? "ok" : "mute"}>{c.issues_invoice ? t("Emite") : t("Não")}</Pill></td>
+                <td className="tnum">{t("{n}m", { n: c.contract_months })}</td>
+                <td><Pill tone={c.active ? "ok" : "mute"}>{c.active ? t("Ativo") : t("Inativo")}</Pill></td>
+                <td><div style={{ display: "flex", gap: 6 }}><button className="icobtn" title={t("Editar")} onClick={() => openEdit(c)}><Pencil size={14} /></button><button className="icobtn" title={t("Excluir")} onClick={() => del(c)}><Trash2 size={14} /></button></div></td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <div className="sec-h"><h2>Comissões a pagar</h2></div>
+      <div className="sec-h"><h2>{t("Comissões a pagar")}</h2></div>
       {comms.length === 0 ? <Empty>Nenhuma comissão registrada.</Empty> : (
         <div className="tbl-wrap">
           <table className="tbl">
-            <thead><tr><th>Cliente</th><th>Agente</th><th>Venda</th><th>Comissão</th><th>Nota Fiscal</th></tr></thead>
+            <thead><tr><th>{t("Cliente")}</th><th>{t("Agente")}</th><th>{t("Venda")}</th><th>{t("Comissão")}</th><th>{t("Nota Fiscal")}</th></tr></thead>
             <tbody>
               {comms.map((c, i) => (
-                <tr key={i}><td>{c.org}</td><td>{c.connector}</td><td className="tnum">{money(c.sale_amount)}</td><td className="tnum" style={{ fontWeight: 700, color: "var(--crasto-text-primary)" }}>{money(c.commission_amount)}</td><td><Pill tone={c.nf_status === "paid" ? "ok" : "warn"}>{c.nf_status === "paid" ? "NF emitida · paga" : "Aguardando NF"}</Pill></td></tr>
+                <tr key={i}><td>{c.org}</td><td>{c.connector}</td><td className="tnum">{money(c.sale_amount)}</td><td className="tnum" style={{ fontWeight: 700, color: "var(--crasto-text-primary)" }}>{money(c.commission_amount)}</td><td><Pill tone={c.nf_status === "paid" ? "ok" : "warn"}>{c.nf_status === "paid" ? t("NF emitida · paga") : t("Aguardando NF")}</Pill></td></tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-      <Modal title={editing ? "Editar agente indicador" : "Novo agente indicador"} open={open} onClose={() => setOpen(false)}
-        footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setOpen(false)}><span className="crasto-btn__label">Cancelar</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={submit}><span className="crasto-btn__label">{busy ? "Salvando…" : "Salvar"}</span></button></>}>
+      <Modal title={editing ? t("Editar agente indicador") : t("Novo agente indicador")} open={open} onClose={() => setOpen(false)}
+        footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={submit}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar")}</span></button></>}>
         {err && <div className="formerr">{err}</div>}
-        <Field label="Nome *"><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Ex.: João da Silva / Viver de IA" /></Field>
+        <Field label="Nome *"><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder={t("Ex.: João da Silva / Viver de IA")} /></Field>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label="Tipo de agente"><select value={f.agent_type} onChange={(e) => setType(e.target.value)}><option value="indicador">Indicador (participa) — {commissionIndicador}%</option><option value="conector">Conector (só apresentou) — {commissionConector}%</option></select></Field>
+          <Field label="Tipo de agente"><select value={f.agent_type} onChange={(e) => setType(e.target.value)}><option value="indicador">{t("Indicador (participa) — {i}%", { i: commissionIndicador })}</option><option value="conector">{t("Conector (só apresentou) — {c}%", { c: commissionConector })}</option></select></Field>
           <Field label="Comissão (%)"><input type="number" value={f.commission_default} onChange={(e) => setF({ ...f, commission_default: e.target.value })} placeholder="20" /></Field>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -117,17 +119,17 @@ export default function Conectores() {
           <Field label="Telefone"><div style={{ display: "flex", gap: 6 }}><input value={f.phone_country_code} onChange={(e) => setF({ ...f, phone_country_code: e.target.value })} style={{ width: 64 }} placeholder="+55" /><input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} placeholder="(11) 90000-0000" /></div></Field>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label="Forma de recebimento"><select value={f.payment_method} onChange={(e) => setF({ ...f, payment_method: e.target.value })}><option value="pix">Pix</option><option value="bank">Conta bancária</option><option value="bitcoin">Bitcoin</option><option value="other">Outro</option></select></Field>
-          <Field label="Como a Crasto paga"><select value={f.payment_handling} onChange={(e) => setF({ ...f, payment_handling: e.target.value })}><option value="nota_fiscal">Com Nota Fiscal</option><option value="por_fora">Por fora</option><option value="reembolso">Reembolso de despesas</option></select></Field>
+          <Field label="Forma de recebimento"><select value={f.payment_method} onChange={(e) => setF({ ...f, payment_method: e.target.value })}><option value="pix">{t("Pix")}</option><option value="bank">{t("Conta bancária")}</option><option value="bitcoin">{t("Bitcoin")}</option><option value="other">{t("Outro")}</option></select></Field>
+          <Field label="Como a Crasto paga"><select value={f.payment_handling} onChange={(e) => setF({ ...f, payment_handling: e.target.value })}><option value="nota_fiscal">{t("Com Nota Fiscal")}</option><option value="por_fora">{t("Por fora")}</option><option value="reembolso">{t("Reembolso de despesas")}</option></select></Field>
         </div>
-        <Field label="Dados de recebimento (chave Pix / conta / carteira)"><input value={f.payment_details} onChange={(e) => setF({ ...f, payment_details: e.target.value })} placeholder="Ex.: chave Pix, banco/agência/conta, endereço da carteira…" /></Field>
+        <Field label="Dados de recebimento (chave Pix / conta / carteira)"><input value={f.payment_details} onChange={(e) => setF({ ...f, payment_details: e.target.value })} placeholder={t("Ex.: chave Pix, banco/agência/conta, endereço da carteira…")} /></Field>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label="Emite Nota Fiscal para receber?"><select value={f.issues_invoice ? "1" : "0"} onChange={(e) => setF({ ...f, issues_invoice: e.target.value === "1" })}><option value="0">Não</option><option value="1">Sim</option></select></Field>
+          <Field label="Emite Nota Fiscal para receber?"><select value={f.issues_invoice ? "1" : "0"} onChange={(e) => setF({ ...f, issues_invoice: e.target.value === "1" })}><option value="0">{t("Não")}</option><option value="1">{t("Sim")}</option></select></Field>
           <Field label="Validade do contrato (meses)"><input type="number" value={f.contract_months} onChange={(e) => setF({ ...f, contract_months: e.target.value })} placeholder="12" /></Field>
         </div>
-        <div className="note"><span>A comissão é paga <b>proporcionalmente ao recebimento</b> de cada parcela no sistema, dentro da validade do contrato. Após o período, novas indicações ficam em aberto para renegociar.</span></div>
-        <Field label="Notas (opcional)"><textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="Observações sobre o acordo com o agente." /></Field>
-        <Field label="Status"><select value={f.active ? "1" : "0"} onChange={(e) => setF({ ...f, active: e.target.value === "1" })}><option value="1">Ativo</option><option value="0">Inativo</option></select></Field>
+        <div className="note"><span>{t("A comissão é paga proporcionalmente ao recebimento de cada parcela no sistema, dentro da validade do contrato. Após o período, novas indicações ficam em aberto para renegociar.")}</span></div>
+        <Field label="Notas (opcional)"><textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder={t("Observações sobre o acordo com o agente.")} /></Field>
+        <Field label="Status"><select value={f.active ? "1" : "0"} onChange={(e) => setF({ ...f, active: e.target.value === "1" })}><option value="1">{t("Ativo")}</option><option value="0">{t("Inativo")}</option></select></Field>
       </Modal>
       {toast && <div className="toast">{toast}</div>}
     </div>
