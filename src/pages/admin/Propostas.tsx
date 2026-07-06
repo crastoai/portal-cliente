@@ -1,17 +1,29 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, ArrowRight } from "lucide-react";
+import { Check, ArrowRight, Upload, FileText } from "lucide-react";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, money } from "../../ui/ui";
 import { taxOf, fmtRate } from "../../lib/config";
 import { useSettings } from "../../lib/settings";
 
 type Org = { id: string; name: string; cnpj: string | null };
-type Svc = { id: string; name: string; unit: string; price_table: number };
+type Svc = { id: string; name: string; unit: string; price_table: number; category?: string | null };
 type Agent = { id: string; name: string; agent_type: string; commission_default: number; payment_handling: string; active: boolean };
 type TaxId = { id: string; kind: string; value: string; address: string | null; is_primary: boolean };
+type Doc = { id: string; file_name: string; kind: string };
 
 const ANEXOS = ["Plano Diretor", "Playbook Comercial", "Plano de Marketing", "Financeiro Estratégico"];
 const HANDL: Record<string, string> = { nota_fiscal: "Nota Fiscal", por_fora: "por fora", reembolso: "reembolso de despesas" };
+const DOC_KIND_L: Record<string, string> = { cnpj_card: "Cartão CNPJ", contrato_social: "Contrato Social", plano_diretor: "Plano Diretor", socios: "Sócios", outro: "Documento" };
+const MODALIDADES = ["Presencial", "Online", "Híbrido"];
+
+// detecta o tipo de item p/ mostrar as especificidades certas
+function itemKind(s?: Svc): "workshop" | "agent" | "automation" | "generic" {
+  const t = ((s?.name || "") + " " + (s?.category || "")).toLowerCase();
+  if (/workshop|treinamento|palestra|capacita/.test(t)) return "workshop";
+  if (/agente|agent\b/.test(t)) return "agent";
+  if (/automa|rotina|fluxo|integra/.test(t)) return "automation";
+  return "generic";
+}
 
 export default function Propostas() {
   const { taxRate } = useSettings();
@@ -25,7 +37,11 @@ export default function Propostas() {
   const [agentId, setAgentId] = useState<string>("");
   const [vals, setVals] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [specs, setSpecs] = useState<Record<string, any>>({});
   const [items, setItems] = useState<string[]>([]);
+  const [clientDocs, setClientDocs] = useState<Doc[]>([]);
+  const [attDocs, setAttDocs] = useState<Set<string>>(new Set());
+  const [uploading, setUploading] = useState(false);
   const [att, setAtt] = useState<Set<string>>(new Set(["Plano Diretor", "Playbook Comercial", "Financeiro Estratégico"]));
   const [currency, setCurrency] = useState<"BRL" | "USD">("BRL");
   const [fx, setFx] = useState<number>(0);
@@ -55,15 +71,36 @@ export default function Propostas() {
       .then((r) => r.json()).then((d) => setFx(Number(d?.USDBRL?.bid) || 0)).catch(() => setFx(0));
   }, []);
 
-  // ao trocar de cliente, carrega os CNPJs
+  // ao trocar de cliente, carrega os CNPJs e os documentos reais do cliente
   useEffect(() => {
-    if (!orgId) { setTaxIds([]); setBillId(""); return; }
+    if (!orgId) { setTaxIds([]); setBillId(""); setClientDocs([]); setAttDocs(new Set()); return; }
     api.crm.taxIds.listByOrg(orgId).then((t) => {
       const list = (t as unknown as TaxId[]) ?? [];
       setTaxIds(list);
       setBillId(list[0]?.id ?? "org");
     }).catch(() => { setTaxIds([]); setBillId("org"); });
+    reloadDocs();
+    setAttDocs(new Set());
   }, [orgId]);
+
+  async function reloadDocs() {
+    if (!orgId) return;
+    try { setClientDocs(((await api.crm.documents.listByOrg(orgId)) as unknown as Doc[]) ?? []); }
+    catch { setClientDocs([]); }
+  }
+
+  async function uploadAnexo(file: File) {
+    if (!orgId) return;
+    setUploading(true);
+    try {
+      const key = await api.storage.upload(orgId, file);
+      const row = await api.crm.documents.add({ organization_id: orgId, kind: "outro", file_name: file.name, storage_path: key });
+      const newId = (row as any)?.[0]?.id;
+      await reloadDocs();
+      if (newId) setAttDocs((p) => new Set(p).add(newId));
+    } catch (e) { setToast("Erro no upload: " + errorMessage(e)); setTimeout(() => setToast(""), 5000); }
+    setUploading(false);
+  }
 
   const org = orgs.find((o) => o.id === orgId);
   const agent = agents.find((a) => a.id === agentId);
@@ -96,8 +133,9 @@ export default function Propostas() {
         currency, fx_rate: currency === "USD" ? fx : null,
         bill_to: bill?.value ?? null, bill_to_address: bill?.address ?? null,
         attachments: Object.fromEntries([...att].map((a) => [a, true])),
+        attachment_doc_ids: [...attDocs],
       });
-      const rows = items.map((id) => { const s = svcs.find((x) => x.id === id); return { proposal_id: (prop as any).id, organization_id: orgId, service_id: id, description: s?.name ?? "Item", qty: 1, unit_price: vals[id] ?? 0, notes: notes[id] || null }; });
+      const rows = items.map((id) => { const s = svcs.find((x) => x.id === id); return { proposal_id: (prop as any).id, organization_id: orgId, service_id: id, description: s?.name ?? "Item", qty: 1, unit_price: vals[id] ?? 0, notes: notes[id] || null, specifics: specs[id] || {} }; });
       await api.commerce.proposals.addItems(rows);
       setToast("Proposta gerada e enviada ✓");
     } catch (e) { setToast("Erro ao gerar: " + errorMessage(e)); }
@@ -136,6 +174,10 @@ export default function Propostas() {
           {items.map((id) => {
             const s = svcs.find((x) => x.id === id);
             if (!s) return null;
+            const kind = itemKind(s);
+            const sp = specs[id] || {};
+            const setSp = (patch: Record<string, any>) => setSpecs({ ...specs, [id]: { ...sp, ...patch } });
+            const spInput = { fontSize: 12, padding: "6px 10px", border: "1px solid var(--crasto-border-soft)", borderRadius: 8, background: "var(--crasto-bg-3)", color: "var(--crasto-text-body)" } as const;
             return (
               <div key={id} style={{ borderBottom: "1px solid var(--crasto-border-soft)", padding: "11px 0" }}>
                 <div className="propitem" style={{ border: 0, padding: 0 }}>
@@ -144,6 +186,24 @@ export default function Propostas() {
                     <input value={(vals[id] ?? 0).toLocaleString("pt-BR")} onChange={(e) => setVals({ ...vals, [id]: parseInt(e.target.value.replace(/\D/g, "")) || 0 })} />
                   </div>
                 </div>
+                {/* especificidades conforme o tipo do serviço */}
+                {kind === "workshop" && (
+                  <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                    <input type="number" min={1} value={sp.people ?? ""} onChange={(e) => setSp({ people: e.target.value })} placeholder="Nº de pessoas" style={{ ...spInput, width: 130 }} />
+                    <select value={sp.modality ?? ""} onChange={(e) => setSp({ modality: e.target.value })} style={{ ...spInput, flex: 1, minWidth: 140 }}>
+                      <option value="">Modalidade…</option>{MODALIDADES.map((m) => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                )}
+                {kind === "agent" && (
+                  <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                    <input type="number" min={1} value={sp.agents ?? ""} onChange={(e) => setSp({ agents: e.target.value })} placeholder="Nº de agentes de IA" style={{ ...spInput, width: 160 }} />
+                    <input value={sp.routines ?? ""} onChange={(e) => setSp({ routines: e.target.value })} placeholder="Rotinas automatizáveis (ex.: triagem, follow-up)" style={{ ...spInput, flex: 1, minWidth: 180 }} />
+                  </div>
+                )}
+                {kind === "automation" && (
+                  <input value={sp.routines ?? ""} onChange={(e) => setSp({ routines: e.target.value })} placeholder="Rotinas/fluxos a automatizar" style={{ ...spInput, marginTop: 8, width: "100%" }} />
+                )}
                 <input value={notes[id] || ""} onChange={(e) => setNotes({ ...notes, [id]: e.target.value })} placeholder="+ nota deste item (entra no contrato / NF)" style={{ marginTop: 7, width: "100%", fontSize: 12, padding: "6px 10px", border: "1px dashed var(--crasto-border)", borderRadius: 8, background: "transparent", color: "var(--crasto-text-body)" }} />
               </div>
             );
@@ -169,7 +229,30 @@ export default function Propostas() {
             </>
           )}
 
-          <div className="pstep"><span className="stepn">4</span><h3>Anexos estratégicos</h3></div>
+          <div className="pstep"><span className="stepn">4</span><h3>Anexos</h3></div>
+          {/* documentos reais do cliente (do CRM) */}
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--crasto-text-body)", margin: "2px 0 8px" }}>Documentos do cliente</div>
+          {clientDocs.length === 0 ? (
+            <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)", marginBottom: 10 }}>Nenhum documento no cadastro deste cliente. Envie um abaixo ou anexe pelo cadastro do cliente.</div>
+          ) : (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+              {clientDocs.map((d) => {
+                const on = attDocs.has(d.id);
+                return (
+                  <button key={d.id} onClick={() => { const n = new Set(attDocs); on ? n.delete(d.id) : n.add(d.id); setAttDocs(n); }}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, padding: "6px 11px", borderRadius: 999, cursor: "pointer", border: on ? "1px solid var(--crasto-navy)" : "1px solid var(--crasto-border-soft)", background: on ? "var(--crasto-navy-05)" : "var(--crasto-bg-3)", color: on ? "var(--crasto-text-primary)" : "var(--crasto-text-body)", fontWeight: on ? 700 : 500 }}>
+                    <FileText size={13} />{d.file_name}<span style={{ opacity: .6 }}>· {DOC_KIND_L[d.kind] || d.kind}</span>{on && <Check size={13} />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <label className="crasto-btn crasto-btn--secondary crasto-btn--sm" style={{ cursor: orgId ? "pointer" : "not-allowed", opacity: orgId ? 1 : .5 }}>
+            <span className="crasto-btn__icon"><Upload size={14} /></span><span className="crasto-btn__label">{uploading ? "Enviando…" : "Enviar anexo"}</span>
+            <input type="file" hidden disabled={!orgId || uploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadAnexo(f); e.target.value = ""; }} />
+          </label>
+          {/* peças estratégicas Crasto (opcionais) */}
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--crasto-text-body)", margin: "16px 0 8px" }}>Peças estratégicas Crasto</div>
           <div className="attgrid">
             {ANEXOS.map((a) => (
               <label key={a} className={"att" + (att.has(a) ? " on" : "")} onClick={() => { const n = new Set(att); n.has(a) ? n.delete(a) : n.add(a); setAtt(n); }}>

@@ -31,7 +31,7 @@ export const vdiCatalog = {
 export const services = {
   list: async () => unwrapList<CatalogService>(await cat().from("services").select("*").order("category")),
   listForProposals: async () =>
-    unwrapList<CatalogService>(await cat().from("services").select("id,name,unit,price_table").order("price_table", { ascending: false })),
+    unwrapList<CatalogService>(await cat().from("services").select("id,name,unit,price_table,category").order("price_table", { ascending: false })),
   create: async (payload: Record<string, any>) => unwrap(await cat().from("services").insert(payload)),
   update: async (id: string, payload: Record<string, any>) =>
     unwrap(await cat().from("services").update(payload).eq("id", id)),

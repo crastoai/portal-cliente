@@ -22,7 +22,7 @@ export const phones = {
 export const documents = {
   listByOrg: async (orgId: string) =>
     unwrapList<CrmDocument>(await crmSchema().from("documents").select("*").eq("organization_id", orgId).order("uploaded_at", { ascending: false })),
-  add: async (payload: Record<string, any>) => unwrap(await crmSchema().from("documents").insert(payload)),
+  add: async (payload: Record<string, any>) => unwrap(await crmSchema().from("documents").insert(payload).select("id")),
   remove: async (id: string) => unwrap(await crmSchema().from("documents").delete().eq("id", id)),
 };
 
