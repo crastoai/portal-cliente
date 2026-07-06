@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
-import { LogOut, type LucideIcon } from "lucide-react";
+import { LogOut, Menu, X, type LucideIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import ThemeToggle from "../ui/ThemeToggle";
 import { initials } from "../ui/ui";
@@ -9,6 +10,7 @@ export type NavItem = { to: string; end?: boolean; icon: LucideIcon; label: stri
 
 export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who: string; sub: string; logoTone?: string }) {
   const { profile, signOut } = useAuth();
+  const [open, setOpen] = useState(false);
   const ini = initials(profile?.full_name || profile?.email);
 
   // agrupa a navegação por seção, preservando a ordem (padrão do DS de sistema)
@@ -21,7 +23,21 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
 
   return (
     <div className="shell">
-      <aside className="side">
+      {/* barra mobile (só < 900px) */}
+      <div className="mobilebar">
+        <button className="mb-burger" onClick={() => setOpen(true)} aria-label="Abrir menu"><Menu size={20} /></button>
+        <span className="mb-brand">
+          <span className="side-mark" style={logoTone ? { background: logoTone } : undefined}><img src={logoWhite} alt="" width={14} height={17} /></span>
+          Crasto.AI
+        </span>
+        <ThemeToggle />
+      </div>
+
+      {open && <div className="side-overlay" onClick={() => setOpen(false)} />}
+
+      <aside className={"side" + (open ? " open" : "")}>
+        <button className="side-close" onClick={() => setOpen(false)} aria-label="Fechar menu"><X size={18} /></button>
+
         <div className="side-brand">
           <span className="side-mark" style={logoTone ? { background: logoTone } : undefined}>
             <img src={logoWhite} alt="" width={16} height={19} />
@@ -37,7 +53,7 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
             <div className="navgroup" key={gi}>
               {g.section && <div className="navsec">{g.section}</div>}
               {g.items.map((n) => (
-                <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => "navlink" + (isActive ? " on" : "")}>
+                <NavLink key={n.to} to={n.to} end={n.end} onClick={() => setOpen(false)} className={({ isActive }) => "navlink" + (isActive ? " on" : "")}>
                   <n.icon size={17} /> <span className="navlink-lbl">{n.label}</span>{n.tag && <span className="tag">{n.tag}</span>}
                 </NavLink>
               ))}
