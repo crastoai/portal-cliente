@@ -7,7 +7,7 @@ import Modal from "../../ui/Modal";
 import { fetchClients, timeAgo } from "../../lib/adminData";
 import { COUNTRIES, countryOf, STAGES, stageOf } from "../../lib/countries";
 
-const EMPTY = { name: "", stage: "contato", country: "BR", tax_id: "", founded_on: "", website: "", owner_name: "", plan: "", email: "", contact_name: "" };
+const EMPTY = { name: "", stage: "contato", country: "BR", tax_id: "", founded_on: "", website: "", owner_name: "", plan: "", email: "", contact_name: "", password: "" };
 
 export default function Clientes() {
   const { data, loading, reload } = useAsync(fetchClients, []);
@@ -42,9 +42,10 @@ export default function Clientes() {
     } catch (e) { setErr("Erro ao criar: " + errorMessage(e)); setBusy(false); return; }
     let msg = `"${f.name}" cadastrado como ${stageOf(f.stage).label}.`;
     if (f.email.trim()) {
-      const r = await api.identity.users.create({ email: f.email.trim(), full_name: f.contact_name || f.owner_name || f.name, organization_id: org.id, role: "client_owner" });
+      const r = await api.identity.users.create({ email: f.email.trim(), full_name: f.contact_name || f.owner_name || f.name, organization_id: org.id, role: "client_owner", password: f.password || undefined });
       if (!r.ok) msg += ` (login não criado: ${r.error || "erro"})`;
-      else msg += `  Login: ${r.email} · senha: ${r.password}`;
+      else if (r.email_sent) msg += `  ✉️ E-mail de acesso enviado para ${r.email}.`;
+      else msg += `  Login: ${r.email} · senha: ${r.password}${r.email_error ? ` (e-mail não enviado: ${r.email_error})` : ""}`;
     }
     setBusy(false); setOpen(false); setF({ ...EMPTY }); setToast(msg); setTimeout(() => setToast(""), 16000); reload();
   }
@@ -112,6 +113,8 @@ export default function Clientes() {
             <Field label="E-mail do responsável"><input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} placeholder="cria login se preenchido" /></Field>
             <Field label="Nome do responsável"><input value={f.contact_name} onChange={(e) => setF({ ...f, contact_name: e.target.value })} placeholder="Nome" /></Field>
           </div>
+          <Field label="Senha (deixe em branco para gerar automática)"><input type="text" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} placeholder="mín. 6 caracteres" autoComplete="new-password" /></Field>
+          <div className="note" style={{ marginTop: 4 }}><span>Ao cadastrar com e-mail, o cliente recebe automaticamente um <b>e-mail de boas-vindas da Crasto.AI</b> com o link do portal e os dados de acesso.</span></div>
         </div>
       </Modal>
 

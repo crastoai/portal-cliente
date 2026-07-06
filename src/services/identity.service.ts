@@ -30,8 +30,8 @@ export const profiles = {
 };
 
 export const users = {
-  /** Cria o login do responsável via Edge Function `admin-create-user`. */
-  create: async (body: { email: string; full_name: string; organization_id: string; role: string }): Promise<{ ok: boolean; email?: string; password?: string; error?: string }> => {
+  /** Cria o login do responsável via Edge Function `admin-create-user` (+ envia e-mail de boas-vindas). */
+  create: async (body: { email: string; full_name: string; organization_id: string; role: string; password?: string }): Promise<{ ok: boolean; email?: string; password?: string; error?: string; email_sent?: boolean; email_error?: string }> => {
     const { data, error } = await supabase.functions.invoke("admin-create-user", { body });
     if (error) return { ok: false, error: error.message };
     return (data as any) ?? { ok: false, error: "sem resposta do servidor" };
