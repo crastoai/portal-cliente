@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { services, errorMessage } from "../../services";
 import { PageHead, useAsync, money, initials, Field } from "../../ui/ui";
 import { fetchClients, healthScore, timeAgo, modShort } from "../../lib/adminData";
+import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 
 type W = { onboarding: number; technical: number; engagement: number; financial: number; support: number };
@@ -12,6 +13,7 @@ const WK: (keyof W)[] = ["engagement", "financial", "technical", "support", "onb
 const WLABEL: Record<keyof W, string> = { engagement: "Engajamento (uso/login)", financial: "Financeiro (faturas)", technical: "Saúde técnica (farol)", support: "Suporte (chamados)", onboarding: "Implantação" };
 
 export default function VisaoGeral() {
+  const t = useT();
   const { data, loading, reload } = useAsync(fetchClients, []);
   const clients = data ?? [];
   const mrr = clients.reduce((s, c) => s + Number(c.mrr), 0);
@@ -30,12 +32,12 @@ export default function VisaoGeral() {
   const sum = (w?: W) => w ? WK.reduce((s, k) => s + Number(w[k] || 0), 0) : 0;
   async function saveCfg() {
     if (!cfg) return;
-    if (sum(cfg.weights_new) !== 100 || sum(cfg.weights_established) !== 100) { setErr("Os pesos de cada perfil devem somar 100."); return; }
+    if (sum(cfg.weights_new) !== 100 || sum(cfg.weights_established) !== 100) { setErr(t("Os pesos de cada perfil devem somar 100.")); return; }
     setBusy(true); setErr("");
     try {
       await services.analytics.admin.setHealthConfig(cfg);
       setOpen(false); reload();
-      setToast("Régua de saúde atualizada ✓"); setTimeout(() => setToast(""), 5000);
+      setToast(t("Régua de saúde atualizada ✓")); setTimeout(() => setToast(""), 5000);
     } catch (e) { setErr(errorMessage(e)); }
     finally { setBusy(false); }
   }
@@ -46,23 +48,23 @@ export default function VisaoGeral() {
     <div className="bizdash">
       <PageHead eyebrow="Painel Admin · Crasto.AI" title="Visão geral do negócio" sub="A saúde da operação num relance."
         right={<>
-          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={openCfg}><span className="crasto-btn__icon"><SlidersHorizontal size={15} /></span><span className="crasto-btn__label">Régua de saúde</span></button>
-          <Link to="/admin/clientes" className="crasto-btn crasto-btn--primary crasto-btn--sm"><span className="crasto-btn__icon"><UserPlus size={15} /></span><span className="crasto-btn__label">Cadastrar cliente</span></Link>
+          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={openCfg}><span className="crasto-btn__icon"><SlidersHorizontal size={15} /></span><span className="crasto-btn__label">{t("Régua de saúde")}</span></button>
+          <Link to="/admin/clientes" className="crasto-btn crasto-btn--primary crasto-btn--sm"><span className="crasto-btn__icon"><UserPlus size={15} /></span><span className="crasto-btn__label">{t("Cadastrar cliente")}</span></Link>
         </>} />
 
       <div className="kpis">
-        <div className="kpi navy"><div className="lab">MRR (receita recorrente)</div><div className="val tnum">{money(mrr)}</div><div className="delta">soma dos contratos</div></div>
-        <div className="kpi"><div className="lab">Clientes ativos</div><div className="val tnum">{clients.length}</div><div className="delta">no portal</div></div>
-        <div className="kpi g"><div className="lab">Módulos entregues</div><div className="val tnum">{modules}</div><div className="delta">{clients.length ? (modules / clients.length).toFixed(1) : 0} por cliente</div></div>
-        <div className="kpi"><div className="lab">Em risco (churn)</div><div className="val tnum" style={{ color: risk ? "var(--crasto-danger)" : undefined }}>{risk}</div><div className="delta">requer atenção</div></div>
+        <div className="kpi navy"><div className="lab">{t("MRR (receita recorrente)")}</div><div className="val tnum">{money(mrr)}</div><div className="delta">{t("soma dos contratos")}</div></div>
+        <div className="kpi"><div className="lab">{t("Clientes ativos")}</div><div className="val tnum">{clients.length}</div><div className="delta">{t("no portal")}</div></div>
+        <div className="kpi g"><div className="lab">{t("Módulos entregues")}</div><div className="val tnum">{modules}</div><div className="delta">{t("{n} por cliente", { n: clients.length ? (modules / clients.length).toFixed(1) : 0 })}</div></div>
+        <div className="kpi"><div className="lab">{t("Em risco (churn)")}</div><div className="val tnum" style={{ color: risk ? "var(--crasto-danger)" : undefined }}>{risk}</div><div className="delta">{t("requer atenção")}</div></div>
       </div>
 
-      <div className="sec-h"><h2>Clientes · saúde &amp; uso</h2></div>
+      <div className="sec-h"><h2>{t("Clientes · saúde & uso")}</h2></div>
       <div className="tbl-wrap">
         <table className="tbl">
-          <thead><tr><th>Cliente</th><th>Módulos</th><th>Últ. acesso</th><th>Uso (30d)</th><th>Health score</th><th>MRR</th></tr></thead>
+          <thead><tr><th>{t("Cliente")}</th><th>{t("Módulos")}</th><th>{t("Últ. acesso")}</th><th>{t("Uso (30d)")}</th><th>{t("Health score")}</th><th>{t("MRR")}</th></tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan={6} style={{ color: "var(--crasto-text-muted)" }}>Carregando…</td></tr> :
+            {loading ? <tr><td colSpan={6} style={{ color: "var(--crasto-text-muted)" }}>{t("Carregando…")}</td></tr> :
               clients.map((c) => {
                 const h = healthScore(c);
                 const stale = c.last_access && (Date.now() - new Date(c.last_access).getTime()) > 20 * 86400000;
@@ -86,12 +88,12 @@ export default function VisaoGeral() {
         </table>
       </div>
 
-      <Modal title="Régua de saúde do cliente" open={open} onClose={() => setOpen(false)}
-        footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setOpen(false)}><span className="crasto-btn__label">Cancelar</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy || !cfg} onClick={saveCfg}><span className="crasto-btn__label">{busy ? "Salvando…" : "Salvar"}</span></button></>}>
+      <Modal title={t("Régua de saúde do cliente")} open={open} onClose={() => setOpen(false)}
+        footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy || !cfg} onClick={saveCfg}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar")}</span></button></>}>
         {err && <div className="formerr">{err}</div>}
-        {!cfg ? <div className="empty">Carregando…</div> : (
+        {!cfg ? <div className="empty">{t("Carregando…")}</div> : (
           <>
-            <div className="note" style={{ marginBottom: 14 }}><span>O score combina 5 sinais, com <b>peso diferente por ciclo de vida</b>. Ajuste os pesos (somam 100) e os limiares — vale na hora, sem código.</span></div>
+            <div className="note" style={{ marginBottom: 14 }}><span>{t("O score combina 5 sinais, com peso diferente por ciclo de vida. Ajuste os pesos (somam 100) e os limiares — vale na hora, sem código.")}</span></div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
               <Field label="Cliente novo até (dias)"><input type="number" value={cfg.new_client_days} onChange={(e) => setCfg({ ...cfg, new_client_days: Number(e.target.value) || 0 })} /></Field>
               <Field label="Saudável a partir de"><input type="number" value={cfg.attention_threshold} onChange={(e) => setCfg({ ...cfg, attention_threshold: Number(e.target.value) || 0 })} /></Field>
@@ -100,12 +102,12 @@ export default function VisaoGeral() {
             {(["weights_new", "weights_established"] as const).map((prof) => (
               <div key={prof} style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--crasto-border-soft)" }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "var(--crasto-text-primary)", marginBottom: 8 }}>
-                  {prof === "weights_new" ? "Cliente NOVO (onboarding)" : "Cliente ESTABELECIDO"} · soma {sum(cfg[prof])}{sum(cfg[prof]) !== 100 ? " ⚠️" : " ✓"}
+                  {prof === "weights_new" ? t("Cliente NOVO (onboarding)") : t("Cliente ESTABELECIDO")} · {t("soma")} {sum(cfg[prof])}{sum(cfg[prof]) !== 100 ? " ⚠️" : " ✓"}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   {WK.map((k) => (
                     <label key={k} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
-                      <span style={{ flex: 1, color: "var(--crasto-text-body)" }}>{WLABEL[k]}</span>
+                      <span style={{ flex: 1, color: "var(--crasto-text-body)" }}>{t(WLABEL[k])}</span>
                       <input type="number" value={cfg[prof][k]} onChange={(e) => setW(prof, k, e.target.value)} style={{ width: 62 }} />
                     </label>
                   ))}
