@@ -32,8 +32,14 @@ export const activities = {
   add: async (payload: Record<string, any>) => unwrap(await crmSchema().from("activities").insert(payload)),
 };
 
+export const taxIds = {
+  /** CNPJs/identidades fiscais de uma organização (com endereço), primário primeiro. */
+  listByOrg: async (orgId: string) =>
+    unwrapList<Record<string, any>>(await crmSchema().from("tax_ids").select("id,kind,value,address,is_primary").eq("organization_id", orgId).order("is_primary", { ascending: false })),
+};
+
 /** Remoção genérica dentro do schema crm (people/phones/activities). */
 export const removeRow = async (table: "people" | "phones" | "activities" | "documents", id: string) =>
   unwrap(await crmSchema().from(table).delete().eq("id", id));
 
-export const crm = { people, phones, documents, activities, removeRow };
+export const crm = { people, phones, documents, activities, taxIds, removeRow };
