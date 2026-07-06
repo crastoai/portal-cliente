@@ -222,4 +222,29 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Abrindo…": { en: "Opening…", es: "Abriendo…" },
   "Ver login e senha": { en: "Show login and password", es: "Ver usuario y contraseña" },
   "Suas senhas ficam protegidas e só aparecem quando você clica em \"Ver login e senha\". O botão Acessar abre a solução direto.": { en: "Your passwords stay protected and only show when you click \"Show login and password\". The Access button opens the solution directly.", es: "Tus contraseñas quedan protegidas y solo aparecen cuando haces clic en \"Ver usuario y contraseña\". El botón Acceder abre la solución directamente." },
+
+  // ---- Cliente · Minha implementação ----
+  "Atualiza automaticamente": { en: "Updates automatically", es: "Se actualiza automáticamente" },
+  "Progresso geral do contrato": { en: "Overall contract progress", es: "Progreso general del contrato" },
+  "{n} etapas": { en: "{n} stages", es: "{n} etapas" },
+  "entregue": { en: "delivered", es: "entregado" },
+  "dentro do prazo": { en: "on schedule", es: "dentro del plazo" },
+  "{n} dias restantes": { en: "{n} days left", es: "{n} días restantes" },
+  "Cronograma · previsto × realizado": { en: "Schedule · planned × actual", es: "Cronograma · previsto × real" },
+  "Previsto": { en: "Planned", es: "Previsto" },
+  "Realizado": { en: "Actual", es: "Realizado" },
+  "Etapa": { en: "Stage", es: "Etapa" },
+  "Pendências com você": { en: "Pending on you", es: "Pendientes contigo" },
+  "{n} aguardando": { en: "{n} waiting", es: "{n} esperando" },
+  "Nenhuma pendência. 🎉": { en: "No pending items. 🎉", es: "Sin pendientes. 🎉" },
+  "Resolvido · obrigado!": { en: "Resolved · thank you!", es: "Resuelto · ¡gracias!" },
+  "Solicitado pela equipe Crasto.AI": { en: "Requested by the Crasto.AI team", es: "Solicitado por el equipo de Crasto.AI" },
+  "Resolver agora": { en: "Resolve now", es: "Resolver ahora" },
+
+  // ---- Cliente · Soluções disponíveis (Catálogo) ----
+  "Selecione os módulos e clique em Solicitar implementação. Precisa de algo sob medida? Pedimos um projeto à parte.": { en: "Select the modules and click Request implementation. Need something custom? We'll scope a separate project.", es: "Selecciona los módulos y haz clic en Solicitar implementación. ¿Necesitas algo a medida? Cotizamos un proyecto aparte." },
+  "30 dias": { en: "30 days", es: "30 días" },
+  "{n} selecionado": { en: "{n} selected", es: "{n} seleccionado" },
+  "{n} selecionados": { en: "{n} selected", es: "{n} seleccionados" },
+  "Solicitar implementação": { en: "Request implementation", es: "Solicitar implementación" },
 };

@@ -1,6 +1,7 @@
 import { FileText, KeyRound, Check } from "lucide-react";
 import { services } from "../../services";
 import { PageHead, Pill, Empty, useAsync } from "../../ui/ui";
+import { useT } from "../../lib/i18n";
 
 type Task = { id: string; name: string; planned_start: string; planned_end: string; actual_start: string | null; actual_end: string | null; status: string; sort_order: number };
 type Impl = { overall_progress: number; due_date: string | null; status: string; started_at: string | null };
@@ -9,6 +10,7 @@ type Pend = { id: string; type: string; description: string; status: string };
 const d = (s: string | null) => (s ? new Date(s + "T00:00:00").getTime() : 0);
 
 export default function Implementacao() {
+  const tr = useT();
   const { data, loading } = useAsync(async () => {
     const [i, t, p] = await Promise.all([
       services.delivery.implementations.getMine(),
@@ -38,33 +40,33 @@ export default function Implementacao() {
   return (
     <div>
       <PageHead eyebrow="Portal do Cliente" title="Minha implementação" sub="Acompanhe em tempo real o que a Crasto.AI está montando pra você."
-        right={<Pill tone="ok">Atualiza automaticamente</Pill>} />
+        right={<Pill tone="ok">{tr("Atualiza automaticamente")}</Pill>} />
 
       <div className="herocard" style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 14 }}>
           <div>
-            <div className="lab">Progresso geral do contrato</div>
+            <div className="lab">{tr("Progresso geral do contrato")}</div>
             <div className="big tnum">{impl?.overall_progress ?? 0}%</div>
-            <div style={{ color: "rgba(255,255,255,.7)", fontSize: 13 }}>{tasks.length} etapas · {impl?.status === "delivered" ? "entregue" : "dentro do prazo"}</div>
+            <div style={{ color: "rgba(255,255,255,.7)", fontSize: 13 }}>{tr("{n} etapas", { n: tasks.length })} · {impl?.status === "delivered" ? tr("entregue") : tr("dentro do prazo")}</div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,.6)" }}>Prazo de entrega</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "#fff" }}>{daysLeft != null ? `${daysLeft} dias restantes` : "—"}</div>
-            <div style={{ fontSize: 12, color: "var(--crasto-blue)" }}>SLA de 30 dias</div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,.6)" }}>{tr("Prazo de entrega")}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "#fff" }}>{daysLeft != null ? tr("{n} dias restantes", { n: daysLeft }) : "—"}</div>
+            <div style={{ fontSize: 12, color: "var(--crasto-blue)" }}>{tr("SLA de 30 dias")}</div>
           </div>
         </div>
         <div className="track"><span style={{ width: `${impl?.overall_progress ?? 0}%` }} /></div>
       </div>
 
-      <div className="sec-h"><h2>Cronograma · previsto × realizado</h2>
+      <div className="sec-h"><h2>{tr("Cronograma · previsto × realizado")}</h2>
         <span style={{ display: "flex", gap: 16, fontSize: 11.5, fontWeight: 600, color: "var(--crasto-text-body)" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 20, height: 7, borderRadius: 4, background: "#B9CDEF" }} />Previsto</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 20, height: 7, borderRadius: 4, background: "var(--crasto-text-primary)" }} />Realizado</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 20, height: 7, borderRadius: 4, background: "#B9CDEF" }} />{tr("Previsto")}</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 20, height: 7, borderRadius: 4, background: "var(--crasto-text-primary)" }} />{tr("Realizado")}</span>
         </span>
       </div>
       {tasks.length > 0 && (
         <div className="gantt" style={{ marginBottom: 26 }}>
-          <div className="gaxis"><div>Etapa</div><div className="marks"><span>Início</span><span>Meio</span><span>Entrega</span></div></div>
+          <div className="gaxis"><div>{tr("Etapa")}</div><div className="marks"><span>Início</span><span>Meio</span><span>Entrega</span></div></div>
           {tasks.map((t) => {
             const realEnd = t.actual_end ? d(t.actual_end) : t.actual_start ? Date.now() : 0;
             return (
@@ -83,12 +85,12 @@ export default function Implementacao() {
         </div>
       )}
 
-      <div className="sec-h"><h2>Pendências com você</h2>{pend.filter((p) => p.status === "pending").length > 0 && <Pill tone="warn">{pend.filter((p) => p.status === "pending").length} aguardando</Pill>}</div>
+      <div className="sec-h"><h2>{tr("Pendências com você")}</h2>{pend.filter((p) => p.status === "pending").length > 0 && <Pill tone="warn">{tr("{n} aguardando", { n: pend.filter((p) => p.status === "pending").length })}</Pill>}</div>
       {pend.length === 0 ? <Empty>Nenhuma pendência. 🎉</Empty> : pend.map((p) => (
         <div className={"pend" + (p.status === "done" ? " done" : "")} key={p.id}>
           <span className="pico">{pico(p.type)}</span>
-          <div><div className="pt">{p.description}</div><div className="ps">{p.status === "done" ? "Resolvido · obrigado!" : "Solicitado pela equipe Crasto.AI"}</div></div>
-          {p.status === "done" ? <Pill tone="ok">Resolvido</Pill> : <button className="crasto-btn crasto-btn--primary crasto-btn--sm pact"><span className="crasto-btn__label">Resolver agora</span></button>}
+          <div><div className="pt">{p.description}</div><div className="ps">{p.status === "done" ? tr("Resolvido · obrigado!") : tr("Solicitado pela equipe Crasto.AI")}</div></div>
+          {p.status === "done" ? <Pill tone="ok">{tr("Resolvido")}</Pill> : <button className="crasto-btn crasto-btn--primary crasto-btn--sm pact"><span className="crasto-btn__label">{tr("Resolver agora")}</span></button>}
         </div>
       ))}
     </div>
