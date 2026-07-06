@@ -2,6 +2,7 @@ import { useState } from "react";
 import { MessageCircle, Search, Send, Grid3x3, Eye, Copy, ExternalLink, ShieldCheck } from "lucide-react";
 import { services } from "../../services";
 import { PageHead, Pill, Empty, useAsync } from "../../ui/ui";
+import { useT } from "../../lib/i18n";
 
 type Cred = { id: string; login: string | null; sso_enabled: boolean; vdi_module_id: string };
 type Mod = {
@@ -36,6 +37,7 @@ function icon(cat?: string | null) {
 }
 
 export default function Modulos() {
+  const t = useT();
   const { data, loading } = useAsync(fetchData, []);
   const mods = data ?? [];
   const [revealed, setRevealed] = useState<Record<string, { login: string | null; pw: string }>>({});
@@ -57,27 +59,27 @@ export default function Modulos() {
     <div>
       <PageHead eyebrow="Portal do Cliente" title="Minhas Soluções" sub="Suas soluções e como entrar em cada uma — tudo aqui." />
       {loading ? <Empty>Carregando…</Empty> : mods.length === 0 ? (
-        <Empty><p><strong>Nenhuma solução ativa ainda.</strong> Assim que a Crasto.AI liberar suas soluções, elas aparecem aqui com o acesso.</p></Empty>
+        <Empty><p><strong>{t("Nenhuma solução ativa ainda.")}</strong> {t("Assim que a Crasto.AI liberar suas soluções, elas aparecem aqui com o acesso.")}</p></Empty>
       ) : (
         <div className="mods">
           {mods.map((m) => {
             const implementing = m.status === "implementing" || m.status === "pending";
             const active = m.status === "active";
             const st = active ? "ok" : implementing ? "warn" : "info";
-            const stl = active ? "Ativo" : implementing ? "Em configuração" : m.status;
+            const stl = active ? t("Ativo") : implementing ? t("Em configuração") : m.status;
             const cred = m.cred;
             const shown = cred ? revealed[cred.id] : undefined;
             return (
               <div className="mod" key={m.id}>
                 <div className="cover"><div className="glow" />{icon(m.vdi?.category)}</div>
                 <div className="body">
-                  <h3>{m.vdi?.name || "Solução"}</h3>
-                  <p>{m.vdi?.description || "Solução de IA da Crasto.AI."}</p>
+                  <h3>{m.vdi?.name || t("Solução")}</h3>
+                  <p>{m.vdi?.description || t("Solução de IA da Crasto.AI.")}</p>
 
                   {implementing ? (
                     <div className="foot">
-                      <Pill tone="warn">Em configuração</Pill>
-                      <span className="mt">disponível em breve</span>
+                      <Pill tone="warn">{t("Em configuração")}</Pill>
+                      <span className="mt">{t("disponível em breve")}</span>
                     </div>
                   ) : (
                     <>
@@ -86,17 +88,17 @@ export default function Modulos() {
                         <button
                           className="crasto-btn crasto-btn--primary crasto-btn--sm"
                           disabled={!m.external_url}
-                          title={m.external_url ? "Abrir a solução" : "Link em configuração"}
+                          title={m.external_url ? t("Abrir a solução") : t("Link em configuração")}
                           onClick={() => m.external_url && window.open(m.external_url, "_blank", "noopener")}
                         >
                           <span className="crasto-btn__icon"><ExternalLink size={14} /></span>
-                          <span className="crasto-btn__label">Acessar</span>
+                          <span className="crasto-btn__label">{t("Acessar")}</span>
                         </button>
                       </div>
 
                       {cred && cred.sso_enabled && (
                         <div className="mt" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, color: "var(--crasto-success)" }}>
-                          <ShieldCheck size={14} /> Entra direto, sem precisar de senha.
+                          <ShieldCheck size={14} /> {t("Entra direto, sem precisar de senha.")}
                         </div>
                       )}
 
@@ -105,21 +107,21 @@ export default function Modulos() {
                           {shown ? (
                             <div style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 13 }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={{ color: "var(--crasto-text-muted)", minWidth: 46 }}>Login</span>
+                                <span style={{ color: "var(--crasto-text-muted)", minWidth: 46 }}>{t("Login")}</span>
                                 <b style={{ color: "var(--crasto-text-primary)" }}>{shown.login || "—"}</b>
-                                <button className="icobtn" title="Copiar" style={{ marginLeft: "auto" }} onClick={() => copy(shown.login || "", `l${cred.id}`)}><Copy size={13} /></button>
+                                <button className="icobtn" title={t("Copiar")} style={{ marginLeft: "auto" }} onClick={() => copy(shown.login || "", `l${cred.id}`)}><Copy size={13} /></button>
                               </div>
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={{ color: "var(--crasto-text-muted)", minWidth: 46 }}>Senha</span>
+                                <span style={{ color: "var(--crasto-text-muted)", minWidth: 46 }}>{t("Senha")}</span>
                                 <b style={{ color: "var(--crasto-text-primary)", fontFamily: "var(--crasto-font-mono)" }}>{shown.pw}</b>
-                                <button className="icobtn" title="Copiar" style={{ marginLeft: "auto" }} onClick={() => copy(shown.pw, `p${cred.id}`)}><Copy size={13} /></button>
+                                <button className="icobtn" title={t("Copiar")} style={{ marginLeft: "auto" }} onClick={() => copy(shown.pw, `p${cred.id}`)}><Copy size={13} /></button>
                               </div>
-                              {(copied === `l${cred.id}` || copied === `p${cred.id}`) && <span style={{ fontSize: 11.5, color: "var(--crasto-success)" }}>Copiado ✓</span>}
+                              {(copied === `l${cred.id}` || copied === `p${cred.id}`) && <span style={{ fontSize: 11.5, color: "var(--crasto-success)" }}>{t("Copiado ✓")}</span>}
                             </div>
                           ) : (
                             <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy === cred.id} onClick={() => reveal(cred)}>
                               <span className="crasto-btn__icon"><Eye size={14} /></span>
-                              <span className="crasto-btn__label">{busy === cred.id ? "Abrindo…" : "Ver login e senha"}</span>
+                              <span className="crasto-btn__label">{busy === cred.id ? t("Abrindo…") : t("Ver login e senha")}</span>
                             </button>
                           )}
                         </div>
@@ -134,7 +136,7 @@ export default function Modulos() {
       )}
       <div className="note" style={{ marginTop: 20 }}>
         <ShieldCheck size={16} />
-        <span>Suas senhas ficam <b>protegidas</b> e só aparecem quando você clica em "Ver login e senha". O botão <b>Acessar</b> abre a solução direto.</span>
+        <span>{t("Suas senhas ficam protegidas e só aparecem quando você clica em \"Ver login e senha\". O botão Acessar abre a solução direto.")}</span>
       </div>
     </div>
   );

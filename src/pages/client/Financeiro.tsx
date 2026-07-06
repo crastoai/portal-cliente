@@ -1,12 +1,14 @@
 import { services } from "../../services";
 import { useAuth } from "../../lib/auth";
 import { PageHead, Pill, Empty, useAsync, money } from "../../ui/ui";
+import { useT } from "../../lib/i18n";
 
 type Inv = { id: string; description: string | null; amount: number; due_date: string | null; status: string };
 type Org = { name: string; plan: string | null };
 
 export default function Financeiro() {
   const { profile } = useAuth();
+  const t = useT();
   const { data, loading } = useAsync(async () => {
     const [inv, org] = await Promise.all([
       services.billing.invoices.listMine(),
@@ -19,7 +21,7 @@ export default function Financeiro() {
   const org = data?.org ?? null;
   const next = inv.find((i) => i.status === "open");
   const tone = (s: string) => (s === "paid" ? "ok" : s === "overdue" ? "crit" : "warn");
-  const label = (s: string) => (s === "paid" ? "Paga" : s === "overdue" ? "Vencida" : s === "canceled" ? "Cancelada" : "Em aberto");
+  const label = (s: string) => (s === "paid" ? t("Paga") : s === "overdue" ? t("Vencida") : s === "canceled" ? t("Cancelada") : t("Em aberto"));
 
   return (
     <div>
@@ -28,20 +30,20 @@ export default function Financeiro() {
         <>
           <div className="grid2" style={{ marginBottom: 18 }}>
             <div className="herocard">
-              <div className="lab">Plano atual</div>
+              <div className="lab">{t("Plano atual")}</div>
               <div style={{ fontSize: 26, fontWeight: 700, color: "#fff", margin: "8px 0 2px" }}>{org?.plan || "—"}</div>
               <div style={{ color: "rgba(255,255,255,.7)", fontSize: 13 }}>{org?.name}</div>
             </div>
             <div className="card">
-              <h3>Próxima cobrança</h3>
-              <div className="csub">{next?.due_date ? `Vence em ${new Date(next.due_date + "T00:00:00").toLocaleDateString("pt-BR")}` : "Sem cobranças em aberto"}</div>
+              <h3>{t("Próxima cobrança")}</h3>
+              <div className="csub">{next?.due_date ? t("Vence em {d}", { d: new Date(next.due_date + "T00:00:00").toLocaleDateString("pt-BR") }) : t("Sem cobranças em aberto")}</div>
               <div style={{ fontSize: 28, fontWeight: 700, color: "var(--crasto-text-primary)" }} className="tnum">{next ? money(next.amount) : money(0)}</div>
-              {next && <div style={{ marginTop: 14 }}><button className="crasto-btn crasto-btn--primary crasto-btn--md" style={{ width: "100%" }}><span className="crasto-btn__label">Pagar agora (Pix / boleto)</span></button></div>}
+              {next && <div style={{ marginTop: 14 }}><button className="crasto-btn crasto-btn--primary crasto-btn--md" style={{ width: "100%" }}><span className="crasto-btn__label">{t("Pagar agora (Pix / boleto)")}</span></button></div>}
             </div>
           </div>
           <div className="tbl-wrap">
             <table className="tbl">
-              <thead><tr><th>Fatura</th><th>Vencimento</th><th>Valor</th><th>Status</th><th>2ª via</th></tr></thead>
+              <thead><tr><th>{t("Fatura")}</th><th>{t("Vencimento")}</th><th>{t("Valor")}</th><th>{t("Status")}</th><th>{t("2ª via")}</th></tr></thead>
               <tbody>
                 {inv.map((i) => (
                   <tr key={i.id}>
@@ -49,7 +51,7 @@ export default function Financeiro() {
                     <td>{i.due_date ? new Date(i.due_date + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</td>
                     <td className="tnum">{money(i.amount)}</td>
                     <td><Pill tone={tone(i.status)}>{label(i.status)}</Pill></td>
-                    <td><button className="sec-h link">Baixar PDF</button></td>
+                    <td><button className="sec-h link">{t("Baixar PDF")}</button></td>
                   </tr>
                 ))}
               </tbody>
