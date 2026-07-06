@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, ArrowRight, Upload, FileText, Mic } from "lucide-react";
+import { Check, ArrowRight, Upload, FileText, Mic, X, Plus } from "lucide-react";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, money } from "../../ui/ui";
 import { taxOf, fmtRate } from "../../lib/config";
@@ -188,6 +188,20 @@ export default function Propostas() {
     if (hit) setOrgId(hit.id);
   }
 
+  function addItem(id: string) {
+    if (!id || items.includes(id)) return;
+    const s = svcs.find((x) => x.id === id);
+    setItems([...items, id]);
+    setVals((v) => ({ ...v, [id]: Number(s?.price_table) || 0 }));
+  }
+  function removeItem(id: string) {
+    setItems(items.filter((x) => x !== id));
+    setVals((v) => { const n = { ...v }; delete n[id]; return n; });
+    setNotes((n) => { const c = { ...n }; delete c[id]; return c; });
+    setSpecs((s) => { const c = { ...s }; delete c[id]; return c; });
+  }
+  const available = svcs.filter((s) => !items.includes(s.id));
+
   async function gerar() {
     if (!orgId) { setToast("Escolha um cliente."); setTimeout(() => setToast(""), 4000); return; }
     setBusy(true);
@@ -304,8 +318,11 @@ export default function Propostas() {
               <div key={id} style={{ borderBottom: "1px solid var(--crasto-border-soft)", padding: "11px 0" }}>
                 <div className="propitem" style={{ border: 0, padding: 0 }}>
                   <div><div className="pn">{s.name}</div><div className="pt">{s.unit.replace("_", " ")} · tabela {fmt(s.price_table)}</div></div>
-                  <div className="pinp"><span>{inUSD ? "US$" : "R$"}</span>
-                    <input value={(vals[id] ?? 0).toLocaleString("pt-BR")} onChange={(e) => setVals({ ...vals, [id]: parseInt(e.target.value.replace(/\D/g, "")) || 0 })} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div className="pinp"><span>{inUSD ? "US$" : "R$"}</span>
+                      <input value={(vals[id] ?? 0).toLocaleString("pt-BR")} onChange={(e) => setVals({ ...vals, [id]: parseInt(e.target.value.replace(/\D/g, "")) || 0 })} />
+                    </div>
+                    <button type="button" onClick={() => removeItem(id)} title="Remover serviço" aria-label="Remover serviço" style={{ display: "grid", placeItems: "center", width: 28, height: 28, borderRadius: 8, cursor: "pointer", border: "1px solid var(--crasto-border-soft)", background: "var(--crasto-bg-3)", color: "var(--crasto-text-muted)" }}><X size={14} /></button>
                   </div>
                 </div>
                 {/* especificidades conforme o tipo do serviço */}
@@ -335,6 +352,18 @@ export default function Propostas() {
               </div>
             );
           })}
+
+          {items.length === 0 && <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)", padding: "8px 2px" }}>Nenhum serviço na proposta. Adicione abaixo.</div>}
+
+          {/* seletor: adicionar serviço do catálogo */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12 }}>
+            <span style={{ display: "grid", placeItems: "center", width: 30, height: 30, borderRadius: 8, background: "var(--crasto-navy-05)", color: "var(--crasto-navy)", flexShrink: 0 }}><Plus size={15} /></span>
+            <select value="" onChange={(e) => { addItem(e.target.value); e.target.value = ""; }} disabled={available.length === 0}
+              style={{ flex: 1, fontSize: 13, padding: "9px 11px", border: "1px solid var(--crasto-border-soft)", borderRadius: 9, background: "var(--crasto-bg-2)", color: "var(--crasto-text-body)", cursor: available.length ? "pointer" : "not-allowed" }}>
+              <option value="">{available.length ? "Adicionar serviço do catálogo…" : "Todos os serviços do catálogo já foram adicionados"}</option>
+              {available.map((s) => <option key={s.id} value={s.id}>{s.name} — tabela {fmt(s.price_table)}</option>)}
+            </select>
+          </div>
 
           <div className="pstep"><span className="stepn">3</span><h3>Agente indicador</h3></div>
           {agents.length === 0 ? (
