@@ -55,9 +55,9 @@ export default function Modulos() {
 
   return (
     <div>
-      <PageHead eyebrow="Portal do Cliente" title="Meus Módulos" sub="Suas soluções e como entrar em cada uma — tudo aqui." />
+      <PageHead eyebrow="Portal do Cliente" title="Minhas Soluções" sub="Suas soluções e como entrar em cada uma — tudo aqui." />
       {loading ? <Empty>Carregando…</Empty> : mods.length === 0 ? (
-        <Empty><p><strong>Nenhum módulo ativo ainda.</strong> Assim que a Crasto.AI liberar suas soluções, elas aparecem aqui com o acesso.</p></Empty>
+        <Empty><p><strong>Nenhuma solução ativa ainda.</strong> Assim que a Crasto.AI liberar suas soluções, elas aparecem aqui com o acesso.</p></Empty>
       ) : (
         <div className="mods">
           {mods.map((m) => {

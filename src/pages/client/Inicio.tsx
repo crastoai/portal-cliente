@@ -74,17 +74,17 @@ export default function Inicio() {
       {/* KPIs */}
       <div className="kpis">
         <div className="kpi g"><div className="lab">Implantação</div><div className="val">{impl?.overall_progress ?? 0}<small>%</small></div><div className="delta">{impl?.status === "delivered" ? "Entregue" : "Em andamento"}</div></div>
-        <div className="kpi"><div className="lab">Módulos ativos</div><div className="val">{mods.filter(m => m.status === "active").length}<small> / {mods.length}</small></div><div className="delta">no seu plano</div></div>
+        <div className="kpi"><div className="lab">Soluções ativas</div><div className="val">{mods.filter(m => m.status === "active").length}<small> / {mods.length}</small></div><div className="delta">no seu plano</div></div>
         <div className="kpi"><div className="lab">Prazo de entrega</div><div className="val" style={{ fontSize: 22 }}>{daysLeft != null ? `${daysLeft} dias` : "—"}</div><div className="delta">SLA de 30 dias</div></div>
         <div className="kpi"><div className="lab">Suporte</div><div className="val" style={{ fontSize: 22 }}>Ativo</div><div className="delta">WhatsApp & portal</div></div>
       </div>
 
       {/* Módulos */}
-      <div className="sec-h"><h2>Meus módulos</h2></div>
+      <div className="sec-h"><h2>Minhas soluções</h2></div>
       {loading ? (
         <div className="empty">Carregando…</div>
       ) : mods.length === 0 ? (
-        <div className="empty"><p><strong>Nenhum módulo ativo ainda.</strong> Assim que a Crasto.AI liberar seus módulos, eles aparecem aqui.</p></div>
+        <div className="empty"><p><strong>Nenhuma solução ativa ainda.</strong> Assim que a Crasto.AI liberar suas soluções, elas aparecem aqui.</p></div>
       ) : (
         <div className="mods">
           {mods.map((m) => {
