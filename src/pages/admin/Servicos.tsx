@@ -47,7 +47,7 @@ export default function Servicos() {
   const range = (r: S) => (r.price_min != null && r.price_max != null && r.price_min !== r.price_max) ? `${money(r.price_min)}–${money(r.price_max)}` : null;
 
   return (
-    <div>
+    <div className="svcpage">
       <PageHead eyebrow="Painel Admin" title="Serviços & preços" sub="Base oficial de preços da Crasto.AI. Preço-âncora + faixa (mín–máx); imposto padrão exibido à parte."
         right={<><button className="crasto-btn crasto-btn--secondary crasto-btn--sm"><span className="crasto-btn__icon"><Upload size={15} /></span><span className="crasto-btn__label">Importar</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={openNew}><span className="crasto-btn__icon"><Plus size={15} /></span><span className="crasto-btn__label">Novo serviço</span></button></>} />
       {loading ? <Empty>Carregando…</Empty> : rows.length === 0 ? <Empty><p><strong>Nenhum serviço.</strong> Clique em "Novo serviço".</p></Empty> : (

@@ -214,3 +214,273 @@
 @media (max-width: 700px) { .infogrid { grid-template-columns: 1fr 1fr; } }
 .infolab { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--crasto-text-muted); margin-bottom: 3px; }
 .infoval { font-size: 14px; font-weight: 600; color: var(--crasto-navy); word-break: break-word; }
+
+/* =============================================================
+   DASHBOARD — "Visão geral do negócio" · refinamento Design System
+   Escopo em .bizdash: só reestiliza esta tela (as classes .kpi/.tbl/.health
+   são compartilhadas com Custos/Receita/Entregas — não são tocadas fora daqui).
+   Usa tokens do DS: radius-lg, space-6, shadows, font-display, paleta navy.
+   ============================================================= */
+.bizdash .kpis { gap: var(--crasto-space-5); margin-bottom: var(--crasto-space-8); }
+
+/* KPI cards → superfície DS (crasto-card): radius-lg, padding-6, hover-lift */
+.bizdash .kpi {
+  border-radius: var(--crasto-radius-lg);
+  padding: var(--crasto-space-6);
+  border: 1px solid var(--crasto-border-soft);
+  box-shadow: var(--crasto-shadow-xs);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.bizdash .kpi:hover { transform: translateY(-2px); box-shadow: var(--crasto-shadow-md); }
+.bizdash .kpi::before { width: 4px; border-radius: 0 var(--crasto-radius-pill) var(--crasto-radius-pill) 0; }
+.bizdash .kpi .lab {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: var(--crasto-ls-label); color: var(--crasto-text-muted);
+}
+.bizdash .kpi .val {
+  font-family: var(--crasto-font-display);
+  font-size: 34px; font-weight: 600; letter-spacing: -.03em; margin: 10px 0 4px;
+}
+.bizdash .kpi .delta { font-size: 12px; }
+
+/* Card-herói (MRR) → navy com brilho de canto (papel de parede crasto.ai) */
+.bizdash .kpi.navy {
+  background:
+    radial-gradient(120% 120% at 100% 0%, rgba(110,156,232,.30), transparent 55%),
+    linear-gradient(155deg, var(--crasto-navy), var(--crasto-navy-deep));
+  box-shadow: var(--crasto-shadow-md);
+}
+.bizdash .kpi.navy:hover { box-shadow: var(--crasto-shadow-lg); }
+.bizdash .kpi.navy::before { opacity: .9; }
+
+/* Section header → tipografia display do DS */
+.bizdash .sec-h { margin-top: var(--crasto-space-6); }
+.bizdash .sec-h h2 {
+  font-family: var(--crasto-font-display); font-weight: 500;
+  letter-spacing: var(--crasto-ls-tight);
+}
+
+/* Tabela → casa com os cards (radius-lg + respiro maior + hover navy suave) */
+.bizdash .tbl-wrap { border-radius: var(--crasto-radius-lg); box-shadow: var(--crasto-shadow-sm); }
+.bizdash .tbl thead th { padding: 14px 20px; }
+.bizdash .tbl tbody td { padding: 15px 20px; }
+.bizdash .tbl tbody tr:hover { background: var(--crasto-navy-03); }
+.bizdash .cust .logo { border-radius: var(--crasto-radius-sm); box-shadow: var(--crasto-shadow-xs); }
+
+/* Health score → selo (pill) do DS */
+.bizdash .health {
+  padding: 4px 10px; border-radius: var(--crasto-radius-pill);
+  background: var(--crasto-bg-3); font-size: 12px;
+}
+
+/* Barra de uso → pill, trilho suave */
+.bizdash .barmini {
+  height: 7px; width: 120px; border-radius: var(--crasto-radius-pill);
+  background: var(--crasto-bg-3);
+}
+.bizdash .barmini span { border-radius: var(--crasto-radius-pill); }
+
+@media (max-width: 820px) { .bizdash .kpi .val { font-size: 28px; } }
+
+/* =============================================================
+   CRM — "Contatos & Clientes" · refinamento Design System
+   Escopo em .crmpage (não afeta outras telas que compartilham .tbl/.pill).
+   ============================================================= */
+/* Abas/filtros → pill premium (ativa navy sólida, inativa ghost com hover) */
+.crmpage .stagetab {
+  box-shadow: var(--crasto-shadow-xs);
+  transition: background .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease;
+}
+.crmpage .stagetab:hover { background: var(--crasto-bg-2); border-color: var(--crasto-border); }
+.crmpage .stagetab.on { box-shadow: var(--crasto-shadow-sm); }
+.crmpage .stagetab.on:hover { background: var(--crasto-navy-deep); border-color: var(--crasto-navy-deep); }
+
+/* Barra de busca → cantos arredondados, fundo sutil, anel de foco (cor primária) */
+.crmpage .inp {
+  border-radius: var(--crasto-radius-pill);
+  background: var(--crasto-bg-2);
+  border-color: var(--crasto-border-soft);
+  transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+}
+.crmpage .inp:hover { border-color: var(--crasto-border); }
+.crmpage .inp:focus {
+  outline: none;
+  background: var(--crasto-surface);
+  border-color: var(--crasto-navy);
+  box-shadow: var(--crasto-shadow-focus);
+}
+
+/* Badge de status "Cliente" → verde translúcido premium + bolinha */
+.crmpage .pill.ok { background: rgba(16,185,129,0.15); color: #047857; }
+.crmpage .pill.ok .d { background: #10B981; }
+
+/* Tabela → cantos 16px, sombra difusa, hover de linha navy suave */
+.crmpage .tbl-wrap { border-radius: 16px; box-shadow: 0 10px 40px rgba(1,14,38,0.05); }
+.crmpage .tbl tbody tr:hover { background: var(--crasto-navy-03); }
+.crmpage .cust .logo { border-radius: var(--crasto-radius-sm); box-shadow: var(--crasto-shadow-xs); }
+
+/* "Ver detalhe" → link limpo com hover que muda cor e sublinha */
+.crmpage .sec-h.link {
+  display: inline; margin: 0; font-size: 13px; font-weight: 600;
+  color: var(--crasto-navy); text-decoration: none; transition: color .15s ease;
+}
+.crmpage .sec-h.link:hover { color: var(--crasto-blue); text-decoration: underline; }
+
+/* =============================================================
+   PROPOSTAS — "Gerador de propostas" · refinamento Design System
+   Escopo em .proppage.
+   ============================================================= */
+/* Painéis (formulário + resumo) → branco, cantos 16px, sombra muito difusa */
+.proppage .card { border-radius: 16px; box-shadow: 0 10px 40px rgba(1,14,38,0.05); border-color: var(--crasto-border-soft); }
+.proppage .propgrid { gap: var(--crasto-space-5); }
+
+/* Steps → bolinha sólida navy, texto branco, leve sombra */
+.proppage .stepn { width: 26px; height: 26px; box-shadow: var(--crasto-shadow-xs); }
+
+/* Inputs de preço + select do cliente → radius 8px + ring/glow de foco (primária) */
+.proppage .pinp { border-radius: var(--crasto-radius-sm); transition: border-color .16s ease, box-shadow .16s ease; }
+.proppage .pinp:focus-within { border-color: var(--crasto-navy); box-shadow: var(--crasto-shadow-focus); }
+.proppage .selorg { transition: border-color .16s ease, box-shadow .16s ease; }
+.proppage .selorg:focus { outline: none; border-color: var(--crasto-navy); box-shadow: var(--crasto-shadow-focus); }
+
+/* Cards selecionáveis (anexos) → hover suave; ativo com borda destacada + tint navy */
+.proppage .att { transition: background .15s ease, border-color .15s ease, box-shadow .15s ease; }
+.proppage .att:hover { background: var(--crasto-bg-2); border-color: var(--crasto-border); }
+.proppage .att.on { border-color: var(--crasto-navy); background: var(--crasto-navy-05); box-shadow: var(--crasto-shadow-xs); }
+
+/* Caixa verde "IA se paga" → verde translúcido super premium, borda fina, texto vibrante */
+.proppage .paycheck { background: rgba(16,185,129,0.10); border: 1px solid rgba(16,185,129,0.30); color: #059669; }
+.proppage .paycheck b { color: #047857; }
+
+/* Botões → "Gerar" primário eleva no hover; "Enviar" ghost com hover sutil */
+.proppage .crasto-btn--primary { transition: transform .16s ease, box-shadow .16s ease, background .16s ease; }
+.proppage .crasto-btn--primary:hover { transform: translateY(-2px); box-shadow: var(--crasto-shadow-md); }
+.proppage .crasto-btn--secondary:hover { background: var(--crasto-bg-2); }
+
+/* =============================================================
+   SERVIÇOS & PREÇOS — .svcpage · refinamento Design System
+   ============================================================= */
+.svcpage .tbl-wrap { border-radius: 16px; box-shadow: 0 10px 40px rgba(1,14,38,0.05); }
+.svcpage .tbl tbody tr:hover { background: var(--crasto-navy-03); }
+.svcpage .chip { background: var(--crasto-navy-05); color: var(--crasto-text-body); border: 1px solid var(--crasto-border-soft); }
+.svcpage .icobtn { transition: background .15s ease, color .15s ease, border-color .15s ease; }
+.svcpage .icobtn:hover { background: var(--crasto-bg-3); color: var(--crasto-navy); }
+.svcpage .crasto-btn--primary { transition: transform .16s ease, box-shadow .16s ease; }
+.svcpage .crasto-btn--primary:hover { transform: translateY(-2px); box-shadow: var(--crasto-shadow-md); }
+.svcpage .crasto-btn--secondary:hover { background: var(--crasto-bg-2); }
+
+/* =============================================================
+   KPI premium compartilhado — Custos & Receita (mesmo tratamento do Dashboard)
+   ============================================================= */
+.custospage .kpi, .receitapage .kpi {
+  border-radius: var(--crasto-radius-lg);
+  padding: var(--crasto-space-6);
+  border: 1px solid var(--crasto-border-soft);
+  box-shadow: var(--crasto-shadow-xs);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.custospage .kpi:hover, .receitapage .kpi:hover { transform: translateY(-2px); box-shadow: var(--crasto-shadow-md); }
+.custospage .kpi::before, .receitapage .kpi::before { width: 4px; border-radius: 0 var(--crasto-radius-pill) var(--crasto-radius-pill) 0; }
+.custospage .kpi .lab, .receitapage .kpi .lab { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: var(--crasto-ls-label); color: var(--crasto-text-muted); }
+.custospage .kpi .val, .receitapage .kpi .val { font-family: var(--crasto-font-display); font-size: 34px; font-weight: 600; letter-spacing: -.03em; margin: 10px 0 4px; }
+.custospage .kpi.navy, .receitapage .kpi.navy {
+  background:
+    radial-gradient(120% 120% at 100% 0%, rgba(110,156,232,.30), transparent 55%),
+    linear-gradient(155deg, var(--crasto-navy), var(--crasto-navy-deep));
+  box-shadow: var(--crasto-shadow-md);
+}
+.custospage .kpi.navy:hover, .receitapage .kpi.navy:hover { box-shadow: var(--crasto-shadow-lg); }
+.custospage .sec-h h2, .receitapage .sec-h h2 { font-family: var(--crasto-font-display); font-weight: 500; letter-spacing: var(--crasto-ls-tight); }
+@media (max-width: 820px) { .custospage .kpi .val, .receitapage .kpi .val { font-size: 28px; } }
+
+/* =============================================================
+   CUSTOS & DESPESAS — .custospage
+   ============================================================= */
+/* Banner de aviso azul → premium translúcido, cantos arredondados */
+.custospage .note { border-radius: var(--crasto-radius-lg); background: rgba(110,156,232,.08); border-color: rgba(110,156,232,.22); padding: 15px 18px; }
+[data-theme="dark"] .custospage .note { background: rgba(110,156,232,.10); border-color: rgba(110,156,232,.25); }
+/* Selects de filtro → foco com ring navy + hover */
+.custospage .filt select { border-radius: var(--crasto-radius-sm); transition: border-color .16s ease, box-shadow .16s ease; }
+.custospage .filt select:hover { border-color: var(--crasto-navy-40); }
+.custospage .filt select:focus { outline: none; border-color: var(--crasto-navy); box-shadow: var(--crasto-shadow-focus); }
+/* Tabelas → 16px + sombra difusa + hover de linha */
+.custospage .tbl-wrap { border-radius: 16px; box-shadow: 0 10px 40px rgba(1,14,38,0.05); }
+.custospage .tbl tbody tr:hover { background: var(--crasto-navy-03); }
+/* Badges cinza ao lado dos títulos → mais suaves */
+.custospage .sec-h .pill { box-shadow: var(--crasto-shadow-xs); }
+/* Cards "gasto por plataforma" → hover suave */
+.custospage .arow { transition: box-shadow .15s ease, border-color .15s ease; }
+.custospage .arow:hover { box-shadow: var(--crasto-shadow-sm); border-color: var(--crasto-border); }
+
+/* =============================================================
+   RECEITA & CHURN — .receitapage
+   ============================================================= */
+/* Área do gráfico "Evolução do MRR" → glassmorphism premium, cantos arredondados, sombra difusa */
+.receitapage .card {
+  border-radius: var(--crasto-radius-lg);
+  background: linear-gradient(180deg, rgba(255,255,255,0.70) 0%, rgba(255,255,255,0.42) 100%);
+  backdrop-filter: var(--crasto-blur-md);
+  -webkit-backdrop-filter: var(--crasto-blur-md);
+  border: 1px solid rgba(255,255,255,0.80);
+  box-shadow: var(--crasto-shadow-md);
+}
+[data-theme="dark"] .receitapage .card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 100%);
+  border-color: rgba(255,255,255,0.10);
+}
+
+/* =============================================================
+   GLOBAL PREMIUM — Design System aplicado a TODAS as telas.
+   Promove os componentes compartilhados; como screens.css é o último
+   import, estas regras vencem as bases (mesma especificidade, ordem depois).
+   Botões ficam com o hover-lift nativo do DS (button.css) — não sobrescritos.
+   ============================================================= */
+/* KPI cards — superfície premium, números em fonte display, hover-lift */
+.kpi {
+  border-radius: var(--crasto-radius-lg);
+  padding: var(--crasto-space-6);
+  box-shadow: var(--crasto-shadow-xs);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.kpi:hover { transform: translateY(-2px); box-shadow: var(--crasto-shadow-md); }
+.kpi::before { width: 4px; border-radius: 0 var(--crasto-radius-pill) var(--crasto-radius-pill) 0; }
+.kpi .lab { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: var(--crasto-ls-label); color: var(--crasto-text-muted); }
+.kpi .val { font-family: var(--crasto-font-display); font-size: 34px; font-weight: 600; letter-spacing: -.03em; margin: 10px 0 4px; }
+.kpi.navy {
+  background:
+    radial-gradient(120% 120% at 100% 0%, rgba(110,156,232,.30), transparent 55%),
+    linear-gradient(155deg, var(--crasto-navy), var(--crasto-navy-deep));
+  box-shadow: var(--crasto-shadow-md);
+}
+.kpi.navy:hover { box-shadow: var(--crasto-shadow-lg); }
+@media (max-width: 820px) { .kpi .val { font-size: 28px; } }
+
+/* Cards / painéis — cantos 16px + sombra difusa */
+.card { border-radius: 16px; box-shadow: 0 10px 40px rgba(1,14,38,0.05); }
+
+/* Tabelas — 16px, sombra difusa, hover de linha navy suave */
+.tbl-wrap { border-radius: 16px; box-shadow: 0 10px 40px rgba(1,14,38,0.05); }
+.tbl tbody tr:hover { background: var(--crasto-navy-03); }
+
+/* Títulos de seção — tipografia display do DS */
+.sec-h h2 { font-family: var(--crasto-font-display); font-weight: 500; letter-spacing: var(--crasto-ls-tight); }
+
+/* Banner de aviso azul — translúcido premium, cantos arredondados */
+.note { border-radius: var(--crasto-radius-lg); background: rgba(110,156,232,.08); border-color: rgba(110,156,232,.22); }
+[data-theme="dark"] .note { background: rgba(110,156,232,.10); border-color: rgba(110,156,232,.25); }
+
+/* Cards de linha (.arow — integrações, gasto por plataforma, suporte) → hover com elevação */
+.arow { border-radius: 16px; transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+.arow:hover { transform: translateY(-2px); box-shadow: var(--crasto-shadow-md); border-color: var(--crasto-border); }
+
+/* Badges de status — verde translúcido premium (conectado/ativo/publicado) */
+.pill.ok { background: rgba(16,185,129,0.15); color: #047857; }
+.pill.ok .d { background: #10B981; }
+
+/* Chips — borda fina */
+.chip { border: 1px solid var(--crasto-border-soft); }
+
+/* Inputs / selects — anel de foco navy (todas as telas) */
+.inp:focus, .filt select:focus, .frow input:focus, .frow select:focus, .frow textarea:focus {
+  outline: none; border-color: var(--crasto-navy); box-shadow: var(--crasto-shadow-focus);
+}

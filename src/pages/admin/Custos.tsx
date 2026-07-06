@@ -25,7 +25,7 @@ export default function Custos() {
   const hoursLabel = (s: string) => (({ no_plano: "No plano", esgotado: "Esgotado", extra: "Extra a cobrar", antecipado: "Antecipado" } as any)[s] || s);
 
   return (
-    <div>
+    <div className="custospage">
       <PageHead eyebrow="Painel Admin · Interno 🔒" title="Custos & Despesas" sub="Custo real por cliente — IA, servidor e suporte — e o plano de contas com lucro." />
       <div className="note"><span>Tela <b>interna</b> — o cliente nunca vê custo, imposto nem margem.</span></div>
 
@@ -53,10 +53,10 @@ export default function Custos() {
         ))}
       </div>
 
-      <div className="sec-h"><h2>Plano de contas por cliente</h2><Pill tone="info">impostos NF 8,64%</Pill></div>
+      <div className="sec-h"><h2>Plano de contas por cliente</h2><Pill tone="info">impostos NF 8,68%</Pill></div>
       <div className="tbl-wrap" style={{ marginBottom: 26 }}>
         <table className="tbl">
-          <thead><tr><th>Cliente</th><th>Custo (IA+infra+sup.)</th><th>Valor de venda</th><th>Impostos 8,64%</th><th>Lucro</th></tr></thead>
+          <thead><tr><th>Cliente</th><th>Custo (IA+infra+sup.)</th><th>Valor de venda</th><th>Impostos 8,68%</th><th>Lucro</th></tr></thead>
           <tbody>
             {pnl.length === 0 ? <tr><td colSpan={5} style={{ color: "var(--crasto-text-muted)" }}>Sem dados ainda.</td></tr> : pnl.map((r) => (
               <tr key={r.organization_name}>

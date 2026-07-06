@@ -57,7 +57,7 @@ export default function Propostas() {
   }
 
   return (
-    <div>
+    <div className="proppage">
       <PageHead eyebrow="Painel Admin" title="Gerador de propostas" sub="Monte uma proposta personalizada com a espinha dorsal Crasto.AI." />
       <div className="propgrid">
         <div className="card">
@@ -116,7 +116,7 @@ export default function Propostas() {
           <div className="sumrow"><span>Imposto ({String(TAX_RATE).replace(".", ",")}%){special ? " — isento (venda especial)" : ""}</span><span className="tnum" style={{ color: special ? "var(--crasto-text-muted)" : "var(--crasto-danger)" }}>{money(tax)}</span></div>
           <div className="sumrow tot"><span>Total {special ? "(sem NF)" : "com imposto"}</span><span className="tnum">{money(total + tax)}</span></div>
           <div className="sumrow"><span>Comissão indicador (20%)</span><span className="tnum" style={{ color: "#B8863A" }}>{money(commission)}</span></div>
-          <label className="frow" style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, margin: "12px 0 4px", padding: "10px 12px", borderRadius: 10, background: special ? "rgba(184,134,58,.10)" : "var(--crasto-bg-3)", border: "1px solid var(--crasto-border-soft)" }}>
+          <label className="frow specialbox" style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, margin: "12px 0 4px", padding: "12px 14px", borderRadius: 12, background: special ? "var(--crasto-navy-05)" : "var(--crasto-bg-3)", border: special ? "1px solid var(--crasto-navy-20)" : "1px solid var(--crasto-border-soft)" }}>
             <input type="checkbox" checked={special} onChange={(e) => setSpecial(e.target.checked)} style={{ width: "auto", marginTop: 2 }} />
             <span style={{ margin: 0 }}><b>Venda especial</b> (sem Nota Fiscal) — faz todo o fluxo mas <b>não emite NF</b> e não aplica imposto. Ex.: vendas-teste, cortesias, permutas.</span>
           </label>

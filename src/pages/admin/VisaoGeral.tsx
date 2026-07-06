@@ -11,7 +11,7 @@ export default function VisaoGeral() {
   const risk = clients.filter((c) => healthScore(c).score < 45).length;
 
   return (
-    <div>
+    <div className="bizdash">
       <PageHead eyebrow="Painel Admin · Crasto.AI" title="Visão geral do negócio" sub="A saúde da operação num relance."
         right={<Link to="/admin/clientes" className="crasto-btn crasto-btn--primary crasto-btn--sm"><span className="crasto-btn__icon"><UserPlus size={15} /></span><span className="crasto-btn__label">Cadastrar cliente</span></Link>} />
 

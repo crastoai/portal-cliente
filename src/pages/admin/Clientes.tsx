@@ -52,7 +52,7 @@ export default function Clientes() {
   const co = countryOf(f.country);
 
   return (
-    <div>
+    <div className="crmpage">
       <PageHead eyebrow="Painel Admin · CRM" title="Contatos & Clientes" sub="Pipeline: contato → lead → qualificado → cliente."
         right={<button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => { setF({ ...EMPTY }); setErr(""); setOpen(true); }}><span className="crasto-btn__icon"><UserPlus size={15} /></span><span className="crasto-btn__label">Novo contato</span></button>} />
 
