@@ -5,40 +5,60 @@ import ThemeToggle from "../ui/ThemeToggle";
 import { initials } from "../ui/ui";
 import logoWhite from "../assets/logo-branca.svg";
 
-export type NavItem = { to: string; end?: boolean; icon: LucideIcon; label: string; tag?: string };
+export type NavItem = { to: string; end?: boolean; icon: LucideIcon; label: string; tag?: string; section?: string };
 
 export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who: string; sub: string; logoTone?: string }) {
   const { profile, signOut } = useAuth();
   const ini = initials(profile?.full_name || profile?.email);
+
+  // agrupa a navegação por seção, preservando a ordem (padrão do DS de sistema)
+  const groups: { section?: string; items: NavItem[] }[] = [];
+  for (const n of nav) {
+    const last = groups[groups.length - 1];
+    if (!last || last.section !== n.section) groups.push({ section: n.section, items: [n] });
+    else last.items.push(n);
+  }
+
   return (
     <div className="shell">
-      <header className="topbar">
-        <div className="brand"><span className="dot"><img src={logoWhite} alt="" width={15} height={18} /></span> CRASTO.AI</div>
-        <div className="spacer" />
-        <div className="who">
-          <span className="hide-sm">{profile?.email}</span>
-          <ThemeToggle />
-          <span className="avatar" style={logoTone ? { background: logoTone } : undefined}>{ini}</span>
-          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => signOut()}>
-            <span className="crasto-btn__icon"><LogOut size={15} /></span>
-            <span className="crasto-btn__label">Sair</span>
-          </button>
-        </div>
-      </header>
       <aside className="side">
-        <div className="who">
-          <div className="co">
-            <div className="logo" style={logoTone ? { background: logoTone } : undefined}>{ini}</div>
-            <div><div className="nm">{who}</div><div className="pl">{sub}</div></div>
+        <div className="side-brand">
+          <span className="side-mark" style={logoTone ? { background: logoTone } : undefined}>
+            <img src={logoWhite} alt="" width={16} height={19} />
+          </span>
+          <div className="side-brand-txt">
+            <div className="nm">Crasto.AI</div>
+            <div className="sub">{sub}</div>
           </div>
         </div>
-        {nav.map((n) => (
-          <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => "navlink" + (isActive ? " on" : "")}>
-            <n.icon size={17} /> {n.label}{n.tag && <span className="tag">{n.tag}</span>}
-          </NavLink>
-        ))}
+
+        <nav className="side-nav">
+          {groups.map((g, gi) => (
+            <div className="navgroup" key={gi}>
+              {g.section && <div className="navsec">{g.section}</div>}
+              {g.items.map((n) => (
+                <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => "navlink" + (isActive ? " on" : "")}>
+                  <n.icon size={17} /> <span className="navlink-lbl">{n.label}</span>{n.tag && <span className="tag">{n.tag}</span>}
+                </NavLink>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        <div className="side-user">
+          <span className="su-av" style={logoTone ? { background: logoTone } : undefined}>{ini}</span>
+          <div className="su-meta">
+            <div className="su-nm">{who}</div>
+            <div className="su-em">{profile?.email}</div>
+          </div>
+          <ThemeToggle />
+          <button className="su-out" title="Sair" onClick={() => signOut()}><LogOut size={16} /></button>
+        </div>
       </aside>
-      <main className="main"><Outlet /></main>
+
+      <main className="main">
+        <div className="canvas"><Outlet /></div>
+      </main>
     </div>
   );
 }

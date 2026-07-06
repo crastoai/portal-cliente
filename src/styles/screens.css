@@ -484,3 +484,49 @@
 .inp:focus, .filt select:focus, .frow input:focus, .frow select:focus, .frow textarea:focus {
   outline: none; border-color: var(--crasto-navy); box-shadow: var(--crasto-shadow-focus);
 }
+
+/* =============================================================
+   LIQUID GLASS — assinatura do DS nas superfícies de sistema.
+   Aplica a receita real do componente Card do DS (fundo de vidro +
+   atmosfera radial + brilho interno no topo + sombra longa + hover).
+   ============================================================= */
+.card, .kpi, .arow, .crmcard, .empty, .tbl-wrap {
+  background: var(--crasto-glass-card);
+  border: 1px solid var(--crasto-border-soft);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.9) inset,
+    0 12px 28px -18px var(--crasto-navy-14);
+}
+.card, .kpi, .arow, .crmcard { position: relative; isolation: isolate; overflow: hidden; }
+/* atmosfera radial sutil (painéis; não nas tabelas) */
+.card::after, .arow::after, .crmcard::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(540px 240px at 0% 0%, var(--crasto-navy-04), transparent 60%);
+  opacity: .6; transition: opacity .26s ease;
+}
+.card:hover::after, .arow:hover::after { opacity: 1; }
+.card:hover, .kpi:hover, .arow:hover {
+  border-color: var(--crasto-navy-16);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.95) inset,
+    0 0 0 .5px var(--crasto-navy-10),
+    0 22px 42px -16px var(--crasto-navy-22);
+}
+/* KPI sem barra lateral — card de vidro limpo (referência) */
+.kpi::before, .kpi.g::before, .kpi.navy::before { display: none; }
+/* KPI-herói navy — vidro escuro do DS */
+.kpi.navy {
+  color: #fff;
+  background:
+    radial-gradient(ellipse 60% 70% at 12% 0%, rgba(110,156,232,.5) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 60% at 95% 8%, rgba(110,156,232,.45) 0%, transparent 60%),
+    linear-gradient(135deg, var(--crasto-navy) 0%, var(--crasto-navy-deep) 100%);
+  border-color: rgba(255,255,255,.08);
+  box-shadow: 0 1px 0 rgba(255,255,255,.10) inset, 0 24px 56px -22px var(--crasto-navy-40);
+}
+.kpi.navy:hover {
+  border-color: rgba(255,255,255,.18);
+  box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 32px 64px -22px var(--crasto-navy-60);
+}
+/* cabeçalho de tabela transparente sobre o vidro */
+.tbl thead th { background: transparent; }
