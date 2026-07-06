@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { MessageCircle, Search, Send } from "lucide-react";
 import { services } from "../../services";
 import { useAuth } from "../../lib/auth";
+import { useT } from "../../lib/i18n";
 
 type Health = { status: "green" | "amber" | "red"; message: string | null };
 type Impl = { overall_progress: number; due_date: string | null; status: string };
@@ -13,6 +14,7 @@ const ICONS: Record<string, JSX.Element> = {
 
 export default function Inicio() {
   const { profile } = useAuth();
+  const t = useT();
   const [health, setHealth] = useState<Health | null>(null);
   const [impl, setImpl] = useState<Impl | null>(null);
   const [mods, setMods] = useState<Mod[]>([]);
@@ -48,9 +50,9 @@ export default function Inicio() {
   return (
     <div>
       <div className="phead">
-        <div className="ey">Portal do Cliente</div>
-        <h1>Olá{firstName ? `, ${firstName}` : ""} 👋</h1>
-        <div className="sub">Aqui está o resumo do que a sua IA fez por você.</div>
+        <div className="ey">{t("Portal do Cliente")}</div>
+        <h1>{firstName ? t("Olá, {n} 👋", { n: firstName }) : t("Olá 👋")}</h1>
+        <div className="sub">{t("Aqui está o resumo do que a sua IA fez por você.")}</div>
       </div>
 
       {/* Farol */}
@@ -62,45 +64,45 @@ export default function Inicio() {
         </div>
         <div className="txt">
           <div className="h">
-            {lit === "green" ? "Sistema no ar" : lit === "amber" ? "Ajuste em andamento" : "Atenção necessária"}
+            {lit === "green" ? t("Sistema no ar") : lit === "amber" ? t("Ajuste em andamento") : t("Atenção necessária")}
             <span className={"pill " + (lit === "green" ? "ok" : lit === "amber" ? "warn" : "info")}>
-              <span className="d" />{lit === "green" ? "Operando" : lit === "amber" ? "Corrigindo" : "Suporte atuando"}
+              <span className="d" />{lit === "green" ? t("Operando") : lit === "amber" ? t("Corrigindo") : t("Suporte atuando")}
             </span>
           </div>
-          <div className="s">{health?.message || "Tudo funcionando normalmente."}</div>
+          <div className="s">{health?.message || t("Tudo funcionando normalmente.")}</div>
         </div>
       </div>
 
       {/* KPIs */}
       <div className="kpis">
-        <div className="kpi g"><div className="lab">Implantação</div><div className="val">{impl?.overall_progress ?? 0}<small>%</small></div><div className="delta">{impl?.status === "delivered" ? "Entregue" : "Em andamento"}</div></div>
-        <div className="kpi"><div className="lab">Soluções ativas</div><div className="val">{mods.filter(m => m.status === "active").length}<small> / {mods.length}</small></div><div className="delta">no seu plano</div></div>
-        <div className="kpi"><div className="lab">Prazo de entrega</div><div className="val" style={{ fontSize: 22 }}>{daysLeft != null ? `${daysLeft} dias` : "—"}</div><div className="delta">SLA de 30 dias</div></div>
-        <div className="kpi"><div className="lab">Suporte</div><div className="val" style={{ fontSize: 22 }}>Ativo</div><div className="delta">WhatsApp & portal</div></div>
+        <div className="kpi g"><div className="lab">{t("Implantação")}</div><div className="val">{impl?.overall_progress ?? 0}<small>%</small></div><div className="delta">{impl?.status === "delivered" ? t("Entregue") : t("Em andamento")}</div></div>
+        <div className="kpi"><div className="lab">{t("Soluções ativas")}</div><div className="val">{mods.filter(m => m.status === "active").length}<small> / {mods.length}</small></div><div className="delta">{t("no seu plano")}</div></div>
+        <div className="kpi"><div className="lab">{t("Prazo de entrega")}</div><div className="val" style={{ fontSize: 22 }}>{daysLeft != null ? t("{n} dias", { n: daysLeft }) : "—"}</div><div className="delta">{t("SLA de 30 dias")}</div></div>
+        <div className="kpi"><div className="lab">{t("Suporte")}</div><div className="val" style={{ fontSize: 22 }}>{t("Ativo")}</div><div className="delta">{t("WhatsApp & portal")}</div></div>
       </div>
 
       {/* Módulos */}
-      <div className="sec-h"><h2>Minhas soluções</h2></div>
+      <div className="sec-h"><h2>{t("Minhas soluções")}</h2></div>
       {loading ? (
-        <div className="empty">Carregando…</div>
+        <div className="empty">{t("Carregando…")}</div>
       ) : mods.length === 0 ? (
-        <div className="empty"><p><strong>Nenhuma solução ativa ainda.</strong> Assim que a Crasto.AI liberar suas soluções, elas aparecem aqui.</p></div>
+        <div className="empty"><p><strong>{t("Nenhuma solução ativa ainda.")}</strong> {t("Assim que a Crasto.AI liberar suas soluções, elas aparecem aqui.")}</p></div>
       ) : (
         <div className="mods">
           {mods.map((m) => {
             const cat = (m.vdi?.category || "").toLowerCase();
             const icon = cat.includes("atend") ? ICONS.whatsapp : cat.includes("market") ? ICONS.marketing : ICONS.default;
             const st = m.status === "active" ? "ok" : m.status === "implementing" ? "warn" : "info";
-            const stl = m.status === "active" ? "Ativo" : m.status === "implementing" ? "Em implementação" : m.status;
+            const stl = m.status === "active" ? t("Ativo") : m.status === "implementing" ? t("Em implementação") : m.status;
             return (
               <div className="mod" key={m.id}>
                 <div className="cover"><div className="glow" />{icon}</div>
                 <div className="body">
-                  <h3>{m.vdi?.name || "Módulo"}</h3>
-                  <p>{m.vdi?.description || "Solução de IA da Crasto.AI."}</p>
+                  <h3>{m.vdi?.name || t("Módulo")}</h3>
+                  <p>{m.vdi?.description || t("Solução de IA da Crasto.AI.")}</p>
                   <div className="foot">
                     <span className={"pill " + st}><span className="d" />{stl}</span>
-                    <button className="crasto-btn crasto-btn--primary crasto-btn--sm"><span className="crasto-btn__label">Acessar</span></button>
+                    <button className="crasto-btn crasto-btn--primary crasto-btn--sm"><span className="crasto-btn__label">{t("Acessar")}</span></button>
                   </div>
                 </div>
               </div>
