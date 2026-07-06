@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import logoWhite from "../assets/logo-branca.svg";
@@ -61,6 +61,7 @@ export default function Login() {
             <button type="submit" className="crasto-btn crasto-btn--primary crasto-btn--md crasto-btn--full" disabled={busy}>
               <span className="crasto-btn__label">{busy ? "Entrando…" : "Entrar"}</span>
             </button>
+            <div style={{ textAlign: "center", marginTop: 2 }}><Link to="/redefinir" className="login-link">Esqueci minha senha</Link></div>
           </form>
         </div>
       </main>

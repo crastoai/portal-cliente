@@ -19,6 +19,9 @@
 .login-form label { font-size: var(--crasto-fs-sm); font-weight: 600; color: var(--crasto-text-body); margin-bottom: 6px; display: block; }
 .login-form input { width: 100%; border: 0; background: transparent; font-size: var(--crasto-fs-body); color: var(--crasto-text-primary); }
 .login-err { background: #F6E7E7; color: var(--crasto-danger); border: 1px solid #eecccc; border-radius: var(--crasto-radius-sm); padding: 10px 14px; font-size: var(--crasto-fs-sm); }
+.login-note { background: rgba(16,185,129,0.10); color: #047857; border: 1px solid rgba(16,185,129,0.28); border-radius: var(--crasto-radius-md); padding: 12px 15px; font-size: 13px; line-height: 1.55; }
+.login-link { font-size: 13px; font-weight: 600; color: var(--crasto-blue-ink, #3E6FB8); text-decoration: none; }
+.login-link:hover { color: var(--crasto-navy); text-decoration: underline; }
 
 /* ===== SHELL — padrão de sistema: sidebar full-height glass + canvas arredondado ===== */
 .shell { display: grid; grid-template-columns: 248px 1fr; min-height: 100vh; }

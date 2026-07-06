@@ -3,8 +3,22 @@
 // Toda leitura/escrita de tenancy e RBAC do lado do cliente passa por aqui.
 // ============================================================================
 import { supabase } from "../lib/supabase";
-import { unwrap, unwrapList } from "./core/result";
+import { unwrap, unwrapList, ServiceError } from "./core/result";
 import type { Organization, Profile, Connector } from "./core/types";
+
+// Fluxo nativo de senha do Supabase (recovery seguro) — usado nas telas de login/reset.
+export const auth = {
+  /** Envia o e-mail de redefinição (branded, via Resend/SMTP configurado no Auth). */
+  requestReset: async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/nova-senha` });
+    if (error) throw new ServiceError(error.message);
+  },
+  /** Define a nova senha (sessão de recuperação ativa a partir do link do e-mail). */
+  updatePassword: async (password: string) => {
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw new ServiceError(error.message);
+  },
+};
 
 export const organizations = {
   getById: async (id: string) =>
@@ -36,6 +50,12 @@ export const users = {
     if (error) return { ok: false, error: error.message };
     return (data as any) ?? { ok: false, error: "sem resposta do servidor" };
   },
+  /** Redefine a senha de um usuário existente e REENVIA o e-mail de acesso branded. */
+  resendAccess: async (body: { user_id: string; email: string; full_name?: string; password?: string }): Promise<{ ok: boolean; email?: string; password?: string; email_sent?: boolean; email_error?: string; error?: string }> => {
+    const { data, error } = await supabase.functions.invoke("admin-resend-access", { body });
+    if (error) return { ok: false, error: error.message };
+    return (data as any) ?? { ok: false, error: "sem resposta do servidor" };
+  },
 };
 
 export const clients = {
@@ -55,4 +75,4 @@ export const connectors = {
   remove: async (id: string) => unwrap(await supabase.from("connectors").delete().eq("id", id)),
 };
 
-export const identity = { organizations, profiles, users, clients, connectors };
+export const identity = { organizations, profiles, users, clients, connectors, auth };

@@ -93,6 +93,14 @@ export default function ClienteDetalhe() {
   }
   async function downloadDoc(path: string) { const url = await api.storage.getUrl(path); if (url) window.open(url, "_blank"); }
   async function delDoc(d: any) { await api.storage.remove(d.storage_path); await api.crm.documents.remove(d.id); reload(); }
+  async function resendAccess(u: any) {
+    if (!confirm(`Redefinir a senha de ${u.email} e reenviar o e-mail de acesso da Crasto.AI?`)) return;
+    setBusy(true);
+    const r = await api.identity.users.resendAccess({ user_id: u.id, email: u.email, full_name: u.full_name || "" });
+    setBusy(false);
+    if (!r.ok) { flash("Falha ao reenviar: " + (r.error || "erro")); return; }
+    flash(r.email_sent ? `✉️ Acesso reenviado para ${u.email}.` : `Senha redefinida, mas e-mail não enviado: ${r.email_error || ""}`);
+  }
 
   return (
     <div>
@@ -203,9 +211,9 @@ export default function ClienteDetalhe() {
       {/* Usuários */}
       <div className="sec-h" style={{ marginTop: 24 }}><h2>Usuários (acesso ao portal)</h2><button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => setInvite(true)}><span className="crasto-btn__icon"><UserPlus size={14} /></span><span className="crasto-btn__label">Convidar</span></button></div>
       <div className="tbl-wrap">
-        <table className="tbl"><thead><tr><th>Usuário</th><th>Papel</th><th>E-mail</th></tr></thead><tbody>
-          {users.length === 0 ? <tr><td colSpan={3} style={{ color: "var(--crasto-text-muted)" }}>Sem logins — convide o responsável.</td></tr> : users.map((u) => (
-            <tr key={u.id}><td><div className="cust"><div className="logo" style={{ background: "var(--crasto-bg-3)", color: "var(--crasto-navy)" }}>{initials(u.full_name || u.email)}</div><div className="nm">{u.full_name || "—"}</div></div></td><td><Pill tone={u.role === "client_owner" ? "ok" : "mute"}>{u.role === "client_owner" ? "Dono" : "Membro"}</Pill></td><td className="cust"><span className="em">{u.email}</span></td></tr>
+        <table className="tbl"><thead><tr><th>Usuário</th><th>Papel</th><th>E-mail</th><th>Acesso</th></tr></thead><tbody>
+          {users.length === 0 ? <tr><td colSpan={4} style={{ color: "var(--crasto-text-muted)" }}>Sem logins — convide o responsável.</td></tr> : users.map((u) => (
+            <tr key={u.id}><td><div className="cust"><div className="logo" style={{ background: "var(--crasto-bg-3)", color: "var(--crasto-navy)" }}>{initials(u.full_name || u.email)}</div><div className="nm">{u.full_name || "—"}</div></div></td><td><Pill tone={u.role === "client_owner" ? "ok" : "mute"}>{u.role === "client_owner" ? "Dono" : "Membro"}</Pill></td><td className="cust"><span className="em">{u.email}</span></td><td><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} onClick={() => resendAccess(u)} title="Redefine a senha e reenvia o e-mail de acesso"><span className="crasto-btn__label">Reenviar acesso</span></button></td></tr>
           ))}
         </tbody></table>
       </div>
