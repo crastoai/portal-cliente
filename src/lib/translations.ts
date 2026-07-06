@@ -454,6 +454,7 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Salvar & conectar": { en: "Save & connect", es: "Guardar y conectar" },
   "Cole a chave/segredo do provedor.": { en: "Paste the provider's key/secret.", es: "Pega la clave/secreto del proveedor." },
   "URL da ponte": { en: "Bridge URL", es: "URL del puente" },
+  "URL do serviço de faturamento (VPS)": { en: "Billing service URL (VPS)", es: "URL del servicio de facturación (VPS)" },
   "Novo segredo (deixe em branco p/ manter)": { en: "New secret (leave blank to keep)", es: "Nuevo secreto (deja en blanco para mantener)" },
   "Segredo da ponte *": { en: "Bridge secret *", es: "Secreto del puente *" },
   "Nova chave (deixe em branco p/ manter a atual)": { en: "New key (leave blank to keep current)", es: "Nueva clave (deja en blanco para mantener la actual)" },

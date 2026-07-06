@@ -11,7 +11,7 @@ type Status = Record<string, { status: string; has_secret: boolean; from_addr: s
 // integrações que usam remetente de e-mail (mostram o campo "remetente")
 const EMAIL_KEYS = new Set(["resend_email"]);
 // integrações que usam uma URL de endpoint (guardada em from_addr)
-const URL_KEYS = new Set(["ai_bridge"]);
+const URL_KEYS = new Set(["ai_bridge", "banco_inter"]);
 // dica de onde obter a chave, por integração
 const HINTS: Record<string, string> = {
   resend_email: "Chave de API do Resend (começa com re_). Para enviar de no-reply@crasto.ai, verifique o domínio crasto.ai no Resend.",
@@ -20,6 +20,7 @@ const HINTS: Record<string, string> = {
   whatsapp_official: "Token da WhatsApp Cloud API (Meta).", autentique: "Token da Autentique.",
   cloudflare_r2: "Configurado via secrets do servidor.",
   ai_bridge: "Liga o chat/voz da proposta ao seu Claude Max. Rode a ponte (ponte_claude.mjs) e cole aqui a URL (ex.: https://…/assist) e o mesmo segredo (PONTE_SECRET). Passo a passo: PONTE_CLAUDE_MAX_Setup.md.",
+  banco_inter: "Faturamento Pix/boleto via Banco Inter. O Inter exige certificado (mTLS), então o serviço roda no VPS. Cole aqui a URL do serviço de faturamento (ex.: https://…/inter) e o segredo compartilhado. O client_id/secret e o certificado do Inter ficam no VPS.",
 };
 
 export default function Integracoes() {
@@ -92,8 +93,8 @@ export default function Integracoes() {
         {err && <div className="formerr">{err}</div>}
         {cur && <div className="note" style={{ marginBottom: 14 }}><span>{t(HINTS[cur.key] || "Cole a chave/segredo do provedor.")}</span></div>}
         {isUrl && (
-          <Field label="URL da ponte">
-            <input value={from} onChange={(e) => setFrom(e.target.value)} placeholder="https://ponte.crasto.ai/assist" autoComplete="off" />
+          <Field label={cur?.key === "banco_inter" ? "URL do serviço de faturamento (VPS)" : "URL da ponte"}>
+            <input value={from} onChange={(e) => setFrom(e.target.value)} placeholder={cur?.key === "banco_inter" ? "https://inter.crasto.ai/cobranca" : "https://ponte.crasto.ai/assist"} autoComplete="off" />
           </Field>
         )}
         <Field label={isUrl ? (hasKey ? "Novo segredo (deixe em branco p/ manter)" : "Segredo da ponte *") : (hasKey ? "Nova chave (deixe em branco p/ manter a atual)" : "Chave / segredo *")}>
