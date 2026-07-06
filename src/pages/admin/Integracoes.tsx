@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Plug, Settings2 } from "lucide-react";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, Pill, useAsync, Field } from "../../ui/ui";
+import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 
 type Integ = { key: string; display_name: string; status: string };
@@ -22,6 +23,7 @@ const HINTS: Record<string, string> = {
 };
 
 export default function Integracoes() {
+  const t = useT();
   const { data, reload } = useAsync(async () => {
     const [list, st] = await Promise.all([
       api.automation.integrations.list(),
@@ -37,7 +39,7 @@ export default function Integracoes() {
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [toast, setToast] = useState("");
 
   const tone = (s: string) => (s === "connected" ? "ok" : s === "error" ? "warn" : "mute");
-  const label = (s: string) => (s === "connected" ? "Conectado" : s === "error" ? "Ação necessária" : "Desconectado");
+  const label = (s: string) => (s === "connected" ? t("Conectado") : s === "error" ? t("Ação necessária") : t("Desconectado"));
 
   function openCfg(i: Integ) { setCur(i); setSecret(""); setFrom(st[i.key]?.from_addr ?? ""); setErr(""); setOpen(true); }
   async function save() {
@@ -46,7 +48,7 @@ export default function Integracoes() {
     try {
       await api.automation.integrations.configure(cur.key, secret, from, "connected");
       setOpen(false); reload();
-      setToast(`${cur.display_name} configurado ✓`); setTimeout(() => setToast(""), 5000);
+      setToast(t("{n} configurado ✓", { n: cur.display_name })); setTimeout(() => setToast(""), 5000);
     } catch (e) { setErr(errorMessage(e)); }
     finally { setBusy(false); }
   }
@@ -71,24 +73,24 @@ export default function Integracoes() {
         {items.map((i) => (
           <div className="arow" key={i.key}>
             <span className="ico" style={{ background: i.status === "connected" ? "#1F8A5B" : "var(--crasto-text-primary)" }}><Plug size={16} /></span>
-            <span><span className="t">{i.display_name}</span><br /><span className="s">{i.key}{st[i.key]?.has_secret ? " · chave salva" : ""}</span></span>
+            <span><span className="t">{i.display_name}</span><br /><span className="s">{i.key}{st[i.key]?.has_secret ? t(" · chave salva") : ""}</span></span>
             <Pill tone={tone(i.status)}>{label(i.status)}</Pill>
             <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" style={{ marginLeft: 10 }} onClick={() => openCfg(i)}>
-              <span className="crasto-btn__icon"><Settings2 size={14} /></span><span className="crasto-btn__label">Configurar</span>
+              <span className="crasto-btn__icon"><Settings2 size={14} /></span><span className="crasto-btn__label">{t("Configurar")}</span>
             </button>
           </div>
         ))}
       </div>
-      <div className="note" style={{ marginTop: 22 }}><span>Gateway de pagamento escolhido: <b>Asaas</b> (menor taxa para Pix/boleto no Brasil). <b>Autentique</b> para contratos. <b>Resend</b> para e-mails do portal.</span></div>
+      <div className="note" style={{ marginTop: 22 }}><span>{t("Gateway de pagamento escolhido: Asaas (menor taxa para Pix/boleto no Brasil). Autentique para contratos. Resend para e-mails do portal.")}</span></div>
 
-      <Modal title={cur ? `Configurar · ${cur.display_name}` : "Configurar"} open={open} onClose={() => setOpen(false)}
+      <Modal title={cur ? t("Configurar · {n}", { n: cur.display_name }) : t("Configurar")} open={open} onClose={() => setOpen(false)}
         footer={<>
-          {hasKey && <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} onClick={disconnect} style={{ marginRight: "auto" }}><span className="crasto-btn__label">Desconectar</span></button>}
-          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setOpen(false)}><span className="crasto-btn__label">Cancelar</span></button>
-          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={save}><span className="crasto-btn__label">{busy ? "Salvando…" : "Salvar & conectar"}</span></button>
+          {hasKey && <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} onClick={disconnect} style={{ marginRight: "auto" }}><span className="crasto-btn__label">{t("Desconectar")}</span></button>}
+          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button>
+          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={save}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar & conectar")}</span></button>
         </>}>
         {err && <div className="formerr">{err}</div>}
-        {cur && <div className="note" style={{ marginBottom: 14 }}><span>{HINTS[cur.key] || "Cole a chave/segredo do provedor."}</span></div>}
+        {cur && <div className="note" style={{ marginBottom: 14 }}><span>{t(HINTS[cur.key] || "Cole a chave/segredo do provedor.")}</span></div>}
         {isUrl && (
           <Field label="URL da ponte">
             <input value={from} onChange={(e) => setFrom(e.target.value)} placeholder="https://ponte.crasto.ai/assist" autoComplete="off" />
