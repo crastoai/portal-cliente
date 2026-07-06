@@ -193,3 +193,20 @@
 .login-form .crasto-field input, .pw-field input { flex: 1; min-width: 0; }
 .pw-eye { background: none; border: 0; color: var(--crasto-text-muted); display: grid; place-items: center; padding: 0; cursor: pointer; flex-shrink: 0; }
 .pw-eye:hover { color: var(--crasto-navy); }
+
+/* CRM: abas de status */
+.stagetab { border: 1px solid var(--crasto-border-soft); background: var(--crasto-surface); color: var(--crasto-text-body); padding: 8px 14px; border-radius: var(--crasto-radius-pill); font-size: 13px; font-weight: 600; cursor: pointer; transition: var(--crasto-t); }
+.stagetab b { color: var(--crasto-text-faint); font-weight: 700; margin-left: 4px; }
+.stagetab:hover { border-color: var(--crasto-blue); }
+.stagetab.on { background: var(--crasto-navy); color: #fff; border-color: var(--crasto-navy); }
+.stagetab.on b { color: var(--crasto-blue); }
+
+/* CRM: linha de adicionar (inline) */
+.addrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--crasto-bg-2); border: 1px dashed var(--crasto-border); border-radius: var(--crasto-radius-md); padding: 12px 14px; margin-bottom: 12px; }
+.addrow input, .addrow select { border: 1px solid var(--crasto-border); border-radius: var(--crasto-radius-sm); padding: 8px 10px; font-size: 13px; background: var(--crasto-surface); color: var(--crasto-text-primary); font-family: inherit; }
+.crmrow { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md); background: var(--crasto-surface); margin-bottom: 8px; }
+.crmrow .nm { font-weight: 600; color: var(--crasto-navy); font-size: 13.5px; }
+.crmrow .mt { font-size: 11.5px; color: var(--crasto-text-muted); }
+.crmrow .rm { margin-left: auto; }
+.dcard { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md); background: var(--crasto-surface); margin-bottom: 8px; }
+.dcard .ic { width: 34px; height: 34px; border-radius: 9px; background: var(--crasto-bg-3); display: grid; place-items: center; color: var(--crasto-navy); flex-shrink: 0; }

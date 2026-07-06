@@ -3,6 +3,8 @@ import { supabase } from "./supabase";
 export type Client = {
   id: string; name: string; plan: string | null; email: string | null;
   modules: string[]; last_access: string | null; progress: number; health: string | null; mrr: number;
+  stage: string; country: string | null; tax_id: string | null; website: string | null;
+  founded_on: string | null; owner_name: string | null; last_activity: string | null;
 };
 
 export async function fetchClients(): Promise<Client[]> {
