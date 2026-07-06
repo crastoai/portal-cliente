@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { services, errorMessage } from "../services";
 import { useAuth } from "../lib/auth";
-import logoWhite from "../assets/logo-branca.svg";
 
 export default function NewPassword() {
   const { session } = useAuth();
@@ -36,8 +35,7 @@ export default function NewPassword() {
     <div className="login-wrap">
       <aside className="login-aside crasto-noise">
         <div className="brand-mark">
-          <img src={logoWhite} alt="Crasto.AI" style={{ height: 40, display: "block", marginBottom: 16 }} />
-          CRASTO.AI
+          <img src="/crasto-wordmark-white.png" alt="Crasto.AI" style={{ height: 30, display: "block" }} />
         </div>
         <div>
           <h2>O seu hub de Inteligência Artificial, num só lugar.</h2>

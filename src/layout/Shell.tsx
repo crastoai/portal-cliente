@@ -4,7 +4,16 @@ import { LogOut, Menu, X, type LucideIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import ThemeToggle from "../ui/ThemeToggle";
 import { initials } from "../ui/ui";
-import logoWhite from "../assets/logo-branca.svg";
+
+// Monograma da marca, sem caixa — navy no tema claro, branco no escuro (servidos de /public).
+function Brandmark() {
+  return (
+    <span className="side-mark">
+      <img className="mk-light" src="/crasto-monogram-navy.png" alt="Crasto.AI" />
+      <img className="mk-dark" src="/crasto-monogram-white.png" alt="" />
+    </span>
+  );
+}
 
 export type NavItem = { to: string; end?: boolean; icon: LucideIcon; label: string; tag?: string; section?: string };
 
@@ -27,7 +36,7 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
       <div className="mobilebar">
         <button className="mb-burger" onClick={() => setOpen(true)} aria-label="Abrir menu"><Menu size={20} /></button>
         <span className="mb-brand">
-          <span className="side-mark" style={logoTone ? { background: logoTone } : undefined}><img src={logoWhite} alt="" width={14} height={17} /></span>
+          <Brandmark />
           Crasto.AI
         </span>
         <ThemeToggle />
@@ -39,9 +48,7 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
         <button className="side-close" onClick={() => setOpen(false)} aria-label="Fechar menu"><X size={18} /></button>
 
         <div className="side-brand">
-          <span className="side-mark" style={logoTone ? { background: logoTone } : undefined}>
-            <img src={logoWhite} alt="" width={16} height={19} />
-          </span>
+          <Brandmark />
           <div className="side-brand-txt">
             <div className="nm">Crasto.AI</div>
             <div className="sub">{sub}</div>
