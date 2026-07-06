@@ -13,6 +13,18 @@ export const proposals = {
     unwrap(await com().from("proposals").insert(payload).select("*").single()) as unknown as Proposal,
   addItems: async (rows: Record<string, any>[]) =>
     rows.length ? unwrap(await com().from("proposal_items").insert(rows)) : null,
+  /** Gera o contrato .docx (molde do jurídico) e devolve link de download. */
+  generateContract: async (proposal_id: string): Promise<{ ok: boolean; download_url?: string; filename?: string; error?: string }> => {
+    const { data, error } = await supabase.functions.invoke("contract-generate", { body: { proposal_id } });
+    if (error) return { ok: false, error: error.message };
+    return data;
+  },
+  /** Envia o contrato para assinatura via Autentique (sandbox=teste). */
+  sendAutentique: async (payload: { proposal_id: string; signers: { email: string; name?: string; action?: string }[]; sandbox?: boolean; doc_name?: string }): Promise<{ ok: boolean; link?: string | null; autentique_id?: string; sandbox?: boolean; error?: string }> => {
+    const { data, error } = await supabase.functions.invoke("contract-send-autentique", { body: payload });
+    if (error) return { ok: false, error: error.message };
+    return data;
+  },
 };
 
 export const commerce = { proposals };

@@ -48,6 +48,14 @@ export default function Propostas() {
   const [special, setSpecial] = useState(false);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
+  // contrato (Fase 3)
+  const [contract, setContract] = useState<{ id: string; orgName: string } | null>(null);
+  const [contractUrl, setContractUrl] = useState<string>("");
+  const [signerClient, setSignerClient] = useState<string>("");
+  const [signerName, setSignerName] = useState<string>("");
+  const [sandbox, setSandbox] = useState(true);
+  const [cbusy, setCbusy] = useState(false);
+  const [cmsg, setCmsg] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -137,10 +145,39 @@ export default function Propostas() {
       });
       const rows = items.map((id) => { const s = svcs.find((x) => x.id === id); return { proposal_id: (prop as any).id, organization_id: orgId, service_id: id, description: s?.name ?? "Item", qty: 1, unit_price: vals[id] ?? 0, notes: notes[id] || null, specifics: specs[id] || {} }; });
       await api.commerce.proposals.addItems(rows);
+      setContract({ id: (prop as any).id, orgName: org?.name ?? "" });
+      setSignerName(org?.name ?? "");
+      setContractUrl(""); setCmsg("");
       setToast("Proposta gerada e enviada ✓");
     } catch (e) { setToast("Erro ao gerar: " + errorMessage(e)); }
     setBusy(false);
     setTimeout(() => setToast(""), 6000);
+  }
+
+  async function gerarContrato() {
+    if (!contract) return;
+    setCbusy(true); setCmsg("");
+    const r = await api.commerce.proposals.generateContract(contract.id);
+    setCbusy(false);
+    if (!r.ok) { setCmsg("Erro ao gerar contrato: " + (r.error || "")); return; }
+    setContractUrl(r.download_url || "");
+    setCmsg("Contrato gerado ✓");
+    if (r.download_url) window.open(r.download_url, "_blank");
+  }
+
+  async function enviarAssinatura() {
+    if (!contract) return;
+    if (!signerClient.trim()) { setCmsg("Informe o e-mail do cliente para assinatura."); return; }
+    const signers = [
+      { email: signerClient.trim(), name: signerName || contract.orgName, action: "SIGN" },
+      { email: "comercial@crasto.ai", name: "Crasto.AI", action: "SIGN" },
+    ];
+    if (!sandbox && !confirm(`Enviar o contrato REAL para assinatura de:\n• ${signerClient}\n• comercial@crasto.ai\n\nIsto dispara e-mails de assinatura de verdade. Confirmar?`)) return;
+    setCbusy(true); setCmsg("");
+    const r = await api.commerce.proposals.sendAutentique({ proposal_id: contract.id, signers, sandbox, doc_name: `Contrato Crasto.AI × ${contract.orgName}` });
+    setCbusy(false);
+    if (!r.ok) { setCmsg("Erro no Autentique: " + (r.error || "")); return; }
+    setCmsg(sandbox ? `Teste OK (sandbox) — nenhum e-mail real enviado. Doc ${r.autentique_id}.` : `Enviado para assinatura ✓${r.link ? " · link: " + r.link : ""}`);
   }
 
   return (
@@ -287,7 +324,29 @@ export default function Propostas() {
           </label>
           <div className="paycheck">🟢 <b>IA se paga em ~28 dias</b><div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", marginTop: 4, fontWeight: 400 }}>Baseado no Plano Diretor: economia + receita projetada &gt; investimento em 30d.</div></div>
           <button className="crasto-btn crasto-btn--primary crasto-btn--md" style={{ width: "100%", marginTop: 14 }} disabled={busy} onClick={gerar}><span className="crasto-btn__label">{busy ? "Gerando…" : special ? "Gerar venda especial (sem NF)" : "Gerar proposta personalizada"}</span></button>
-          <button className="crasto-btn crasto-btn--secondary crasto-btn--md" style={{ width: "100%", marginTop: 8 }}><span className="crasto-btn__icon"><ArrowRight size={14} /></span><span className="crasto-btn__label">Enviar p/ assinatura (Autentique)</span></button>
+
+          {contract && (
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--crasto-border-soft)" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--crasto-text-primary)", marginBottom: 2 }}>Contrato — {contract.orgName}</div>
+              <div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", marginBottom: 10 }}>Gerado do molde jurídico (fidelidade máxima). Revise o .docx antes de enviar.</div>
+              <button className="crasto-btn crasto-btn--secondary crasto-btn--md" style={{ width: "100%" }} disabled={cbusy} onClick={gerarContrato}>
+                <span className="crasto-btn__icon"><FileText size={14} /></span><span className="crasto-btn__label">{cbusy ? "Processando…" : contractUrl ? "Baixar contrato (.docx)" : "Gerar contrato (.docx)"}</span>
+              </button>
+              {contractUrl && <a href={contractUrl} target="_blank" rel="noreferrer" style={{ display: "block", fontSize: 12, color: "#3E6FB8", marginTop: 6 }}>Abrir contrato gerado ↗</a>}
+
+              <div style={{ marginTop: 12, display: "grid", gap: 7 }}>
+                <input value={signerClient} onChange={(e) => setSignerClient(e.target.value)} placeholder="E-mail do cliente (signatário)" style={{ fontSize: 13, padding: "8px 11px", border: "1px solid var(--crasto-border-soft)", borderRadius: 9, background: "var(--crasto-bg-3)", color: "var(--crasto-text-body)" }} />
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--crasto-text-body)" }}>
+                  <input type="checkbox" checked={sandbox} onChange={(e) => setSandbox(e.target.checked)} style={{ width: "auto" }} />
+                  Modo teste (sandbox) — não envia e-mail real de assinatura
+                </label>
+                <button className="crasto-btn crasto-btn--primary crasto-btn--md" style={{ width: "100%" }} disabled={cbusy} onClick={enviarAssinatura}>
+                  <span className="crasto-btn__icon"><ArrowRight size={14} /></span><span className="crasto-btn__label">{cbusy ? "Enviando…" : sandbox ? "Testar envio (sandbox)" : "Enviar p/ assinatura (Autentique)"}</span>
+                </button>
+              </div>
+              {cmsg && <div style={{ fontSize: 12, marginTop: 9, padding: "8px 11px", borderRadius: 9, background: "var(--crasto-navy-05)", color: "var(--crasto-text-primary)" }}>{cmsg}</div>}
+            </div>
+          )}
         </div>
       </div>
       {toast && <div className="toast">{toast}</div>}
