@@ -6,8 +6,9 @@ import { useAuth } from "../lib/auth";
 import logoWhite from "../assets/logo-branca.svg";
 
 export default function NewPassword() {
-  const { signOut } = useAuth();
+  const { session } = useAuth();
   const nav = useNavigate();
+  const forced = (session?.user?.user_metadata as any)?.must_change_password === true;
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -23,8 +24,7 @@ export default function NewPassword() {
     try {
       await services.identity.auth.updatePassword(pw);
       setOk(true);
-      await signOut();
-      setTimeout(() => nav("/login", { replace: true }), 2200);
+      setTimeout(() => nav("/", { replace: true }), 1400);
     } catch (e) {
       setErr(errorMessage(e));
     } finally {
@@ -41,17 +41,17 @@ export default function NewPassword() {
         </div>
         <div>
           <h2>O seu hub de Inteligência Artificial, num só lugar.</h2>
-          <p>Crie uma nova senha para voltar a acessar o portal com segurança.</p>
+          <p>Crie uma nova senha para acessar o portal com segurança.</p>
         </div>
         <div className="foot">Portal do Cliente · acesso seguro</div>
       </aside>
 
       <main className="login-panel">
         <div className="login-card">
-          <h1>Nova senha</h1>
-          <p className="sub">Escolha uma nova senha para o seu acesso.</p>
+          <h1>{forced ? "Defina sua senha" : "Nova senha"}</h1>
+          <p className="sub">{forced ? "Por segurança, crie uma senha própria para continuar." : "Escolha uma nova senha para o seu acesso."}</p>
           {ok ? (
-            <div className="login-note">Senha redefinida com sucesso ✓ Redirecionando para o login…</div>
+            <div className="login-note">Senha definida com sucesso ✓ Entrando no portal…</div>
           ) : (
             <form className="login-form" onSubmit={submit}>
               {err && <div className="login-err">{err}</div>}

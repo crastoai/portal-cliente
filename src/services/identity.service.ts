@@ -13,9 +13,9 @@ export const auth = {
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/nova-senha` });
     if (error) throw new ServiceError(error.message);
   },
-  /** Define a nova senha (sessão de recuperação ativa a partir do link do e-mail). */
+  /** Define a nova senha e limpa a flag de troca obrigatória. */
   updatePassword: async (password: string) => {
-    const { error } = await supabase.auth.updateUser({ password });
+    const { error } = await supabase.auth.updateUser({ password, data: { must_change_password: false } });
     if (error) throw new ServiceError(error.message);
   },
 };

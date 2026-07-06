@@ -43,6 +43,17 @@ export default function App() {
     return <div style={{ padding: 40, color: "var(--crasto-text-muted)" }}>Carregando…</div>;
   }
   const home = homeFor(profile?.role);
+  const mustChange = (session?.user?.user_metadata as any)?.must_change_password === true;
+
+  // Bloqueio de segurança: senha temporária (admin) → obriga o cliente a definir a própria.
+  if (session && mustChange) {
+    return (
+      <Routes>
+        <Route path="/nova-senha" element={<NewPassword />} />
+        <Route path="*" element={<Navigate to="/nova-senha" replace />} />
+      </Routes>
+    );
+  }
 
   return (
     <Routes>
