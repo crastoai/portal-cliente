@@ -3,6 +3,7 @@ import { MessageCircle, Mail, ShieldCheck, Sparkles } from "lucide-react";
 import { services, errorMessage } from "../../services";
 import { PageHead, Empty, useAsync, Pill, Field } from "../../ui/ui";
 import { useSettings } from "../../lib/settings";
+import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 
 type Hours = { period: string; plan_hours: number; used_hours: number; balance: number; status: string };
@@ -13,6 +14,7 @@ const stTone = (s: string) => (s === "resolved" || s === "closed" ? "ok" : s ===
 
 export default function Suporte() {
   const { supportWhatsapp } = useSettings();
+  const t = useT();
   const { data, reload } = useAsync(async () => {
     const [h, t] = await Promise.all([
       services.analytics.client.supportHours<Hours[]>(),
@@ -30,19 +32,19 @@ export default function Suporte() {
 
   function openWhatsApp() {
     const digits = (supportWhatsapp || "").replace(/\D/g, "");
-    if (!digits) { setToast("Canal de WhatsApp ainda não configurado."); setTimeout(() => setToast(""), 5000); return; }
-    const msg = encodeURIComponent("Olá! Sou cliente da Crasto.AI e preciso de ajuda com o meu portal.");
+    if (!digits) { setToast(t("Canal de WhatsApp ainda não configurado.")); setTimeout(() => setToast(""), 5000); return; }
+    const msg = encodeURIComponent(t("Olá! Sou cliente da Crasto.AI e preciso de ajuda com o meu portal."));
     window.open(`https://wa.me/${digits}?text=${msg}`, "_blank", "noopener");
   }
 
   async function submitTicket() {
-    if (!f.subject.trim()) { setErr("Informe o assunto."); return; }
+    if (!f.subject.trim()) { setErr(t("Informe o assunto.")); return; }
     setBusy(true); setErr("");
     try {
       const r = await services.support.tickets.open({ subject: f.subject.trim(), description: f.description });
-      if (!r.ok) { setErr(r.error || "Não foi possível abrir o chamado."); return; }
+      if (!r.ok) { setErr(r.error || t("Não foi possível abrir o chamado.")); return; }
       setOpen(false); setF({ subject: "", description: "" }); reload();
-      setToast(`✓ Chamado #${r.number} aberto.${r.confirmed ? " Enviamos uma confirmação para o seu e-mail." : ""}`);
+      setToast(t("✓ Chamado #{n} aberto.", { n: r.number }) + (r.confirmed ? " " + t("Enviamos uma confirmação para o seu e-mail.") : ""));
       setTimeout(() => setToast(""), 8000);
     } catch (e) { setErr(errorMessage(e)); }
     finally { setBusy(false); }
@@ -54,47 +56,47 @@ export default function Suporte() {
 
       <div className="grid2" style={{ marginBottom: 18 }}>
         <div className="card">
-          <h3>Abrir um chamado</h3>
-          <div className="csub">Nosso time responde em até 1 dia útil.</div>
+          <h3>{t("Abrir um chamado")}</h3>
+          <div className="csub">{t("Nosso time responde em até 1 dia útil.")}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <button className="arow" style={{ textAlign: "left", cursor: "pointer" }} onClick={openWhatsApp}><span className="ico" style={{ background: "#1FA855" }}><MessageCircle size={16} /></span><span><span className="t">Falar no WhatsApp</span><br /><span className="s">Resposta mais rápida</span></span></button>
-            <button className="arow" style={{ textAlign: "left", cursor: "pointer" }} onClick={() => { setF({ subject: "", description: "" }); setErr(""); setOpen(true); }}><span className="ico" style={{ background: "var(--crasto-text-primary)" }}><Mail size={16} /></span><span><span className="t">Abrir ticket por e-mail</span><br /><span className="s">Para assuntos detalhados</span></span></button>
+            <button className="arow" style={{ textAlign: "left", cursor: "pointer" }} onClick={openWhatsApp}><span className="ico" style={{ background: "#1FA855" }}><MessageCircle size={16} /></span><span><span className="t">{t("Falar no WhatsApp")}</span><br /><span className="s">{t("Resposta mais rápida")}</span></span></button>
+            <button className="arow" style={{ textAlign: "left", cursor: "pointer" }} onClick={() => { setF({ subject: "", description: "" }); setErr(""); setOpen(true); }}><span className="ico" style={{ background: "var(--crasto-text-primary)" }}><Mail size={16} /></span><span><span className="t">{t("Abrir ticket por e-mail")}</span><br /><span className="s">{t("Para assuntos detalhados")}</span></span></button>
           </div>
         </div>
         <div className="card">
-          <h3>Meu plano de suporte</h3>
-          <div className="csub">{hours ? `${hours.used_hours}h de ${hours.plan_hours}h usadas neste mês` : "Sem plano de horas ativo"}</div>
+          <h3>{t("Meu plano de suporte")}</h3>
+          <div className="csub">{hours ? t("{u}h de {p}h usadas neste mês", { u: hours.used_hours, p: hours.plan_hours }) : t("Sem plano de horas ativo")}</div>
           <div style={{ height: 10, borderRadius: 99, background: "var(--crasto-border)", overflow: "hidden", margin: "6px 0 12px" }}>
             <div style={{ height: "100%", width: `${usedPct}%`, borderRadius: 99, background: "linear-gradient(90deg,#1F8A5B,#3fae78)" }} />
           </div>
           <div style={{ fontSize: 12, color: "var(--crasto-text-body)", lineHeight: 1.7 }}>
-            Saldo: <b style={{ color: "var(--crasto-text-primary)" }}>{hours ? `${hours.balance}h` : "—"}</b>. Se acabar, você pode <b>contratar horas extras</b>, <b>aguardar o próximo mês</b> ou <b>antecipar</b> horas (nesse caso, o mês seguinte fica sem suporte).
+            {t("Saldo")}: <b style={{ color: "var(--crasto-text-primary)" }}>{hours ? `${hours.balance}h` : "—"}</b>. {t("Se acabar, você pode contratar horas extras, aguardar o próximo mês ou antecipar horas (nesse caso, o mês seguinte fica sem suporte).")}
           </div>
         </div>
       </div>
 
       <div className="assign" style={{ marginBottom: 18 }}>
-        <div className="arow"><span className="ico" style={{ background: "#1F8A5B" }}><ShieldCheck size={16} /></span><span><span className="t">Suporte do Agente</span><br /><span className="s">Manter no ar, corrigir erros e estabilidade. Incluso no seu plano.</span></span></div>
-        <div className="arow"><span className="ico" style={{ background: "#3E6FB8" }}><Sparkles size={16} /></span><span><span className="t">Suporte de Melhorias</span><br /><span className="s">Evoluir o agente, novos fluxos e recursos. Orçado à parte.</span></span></div>
+        <div className="arow"><span className="ico" style={{ background: "#1F8A5B" }}><ShieldCheck size={16} /></span><span><span className="t">{t("Suporte do Agente")}</span><br /><span className="s">{t("Manter no ar, corrigir erros e estabilidade. Incluso no seu plano.")}</span></span></div>
+        <div className="arow"><span className="ico" style={{ background: "#3E6FB8" }}><Sparkles size={16} /></span><span><span className="t">{t("Suporte de Melhorias")}</span><br /><span className="s">{t("Evoluir o agente, novos fluxos e recursos. Orçado à parte.")}</span></span></div>
       </div>
 
       <div className="card" style={{ background: "linear-gradient(155deg,var(--crasto-navy),var(--crasto-navy-deep))", color: "#fff", marginBottom: 18 }}>
-        <div style={{ fontSize: 11, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--crasto-blue)", fontWeight: 700 }}>Garantia de treinamento</div>
-        <div style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: "8px 0 6px" }}>90 dias por agente</div>
-        <div style={{ color: "rgba(255,255,255,.75)", fontSize: 12.5 }}>Todo agente que entregamos tem 3 meses de treinamento para <b style={{ color: "#fff" }}>falar o seu idioma</b>, ter a <b style={{ color: "#fff" }}>identidade da sua marca</b> e <b style={{ color: "#fff" }}>eliminar erros</b>.</div>
+        <div style={{ fontSize: 11, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--crasto-blue)", fontWeight: 700 }}>{t("Garantia de treinamento")}</div>
+        <div style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: "8px 0 6px" }}>{t("90 dias por agente")}</div>
+        <div style={{ color: "rgba(255,255,255,.75)", fontSize: 12.5 }}>{t("Todo agente que entregamos tem 3 meses de treinamento para falar o seu idioma, ter a identidade da sua marca e eliminar erros.")}</div>
       </div>
 
-      <div className="sec-h"><h2>Meus chamados</h2></div>
-      {(data?.tickets ?? []).length === 0 ? <Empty>Você ainda não abriu chamados.</Empty> : (data?.tickets ?? []).map((t) => (
-        <div className="lead" key={t.id}><div className="av">#</div><div style={{ flex: 1 }}><div className="nm">{t.subject}</div></div><Pill tone={stTone(t.status)}>{stLabel(t.status)}</Pill></div>
+      <div className="sec-h"><h2>{t("Meus chamados")}</h2></div>
+      {(data?.tickets ?? []).length === 0 ? <Empty>Você ainda não abriu chamados.</Empty> : (data?.tickets ?? []).map((tk) => (
+        <div className="lead" key={tk.id}><div className="av">#</div><div style={{ flex: 1 }}><div className="nm">{tk.subject}</div></div><Pill tone={stTone(tk.status)}>{t(stLabel(tk.status))}</Pill></div>
       ))}
 
-      <Modal title="Abrir ticket por e-mail" open={open} onClose={() => setOpen(false)}
-        footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setOpen(false)}><span className="crasto-btn__label">Cancelar</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={submitTicket}><span className="crasto-btn__label">{busy ? "Enviando…" : "Enviar chamado"}</span></button></>}>
+      <Modal title={t("Abrir ticket por e-mail")} open={open} onClose={() => setOpen(false)}
+        footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={submitTicket}><span className="crasto-btn__label">{busy ? t("Enviando…") : t("Enviar chamado")}</span></button></>}>
         {err && <div className="formerr">{err}</div>}
-        <Field label="Assunto *"><input value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} placeholder="Ex.: Meu agente não está respondendo" /></Field>
-        <Field label="Descreva o que está acontecendo"><textarea value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} rows={5} placeholder="Conte os detalhes: o que aconteceu, quando, prints se tiver…" /></Field>
-        <div className="note" style={{ marginTop: 4 }}><span>Nosso time recebe na hora e responde em até <b>1 dia útil</b>. Você recebe uma confirmação por e-mail e acompanha aqui em "Meus chamados".</span></div>
+        <Field label="Assunto *"><input value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} placeholder={t("Ex.: Meu agente não está respondendo")} /></Field>
+        <Field label="Descreva o que está acontecendo"><textarea value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} rows={5} placeholder={t("Conte os detalhes: o que aconteceu, quando, prints se tiver…")} /></Field>
+        <div className="note" style={{ marginTop: 4 }}><span>{t("Nosso time recebe na hora e responde em até 1 dia útil. Você recebe uma confirmação por e-mail e acompanha aqui em \"Meus chamados\".")}</span></div>
       </Modal>
       {toast && <div className="toast">{toast}</div>}
     </div>
