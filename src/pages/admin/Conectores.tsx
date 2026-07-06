@@ -80,7 +80,7 @@ export default function Conectores() {
               <tr key={c.id}>
                 <td><div className="cust"><div className="logo">{initials(c.name)}</div><div><div className="nm">{c.name}</div><div className="em">{c.email || (c.phone ? `${c.phone_country_code} ${c.phone}` : "—")}</div></div></div></td>
                 <td><Pill tone={c.agent_type === "indicador" ? "ok" : "info"}>{c.agent_type === "indicador" ? "Indicador" : "Conector"}</Pill></td>
-                <td className="tnum" style={{ fontWeight: 700, color: "var(--crasto-navy)" }}>{c.commission_default}%</td>
+                <td className="tnum" style={{ fontWeight: 700, color: "var(--crasto-text-primary)" }}>{c.commission_default}%</td>
                 <td>{(PAYM as any)[c.payment_method] || c.payment_method}<div style={{ fontSize: 11, color: "var(--crasto-text-muted)" }}>{(HANDL as any)[c.payment_handling] || c.payment_handling}</div></td>
                 <td><Pill tone={c.issues_invoice ? "ok" : "mute"}>{c.issues_invoice ? "Emite" : "Não"}</Pill></td>
                 <td className="tnum">{c.contract_months}m</td>
@@ -98,7 +98,7 @@ export default function Conectores() {
             <thead><tr><th>Cliente</th><th>Agente</th><th>Venda</th><th>Comissão</th><th>Nota Fiscal</th></tr></thead>
             <tbody>
               {comms.map((c, i) => (
-                <tr key={i}><td>{c.org}</td><td>{c.connector}</td><td className="tnum">{money(c.sale_amount)}</td><td className="tnum" style={{ fontWeight: 700, color: "var(--crasto-navy)" }}>{money(c.commission_amount)}</td><td><Pill tone={c.nf_status === "paid" ? "ok" : "warn"}>{c.nf_status === "paid" ? "NF emitida · paga" : "Aguardando NF"}</Pill></td></tr>
+                <tr key={i}><td>{c.org}</td><td>{c.connector}</td><td className="tnum">{money(c.sale_amount)}</td><td className="tnum" style={{ fontWeight: 700, color: "var(--crasto-text-primary)" }}>{money(c.commission_amount)}</td><td><Pill tone={c.nf_status === "paid" ? "ok" : "warn"}>{c.nf_status === "paid" ? "NF emitida · paga" : "Aguardando NF"}</Pill></td></tr>
               ))}
             </tbody>
           </table>

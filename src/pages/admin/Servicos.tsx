@@ -61,10 +61,10 @@ export default function Servicos() {
                 const imp = taxOf(r.price_table, taxRate);
                 return (
                   <tr key={r.id}>
-                    <td style={{ fontWeight: 600, color: "var(--crasto-navy)" }}>{r.name}{r.internal && <Lock size={12} title="Interno (remix VdI)" style={{ verticalAlign: -1, marginLeft: 6, color: "var(--crasto-text-muted)" }} />}</td>
+                    <td style={{ fontWeight: 600, color: "var(--crasto-text-primary)" }}>{r.name}{r.internal && <Lock size={12} title="Interno (remix VdI)" style={{ verticalAlign: -1, marginLeft: 6, color: "var(--crasto-text-muted)" }} />}</td>
                     <td><span className="chip">{r.category}</span></td>
                     <td>{r.unit.replace("_", " ")}</td>
-                    <td className="tnum" style={{ fontWeight: 700, color: "var(--crasto-navy)" }}>{money(r.price_table)}</td>
+                    <td className="tnum" style={{ fontWeight: 700, color: "var(--crasto-text-primary)" }}>{money(r.price_table)}</td>
                     <td className="tnum" style={{ color: "var(--crasto-text-muted)", fontSize: 12 }}>{range(r) || "—"}</td>
                     <td className="tnum" style={{ color: "var(--crasto-danger)" }}>{money(imp)}</td>
                     <td className="tnum" style={{ fontWeight: 600, color: "var(--crasto-success)" }}>{money(r.price_table - imp)}</td>

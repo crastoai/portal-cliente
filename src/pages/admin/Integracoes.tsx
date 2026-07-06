@@ -66,7 +66,7 @@ export default function Integracoes() {
       <div className="assign">
         {items.map((i) => (
           <div className="arow" key={i.key}>
-            <span className="ico" style={{ background: i.status === "connected" ? "#1F8A5B" : "var(--crasto-navy)" }}><Plug size={16} /></span>
+            <span className="ico" style={{ background: i.status === "connected" ? "#1F8A5B" : "var(--crasto-text-primary)" }}><Plug size={16} /></span>
             <span><span className="t">{i.display_name}</span><br /><span className="s">{i.key}{st[i.key]?.has_secret ? " · chave salva" : ""}</span></span>
             <Pill tone={tone(i.status)}>{label(i.status)}</Pill>
             <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" style={{ marginLeft: 10 }} onClick={() => openCfg(i)}>

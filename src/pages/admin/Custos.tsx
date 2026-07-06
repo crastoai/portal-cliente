@@ -51,7 +51,7 @@ export default function Custos() {
           <div className="arow" key={p.provider}>
             <span className="t" style={{ textTransform: "capitalize", minWidth: 90 }}>{p.provider}</span>
             <span style={{ flex: 1, height: 8, background: "var(--crasto-bg-3)", borderRadius: 4, overflow: "hidden" }}><span style={{ display: "block", height: "100%", width: `${(Number(p.cost) / provMax) * 100}%`, background: "linear-gradient(90deg,#6E9CE8,#3E6FB8)" }} /></span>
-            <span className="tnum" style={{ fontWeight: 700, color: "var(--crasto-navy)" }}>{money(p.cost)}</span>
+            <span className="tnum" style={{ fontWeight: 700, color: "var(--crasto-text-primary)" }}>{money(p.cost)}</span>
           </div>
         ))}
       </div>
@@ -67,7 +67,7 @@ export default function Custos() {
                 <td className="tnum" style={{ color: "var(--crasto-danger)", fontWeight: 600 }}>{money(r.total_cost)}</td>
                 <td className="tnum" style={{ color: "var(--crasto-success)", fontWeight: 600 }}>{money(r.total_sale)}</td>
                 <td className="tnum">{money(r.tax)}</td>
-                <td className="tnum" style={{ color: "var(--crasto-navy)", fontWeight: 700 }}>{money(r.profit)}</td>
+                <td className="tnum" style={{ color: "var(--crasto-text-primary)", fontWeight: 700 }}>{money(r.profit)}</td>
               </tr>
             ))}
           </tbody>
@@ -85,7 +85,7 @@ export default function Custos() {
                 <td><div className="cust"><div className="nm">{h.org}</div></div></td>
                 <td style={{ color: "var(--crasto-text-body)" }}>{h.plan_hours}h/mês</td>
                 <td className="tnum">{h.used_hours}h</td>
-                <td className="tnum" style={{ fontWeight: 700, color: Number(h.balance) < 0 ? "var(--crasto-danger)" : "var(--crasto-navy)" }}>{h.balance}h</td>
+                <td className="tnum" style={{ fontWeight: 700, color: Number(h.balance) < 0 ? "var(--crasto-danger)" : "var(--crasto-text-primary)" }}>{h.balance}h</td>
                 <td><Pill tone={hoursTone(h.status)}>{hoursLabel(h.status)}</Pill></td>
               </tr>
             ))}

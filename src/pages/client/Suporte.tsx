@@ -27,7 +27,7 @@ export default function Suporte() {
           <div className="csub">Nosso time responde em até 1 dia útil.</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <button className="arow" style={{ textAlign: "left", cursor: "pointer" }}><span className="ico" style={{ background: "#1FA855" }}><MessageCircle size={16} /></span><span><span className="t">Falar no WhatsApp</span><br /><span className="s">Resposta mais rápida</span></span></button>
-            <button className="arow" style={{ textAlign: "left", cursor: "pointer" }}><span className="ico" style={{ background: "var(--crasto-navy)" }}><Mail size={16} /></span><span><span className="t">Abrir ticket por e-mail</span><br /><span className="s">Para assuntos detalhados</span></span></button>
+            <button className="arow" style={{ textAlign: "left", cursor: "pointer" }}><span className="ico" style={{ background: "var(--crasto-text-primary)" }}><Mail size={16} /></span><span><span className="t">Abrir ticket por e-mail</span><br /><span className="s">Para assuntos detalhados</span></span></button>
           </div>
         </div>
         <div className="card">
@@ -37,7 +37,7 @@ export default function Suporte() {
             <div style={{ height: "100%", width: `${usedPct}%`, borderRadius: 99, background: "linear-gradient(90deg,#1F8A5B,#3fae78)" }} />
           </div>
           <div style={{ fontSize: 12, color: "var(--crasto-text-body)", lineHeight: 1.7 }}>
-            Saldo: <b style={{ color: "var(--crasto-navy)" }}>{hours ? `${hours.balance}h` : "—"}</b>. Se acabar, você pode <b>contratar horas extras</b>, <b>aguardar o próximo mês</b> ou <b>antecipar</b> horas (nesse caso, o mês seguinte fica sem suporte).
+            Saldo: <b style={{ color: "var(--crasto-text-primary)" }}>{hours ? `${hours.balance}h` : "—"}</b>. Se acabar, você pode <b>contratar horas extras</b>, <b>aguardar o próximo mês</b> ou <b>antecipar</b> horas (nesse caso, o mês seguinte fica sem suporte).
           </div>
         </div>
       </div>

@@ -39,7 +39,7 @@ export default function VisaoGeral() {
                     <td style={{ color: stale ? "var(--crasto-danger)" : "var(--crasto-text-body)", fontWeight: 500 }}><Clock size={12} style={{ verticalAlign: -1, marginRight: 4, opacity: .6 }} />{timeAgo(c.last_access)}</td>
                     <td><div className="barmini"><span style={{ width: `${c.progress}%`, background: color }} /></div></td>
                     <td><span className="health"><span className="d" style={{ background: color }} />{h.score} · {h.label}</span></td>
-                    <td className="tnum" style={{ fontWeight: 600, color: "var(--crasto-navy)" }}>{money(c.mrr)}</td>
+                    <td className="tnum" style={{ fontWeight: 600, color: "var(--crasto-text-primary)" }}>{money(c.mrr)}</td>
                   </tr>
                 );
               })}

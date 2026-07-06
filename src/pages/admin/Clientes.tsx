@@ -81,7 +81,7 @@ export default function Clientes() {
                     <td>{country.flag} {country.code}</td>
                     <td className="tnum" style={{ color: "var(--crasto-text-body)" }}>{c.tax_id || "—"}</td>
                     <td style={{ color: "var(--crasto-text-muted)" }}>{c.last_activity ? timeAgo(c.last_activity) : (c.last_access ? timeAgo(c.last_access) : "—")}</td>
-                    <td className="tnum" style={{ fontWeight: 600, color: "var(--crasto-navy)" }}>{money(c.mrr)}</td>
+                    <td className="tnum" style={{ fontWeight: 600, color: "var(--crasto-text-primary)" }}>{money(c.mrr)}</td>
                     <td><Link className="sec-h link" to={`/admin/cliente/${c.id}`}>Ver detalhe</Link></td>
                   </tr>
                 );

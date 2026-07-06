@@ -31,7 +31,7 @@ export default function Implementacao() {
   const span = t1 - t0 || 1;
   const pc = (ts: number) => Math.max(0, Math.min(100, ((ts - t0) / span) * 100));
   const todayPc = pc(Date.now());
-  const realColor = (t: Task) => (t.status === "done" ? "#1F8A5B" : t.status === "doing" ? "var(--crasto-navy)" : "#B8863A");
+  const realColor = (t: Task) => (t.status === "done" ? "#1F8A5B" : t.status === "doing" ? "var(--crasto-text-primary)" : "#B8863A");
   const dot = (s: string) => (s === "done" ? "#1F8A5B" : s === "doing" ? "#3E6FB8" : "#98A2B3");
   const pico = (t: string) => (t === "document" ? <FileText size={18} /> : t === "credential" ? <KeyRound size={18} /> : <Check size={18} />);
 
@@ -59,7 +59,7 @@ export default function Implementacao() {
       <div className="sec-h"><h2>Cronograma · previsto × realizado</h2>
         <span style={{ display: "flex", gap: 16, fontSize: 11.5, fontWeight: 600, color: "var(--crasto-text-body)" }}>
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 20, height: 7, borderRadius: 4, background: "#B9CDEF" }} />Previsto</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 20, height: 7, borderRadius: 4, background: "var(--crasto-navy)" }} />Realizado</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 20, height: 7, borderRadius: 4, background: "var(--crasto-text-primary)" }} />Realizado</span>
         </span>
       </div>
       {tasks.length > 0 && (

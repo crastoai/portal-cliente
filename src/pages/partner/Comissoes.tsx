@@ -30,7 +30,7 @@ export default function Comissoes() {
                 <tr key={i}>
                   <td>{c.org}</td>
                   <td className="tnum">{money(c.sale_amount)}</td>
-                  <td className="tnum" style={{ fontWeight: 700, color: "var(--crasto-navy)" }}>{money(c.commission_amount)}</td>
+                  <td className="tnum" style={{ fontWeight: 700, color: "var(--crasto-text-primary)" }}>{money(c.commission_amount)}</td>
                   <td><Pill tone={c.nf_status === "paid" ? "ok" : "warn"}>{c.nf_status === "paid" ? "NF emitida · paga" : "Aguardando NF"}</Pill></td>
                 </tr>
               ))}

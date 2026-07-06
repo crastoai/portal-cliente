@@ -27,7 +27,7 @@ export default function Usuarios() {
             <tbody>
               {users.map((u) => (
                 <tr key={u.id}>
-                  <td><div className="cust"><div className="logo" style={{ background: "var(--crasto-bg-3)", color: "var(--crasto-navy)" }}>{initials(u.full_name || u.email)}</div><div className="nm">{u.full_name || "—"}</div></div></td>
+                  <td><div className="cust"><div className="logo" style={{ background: "var(--crasto-bg-3)", color: "var(--crasto-text-primary)" }}>{initials(u.full_name || u.email)}</div><div className="nm">{u.full_name || "—"}</div></div></td>
                   <td><Pill tone={roleTone(u.role)}>{roleLabel(u.role)}</Pill></td>
                   <td className="cust"><span className="em">{u.email}</span></td>
                 </tr>

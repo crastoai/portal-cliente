@@ -113,12 +113,12 @@ export default function ClienteDetalhe() {
       {/* pipeline */}
       <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
         {STAGES.map((s) => <button key={s.key} className={"stagetab" + (org.stage === s.key ? " on" : "")} onClick={() => setStage(s.key)}>{s.label}</button>)}
-        <span style={{ marginLeft: "auto", alignSelf: "center", fontSize: 12, color: "var(--crasto-text-muted)" }}>Status atual: <b style={{ color: "var(--crasto-navy)" }}>{st.label}</b></span>
+        <span style={{ marginLeft: "auto", alignSelf: "center", fontSize: 12, color: "var(--crasto-text-muted)" }}>Status atual: <b style={{ color: "var(--crasto-text-primary)" }}>{st.label}</b></span>
       </div>
 
       {/* Dados da empresa (cadastro) */}
       <div className="card" style={{ marginBottom: 18 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}><Building2 size={16} style={{ color: "var(--crasto-navy)" }} /><h3 style={{ margin: 0 }}>Dados da empresa</h3></div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}><Building2 size={16} style={{ color: "var(--crasto-text-primary)" }} /><h3 style={{ margin: 0 }}>Dados da empresa</h3></div>
         <div className="infogrid">
           <div><div className="infolab">País</div><div className="infoval">{co.flag} {co.name}</div></div>
           <div><div className="infolab">{co.idLabel}</div><div className="infoval tnum">{org.tax_id || "—"}</div></div>
@@ -148,7 +148,7 @@ export default function ClienteDetalhe() {
       </div>
       {people.map((p) => (
         <div className="crmrow" key={p.id}>
-          <div className="logo" style={{ width: 34, height: 34, borderRadius: 9, background: "var(--crasto-bg-3)", color: "var(--crasto-navy)", display: "grid", placeItems: "center", fontWeight: 700, fontSize: 13 }}>{initials(p.full_name)}</div>
+          <div className="logo" style={{ width: 34, height: 34, borderRadius: 9, background: "var(--crasto-bg-3)", color: "var(--crasto-text-primary)", display: "grid", placeItems: "center", fontWeight: 700, fontSize: 13 }}>{initials(p.full_name)}</div>
           <div><div className="nm">{p.full_name} {p.role && <span className="chip" style={{ marginLeft: 6 }}>{p.role}</span>}</div><div className="mt">{p.email || "sem e-mail"}{p.birthday ? ` · 🎂 ${fmtDate(p.birthday)}` : ""}</div></div>
           <button className="icobtn rm" onClick={() => delRow("crm", "people", p.id)}><Trash2 size={14} /></button>
         </div>
@@ -200,7 +200,7 @@ export default function ClienteDetalhe() {
           const on = activeSet.has(m.id);
           return (
             <div className="arow" key={m.id}>
-              <span className="ico" style={{ background: on ? "var(--crasto-navy)" : "var(--crasto-text-faint)" }}>{icon(m.category)}</span>
+              <span className="ico" style={{ background: on ? "var(--crasto-text-primary)" : "var(--crasto-text-faint)" }}>{icon(m.category)}</span>
               <span><span className="t">{m.name}</span><br /><span className="s">{on ? "Liberado no portal" : "Não contratado"}</span></span>
               <button className={"sw" + (on ? " on" : "")} onClick={() => toggleModule(m.id, on)} />
             </div>
@@ -213,7 +213,7 @@ export default function ClienteDetalhe() {
       <div className="tbl-wrap">
         <table className="tbl"><thead><tr><th>Usuário</th><th>Papel</th><th>E-mail</th><th>Acesso</th></tr></thead><tbody>
           {users.length === 0 ? <tr><td colSpan={4} style={{ color: "var(--crasto-text-muted)" }}>Sem logins — convide o responsável.</td></tr> : users.map((u) => (
-            <tr key={u.id}><td><div className="cust"><div className="logo" style={{ background: "var(--crasto-bg-3)", color: "var(--crasto-navy)" }}>{initials(u.full_name || u.email)}</div><div className="nm">{u.full_name || "—"}</div></div></td><td><Pill tone={u.role === "client_owner" ? "ok" : "mute"}>{u.role === "client_owner" ? "Dono" : "Membro"}</Pill></td><td className="cust"><span className="em">{u.email}</span></td><td><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} onClick={() => resendAccess(u)} title="Redefine a senha e reenvia o e-mail de acesso"><span className="crasto-btn__label">Reenviar acesso</span></button></td></tr>
+            <tr key={u.id}><td><div className="cust"><div className="logo" style={{ background: "var(--crasto-bg-3)", color: "var(--crasto-text-primary)" }}>{initials(u.full_name || u.email)}</div><div className="nm">{u.full_name || "—"}</div></div></td><td><Pill tone={u.role === "client_owner" ? "ok" : "mute"}>{u.role === "client_owner" ? "Dono" : "Membro"}</Pill></td><td className="cust"><span className="em">{u.email}</span></td><td><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} onClick={() => resendAccess(u)} title="Redefine a senha e reenvia o e-mail de acesso"><span className="crasto-btn__label">Reenviar acesso</span></button></td></tr>
           ))}
         </tbody></table>
       </div>
