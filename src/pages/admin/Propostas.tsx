@@ -2,31 +2,40 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, ArrowRight } from "lucide-react";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, money } from "../../ui/ui";
-import { TAX_RATE, taxOf } from "../../lib/config";
+import { taxOf, fmtRate } from "../../lib/config";
+import { useSettings } from "../../lib/settings";
 
 type Org = { id: string; name: string; cnpj: string | null };
 type Svc = { id: string; name: string; unit: string; price_table: number };
+type Agent = { id: string; name: string; agent_type: string; commission_default: number; payment_handling: string; active: boolean };
 
 const ANEXOS = ["Plano Diretor", "Playbook Comercial", "Plano de Marketing", "Financeiro Estratégico"];
+const HANDL: Record<string, string> = { nota_fiscal: "Nota Fiscal", por_fora: "por fora", reembolso: "reembolso de despesas" };
 
 export default function Propostas() {
+  const { taxRate } = useSettings();
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [svcs, setSvcs] = useState<Svc[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [orgId, setOrgId] = useState<string>("");
+  const [agentId, setAgentId] = useState<string>("");
   const [vals, setVals] = useState<Record<string, number>>({});
   const [items, setItems] = useState<string[]>([]);
   const [att, setAtt] = useState<Set<string>>(new Set(["Plano Diretor", "Playbook Comercial", "Financeiro Estratégico"]));
 
   useEffect(() => {
     (async () => {
-      const [o, s] = await Promise.all([
+      const [o, s, a] = await Promise.all([
         api.identity.organizations.listForProposals(),
         api.catalog.services.listForProposals(),
+        api.identity.connectors.list(),
       ]);
       const os = (o as unknown as Org[]) ?? [];
       const ss = (s as unknown as Svc[]) ?? [];
-      setOrgs(os); setSvcs(ss);
+      const ags = ((a as unknown as Agent[]) ?? []).filter((x) => x.active);
+      setOrgs(os); setSvcs(ss); setAgents(ags);
       if (os[0]) setOrgId(os[0].id);
+      if (ags[0]) setAgentId(ags[0].id);
       const first3 = ss.slice(0, 3);
       setItems(first3.map((x) => x.id));
       setVals(Object.fromEntries(first3.map((x) => [x.id, Number(x.price_table)])));
@@ -34,18 +43,20 @@ export default function Propostas() {
   }, []);
 
   const org = orgs.find((o) => o.id === orgId);
+  const agent = agents.find((a) => a.id === agentId);
+  const commissionPct = agent ? Number(agent.commission_default) : 0;
   const total = useMemo(() => items.reduce((s, id) => s + (vals[id] ?? 0), 0), [items, vals]);
-  const commission = Math.round(total * 0.2);
+  const commission = Math.round((total * commissionPct) / 100);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
   const [special, setSpecial] = useState(false);
-  const tax = special ? 0 : taxOf(total);
+  const tax = special ? 0 : taxOf(total, taxRate);
 
   async function gerar() {
     if (!orgId) { setToast("Escolha um cliente."); setTimeout(() => setToast(""), 4000); return; }
     setBusy(true);
     try {
-      const prop = await api.commerce.proposals.create({ organization_id: orgId, title: `Proposta — ${org?.name ?? ""}`.trim(), status: "sent", subtotal: total, commission_total: commission, special_sale: special, tax_rate: TAX_RATE, attachments: Object.fromEntries([...att].map((a) => [a, true])) });
+      const prop = await api.commerce.proposals.create({ organization_id: orgId, connector_id: agentId || null, title: `Proposta — ${org?.name ?? ""}`.trim(), status: "sent", subtotal: total, commission_total: commission, special_sale: special, tax_rate: taxRate, attachments: Object.fromEntries([...att].map((a) => [a, true])) });
       const rows = items.map((id) => { const s = svcs.find((x) => x.id === id); return { proposal_id: (prop as any).id, organization_id: orgId, service_id: id, description: s?.name ?? "Item", qty: 1, unit_price: vals[id] ?? 0 }; });
       await api.commerce.proposals.addItems(rows);
       setToast("Proposta gerada e enviada ✓");
@@ -89,11 +100,25 @@ export default function Propostas() {
             );
           })}
 
-          <div className="pstep"><span className="stepn">3</span><h3>Agente conector (indicação)</h3></div>
-          <div className="crmcard">
-            <div><div className="cn">Viver de IA</div><div className="cc">Comissão 20% · pagamento por Nota Fiscal</div></div>
-            <span className="pill info"><span className="d" />Conector</span>
-          </div>
+          <div className="pstep"><span className="stepn">3</span><h3>Agente indicador</h3></div>
+          {agents.length === 0 ? (
+            <div className="crmcard"><div><div className="cn">Nenhum agente cadastrado</div><div className="cc">Cadastre em "Agentes indicadores" para atribuir comissão.</div></div></div>
+          ) : (
+            <>
+              <label className="frow" style={{ marginBottom: 0 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--crasto-text-body)" }}>Quem indicou este cliente</span>
+                <select className="selorg" value={agentId} onChange={(e) => setAgentId(e.target.value)}>
+                  {agents.map((a) => <option key={a.id} value={a.id}>{a.name} — {a.agent_type === "conector" ? "Conector" : "Indicador"} ({a.commission_default}%)</option>)}
+                </select>
+              </label>
+              {agent && (
+                <div className="crmcard">
+                  <div><div className="cn">{agent.name}</div><div className="cc">Comissão {commissionPct}% · pagamento por {HANDL[agent.payment_handling] || agent.payment_handling}</div></div>
+                  <span className={"pill " + (agent.agent_type === "conector" ? "info" : "ok")}><span className="d" />{agent.agent_type === "conector" ? "Conector" : "Indicador"}</span>
+                </div>
+              )}
+            </>
+          )}
 
           <div className="pstep"><span className="stepn">4</span><h3>Anexos estratégicos</h3></div>
           <div className="attgrid">
@@ -113,9 +138,9 @@ export default function Propostas() {
             return <div className="sumrow" key={id}><span>{s?.name}</span><span className="tnum">{money(vals[id] ?? 0)}</span></div>;
           })}
           <div className="sumrow"><span>Subtotal (serviços)</span><span className="tnum">{money(total)}</span></div>
-          <div className="sumrow"><span>Imposto ({String(TAX_RATE).replace(".", ",")}%){special ? " — isento (venda especial)" : ""}</span><span className="tnum" style={{ color: special ? "var(--crasto-text-muted)" : "var(--crasto-danger)" }}>{money(tax)}</span></div>
+          <div className="sumrow"><span>Imposto ({fmtRate(taxRate)}%){special ? " — isento (venda especial)" : ""}</span><span className="tnum" style={{ color: special ? "var(--crasto-text-muted)" : "var(--crasto-danger)" }}>{money(tax)}</span></div>
           <div className="sumrow tot"><span>Total {special ? "(sem NF)" : "com imposto"}</span><span className="tnum">{money(total + tax)}</span></div>
-          <div className="sumrow"><span>Comissão indicador (20%)</span><span className="tnum" style={{ color: "#B8863A" }}>{money(commission)}</span></div>
+          <div className="sumrow"><span>Comissão {agent?.agent_type === "conector" ? "conector" : "indicador"} ({commissionPct}%)</span><span className="tnum" style={{ color: "#B8863A" }}>{money(commission)}</span></div>
           <label className="frow specialbox" style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, margin: "12px 0 4px", padding: "12px 14px", borderRadius: 12, background: special ? "var(--crasto-navy-05)" : "var(--crasto-bg-3)", border: special ? "1px solid var(--crasto-navy-20)" : "1px solid var(--crasto-border-soft)" }}>
             <input type="checkbox" checked={special} onChange={(e) => setSpecial(e.target.checked)} style={{ width: "auto", marginTop: 2 }} />
             <span style={{ margin: 0 }}><b>Venda especial</b> (sem Nota Fiscal) — faz todo o fluxo mas <b>não emite NF</b> e não aplica imposto. Ex.: vendas-teste, cortesias, permutas.</span>

@@ -2,13 +2,15 @@ import { useState } from "react";
 import { Plus, Upload, Pencil, Trash2, Lock } from "lucide-react";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, Empty, useAsync, money, Field } from "../../ui/ui";
-import { TAX_RATE, taxOf } from "../../lib/config";
+import { taxOf, fmtRate } from "../../lib/config";
+import { useSettings } from "../../lib/settings";
 import Modal from "../../ui/Modal";
 
 type S = { id: string; name: string; category: string | null; unit: string; price_table: number; price_min: number | null; price_max: number | null; base_commission: number; internal: boolean; notes: string | null };
 const EMPTY = { id: "", name: "", category: "", unit: "mensal", price_table: "", price_min: "", price_max: "", base_commission: "", internal: false, notes: "" };
 
 export default function Servicos() {
+  const { taxRate } = useSettings();
   const { data, loading, reload } = useAsync(async () => (await api.catalog.services.list()) as unknown as S[], []);
   const rows = data ?? [];
   const [open, setOpen] = useState(false);
@@ -53,10 +55,10 @@ export default function Servicos() {
       {loading ? <Empty>Carregando…</Empty> : rows.length === 0 ? <Empty><p><strong>Nenhum serviço.</strong> Clique em "Novo serviço".</p></Empty> : (
         <div className="tbl-wrap">
           <table className="tbl">
-            <thead><tr><th>Serviço</th><th>Categoria</th><th>Unidade</th><th>Preço-âncora</th><th>Faixa</th><th>Imposto ({String(TAX_RATE).replace(".", ",")}%)</th><th>Líquido</th><th>Comissão</th><th></th></tr></thead>
+            <thead><tr><th>Serviço</th><th>Categoria</th><th>Unidade</th><th>Preço-âncora</th><th>Faixa</th><th>Imposto ({fmtRate(taxRate)}%)</th><th>Líquido</th><th>Comissão</th><th></th></tr></thead>
             <tbody>
               {rows.map((r) => {
-                const imp = taxOf(r.price_table);
+                const imp = taxOf(r.price_table, taxRate);
                 return (
                   <tr key={r.id}>
                     <td style={{ fontWeight: 600, color: "var(--crasto-navy)" }}>{r.name}{r.internal && <Lock size={12} title="Interno (remix VdI)" style={{ verticalAlign: -1, marginLeft: 6, color: "var(--crasto-text-muted)" }} />}</td>
@@ -89,7 +91,7 @@ export default function Servicos() {
           <Field label="Preço máximo (R$)"><input type="number" value={f.price_max} onChange={(e) => setF({ ...f, price_max: e.target.value })} placeholder="= âncora se vazio" /></Field>
         </div>
         <Field label="Comissão-base (%)"><input type="number" value={f.base_commission} onChange={(e) => setF({ ...f, base_commission: e.target.value })} placeholder="0" /></Field>
-        {f.price_table !== "" && <div className="note" style={{ marginTop: 4 }}><span>Imposto ({String(TAX_RATE).replace(".", ",")}%): <b>{money(taxOf(Number(f.price_table)))}</b> · Líquido: <b>{money((Number(f.price_table) || 0) - taxOf(Number(f.price_table)))}</b></span></div>}
+        {f.price_table !== "" && <div className="note" style={{ marginTop: 4 }}><span>Imposto ({fmtRate(taxRate)}%): <b>{money(taxOf(Number(f.price_table), taxRate))}</b> · Líquido: <b>{money((Number(f.price_table) || 0) - taxOf(Number(f.price_table), taxRate))}</b></span></div>}
         <Field label="Notas (opcional)"><textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="Observações internas do serviço." /></Field>
         <label className="frow" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <input type="checkbox" checked={f.internal} onChange={(e) => setF({ ...f, internal: e.target.checked })} style={{ width: "auto" }} />

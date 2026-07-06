@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, initials, money, Field } from "../../ui/ui";
-import { COMMISSION_BY_AGENT_TYPE } from "../../lib/config";
+import { useSettings } from "../../lib/settings";
 import Modal from "../../ui/Modal";
 
 type C = {
@@ -22,6 +22,7 @@ const PAYM = { pix: "Pix", bank: "Conta bancária", bitcoin: "Bitcoin", other: "
 const HANDL = { nota_fiscal: "Com Nota Fiscal", por_fora: "Por fora", reembolso: "Reembolso de despesas" } as const;
 
 export default function Conectores() {
+  const { commissionIndicador, commissionConector } = useSettings();
   const { data, reload } = useAsync(async () => {
     const [c, m] = await Promise.all([api.identity.connectors.list(), api.analytics.admin.commissions<Comm[]>()]);
     return { conns: (c as unknown as C[]) ?? [], comms: m ?? [] };
@@ -32,7 +33,7 @@ export default function Conectores() {
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [toast, setToast] = useState("");
   const editing = !!f.id;
 
-  function openNew() { setF({ ...EMPTY }); setErr(""); setOpen(true); }
+  function openNew() { setF({ ...EMPTY, commission_default: String(commissionIndicador) }); setErr(""); setOpen(true); }
   function openEdit(c: C) {
     setF({
       id: c.id, name: c.name, agent_type: c.agent_type ?? "indicador", commission_default: String(c.commission_default),
@@ -43,7 +44,7 @@ export default function Conectores() {
     setErr(""); setOpen(true);
   }
   // trocar o tipo ajusta a comissão padrão (indicador 20% / conector 5%)
-  function setType(t: string) { setF((p: any) => ({ ...p, agent_type: t, commission_default: String(COMMISSION_BY_AGENT_TYPE[t] ?? p.commission_default) })); }
+  function setType(t: string) { setF((p: any) => ({ ...p, agent_type: t, commission_default: String(t === "indicador" ? commissionIndicador : commissionConector) })); }
 
   async function submit() {
     if (!f.name.trim()) { setErr("Informe o nome do agente."); return; }
@@ -69,7 +70,7 @@ export default function Conectores() {
 
   return (
     <div>
-      <PageHead eyebrow="Painel Admin" title="Agentes indicadores" sub="Quem indica clientes. Indicador (participa) = 20% · Conector (só apresentou) = 5% no contrato de 1 ano."
+      <PageHead eyebrow="Painel Admin" title="Agentes indicadores" sub={`Quem indica clientes. Indicador (participa) = ${commissionIndicador}% · Conector (só apresentou) = ${commissionConector}% no contrato de 1 ano.`}
         right={<button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={openNew}><span className="crasto-btn__icon"><Plus size={15} /></span><span className="crasto-btn__label">Novo agente</span></button>} />
       <div className="tbl-wrap" style={{ marginBottom: 24 }}>
         <table className="tbl">
@@ -108,7 +109,7 @@ export default function Conectores() {
         {err && <div className="formerr">{err}</div>}
         <Field label="Nome *"><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Ex.: João da Silva / Viver de IA" /></Field>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label="Tipo de agente"><select value={f.agent_type} onChange={(e) => setType(e.target.value)}><option value="indicador">Indicador (participa) — 20%</option><option value="conector">Conector (só apresentou) — 5%</option></select></Field>
+          <Field label="Tipo de agente"><select value={f.agent_type} onChange={(e) => setType(e.target.value)}><option value="indicador">Indicador (participa) — {commissionIndicador}%</option><option value="conector">Conector (só apresentou) — {commissionConector}%</option></select></Field>
           <Field label="Comissão (%)"><input type="number" value={f.commission_default} onChange={(e) => setF({ ...f, commission_default: e.target.value })} placeholder="20" /></Field>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>

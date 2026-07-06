@@ -1,11 +1,14 @@
 import { services } from "../../services";
 import { PageHead, Pill, useAsync, money } from "../../ui/ui";
+import { useSettings } from "../../lib/settings";
+import { fmtRate } from "../../lib/config";
 
 type Pnl = { organization_name: string; total_cost: number; total_sale: number; tax: number; profit: number };
 type Prov = { provider: string; cost: number };
 type Hours = { org: string; plan_hours: number; used_hours: number; balance: number; status: string };
 
 export default function Custos() {
+  const { taxRate } = useSettings();
   const { data } = useAsync(async () => {
     const [p, c, h] = await Promise.all([
       services.analytics.admin.clientPnl<Pnl[]>(), services.analytics.admin.costsByProvider<Prov[]>(), services.analytics.admin.supportHours<Hours[]>(),
@@ -53,10 +56,10 @@ export default function Custos() {
         ))}
       </div>
 
-      <div className="sec-h"><h2>Plano de contas por cliente</h2><Pill tone="info">impostos NF 8,68%</Pill></div>
+      <div className="sec-h"><h2>Plano de contas por cliente</h2><Pill tone="info">impostos NF {fmtRate(taxRate)}%</Pill></div>
       <div className="tbl-wrap" style={{ marginBottom: 26 }}>
         <table className="tbl">
-          <thead><tr><th>Cliente</th><th>Custo (IA+infra+sup.)</th><th>Valor de venda</th><th>Impostos 8,68%</th><th>Lucro</th></tr></thead>
+          <thead><tr><th>Cliente</th><th>Custo (IA+infra+sup.)</th><th>Valor de venda</th><th>Impostos {fmtRate(taxRate)}%</th><th>Lucro</th></tr></thead>
           <tbody>
             {pnl.length === 0 ? <tr><td colSpan={5} style={{ color: "var(--crasto-text-muted)" }}>Sem dados ainda.</td></tr> : pnl.map((r) => (
               <tr key={r.organization_name}>

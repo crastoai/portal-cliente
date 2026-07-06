@@ -28,4 +28,9 @@ export const clientAnalytics = {
   revealModuleSecret: <T = any>(credId: string) => rpc<T>("reveal_module_secret", { p_cred_id: credId }),
 };
 
-export const analytics = { admin: adminAnalytics, client: clientAnalytics };
+// ---- Parâmetros de negócio (imposto, comissões) — SSOT em finance.settings ----
+export const settingsAnalytics = {
+  business: <T = any>() => rpc<T>("business_settings"),
+};
+
+export const analytics = { admin: adminAnalytics, client: clientAnalytics, settings: settingsAnalytics };
