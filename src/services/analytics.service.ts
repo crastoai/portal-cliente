@@ -19,6 +19,9 @@ export const adminAnalytics = {
   supportHours: <T = any>() => rpc<T>("admin_support_hours"),
   commissions: <T = any>() => rpc<T>("admin_commissions"),
   moduleClients: <T = any>(moduleId: string) => rpc<T>("admin_module_clients", { p_module: moduleId }),
+  // Régua de saúde (pesos/limiares do health score) — configurável sem código
+  healthConfig: <T = any>() => rpc<T>("admin_health_config"),
+  setHealthConfig: (cfg: unknown) => rpc<{ ok: boolean }>("admin_set_health_config", { p: cfg }),
 };
 
 // ---- Cliente / Parceiro ----

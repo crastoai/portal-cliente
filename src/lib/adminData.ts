@@ -1,10 +1,12 @@
 import { services } from "../services";
 
+export type HealthV2 = { score: number; label: string; tone: string; lifecycle: string; reasons: string[] };
 export type Client = {
   id: string; name: string; plan: string | null; email: string | null;
   modules: string[]; last_access: string | null; progress: number; health: string | null; mrr: number;
   stage: string; country: string | null; tax_id: string | null; website: string | null;
   founded_on: string | null; owner_name: string | null; last_activity: string | null;
+  health_v2?: HealthV2 | null;
 };
 
 export async function fetchClients(): Promise<Client[]> {
@@ -12,11 +14,16 @@ export async function fetchClients(): Promise<Client[]> {
 }
 
 export function healthScore(c: Client) {
+  // v2: score multi-sinal calculado no banco (org_health). Fallback = heurístico antigo.
+  if (c.health_v2 && typeof c.health_v2.score === "number") {
+    const v = c.health_v2;
+    return { score: v.score, tone: v.tone, label: v.label, reasons: v.reasons ?? [], lifecycle: v.lifecycle };
+  }
   const base = Math.round(c.progress * 0.6 + (c.health === "green" ? 40 : c.health === "amber" ? 20 : c.health === "red" ? 0 : 10));
   const score = Math.max(0, Math.min(100, base));
   const tone = score >= 70 ? "ok" : score >= 45 ? "warn" : "crit";
   const label = score >= 70 ? "Saudável" : score >= 45 ? "Atenção" : "Em risco";
-  return { score, tone, label };
+  return { score, tone, label, reasons: [] as string[], lifecycle: "" };
 }
 
 export function timeAgo(iso: string | null): string {
