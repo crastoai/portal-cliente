@@ -193,3 +193,10 @@
 .pill.info { background: #EAF0FB; color: #3E6FB8; } .pill.info .d { background: #3E6FB8; }
 
 .empty { background: var(--crasto-surface); border: 1px dashed var(--crasto-border); border-radius: var(--crasto-radius-lg); padding: 40px; text-align: center; color: var(--crasto-text-muted); }
+
+/* ---- Seletor de idioma (i18n) ---- */
+.langsw { display: inline-flex; gap: 2px; padding: 2px; border-radius: 999px; background: var(--crasto-bg-3); border: 1px solid var(--crasto-border-soft); }
+.langsw-btn { border: 0; background: transparent; cursor: pointer; font-size: 10.5px; font-weight: 700; letter-spacing: .02em; color: var(--crasto-text-muted); padding: 3px 7px; border-radius: 999px; line-height: 1; transition: background .15s, color .15s; }
+.langsw-btn:hover { color: var(--crasto-text-primary); }
+.langsw-btn.on { background: var(--crasto-navy); color: #fff; }
+[data-theme="dark"] .langsw-btn.on { background: var(--crasto-navy-lift, #6E9CE8); color: #04101f; }
