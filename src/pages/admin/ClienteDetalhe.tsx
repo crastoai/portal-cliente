@@ -16,7 +16,7 @@ export default function ClienteDetalhe() {
   const nav = useNavigate();
   const { data, loading, reload } = useAsync(async () => {
     if (!id) return null;
-    const [org, mods, cm, users, people, phones, docs, acts, impl, health] = await Promise.all([
+    const [org, mods, cm, users, people, phones, docs, acts, impl, health, taxids] = await Promise.all([
       api.identity.organizations.getById(id),
       api.catalog.vdiModules.listActiveByName(),
       api.delivery.clientModules.listByOrg(id),
@@ -27,8 +27,9 @@ export default function ClienteDetalhe() {
       api.crm.activities.listByOrg(id),
       api.delivery.implementations.getByOrg(id),
       api.delivery.systemHealth.getByOrg(id),
+      api.crm.taxIds.listByOrg(id),
     ]);
-    return { org: org as Org, mods: (mods as any[]) ?? [], cm: (cm as any[]) ?? [], users: (users as any[]) ?? [], people: (people as any[]) ?? [], phones: (phones as any[]) ?? [], docs: (docs as any[]) ?? [], acts: (acts as any[]) ?? [], progress: (impl as any)?.overall_progress ?? 0, health: (health as any)?.status ?? null };
+    return { org: org as Org, mods: (mods as any[]) ?? [], cm: (cm as any[]) ?? [], users: (users as any[]) ?? [], people: (people as any[]) ?? [], phones: (phones as any[]) ?? [], docs: (docs as any[]) ?? [], acts: (acts as any[]) ?? [], progress: (impl as any)?.overall_progress ?? 0, health: (health as any)?.status ?? null, taxids: (taxids as any[]) ?? [] };
   }, [id]);
 
   const [edit, setEdit] = useState(false);
@@ -38,12 +39,13 @@ export default function ClienteDetalhe() {
   const [person, setPerson] = useState({ full_name: "", role: "", email: "", birthday: "" });
   const [phone, setPhone] = useState({ label: "mobile", country_code: "+55", number: "", person_id: "" });
   const [act, setAct] = useState({ type: "note", title: "", description: "" });
+  const [taxid, setTaxid] = useState({ kind: "CNPJ", value: "", address: "" });
   const [busy, setBusy] = useState(false); const [toast, setToast] = useState(""); const [err, setErr] = useState("");
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 7000); };
 
   if (loading) return <><PageHead eyebrow="CRM" title="Detalhe" /><Empty>Carregando…</Empty></>;
   if (!data?.org) return <><PageHead eyebrow="CRM" title="Detalhe" /><Empty>Não encontrado.</Empty></>;
-  const { org, mods, cm, users, people, phones, docs, acts, progress, health } = data;
+  const { org, mods, cm, users, people, phones, docs, acts, progress, health, taxids } = data;
   const activeSet = new Set(cm.map((c) => c.vdi_module_id));
   const co = countryOf(org.country); const st = stageOf(org.stage);
 
@@ -82,6 +84,14 @@ export default function ClienteDetalhe() {
   async function addPhone() { if (!phone.number.trim()) return; await api.crm.phones.add({ organization_id: id, label: phone.label, country_code: phone.country_code, number: phone.number.trim(), person_id: phone.person_id || null }); setPhone({ label: "mobile", country_code: "+55", number: "", person_id: "" }); reload(); }
   async function addActivity() { if (!act.title.trim()) return; await api.crm.activities.add({ organization_id: id, type: act.type, title: act.title.trim(), description: act.description || null }); setAct({ type: "note", title: "", description: "" }); reload(); }
   async function delRow(_schema: string, table: string, rid: string) { await api.crm.removeRow(table as any, rid); reload(); }
+  async function addTaxid() {
+    if (!taxid.value.trim()) return;
+    const first = (data?.taxids?.length ?? 0) === 0;
+    await api.crm.taxIds.add({ organization_id: id, kind: taxid.kind, value: taxid.value.trim(), address: taxid.address.trim() || null, is_primary: first });
+    setTaxid({ kind: "CNPJ", value: "", address: "" }); reload();
+  }
+  async function setPrimaryTaxid(tid: string) { await api.crm.taxIds.setPrimary(id!, tid); reload(); }
+  async function delTaxid(tid: string) { await api.crm.taxIds.remove(tid); reload(); }
   async function uploadDoc(file: File, kind: string) {
     setBusy(true);
     try {
@@ -129,6 +139,25 @@ export default function ClienteDetalhe() {
         </div>
         {org.notes && <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--crasto-border-soft)", fontSize: 13, color: "var(--crasto-text-body)" }}><b>Observações:</b> {org.notes}</div>}
       </div>
+
+      {/* CNPJs & endereços de faturamento */}
+      <div className="sec-h" style={{ marginTop: 4 }}><h2>CNPJs &amp; endereços de faturamento</h2><Pill tone="mute">usado nas propostas</Pill></div>
+      <div className="addrow">
+        <select value={taxid.kind} onChange={(e) => setTaxid({ ...taxid, kind: e.target.value })}><option value="CNPJ">CNPJ</option><option value="CPF">CPF</option><option value="EIN">EIN</option><option value="VAT">VAT</option><option value="Outro">Outro</option></select>
+        <input placeholder="Número do documento" value={taxid.value} onChange={(e) => setTaxid({ ...taxid, value: e.target.value })} style={{ flex: 1, minWidth: 150 }} />
+        <input placeholder="Endereço de faturamento (rua, nº, cidade/UF, CEP)" value={taxid.address} onChange={(e) => setTaxid({ ...taxid, address: e.target.value })} style={{ flex: 2, minWidth: 200 }} />
+        <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={addTaxid}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">Adicionar</span></button>
+      </div>
+      {taxids.length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>Nenhum CNPJ cadastrado — a proposta usará o {countryOf(org.country).idLabel} do cadastro acima.</div> : taxids.map((t) => (
+        <div className="crmrow" key={t.id}>
+          <Pill tone={t.is_primary ? "ok" : "info"}>{t.kind}</Pill>
+          <div><div className="nm tnum">{t.value} {t.is_primary && <span className="chip" style={{ marginLeft: 6, background: "var(--crasto-navy-05)", color: "var(--crasto-text-primary)" }}>principal</span>}</div><div className="mt">{t.address || "sem endereço"}</div></div>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
+            {!t.is_primary && <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setPrimaryTaxid(t.id)} title="Tornar o CNPJ principal"><span className="crasto-btn__label">Tornar principal</span></button>}
+            <button className="icobtn rm" onClick={() => delTaxid(t.id)} title="Excluir"><Trash2 size={14} /></button>
+          </div>
+        </div>
+      ))}
 
       <div className="kpis" style={{ marginBottom: 22 }}>
         <div className="kpi g"><div className="lab">Implantação</div><div className="val tnum">{progress}<small>%</small></div><div className="delta">{health === "green" ? "no ar" : "—"}</div></div>

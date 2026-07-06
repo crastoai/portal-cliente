@@ -35,7 +35,15 @@ export const activities = {
 export const taxIds = {
   /** CNPJs/identidades fiscais de uma organização (com endereço), primário primeiro. */
   listByOrg: async (orgId: string) =>
-    unwrapList<Record<string, any>>(await crmSchema().from("tax_ids").select("id,kind,value,address,is_primary").eq("organization_id", orgId).order("is_primary", { ascending: false })),
+    unwrapList<Record<string, any>>(await crmSchema().from("tax_ids").select("id,kind,value,address,is_primary").eq("organization_id", orgId).order("is_primary", { ascending: false }).order("created_at", { ascending: true })),
+  add: async (payload: Record<string, any>) => unwrap(await crmSchema().from("tax_ids").insert(payload)),
+  update: async (id: string, patch: Record<string, any>) => unwrap(await crmSchema().from("tax_ids").update(patch).eq("id", id)),
+  remove: async (id: string) => unwrap(await crmSchema().from("tax_ids").delete().eq("id", id)),
+  /** Marca um CNPJ como principal e desmarca os demais da organização. */
+  setPrimary: async (orgId: string, id: string) => {
+    await crmSchema().from("tax_ids").update({ is_primary: false }).eq("organization_id", orgId);
+    return unwrap(await crmSchema().from("tax_ids").update({ is_primary: true }).eq("id", id));
+  },
 };
 
 /** Remoção genérica dentro do schema crm (people/phones/activities). */
