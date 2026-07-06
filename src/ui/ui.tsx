@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { useT } from "../lib/i18n";
 
 export function money(n: number | string | null | undefined) {
   const v = Number(n ?? 0);
@@ -9,12 +10,13 @@ export function initials(s?: string | null) {
 }
 
 export function PageHead({ eyebrow = "Portal", title, sub, right }: { eyebrow?: string; title: string; sub?: string; right?: ReactNode }) {
+  const t = useT();
   return (
     <div className={right ? "phead-row" : ""}>
       <div className="phead">
-        <div className="ey">{eyebrow}</div>
-        <h1>{title}</h1>
-        {sub && <div className="sub">{sub}</div>}
+        <div className="ey">{t(eyebrow)}</div>
+        <h1>{t(title)}</h1>
+        {sub && <div className="sub">{t(sub)}</div>}
       </div>
       {right && <div className="hactions">{right}</div>}
     </div>
@@ -26,7 +28,8 @@ export function Pill({ tone = "mute", children }: { tone?: string; children: Rea
 }
 
 export function Empty({ children }: { children: ReactNode }) {
-  return <div className="empty">{children}</div>;
+  const t = useT();
+  return <div className="empty">{typeof children === "string" ? t(children) : children}</div>;
 }
 
 export function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = []) {
@@ -44,9 +47,11 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = []) {
 }
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
-  return <label className="frow"><span>{label}</span>{children}</label>;
+  const t = useT();
+  return <label className="frow"><span>{t(label)}</span>{children}</label>;
 }
 
 export function Loader() {
-  return <div className="empty">Carregando…</div>;
+  const t = useT();
+  return <div className="empty">{t("Carregando…")}</div>;
 }

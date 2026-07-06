@@ -62,4 +62,42 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Comissões (20%)": { en: "Commissions (20%)", es: "Comisiones (20%)" },
   "Viver de IA": { en: "Viver de IA", es: "Viver de IA" },
   "Parceiro · leitura": { en: "Partner · read-only", es: "Socio · lectura" },
+
+  // ---- Eyebrows (cabeçalhos) ----
+  "Painel Admin": { en: "Admin Panel", es: "Panel Admin" },
+  "Painel Admin · Interno 🔒": { en: "Admin Panel · Internal 🔒", es: "Panel Admin · Interno 🔒" },
+  "Painel Admin · Crasto.AI": { en: "Admin Panel · Crasto.AI", es: "Panel Admin · Crasto.AI" },
+  "Painel Admin · CRM": { en: "Admin Panel · CRM", es: "Panel Admin · CRM" },
+  "CRM": { en: "CRM", es: "CRM" },
+  "Viver de IA · Compliance": { en: "Viver de IA · Compliance", es: "Viver de IA · Compliance" },
+  "Viver de IA · Financeiro": { en: "Viver de IA · Finance", es: "Viver de IA · Finanzas" },
+
+  // ---- Títulos de tela ----
+  "Visão geral do negócio": { en: "Business overview", es: "Visión general del negocio" },
+  "Integrações & pagamentos": { en: "Integrations & payments", es: "Integraciones y pagos" },
+  "Entregas dos seus indicados": { en: "Your referrals' deliveries", es: "Entregas de tus referidos" },
+  "Contatos & Clientes": { en: "Contacts & Clients", es: "Contactos y Clientes" },
+  "Detalhe": { en: "Detail", es: "Detalle" },
+  "Minha implementação": { en: "My implementation", es: "Mi implementación" },
+  "Credenciais de acesso": { en: "Access credentials", es: "Credenciales de acceso" },
+  "Resultados": { en: "Results", es: "Resultados" },
+  "Não encontrado.": { en: "Not found.", es: "No encontrado." },
+
+  // ---- Subtítulos de tela ----
+  "A saúde da operação num relance.": { en: "The health of the operation at a glance.", es: "La salud de la operación de un vistazo." },
+  "Monte uma proposta personalizada com a espinha dorsal Crasto.AI.": { en: "Build a tailored proposal with the Crasto.AI backbone.", es: "Arma una propuesta personalizada con la columna vertebral de Crasto.AI." },
+  "Custo real por cliente — IA, servidor e suporte — e o plano de contas com lucro.": { en: "Real cost per client — AI, server and support — and the P&L with profit.", es: "Costo real por cliente — IA, servidor y soporte — y el plan de cuentas con ganancia." },
+  "Evolução do MRR e rentabilidade.": { en: "MRR evolution and profitability.", es: "Evolución del MRR y rentabilidad." },
+  "Base oficial de preços da Crasto.AI. Preço-âncora + faixa (mín–máx); imposto padrão exibido à parte.": { en: "Crasto.AI's official price base. Anchor price + range (min–max); default tax shown separately.", es: "Base oficial de precios de Crasto.AI. Precio ancla + rango (mín–máx); impuesto estándar mostrado aparte." },
+  "Conecte as tecnologias que o portal usa. As chaves ficam no cofre — nunca no navegador.": { en: "Connect the technologies the portal uses. Keys stay in the vault — never in the browser.", es: "Conecta las tecnologías que usa el portal. Las claves quedan en la bóveda — nunca en el navegador." },
+  "Módulos do Viver de IA que a Crasto configura e oferece.": { en: "Viver de IA modules that Crasto configures and offers.", es: "Módulos de Viver de IA que Crasto configura y ofrece." },
+  "Pipeline: contato → lead → qualificado → cliente.": { en: "Pipeline: contact → lead → qualified → client.", es: "Pipeline: contacto → lead → calificado → cliente." },
+  "Acompanhe o andamento e o prazo de cada cliente que você indicou à Crasto.AI.": { en: "Track the progress and deadline of each client you referred to Crasto.AI.", es: "Sigue el avance y el plazo de cada cliente que referiste a Crasto.AI." },
+  "20% sobre cada venda da Crasto.AI aos clientes que você indicou.": { en: "20% on every Crasto.AI sale to the clients you referred.", es: "20% sobre cada venta de Crasto.AI a los clientes que referiste." },
+  "Escolha o que você quer que a Crasto.AI implemente. Padrão: 30 dias por módulo.": { en: "Choose what you want Crasto.AI to implement. Default: 30 days per module.", es: "Elige lo que quieres que Crasto.AI implemente. Estándar: 30 días por módulo." },
+  "Seu plano, valor e histórico de faturas.": { en: "Your plan, amount and invoice history.", es: "Tu plan, importe e historial de facturas." },
+  "Acompanhe em tempo real o que a Crasto.AI está montando pra você.": { en: "Track in real time what Crasto.AI is building for you.", es: "Sigue en tiempo real lo que Crasto.AI está construyendo para ti." },
+  "Suas soluções e como entrar em cada uma — tudo aqui.": { en: "Your solutions and how to access each one — all here.", es: "Tus soluciones y cómo entrar en cada una — todo aquí." },
+  "Convide sua equipe e defina quem acessa o quê.": { en: "Invite your team and define who accesses what.", es: "Invita a tu equipo y define quién accede a qué." },
+  "Abra um chamado, acompanhe seu plano e aprenda a usar cada solução.": { en: "Open a ticket, track your plan and learn to use each solution.", es: "Abre un ticket, sigue tu plan y aprende a usar cada solución." },
 };
