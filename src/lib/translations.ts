@@ -499,4 +499,16 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Esgotado": { en: "Depleted", es: "Agotado" },
   "Extra a cobrar": { en: "Extra to bill", es: "Extra a cobrar" },
   "Antecipado": { en: "Advanced", es: "Anticipado" },
+
+  // ---- Admin · Receita & churn ----
+  "MRR total": { en: "Total MRR", es: "MRR total" },
+  "recorrente": { en: "recurring", es: "recurrente" },
+  "Lucro estimado": { en: "Estimated profit", es: "Beneficio estimado" },
+  "Ticket médio": { en: "Average ticket", es: "Ticket medio" },
+  "por cliente": { en: "per client", es: "por cliente" },
+  "Comissões a pagar": { en: "Commissions payable", es: "Comisiones por pagar" },
+  "conectores": { en: "connectors", es: "conectores" },
+  "Evolução do MRR": { en: "MRR evolution", es: "Evolución del MRR" },
+  "O gráfico de evolução aparece conforme os meses acumulam dados reais.": { en: "The evolution chart appears as months accumulate real data.", es: "El gráfico de evolución aparece a medida que los meses acumulan datos reales." },
+  "Histórico em construção — os dados começam a acumular agora.": { en: "History under construction — data starts accumulating now.", es: "Historial en construcción — los datos empiezan a acumularse ahora." },
 };
