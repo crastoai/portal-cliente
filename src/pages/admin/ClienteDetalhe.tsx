@@ -79,15 +79,23 @@ export default function ClienteDetalhe() {
   async function addPhone() { if (!phone.number.trim()) return; await supabase.schema("crm").from("phones").insert({ organization_id: id, label: phone.label, country_code: phone.country_code, number: phone.number.trim(), person_id: phone.person_id || null }); setPhone({ label: "mobile", country_code: "+55", number: "", person_id: "" }); reload(); }
   async function addActivity() { if (!act.title.trim()) return; await supabase.schema("crm").from("activities").insert({ organization_id: id, type: act.type, title: act.title.trim(), description: act.description || null }); setAct({ type: "note", title: "", description: "" }); reload(); }
   async function delRow(schema: string, table: string, rid: string) { await supabase.schema(schema as any).from(table).delete().eq("id", rid); reload(); }
+  async function r2op(op: string, key: string, body?: BodyInit, ct?: string) {
+    const { data: { session } } = await supabase.auth.getSession();
+    const h: Record<string, string> = { Authorization: `Bearer ${session?.access_token}`, apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string, "x-op": op, "x-key": key };
+    if (ct) h["x-content-type"] = ct;
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/r2`, { method: "POST", headers: h, body: body ?? "" });
+    return res.json();
+  }
   async function uploadDoc(file: File, kind: string) {
     setBusy(true);
-    const path = `${id}/${Date.now()}-${file.name}`;
-    const { error } = await supabase.storage.from("client-docs").upload(path, file);
-    if (!error) await supabase.schema("crm").from("documents").insert({ organization_id: id, kind, file_name: file.name, storage_path: path });
-    setBusy(false); reload(); flash(error ? "Erro no upload: " + error.message : "Documento enviado ✓");
+    const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const key = `${id}/${Date.now()}-${safe}`;
+    const r = await r2op("upload", key, file, file.type || "application/octet-stream");
+    if (r?.ok) await supabase.schema("crm").from("documents").insert({ organization_id: id, kind, file_name: file.name, storage_path: key });
+    setBusy(false); reload(); flash(r?.ok ? "Documento enviado ✓ (Cloudflare R2)" : "Erro no upload: " + (r?.error || ""));
   }
-  async function downloadDoc(path: string) { const { data: s } = await supabase.storage.from("client-docs").createSignedUrl(path, 3600); if (s?.signedUrl) window.open(s.signedUrl, "_blank"); }
-  async function delDoc(d: any) { await supabase.storage.from("client-docs").remove([d.storage_path]); await supabase.schema("crm").from("documents").delete().eq("id", d.id); reload(); }
+  async function downloadDoc(path: string) { const r = await r2op("get", path); if (r?.url) window.open(r.url, "_blank"); }
+  async function delDoc(d: any) { await r2op("delete", d.storage_path); await supabase.schema("crm").from("documents").delete().eq("id", d.id); reload(); }
 
   return (
     <div>
