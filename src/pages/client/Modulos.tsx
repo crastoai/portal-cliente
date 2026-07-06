@@ -1,16 +1,30 @@
-import { MessageCircle, Search, Send, Grid3x3 } from "lucide-react";
+import { useState } from "react";
+import { MessageCircle, Search, Send, Grid3x3, Eye, Copy, ExternalLink, ShieldCheck } from "lucide-react";
 import { services } from "../../services";
 import { PageHead, Pill, Empty, useAsync } from "../../ui/ui";
 
-type Mod = { id: string; status: string; vdi: { name: string; description: string | null; category: string | null } | null };
+type Cred = { id: string; login: string | null; sso_enabled: boolean; vdi_module_id: string };
+type Mod = {
+  id: string; status: string; vdi_module_id: string;
+  vdi: { name: string; description: string | null; category: string | null } | null;
+  external_url: string | null; cred: Cred | null;
+};
 
-async function fetchModules(): Promise<Mod[]> {
-  const rows = await services.delivery.clientModules.listMine();
-  const ids = rows.map((r) => r.vdi_module_id);
-  if (!ids.length) return [];
-  const vm = await services.catalog.vdiModules.listByIds(ids, "id,name,description,category");
-  const map = Object.fromEntries((vm as { id: string }[]).map((v) => [v.id, v]));
-  return rows.map((r) => ({ id: r.id, status: r.status, vdi: (map[r.vdi_module_id] as Mod["vdi"]) ?? null }));
+async function fetchData(): Promise<Mod[]> {
+  const [cms, creds] = await Promise.all([
+    services.delivery.clientModules.listMine(),
+    services.delivery.moduleCredentials.listMine().catch(() => [] as any[]),
+  ]);
+  const ids = cms.map((r) => r.vdi_module_id);
+  const vms = ids.length ? await services.catalog.vdiModules.listByIds(ids, "id,name,description,category,external_url") : [];
+  const vmap = Object.fromEntries((vms as any[]).map((v) => [v.id, v]));
+  const cmap = Object.fromEntries((creds as any[]).map((c) => [c.vdi_module_id, c]));
+  return cms.map((r) => ({
+    id: r.id, status: r.status, vdi_module_id: r.vdi_module_id,
+    vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null,
+    external_url: (vmap[r.vdi_module_id]?.external_url as string) ?? null,
+    cred: (cmap[r.vdi_module_id] as Cred) ?? null,
+  }));
 }
 
 function icon(cat?: string | null) {
@@ -22,34 +36,106 @@ function icon(cat?: string | null) {
 }
 
 export default function Modulos() {
-  const { data, loading } = useAsync(fetchModules, []);
+  const { data, loading } = useAsync(fetchData, []);
   const mods = data ?? [];
+  const [revealed, setRevealed] = useState<Record<string, { login: string | null; pw: string }>>({});
+  const [busy, setBusy] = useState<string>("");
+  const [copied, setCopied] = useState<string>("");
+
+  async function reveal(cred: Cred) {
+    setBusy(cred.id);
+    const pw = await services.analytics.client.revealModuleSecret<string>(cred.id);
+    setRevealed((r) => ({ ...r, [cred.id]: { login: cred.login, pw: pw ?? "—" } }));
+    setBusy("");
+  }
+  function copy(text: string, tag: string) {
+    navigator.clipboard?.writeText(text);
+    setCopied(tag); setTimeout(() => setCopied(""), 1500);
+  }
+
   return (
     <div>
-      <PageHead eyebrow="Portal do Cliente" title="Meus módulos" sub="Clique em Acessar para entrar em cada solução." />
+      <PageHead eyebrow="Portal do Cliente" title="Meus Módulos" sub="Suas soluções e como entrar em cada uma — tudo aqui." />
       {loading ? <Empty>Carregando…</Empty> : mods.length === 0 ? (
-        <Empty><p><strong>Nenhum módulo ativo ainda.</strong></p></Empty>
+        <Empty><p><strong>Nenhum módulo ativo ainda.</strong> Assim que a Crasto.AI liberar suas soluções, elas aparecem aqui com o acesso.</p></Empty>
       ) : (
         <div className="mods">
           {mods.map((m) => {
-            const st = m.status === "active" ? "ok" : m.status === "implementing" ? "warn" : "info";
-            const stl = m.status === "active" ? "Ativo" : m.status === "implementing" ? "Em implementação" : m.status;
+            const implementing = m.status === "implementing" || m.status === "pending";
+            const active = m.status === "active";
+            const st = active ? "ok" : implementing ? "warn" : "info";
+            const stl = active ? "Ativo" : implementing ? "Em configuração" : m.status;
+            const cred = m.cred;
+            const shown = cred ? revealed[cred.id] : undefined;
             return (
               <div className="mod" key={m.id}>
                 <div className="cover"><div className="glow" />{icon(m.vdi?.category)}</div>
                 <div className="body">
-                  <h3>{m.vdi?.name}</h3>
+                  <h3>{m.vdi?.name || "Solução"}</h3>
                   <p>{m.vdi?.description || "Solução de IA da Crasto.AI."}</p>
-                  <div className="foot">
-                    <Pill tone={st}>{stl}</Pill>
-                    <button className="crasto-btn crasto-btn--primary crasto-btn--sm"><span className="crasto-btn__label">Acessar</span></button>
-                  </div>
+
+                  {implementing ? (
+                    <div className="foot">
+                      <Pill tone="warn">Em configuração</Pill>
+                      <span className="mt">disponível em breve</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="foot">
+                        <Pill tone={st}>{stl}</Pill>
+                        <button
+                          className="crasto-btn crasto-btn--primary crasto-btn--sm"
+                          disabled={!m.external_url}
+                          title={m.external_url ? "Abrir a solução" : "Link em configuração"}
+                          onClick={() => m.external_url && window.open(m.external_url, "_blank", "noopener")}
+                        >
+                          <span className="crasto-btn__icon"><ExternalLink size={14} /></span>
+                          <span className="crasto-btn__label">Acessar</span>
+                        </button>
+                      </div>
+
+                      {cred && cred.sso_enabled && (
+                        <div className="mt" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, color: "var(--crasto-success)" }}>
+                          <ShieldCheck size={14} /> Entra direto, sem precisar de senha.
+                        </div>
+                      )}
+
+                      {cred && !cred.sso_enabled && (
+                        <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--crasto-border-soft)" }}>
+                          {shown ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 13 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ color: "var(--crasto-text-muted)", minWidth: 46 }}>Login</span>
+                                <b style={{ color: "var(--crasto-text-primary)" }}>{shown.login || "—"}</b>
+                                <button className="icobtn" title="Copiar" style={{ marginLeft: "auto" }} onClick={() => copy(shown.login || "", `l${cred.id}`)}><Copy size={13} /></button>
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ color: "var(--crasto-text-muted)", minWidth: 46 }}>Senha</span>
+                                <b style={{ color: "var(--crasto-text-primary)", fontFamily: "var(--crasto-font-mono)" }}>{shown.pw}</b>
+                                <button className="icobtn" title="Copiar" style={{ marginLeft: "auto" }} onClick={() => copy(shown.pw, `p${cred.id}`)}><Copy size={13} /></button>
+                              </div>
+                              {(copied === `l${cred.id}` || copied === `p${cred.id}`) && <span style={{ fontSize: 11.5, color: "var(--crasto-success)" }}>Copiado ✓</span>}
+                            </div>
+                          ) : (
+                            <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy === cred.id} onClick={() => reveal(cred)}>
+                              <span className="crasto-btn__icon"><Eye size={14} /></span>
+                              <span className="crasto-btn__label">{busy === cred.id ? "Abrindo…" : "Ver login e senha"}</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
       )}
+      <div className="note" style={{ marginTop: 20 }}>
+        <ShieldCheck size={16} />
+        <span>Suas senhas ficam <b>protegidas</b> e só aparecem quando você clica em "Ver login e senha". O botão <b>Acessar</b> abre a solução direto.</span>
+      </div>
     </div>
   );
 }

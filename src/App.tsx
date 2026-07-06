@@ -11,7 +11,6 @@ import Inicio from "./pages/client/Inicio";
 import Modulos from "./pages/client/Modulos";
 import Implementacao from "./pages/client/Implementacao";
 import Catalogo from "./pages/client/Catalogo";
-import Credenciais from "./pages/client/Credenciais";
 import Resultados from "./pages/client/Resultados";
 import Financeiro from "./pages/client/Financeiro";
 import Usuarios from "./pages/client/Usuarios";
@@ -69,7 +68,6 @@ export default function App() {
             <Route path="modulos" element={<Modulos />} />
             <Route path="implementacao" element={<Implementacao />} />
             <Route path="solucoes" element={<Catalogo />} />
-            <Route path="credenciais" element={<Credenciais />} />
             <Route path="resultados" element={<Resultados />} />
             <Route path="financeiro" element={<Financeiro />} />
             <Route path="usuarios" element={<Usuarios />} />

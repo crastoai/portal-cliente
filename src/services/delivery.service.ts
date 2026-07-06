@@ -48,7 +48,7 @@ export const projectTasks = {
 
 export const moduleCredentials = {
   listMine: async () =>
-    unwrapList<ModuleCredential>(await del().from("module_credentials").select("id,label,login,sso_enabled")),
+    unwrapList<ModuleCredential>(await del().from("module_credentials").select("id,label,login,sso_enabled,vdi_module_id")),
 };
 
 export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials };

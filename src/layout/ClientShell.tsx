@@ -1,4 +1,4 @@
-import { Home, LayoutGrid, Activity, Sparkles, KeyRound, BarChart3, Wallet, Users, LifeBuoy } from "lucide-react";
+import { Home, LayoutGrid, Activity, Sparkles, BarChart3, Wallet, Users, LifeBuoy } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import Shell, { type NavItem } from "./Shell";
 
@@ -7,7 +7,6 @@ const NAV: NavItem[] = [
   { to: "/app/modulos", icon: LayoutGrid, label: "Meus Módulos" },
   { to: "/app/implementacao", icon: Activity, label: "Minha Implementação" },
   { to: "/app/solucoes", icon: Sparkles, label: "Soluções disponíveis" },
-  { to: "/app/credenciais", icon: KeyRound, label: "Credenciais" },
   { to: "/app/resultados", icon: BarChart3, label: "Resultados" },
   { to: "/app/financeiro", icon: Wallet, label: "Financeiro" },
   { to: "/app/usuarios", icon: Users, label: "Usuários & Equipe" },
