@@ -111,9 +111,23 @@ export default function ClienteDetalhe() {
         <span style={{ marginLeft: "auto", alignSelf: "center", fontSize: 12, color: "var(--crasto-text-muted)" }}>Status atual: <b style={{ color: "var(--crasto-navy)" }}>{st.label}</b></span>
       </div>
 
+      {/* Dados da empresa (cadastro) */}
+      <div className="card" style={{ marginBottom: 18 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}><Building2 size={16} style={{ color: "var(--crasto-navy)" }} /><h3 style={{ margin: 0 }}>Dados da empresa</h3></div>
+        <div className="infogrid">
+          <div><div className="infolab">País</div><div className="infoval">{co.flag} {co.name}</div></div>
+          <div><div className="infolab">{co.idLabel}</div><div className="infoval tnum">{org.tax_id || "—"}</div></div>
+          <div><div className="infolab">Fundação</div><div className="infoval">{fmtDate(org.founded_on)}</div></div>
+          <div><div className="infolab">Dono / Presidente</div><div className="infoval">{org.owner_name || "—"}</div></div>
+          <div><div className="infolab">Website</div><div className="infoval">{org.website ? <a href={org.website} target="_blank" rel="noreferrer" style={{ color: "#3E6FB8" }}>{org.website}</a> : "—"}</div></div>
+          <div><div className="infolab">Plano</div><div className="infoval">{org.plan || "—"}</div></div>
+        </div>
+        {org.notes && <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--crasto-border-soft)", fontSize: 13, color: "var(--crasto-text-body)" }}><b>Observações:</b> {org.notes}</div>}
+      </div>
+
       <div className="kpis" style={{ marginBottom: 22 }}>
-        <div className="kpi"><div className="lab"><Building2 size={13} style={{ verticalAlign: -2, marginRight: 4 }} />Fundação</div><div className="val" style={{ fontSize: 18 }}>{fmtDate(org.founded_on)}</div><div className="delta">aniversário</div></div>
         <div className="kpi g"><div className="lab">Implantação</div><div className="val tnum">{progress}<small>%</small></div><div className="delta">{health === "green" ? "no ar" : "—"}</div></div>
+        <div className="kpi"><div className="lab">Módulos ativos</div><div className="val tnum">{cm.filter((c) => c.status === "active").length}</div><div className="delta">liberados</div></div>
         <div className="kpi"><div className="lab">Pessoas</div><div className="val tnum">{people.length}</div><div className="delta">contatos</div></div>
         <div className="kpi"><div className="lab">Documentos</div><div className="val tnum">{docs.length}</div><div className="delta">arquivos</div></div>
       </div>

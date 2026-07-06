@@ -1,10 +1,9 @@
-import { LayoutDashboard, Users, UserCog, Grid3x3, FileText, Tag, Share2, Coins, TrendingUp, Plug } from "lucide-react";
+import { LayoutDashboard, Users, Grid3x3, FileText, Tag, Share2, Coins, TrendingUp, Plug } from "lucide-react";
 import Shell, { type NavItem } from "./Shell";
 
 const NAV: NavItem[] = [
   { to: "/admin", end: true, icon: LayoutDashboard, label: "Visão geral" },
   { to: "/admin/clientes", icon: Users, label: "Clientes" },
-  { to: "/admin/detalhe", icon: UserCog, label: "Detalhe do cliente" },
   { to: "/admin/catalogo", icon: Grid3x3, label: "Catálogo de módulos" },
   { to: "/admin/propostas", icon: FileText, label: "Gerador de propostas" },
   { to: "/admin/servicos", icon: Tag, label: "Serviços & preços" },

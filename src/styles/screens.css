@@ -210,3 +210,7 @@
 .crmrow .rm { margin-left: auto; }
 .dcard { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md); background: var(--crasto-surface); margin-bottom: 8px; }
 .dcard .ic { width: 34px; height: 34px; border-radius: 9px; background: var(--crasto-bg-3); display: grid; place-items: center; color: var(--crasto-navy); flex-shrink: 0; }
+.infogrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px 24px; margin-top: 14px; }
+@media (max-width: 700px) { .infogrid { grid-template-columns: 1fr 1fr; } }
+.infolab { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--crasto-text-muted); margin-bottom: 3px; }
+.infoval { font-size: 14px; font-weight: 600; color: var(--crasto-navy); word-break: break-word; }

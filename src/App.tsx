@@ -63,9 +63,7 @@ export default function App() {
           <Route path="/admin" element={<AdminShell />}>
             <Route index element={<VisaoGeral />} />
             <Route path="clientes" element={<Clientes />} />
-            <Route path="detalhe" element={<ClienteDetalhe />} />
             <Route path="cliente/:id" element={<ClienteDetalhe />} />
-            <Route path="cliente" element={<ClienteDetalhe />} />
             <Route path="propostas" element={<Propostas />} />
             <Route path="servicos" element={<Servicos />} />
             <Route path="conectores" element={<Conectores />} />
