@@ -61,8 +61,11 @@ export default function ClienteDetalhe() {
   }
   async function del() {
     if (!confirm(`Apagar "${org.name}" e TODOS os dados/logins? Não dá pra desfazer.`)) return;
-    setBusy(true); const { data: r } = await supabase.functions.invoke("admin-delete-client", { body: { organization_id: id } }); setBusy(false);
-    if ((r as any)?.ok) nav("/admin/clientes", { replace: true }); else flash("Erro ao apagar.");
+    setBusy(true);
+    const { data: r, error } = await supabase.functions.invoke("admin-delete-client", { body: { organization_id: id } });
+    setBusy(false);
+    if ((r as any)?.ok) nav("/admin/clientes", { replace: true });
+    else flash("Erro ao apagar: " + ((r as any)?.error || error?.message || "tente novamente"));
   }
   async function doInvite() {
     if (!inv.email.trim()) { setErr("Informe o e-mail."); return; }
