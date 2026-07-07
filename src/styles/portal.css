@@ -176,6 +176,12 @@
 .catsearch { display: flex; align-items: center; gap: 10px; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md); padding: 10px 14px; margin: 6px 0 4px; box-shadow: var(--crasto-shadow-sm); color: var(--crasto-text-muted); }
 .catsearch input { flex: 1; border: none; background: transparent; outline: none; font-size: 14px; color: var(--crasto-text-primary); padding: 0; }
 .catsearch input::placeholder { color: var(--crasto-text-muted); }
+.cattabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+.cattab { display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--crasto-border-soft); background: var(--crasto-surface); color: var(--crasto-text-body); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; }
+.cattab:hover { border-color: var(--crasto-border); color: var(--crasto-text-primary); }
+.cattab .cnt { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--crasto-bg-3); color: var(--crasto-text-muted); }
+.cattab.is-active { background: var(--crasto-primary, #010E26); border-color: var(--crasto-primary, #010E26); color: #fff; }
+.cattab.is-active .cnt { background: rgba(255,255,255,.18); color: #fff; }
 .mods { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; }
 @media (max-width: 820px) { .mods { grid-template-columns: repeat(2,1fr); } }
 @media (max-width: 520px) { .mods { grid-template-columns: 1fr; } }

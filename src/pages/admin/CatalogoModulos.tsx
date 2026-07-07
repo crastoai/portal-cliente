@@ -26,6 +26,7 @@ export default function CatalogoModulos() {
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [toast, setToast] = useState("");
   const [clients, setClients] = useState<{ id: string; name: string; status: string }[] | null>(null);
   const [query, setQuery] = useState("");
+  const [activeCat, setActiveCat] = useState("");
   const editing = !!f.id;
 
   function openNew() { setF({ ...EMPTY }); setErr(""); setClients(null); setOpen(true); }
@@ -67,9 +68,11 @@ export default function CatalogoModulos() {
         right={<button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={openNew}><span className="crasto-btn__icon"><Plus size={15} /></span><span className="crasto-btn__label">{t("Novo módulo")}</span></button>} />
       {loading ? <Empty>Carregando…</Empty> : rows.length === 0 ? <Empty><p><strong>{t("Catálogo vazio.")}</strong> {t("Clique em \"Novo módulo\" e comece a digitar — os nomes do Viver de IA aparecem sozinhos.")}</p></Empty> : (() => {
         const q = query.trim().toLowerCase();
-        const filtered = rows.filter((m: V) => !q || `${m.name} ${m.department || ""} ${m.description || ""}`.toLowerCase().includes(q));
+        const catOf = (m: V) => (m.department || t("Outros")) as string;
+        const allCats = Array.from(new Set(rows.map(catOf))).sort((a, b) => a.localeCompare(b, "pt"));
+        const filtered = rows.filter((m: V) => (!activeCat || catOf(m) === activeCat) && (!q || `${m.name} ${m.department || ""} ${m.description || ""}`.toLowerCase().includes(q)));
         const groups: Record<string, V[]> = {};
-        filtered.forEach((m: V) => { const d = (m.department || t("Outros")) as string; (groups[d] ||= []).push(m); });
+        filtered.forEach((m: V) => { (groups[catOf(m)] ||= []).push(m); });
         const order = Object.keys(groups).sort((a, b) => a.localeCompare(b, "pt"));
         return (
           <>
@@ -78,9 +81,15 @@ export default function CatalogoModulos() {
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("Buscar módulo por nome, categoria ou descrição…")} />
               <span className="mt" style={{ whiteSpace: "nowrap" }}>{t("{n} de {total}", { n: filtered.length, total: rows.length })}</span>
             </div>
+            <div className="cattabs">
+              <button className={"cattab" + (!activeCat ? " is-active" : "")} onClick={() => setActiveCat("")}>{t("Todas")}<span className="cnt">{rows.length}</span></button>
+              {allCats.map((c) => (
+                <button key={c} className={"cattab" + (activeCat === c ? " is-active" : "")} onClick={() => setActiveCat(c)}>{c}<span className="cnt">{rows.filter((m: V) => catOf(m) === c).length}</span></button>
+              ))}
+            </div>
             {filtered.length === 0 ? <Empty>{t("Nenhum módulo encontrado para \"{q}\".", { q: query })}</Empty> : order.map((d) => (
               <div key={d} style={{ marginBottom: 8 }}>
-                <div className="sec-h" style={{ marginTop: 18 }}><h2>{d}</h2><Pill tone="mute">{t("{n} módulos", { n: groups[d].length })}</Pill></div>
+                {!activeCat && <div className="sec-h" style={{ marginTop: 18 }}><h2>{d}</h2><Pill tone="mute">{t("{n} módulos", { n: groups[d].length })}</Pill></div>}
                 <div className="mods">
                   {groups[d].map((m: V) => (
                     <div className="mod" key={m.id}>
