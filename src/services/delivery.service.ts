@@ -78,14 +78,16 @@ export const moduleCredentials = {
   remove: async (id: string) => unwrap(await del().from("module_credentials").delete().eq("id", id)),
 };
 
+const SVC_COLS = "id,service_id,status,notes,service_name,service_description,service_category,service_unit";
 export const clientServices = {
   listByOrg: async (orgId: string) =>
-    unwrapList<any>(await del().from("client_services").select("id,service_id,status,notes").eq("organization_id", orgId)),
-  /** Do cliente logado (RLS aplica o filtro). */
+    unwrapList<any>(await del().from("client_services").select(SVC_COLS).eq("organization_id", orgId)),
+  /** Do cliente logado (RLS aplica o filtro). Nome/descrição vêm desnormalizados (catalog.services é admin-only). */
   listMine: async () =>
-    unwrapList<any>(await del().from("client_services").select("id,service_id,status,notes")),
-  attach: async (orgId: string, serviceId: string) =>
-    unwrap(await del().from("client_services").insert({ organization_id: orgId, service_id: serviceId, status: "active" })),
+    unwrapList<any>(await del().from("client_services").select(SVC_COLS)),
+  /** Admin: anexa o serviço já com os campos de exibição (sem preço) copiados. */
+  attach: async (orgId: string, svc: { id: string; name?: string; description?: string | null; category?: string | null; unit?: string | null }) =>
+    unwrap(await del().from("client_services").insert({ organization_id: orgId, service_id: svc.id, status: "active", service_name: svc.name ?? null, service_description: svc.description ?? null, service_category: svc.category ?? null, service_unit: svc.unit ?? null })),
   detach: async (id: string) => unwrap(await del().from("client_services").delete().eq("id", id)),
   setStatus: async (id: string, status: string) => unwrap(await del().from("client_services").update({ status }).eq("id", id)),
 };

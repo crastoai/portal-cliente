@@ -180,7 +180,7 @@ export default function ClienteDetalhe() {
   async function addService(serviceId: string) {
     if (!serviceId) { flash(tr("Escolha um serviço.")); return; }
     setBusy(true);
-    try { await api.delivery.clientServices.attach(id!, serviceId); setSvcQuery(""); await refreshServices(); flash(tr("Serviço adicionado ✓")); }
+    try { const svc = svcCat.find((s: any) => s.id === serviceId) || { id: serviceId }; await api.delivery.clientServices.attach(id!, svc); setSvcQuery(""); await refreshServices(); flash(tr("Serviço adicionado ✓")); }
     catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); } finally { setBusy(false); }
   }
   async function setServiceStatus(csId: string, status: string) {
@@ -414,15 +414,15 @@ export default function ClienteDetalhe() {
         );
       })()}
       {svcRows.length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhum serviço contratado — adicione acima.")}</div> : svcRows.map((c: any) => {
-        const s = svcCat.find((x: any) => x.id === c.service_id);
+        const nm = c.service_name || svcCat.find((x: any) => x.id === c.service_id)?.name || tr("Serviço");
         const stl = c.status === "delivered" ? tr("Concluído") : c.status === "in_progress" ? tr("Em execução") : c.status === "scheduled" ? tr("Agendado") : tr("Ativo");
         const stt = c.status === "delivered" ? "ok" : c.status === "scheduled" ? "warn" : c.status === "in_progress" ? "info" : "ok";
         return (
           <div className="crmrow" key={c.id}>
             <Pill tone={stt as any}>{stl}</Pill>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="nm">{s?.name || tr("Serviço")}</div>
-              <div className="mt">{[s?.category, s?.unit].filter(Boolean).join(" · ")}</div>
+              <div className="nm">{nm}</div>
+              <div className="mt">{[c.service_category, c.service_unit].filter(Boolean).join(" · ")}</div>
             </div>
             <select value={c.status} onChange={(e) => setServiceStatus(c.id, e.target.value)} className="selorg" style={{ width: 150 }}>
               <option value="active">{tr("Ativo")}</option>

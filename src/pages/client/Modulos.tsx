@@ -28,13 +28,10 @@ async function fetchData(): Promise<{ mods: Mod[]; services: Svc[] }> {
     const url = cred?.access_url || (vmap[r.vdi_module_id]?.external_url as string) || null;
     return { id: r.id, status: r.status, vdi_module_id: r.vdi_module_id, vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null, external_url: url, cred };
   });
-  const sids = (csvc as any[]).map((c) => c.service_id);
-  const svs = sids.length ? await services.catalog.services.listByIds(sids) : [];
-  const smap = Object.fromEntries((svs as any[]).map((s) => [s.id, s]));
-  const svcList: Svc[] = (csvc as any[]).map((c) => {
-    const s = smap[c.service_id] || {};
-    return { id: c.id, status: c.status, name: s.name || "Serviço", description: s.description ?? null, category: s.category ?? null, unit: s.unit ?? null };
-  });
+  // Nome/descrição vêm desnormalizados na própria client_services (catalog.services é admin-only).
+  const svcList: Svc[] = (csvc as any[]).map((c) => ({
+    id: c.id, status: c.status, name: c.service_name || "Serviço", description: c.service_description ?? null, category: c.service_category ?? null, unit: c.service_unit ?? null,
+  }));
   return { mods, services: svcList };
 }
 
