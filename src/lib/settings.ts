@@ -4,9 +4,9 @@
 import { useEffect, useState } from "react";
 import { services } from "../services";
 
-export type BusinessSettings = { taxRate: number; commissionIndicador: number; commissionConector: number; supportWhatsapp: string; supportEmail: string };
+export type BusinessSettings = { taxRate: number; commissionIndicador: number; commissionConector: number; supportWhatsapp: string; supportEmail: string; pixKey: string; pixBeneficiary: string };
 
-const FALLBACK: BusinessSettings = { taxRate: 8.68, commissionIndicador: 20, commissionConector: 5, supportWhatsapp: "", supportEmail: "" };
+const FALLBACK: BusinessSettings = { taxRate: 8.68, commissionIndicador: 20, commissionConector: 5, supportWhatsapp: "", supportEmail: "", pixKey: "", pixBeneficiary: "" };
 
 let cache: BusinessSettings | null = null;
 let inflight: Promise<BusinessSettings> | null = null;
@@ -23,6 +23,8 @@ export async function loadSettings(): Promise<BusinessSettings> {
           commissionConector: Number(r?.commission_conector ?? FALLBACK.commissionConector),
           supportWhatsapp: r?.support_whatsapp ?? "",
           supportEmail: r?.support_email ?? "",
+          pixKey: r?.pix_key ?? "",
+          pixBeneficiary: r?.pix_beneficiary ?? "",
         };
         return cache;
       })

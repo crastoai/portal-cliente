@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { MessageCircle, Search, Send } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { MessageCircle, Search, Send, Wallet, ArrowRight, AlertTriangle, Clock } from "lucide-react";
 import { services } from "../../services";
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
+import { summarizeFaturas, type Fatura, type FaturaSummary } from "../../lib/faturas";
 
 type Health = { status: "green" | "amber" | "red"; message: string | null };
 type Impl = { overall_progress: number; due_date: string | null; status: string };
@@ -15,19 +17,23 @@ const ICONS: Record<string, JSX.Element> = {
 export default function Inicio() {
   const { profile } = useAuth();
   const t = useT();
+  const navigate = useNavigate();
   const [health, setHealth] = useState<Health | null>(null);
   const [impl, setImpl] = useState<Impl | null>(null);
   const [mods, setMods] = useState<Mod[]>([]);
+  const [fin, setFin] = useState<FaturaSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const [h, i, cm, creds] = await Promise.all([
+      const [h, i, cm, creds, inv] = await Promise.all([
         services.delivery.systemHealth.getMine(),
         services.delivery.implementations.getMine(),
         services.delivery.clientModules.listMine(),
         services.delivery.moduleCredentials.listMine().catch(() => [] as any[]),
+        services.billing.invoices.listMine().catch(() => [] as any[]),
       ]);
+      setFin(summarizeFaturas((inv as unknown as Fatura[]) ?? []));
       const rows = cm ?? [];
       const ids = rows.map((r) => r.vdi_module_id);
       let vmap: Record<string, any> = {};
@@ -87,6 +93,36 @@ export default function Inicio() {
         <div className="kpi"><div className="lab">{t("Prazo de entrega")}</div><div className="val" style={{ fontSize: 22 }}>{daysLeft != null ? t("{n} dias", { n: daysLeft }) : "—"}</div><div className="delta">{t("SLA de 30 dias")}</div></div>
         <div className="kpi"><div className="lab">{t("Suporte")}</div><div className="val" style={{ fontSize: 22 }}>{t("Ativo")}</div><div className="delta">{t("WhatsApp & portal")}</div></div>
       </div>
+
+      {/* Seu contrato — health-check financeiro */}
+      {fin && (
+        <>
+          <div className="sec-h"><h2>{t("Seu contrato")}</h2></div>
+          <div className={"finhealth fh-" + fin.status}>
+            <div className="fh-lead">
+              <span className="fh-ico">{fin.status === "red" ? <AlertTriangle size={18} /> : <Wallet size={18} />}</span>
+              <div className="fh-txt">
+                <div className="fh-title">{fin.status === "red" ? t("Você tem fatura em atraso") : fin.status === "amber" ? t("Fatura vencendo em breve") : t("Faturas em dia")}</div>
+                <div className="fh-sub">
+                  {fin.status === "red" ? t("{n} fatura(s) em atraso — {v}", { n: fin.overdue.length, v: money(fin.overdueTotal) })
+                    : fin.next ? t("Próxima: {v} · vence em {d}", { v: money(fin.next.amount), d: fin.next.due_date ? new Date(fin.next.due_date + "T00:00:00").toLocaleDateString("pt-BR") : "—" })
+                    : t("Nenhuma fatura em aberto no momento.")}
+                </div>
+              </div>
+              <button className="crasto-btn crasto-btn--primary crasto-btn--sm fh-cta" onClick={() => navigate("/app/financeiro")}>
+                <span className="crasto-btn__label">{t("Ver faturas e pagar")}</span>
+                <span className="crasto-btn__icon"><ArrowRight size={14} /></span>
+              </button>
+            </div>
+            <div className="fh-tiles">
+              <div className="fh-tile"><span className="l">{t("Em aberto")}</span><b className="tnum">{money(fin.openTotal)}</b><small>{t("{n} fatura(s)", { n: fin.open.length })}</small></div>
+              <div className="fh-tile"><span className="l">{t("Próximo vencimento")}</span><b className="tnum">{fin.next?.due_date ? new Date(fin.next.due_date + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</b><small>{fin.daysToNext == null ? "—" : fin.daysToNext < 0 ? t("vencida") : fin.daysToNext === 0 ? t("hoje") : t("em {n} dia(s)", { n: fin.daysToNext })}</small></div>
+              <div className={"fh-tile" + (fin.overdue.length ? " is-red" : "")}><span className="l">{t("Em atraso")}</span><b className="tnum">{money(fin.overdueTotal)}</b><small>{t("{n} fatura(s)", { n: fin.overdue.length })}</small></div>
+              <div className="fh-tile fh-soon"><span className="l">{t("Pagamento")}</span><b>{t("Boleto · Pix")}</b><small><Clock size={11} style={{ verticalAlign: -1 }} /> {t("Em breve")}</small></div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Módulos */}
       <div className="sec-h"><h2>{t("Minhas soluções")}</h2></div>
