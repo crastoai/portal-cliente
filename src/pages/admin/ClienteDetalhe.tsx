@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { MessageCircle, Search, Send, Grid3x3, Pencil, Trash2, UserPlus, Plus, Upload, Download, FileText, Building2, Globe, Cake } from "lucide-react";
 import { services as api, errorMessage } from "../../services";
@@ -18,7 +18,7 @@ export default function ClienteDetalhe() {
   const tr = useT();
   const { data, loading, reload } = useAsync(async () => {
     if (!id) return null;
-    const [org, mods, cm, users, people, phones, docs, acts, impl, health, taxids, proposals] = await Promise.all([
+    const [org, mods, cm, users, people, phones, docs, acts, impl, health, taxids, proposals, tasks, creds] = await Promise.all([
       api.identity.organizations.getById(id),
       api.catalog.vdiModules.listActiveByName(),
       api.delivery.clientModules.listByOrg(id),
@@ -31,8 +31,10 @@ export default function ClienteDetalhe() {
       api.delivery.systemHealth.getByOrg(id),
       api.crm.taxIds.listByOrg(id),
       api.commerce.proposals.listByOrg(id),
+      api.delivery.projectTasks.listByOrg(id),
+      api.delivery.moduleCredentials.listByOrg(id),
     ]);
-    return { org: org as Org, mods: (mods as any[]) ?? [], cm: (cm as any[]) ?? [], users: (users as any[]) ?? [], people: (people as any[]) ?? [], phones: (phones as any[]) ?? [], docs: (docs as any[]) ?? [], acts: (acts as any[]) ?? [], progress: (impl as any)?.overall_progress ?? 0, health: (health as any)?.status ?? null, taxids: (taxids as any[]) ?? [], proposals: (proposals as any[]) ?? [] };
+    return { org: org as Org, mods: (mods as any[]) ?? [], cm: (cm as any[]) ?? [], users: (users as any[]) ?? [], people: (people as any[]) ?? [], phones: (phones as any[]) ?? [], docs: (docs as any[]) ?? [], acts: (acts as any[]) ?? [], progress: (impl as any)?.overall_progress ?? 0, health: (health as any)?.status ?? null, impl: (impl as any) ?? null, healthObj: (health as any) ?? null, taxids: (taxids as any[]) ?? [], proposals: (proposals as any[]) ?? [], tasks: (tasks as any[]) ?? [], creds: (creds as any[]) ?? [] };
   }, [id]);
 
   const [edit, setEdit] = useState(false);
@@ -43,12 +45,22 @@ export default function ClienteDetalhe() {
   const [phone, setPhone] = useState({ label: "mobile", country_code: "+55", number: "", person_id: "" });
   const [act, setAct] = useState({ type: "note", title: "", description: "" });
   const [taxid, setTaxid] = useState({ kind: "CNPJ", value: "", address: "" });
+  // F-D: implantação, saúde, tarefas, credenciais
+  const [implForm, setImplForm] = useState({ progress: "0", due: "", status: "in_progress" });
+  const [healthForm, setHealthForm] = useState({ status: "green", message: "" });
+  const [taskf, setTaskf] = useState({ name: "", start: "", end: "" });
+  const [credf, setCredf] = useState({ moduleId: "", label: "", login: "", secret: "", sso: false });
+  useEffect(() => {
+    const i = (data as any)?.impl, h = (data as any)?.healthObj;
+    if (i) setImplForm({ progress: String(i.overall_progress ?? 0), due: i.due_date ?? "", status: i.status ?? "in_progress" });
+    if (h) setHealthForm({ status: h.status ?? "green", message: h.message ?? "" });
+  }, [data]);
   const [busy, setBusy] = useState(false); const [toast, setToast] = useState(""); const [err, setErr] = useState("");
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 7000); };
 
   if (loading) return <><PageHead eyebrow="CRM" title="Detalhe" /><Empty>Carregando…</Empty></>;
   if (!data?.org) return <><PageHead eyebrow="CRM" title="Detalhe" /><Empty>Não encontrado.</Empty></>;
-  const { org, mods, cm, users, people, phones, docs, acts, progress, health, taxids, proposals } = data;
+  const { org, mods, cm, users, people, phones, docs, acts, progress, health, taxids, proposals, impl, healthObj, tasks, creds } = data;
   const activeSet = new Set(cm.map((c) => c.vdi_module_id));
   const co = countryOf(org.country); const st = stageOf(org.stage);
 
@@ -109,6 +121,38 @@ export default function ClienteDetalhe() {
   }
   async function setPrimaryTaxid(tid: string) { await api.crm.taxIds.setPrimary(id!, tid); reload(); }
   async function delTaxid(tid: string) { await api.crm.taxIds.remove(tid); reload(); }
+  async function saveImpl() {
+    setBusy(true);
+    try { await api.delivery.implementations.upsert(id!, { overall_progress: Math.max(0, Math.min(100, Number(implForm.progress) || 0)), due_date: implForm.due || null, status: implForm.status }); reload(); flash(tr("Implantação atualizada ✓")); }
+    catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); } finally { setBusy(false); }
+  }
+  async function saveHealth() {
+    setBusy(true);
+    try { await api.delivery.systemHealth.upsert(id!, { status: healthForm.status, message: healthForm.message || null }); reload(); flash(tr("Farol atualizado ✓")); }
+    catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); } finally { setBusy(false); }
+  }
+  async function addTask() {
+    if (!taskf.name.trim()) return;
+    await api.delivery.projectTasks.add({ organization_id: id, name: taskf.name.trim(), planned_start: taskf.start || null, planned_end: taskf.end || null, status: "todo", sort_order: (tasks?.length ?? 0) });
+    setTaskf({ name: "", start: "", end: "" }); reload();
+  }
+  async function setTaskStatus(tid: string, status: string) {
+    const patch: any = { status };
+    if (status === "doing") patch.actual_start = new Date().toISOString().slice(0, 10);
+    if (status === "done") { patch.actual_end = new Date().toISOString().slice(0, 10); patch.progress = 100; }
+    await api.delivery.projectTasks.update(tid, patch); reload();
+  }
+  async function delTask(tid: string) { await api.delivery.projectTasks.remove(tid); reload(); }
+  async function saveCred() {
+    if (!credf.moduleId || !credf.login.trim()) { flash(tr("Escolha o módulo e informe o login.")); return; }
+    setBusy(true);
+    try {
+      const m = mods.find((x) => x.id === credf.moduleId);
+      await api.delivery.moduleCredentials.set({ orgId: id!, moduleId: credf.moduleId, label: credf.label || m?.name || "Acesso", login: credf.login.trim(), secret: credf.secret, sso: credf.sso });
+      setCredf({ moduleId: "", label: "", login: "", secret: "", sso: false }); reload(); flash(tr("Credencial salva ✓"));
+    } catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); } finally { setBusy(false); }
+  }
+  async function delCred(cid: string) { await api.delivery.moduleCredentials.remove(cid); reload(); }
   async function uploadDoc(file: File, kind: string) {
     setBusy(true);
     try {
@@ -272,6 +316,63 @@ export default function ClienteDetalhe() {
           );
         })}
       </div>
+
+      {/* Implantação & Saúde (F-D) */}
+      <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Implantação & saúde")}</h2><Pill tone="mute">{tr("o cliente vê no Gantt e no farol")}</Pill></div>
+      <div className="grid2" style={{ marginBottom: 14 }}>
+        <div className="card">
+          <h3>{tr("Andamento da implantação")}</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 }}>
+            <label className="frow"><span>{tr("Progresso (%)")}</span><input type="number" min={0} max={100} value={implForm.progress} onChange={(e) => setImplForm({ ...implForm, progress: e.target.value })} /></label>
+            <label className="frow"><span>{tr("Prazo de entrega")}</span><input type="date" value={implForm.due} onChange={(e) => setImplForm({ ...implForm, due: e.target.value })} /></label>
+          </div>
+          <label className="frow"><span>{tr("Status")}</span><select value={implForm.status} onChange={(e) => setImplForm({ ...implForm, status: e.target.value })}><option value="in_progress">{tr("Em andamento")}</option><option value="delivered">{tr("Entregue")}</option><option value="on_hold">{tr("Em espera")}</option></select></label>
+          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" style={{ marginTop: 8 }} disabled={busy} onClick={saveImpl}><span className="crasto-btn__label">{tr("Salvar")}</span></button>
+        </div>
+        <div className="card">
+          <h3>{tr("Farol de saúde")}</h3>
+          <label className="frow" style={{ marginTop: 8 }}><span>{tr("Status")}</span><select value={healthForm.status} onChange={(e) => setHealthForm({ ...healthForm, status: e.target.value })}><option value="green">🟢 {tr("No ar")}</option><option value="amber">🟡 {tr("Atenção")}</option><option value="red">🔴 {tr("Crítico")}</option></select></label>
+          <label className="frow"><span>{tr("Mensagem ao cliente")}</span><input value={healthForm.message} onChange={(e) => setHealthForm({ ...healthForm, message: e.target.value })} placeholder={tr("Ex.: Tudo funcionando normalmente.")} /></label>
+          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" style={{ marginTop: 8 }} disabled={busy} onClick={saveHealth}><span className="crasto-btn__label">{tr("Salvar")}</span></button>
+        </div>
+      </div>
+
+      {/* Tarefas / cronograma */}
+      <div className="sec-h"><h2>{tr("Etapas do cronograma")}</h2><Pill tone="mute">{tr("vira o Gantt do cliente")}</Pill></div>
+      <div className="addrow">
+        <input placeholder={tr("Nome da etapa")} value={taskf.name} onChange={(e) => setTaskf({ ...taskf, name: e.target.value })} style={{ flex: 2, minWidth: 160 }} />
+        <input type="date" title={tr("Início previsto")} value={taskf.start} onChange={(e) => setTaskf({ ...taskf, start: e.target.value })} />
+        <input type="date" title={tr("Fim previsto")} value={taskf.end} onChange={(e) => setTaskf({ ...taskf, end: e.target.value })} />
+        <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={addTask}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{tr("Adicionar")}</span></button>
+      </div>
+      {(tasks ?? []).length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhuma etapa. Adicione o cronograma acima.")}</div> : (tasks ?? []).map((tk) => (
+        <div className="crmrow" key={tk.id}>
+          <Pill tone={tk.status === "done" ? "ok" : tk.status === "doing" ? "warn" : "mute"}>{tk.status === "done" ? tr("Feito") : tk.status === "doing" ? tr("Fazendo") : tr("A fazer")}</Pill>
+          <div style={{ flex: 1 }}><div className="nm">{tk.name}</div><div className="mt">{tk.planned_start ? fmtDate(tk.planned_start) : "—"} → {tk.planned_end ? fmtDate(tk.planned_end) : "—"}</div></div>
+          <select value={tk.status} onChange={(e) => setTaskStatus(tk.id, e.target.value)} style={{ width: 130 }}><option value="todo">{tr("A fazer")}</option><option value="doing">{tr("Fazendo")}</option><option value="done">{tr("Feito")}</option></select>
+          <button className="icobtn rm" onClick={() => delTask(tk.id)}><Trash2 size={14} /></button>
+        </div>
+      ))}
+
+      {/* Credenciais de módulo (F-D) */}
+      <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Credenciais de acesso por módulo")}</h2><Pill tone="mute">{tr("o cliente vê em 'Minhas Soluções'")}</Pill></div>
+      <div className="addrow">
+        <select value={credf.moduleId} onChange={(e) => setCredf({ ...credf, moduleId: e.target.value })} style={{ minWidth: 160 }}>
+          <option value="">{tr("Módulo…")}</option>
+          {mods.filter((m) => activeSet.has(m.id)).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+        </select>
+        <input placeholder={tr("Login")} value={credf.login} onChange={(e) => setCredf({ ...credf, login: e.target.value })} style={{ flex: 1, minWidth: 130 }} />
+        <input placeholder={tr("Senha")} value={credf.secret} onChange={(e) => setCredf({ ...credf, secret: e.target.value })} style={{ flex: 1, minWidth: 130 }} />
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--crasto-text-body)" }}><input type="checkbox" checked={credf.sso} onChange={(e) => setCredf({ ...credf, sso: e.target.checked })} style={{ width: "auto" }} />{tr("Entra direto (SSO)")}</label>
+        <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={saveCred}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{tr("Salvar")}</span></button>
+      </div>
+      {(creds ?? []).length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhuma credencial cadastrada — o cliente veria vazio.")}</div> : (creds ?? []).map((c) => (
+        <div className="crmrow" key={c.id}>
+          <Pill tone={c.sso_enabled ? "ok" : "info"}>{c.sso_enabled ? "SSO" : tr("Login/senha")}</Pill>
+          <div style={{ flex: 1 }}><div className="nm">{c.label || (mods.find((m) => m.id === c.vdi_module_id)?.name)}</div><div className="mt">{c.sso_enabled ? tr("Entra direto") : (c.login || "—")}</div></div>
+          <button className="icobtn rm" onClick={() => delCred(c.id)}><Trash2 size={14} /></button>
+        </div>
+      ))}
 
       {/* Usuários */}
       <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Usuários (acesso ao portal)")}</h2><button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => setInvite(true)}><span className="crasto-btn__icon"><UserPlus size={14} /></span><span className="crasto-btn__label">{tr("Convidar")}</span></button></div>
