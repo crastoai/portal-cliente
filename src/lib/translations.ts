@@ -763,6 +763,7 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "{n} liberados": { en: "{n} enabled", es: "{n} habilitados" },
   "Buscar módulo…": { en: "Search module…", es: "Buscar módulo…" },
   "Contratados": { en: "Enabled", es: "Contratados" },
+  "Só contratados": { en: "Enabled only", es: "Solo contratados" },
   "Nenhum módulo encontrado.": { en: "No module found.", es: "Ningún módulo encontrado." },
 
   // ---- Admin · Propostas & contrato (ciclo comercial) ----

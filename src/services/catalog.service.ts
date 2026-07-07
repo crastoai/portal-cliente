@@ -12,7 +12,7 @@ export const vdiModules = {
   listActive: async (fields = "id,name,description,category") =>
     unwrapList<VdiModule>(await cat().from("vdi_modules").select(fields).eq("active", true).order("category")),
   listActiveByName: async () =>
-    unwrapList<VdiModule>(await cat().from("vdi_modules").select("id,name,category").eq("active", true).order("name")),
+    unwrapList<VdiModule>(await cat().from("vdi_modules").select("id,name,category,department,internal_url").eq("active", true).order("name")),
   listAll: async () =>
     unwrapList<VdiModule>(await cat().from("vdi_modules").select("*").order("department").order("name")),
   listByIds: async (ids: string[], fields = "id,name,description,category") =>

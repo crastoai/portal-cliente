@@ -183,6 +183,12 @@
 .cattab .cnt { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--crasto-bg-3); color: var(--crasto-text-muted); }
 .cattab.is-active { background: var(--crasto-primary, #010E26); border-color: var(--crasto-primary, #010E26); color: #fff; }
 .cattab.is-active .cnt { background: rgba(255,255,255,.18); color: #fff; }
+.catacc { border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md); background: var(--crasto-surface); margin-bottom: 10px; overflow: hidden; }
+.catacc-h { display: flex; align-items: center; gap: 10px; width: 100%; padding: 14px 16px; background: transparent; border: none; cursor: pointer; text-align: left; color: var(--crasto-text-primary); }
+.catacc-h:hover { background: var(--crasto-bg-2); }
+.catacc-t { font-size: 15px; font-weight: 700; flex: 1; }
+.catacc-h .cnt { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--crasto-bg-3); color: var(--crasto-text-muted); }
+.catacc .assign { padding: 0 16px 16px; }
 .mods { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; }
 @media (max-width: 820px) { .mods { grid-template-columns: repeat(2,1fr); } }
 @media (max-width: 520px) { .mods { grid-template-columns: 1fr; } }
