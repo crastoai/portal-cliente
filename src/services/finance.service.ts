@@ -26,4 +26,15 @@ export const costs = {
   remove: async (id: string) => unwrap(await supabase.rpc("fin_cost_delete", { p_id: id })),
 };
 
-export const finance = { accounts, costs };
+export const transactions = {
+  /** Lista lançamentos de tesouraria por tipo ('income' | 'expense') e status opcional. */
+  list: async (type?: "income" | "expense", status?: string): Promise<any[]> => {
+    const { data, error } = await supabase.rpc("fin_transactions", { p_type: type ?? null, p_status: status ?? null });
+    if (error) throw error;
+    return (data as any[]) ?? [];
+  },
+  save: async (p: Record<string, any>) => unwrap(await supabase.rpc("fin_transaction_upsert", { p })),
+  remove: async (id: string) => unwrap(await supabase.rpc("fin_transaction_delete", { p_id: id })),
+};
+
+export const finance = { accounts, costs, transactions };
