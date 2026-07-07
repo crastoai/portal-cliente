@@ -22,7 +22,7 @@ export default function Implementacao() {
     const ids = (cms as any[]).map((c) => c.vdi_module_id);
     const vms = ids.length ? await services.catalog.vdiModules.listByIds(ids, "id,name") : [];
     const vmap = Object.fromEntries((vms as any[]).map((v) => [v.id, v.name]));
-    const modules: ModRoll[] = (cms as any[]).map((c) => ({ id: c.id, vdi_module_id: c.vdi_module_id, name: vmap[c.vdi_module_id] || tr("Solução"), rollout_progress: c.rollout_progress ?? 0, rollout_due: c.rollout_due ?? null, rollout_status: c.rollout_status ?? "in_progress" }));
+    const modules: ModRoll[] = (cms as any[]).map((c) => ({ id: c.id, vdi_module_id: c.vdi_module_id, name: c.label || vmap[c.vdi_module_id] || tr("Solução"), rollout_progress: c.rollout_progress ?? 0, rollout_due: c.rollout_due ?? null, rollout_status: c.rollout_status ?? "in_progress" }));
     return { impl: i as unknown as Impl | null, tasks: (t as unknown as Task[]) ?? [], pend: (p as unknown as Pend[]) ?? [], modules };
   }, []);
 

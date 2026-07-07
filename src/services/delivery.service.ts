@@ -9,20 +9,27 @@ import type { ClientModule, Implementation, SystemHealth, ProjectTask, ModuleCre
 
 const del = () => supabase.schema("delivery");
 
-const ROLLOUT_COLS = "id,vdi_module_id,status,rollout_progress,rollout_due,rollout_status";
+const ROLLOUT_COLS = "id,vdi_module_id,status,label,rollout_progress,rollout_due,rollout_status";
 export const clientModules = {
   listByOrg: async (orgId: string) =>
-    unwrapList<ClientModule>(await del().from("client_modules").select(ROLLOUT_COLS).eq("organization_id", orgId)),
+    unwrapList<ClientModule>(await del().from("client_modules").select(ROLLOUT_COLS).eq("organization_id", orgId).order("created_at")),
   listAll: async () =>
     unwrapList<ClientModule>(await del().from("client_modules").select("organization_id")),
   /** Do cliente logado (RLS aplica o filtro). */
   listMine: async () =>
-    unwrapList<ClientModule>(await del().from("client_modules").select(ROLLOUT_COLS)),
+    unwrapList<ClientModule>(await del().from("client_modules").select(ROLLOUT_COLS).order("created_at")),
+  /** Liga um módulo (cria a 1ª instância). */
   attach: async (orgId: string, moduleId: string) =>
     unwrap(await del().from("client_modules").insert({ organization_id: orgId, vdi_module_id: moduleId, status: "active" })),
+  /** Desliga o módulo por completo (todas as instâncias). */
   detach: async (orgId: string, moduleId: string) =>
     unwrap(await del().from("client_modules").delete().eq("organization_id", orgId).eq("vdi_module_id", moduleId)),
-  /** Admin: atualiza o andamento da implantação de UM módulo contratado. */
+  /** Cria mais UMA instância do mesmo módulo (com apelido). */
+  addInstance: async (orgId: string, moduleId: string, label?: string) =>
+    unwrap(await del().from("client_modules").insert({ organization_id: orgId, vdi_module_id: moduleId, status: "active", label: label || null })),
+  /** Remove UMA instância específica. */
+  removeInstance: async (id: string) => unwrap(await del().from("client_modules").delete().eq("id", id)),
+  /** Admin: atualiza o andamento (progresso/prazo/status) e/ou o apelido da instância. */
   updateRollout: async (id: string, patch: Record<string, any>) =>
     unwrap(await del().from("client_modules").update(patch).eq("id", id)),
 };
@@ -69,12 +76,12 @@ export const projectTasks = {
 
 export const moduleCredentials = {
   listMine: async () =>
-    unwrapList<ModuleCredential>(await del().from("module_credentials").select("id,label,login,sso_enabled,access_url,vdi_module_id")),
+    unwrapList<ModuleCredential>(await del().from("module_credentials").select("id,label,login,sso_enabled,access_url,vdi_module_id,client_module_id")),
   listByOrg: async (orgId: string) =>
-    unwrapList<ModuleCredential>(await del().from("module_credentials").select("id,label,login,sso_enabled,access_url,vdi_module_id").eq("organization_id", orgId)),
-  /** Admin: define/atualiza (idempotente) a credencial de um módulo — URL de acesso do cliente + senha criptografada via RPC. */
-  set: async (p: { orgId: string; moduleId: string; label: string; login: string; secret: string; sso: boolean; url?: string }) =>
-    unwrap(await supabase.rpc("set_module_credential", { p_org: p.orgId, p_module: p.moduleId, p_label: p.label, p_login: p.login, p_secret: p.secret, p_sso: p.sso, p_url: p.url || null })),
+    unwrapList<ModuleCredential>(await del().from("module_credentials").select("id,label,login,sso_enabled,access_url,vdi_module_id,client_module_id").eq("organization_id", orgId)),
+  /** Admin: define/atualiza (idempotente) o acesso de UMA instância — URL + login + senha criptografada via RPC. */
+  set: async (p: { clientModuleId: string; label: string; login: string; secret: string; sso: boolean; url?: string }) =>
+    unwrap(await supabase.rpc("set_module_access", { p_cm: p.clientModuleId, p_label: p.label, p_login: p.login, p_secret: p.secret, p_sso: p.sso, p_url: p.url || null })),
   remove: async (id: string) => unwrap(await del().from("module_credentials").delete().eq("id", id)),
 };
 

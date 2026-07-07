@@ -52,10 +52,10 @@ export default function ClienteDetalhe() {
   const [act, setAct] = useState({ type: "note", title: "", description: "" });
   const [taxid, setTaxid] = useState({ kind: "CNPJ", value: "", address: "" });
   // F-D: implantação, saúde, tarefas, credenciais
-  const [rolloutForm, setRolloutForm] = useState<Record<string, { progress: string; due: string; status: string }>>({});
+  const [rolloutForm, setRolloutForm] = useState<Record<string, { label: string; progress: string; due: string; status: string }>>({});
   const [healthForm, setHealthForm] = useState({ status: "green", message: "" });
   const [taskf, setTaskf] = useState({ name: "", start: "", end: "" });
-  const [credf, setCredf] = useState({ moduleId: "", label: "", url: "", login: "", secret: "", sso: false });
+  const [credf, setCredf] = useState({ cmId: "", label: "", url: "", login: "", secret: "", sso: false });
   const [modQuery, setModQuery] = useState("");
   const [modCat, setModCat] = useState("__on");
   const [svcQuery, setSvcQuery] = useState("");
@@ -64,8 +64,8 @@ export default function ClienteDetalhe() {
     const h = (data as any)?.healthObj;
     if (h) setHealthForm({ status: h.status ?? "green", message: h.message ?? "" });
     const cms = ((data as any)?.cm ?? []) as any[];
-    const rf: Record<string, { progress: string; due: string; status: string }> = {};
-    cms.forEach((c) => { rf[c.id] = { progress: String(c.rollout_progress ?? 0), due: c.rollout_due ?? "", status: c.rollout_status ?? "in_progress" }; });
+    const rf: Record<string, { label: string; progress: string; due: string; status: string }> = {};
+    cms.forEach((c) => { rf[c.id] = { label: c.label ?? "", progress: String(c.rollout_progress ?? 0), due: c.rollout_due ?? "", status: c.rollout_status ?? "in_progress" }; });
     setRolloutForm(rf);
     setSvcRows(((data as any)?.csvc ?? []) as any[]);
   }, [data]);
@@ -143,11 +143,13 @@ export default function ClienteDetalhe() {
   async function saveRollout(cmId: string) {
     const rf = rolloutForm[cmId]; if (!rf) return;
     setBusy(true);
-    try { await api.delivery.clientModules.updateRollout(cmId, { rollout_progress: Math.max(0, Math.min(100, Number(rf.progress) || 0)), rollout_due: rf.due || null, rollout_status: rf.status }); reload(); flash(tr("Andamento do módulo salvo ✓")); }
+    try { await api.delivery.clientModules.updateRollout(cmId, { label: rf.label.trim() || null, rollout_progress: Math.max(0, Math.min(100, Number(rf.progress) || 0)), rollout_due: rf.due || null, rollout_status: rf.status }); reload(); flash(tr("Instância salva ✓")); }
     catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); } finally { setBusy(false); }
   }
-  const setRf = (cmId: string, patch: Partial<{ progress: string; due: string; status: string }>) =>
-    setRolloutForm((s) => ({ ...s, [cmId]: { progress: "0", due: "", status: "in_progress", ...s[cmId], ...patch } }));
+  const setRf = (cmId: string, patch: Partial<{ label: string; progress: string; due: string; status: string }>) =>
+    setRolloutForm((s) => ({ ...s, [cmId]: { label: "", progress: "0", due: "", status: "in_progress", ...s[cmId], ...patch } }));
+  async function dupInstance(c: any) { setBusy(true); try { await api.delivery.clientModules.addInstance(id!, c.vdi_module_id, ""); reload(); flash(tr("Instância duplicada ✓ Dê um apelido para diferenciar.")); } catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); } finally { setBusy(false); } }
+  async function delInstance(cmId: string) { if (!confirm(tr("Excluir esta instância? O acesso e o andamento dela serão removidos."))) return; await api.delivery.clientModules.removeInstance(cmId); reload(); }
   async function saveHealth() {
     setBusy(true);
     try { await api.delivery.systemHealth.upsert(id!, { status: healthForm.status, message: healthForm.message || null }); reload(); flash(tr("Farol atualizado ✓")); }
@@ -165,22 +167,24 @@ export default function ClienteDetalhe() {
     await api.delivery.projectTasks.update(tid, patch); reload();
   }
   async function delTask(tid: string) { await api.delivery.projectTasks.remove(tid); reload(); }
-  /** Ao escolher o módulo, sugere a URL padrão do template (o admin pode trocar pela URL do cliente). */
-  function pickCredModule(moduleId: string) {
-    const m = mods.find((x) => x.id === moduleId);
-    setCredf((p) => ({ ...p, moduleId, url: p.url || (m as any)?.external_url || "", label: p.label || m?.name || "" }));
+  /** Ao escolher a instância, sugere apelido + URL padrão do template (o admin pode trocar). */
+  function pickCredInstance(cmId: string) {
+    const c = cm.find((x: any) => x.id === cmId);
+    const m = mods.find((x) => x.id === c?.vdi_module_id);
+    setCredf((p) => ({ ...p, cmId, url: p.url || (m as any)?.external_url || "", label: p.label || c?.label || m?.name || "" }));
   }
   async function saveCred() {
-    if (!credf.moduleId || (!credf.login.trim() && !credf.url.trim() && !credf.sso)) { flash(tr("Escolha o módulo e informe a URL ou o login.")); return; }
+    if (!credf.cmId || (!credf.login.trim() && !credf.url.trim() && !credf.sso)) { flash(tr("Escolha a instância e informe a URL ou o login.")); return; }
     setBusy(true);
     try {
-      const m = mods.find((x) => x.id === credf.moduleId);
-      await api.delivery.moduleCredentials.set({ orgId: id!, moduleId: credf.moduleId, label: credf.label || m?.name || "Acesso", url: credf.url.trim(), login: credf.login.trim(), secret: credf.secret, sso: credf.sso });
-      setCredf({ moduleId: "", label: "", url: "", login: "", secret: "", sso: false }); reload(); flash(tr("Credencial salva ✓"));
+      const c = cm.find((x: any) => x.id === credf.cmId);
+      const m = mods.find((x) => x.id === c?.vdi_module_id);
+      await api.delivery.moduleCredentials.set({ clientModuleId: credf.cmId, label: credf.label || c?.label || m?.name || "Acesso", url: credf.url.trim(), login: credf.login.trim(), secret: credf.secret, sso: credf.sso });
+      setCredf({ cmId: "", label: "", url: "", login: "", secret: "", sso: false }); reload(); flash(tr("Acesso salvo ✓"));
     } catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); } finally { setBusy(false); }
   }
   function editCred(c: any) {
-    setCredf({ moduleId: c.vdi_module_id, label: c.label || "", url: c.access_url || "", login: c.login || "", secret: "", sso: !!c.sso_enabled });
+    setCredf({ cmId: c.client_module_id || "", label: c.label || "", url: c.access_url || "", login: c.login || "", secret: "", sso: !!c.sso_enabled });
     flash(tr("Editando — altere e clique em Salvar. Senha em branco mantém a atual."));
   }
   async function delCred(cid: string) { await api.delivery.moduleCredentials.remove(cid); reload(); }
@@ -473,17 +477,19 @@ export default function ClienteDetalhe() {
         <button className="crasto-btn crasto-btn--primary crasto-btn--sm" style={{ marginTop: 8 }} disabled={busy} onClick={saveHealth}><span className="crasto-btn__label">{tr("Salvar")}</span></button>
       </div>
 
-      <div className="sec-h"><h2>{tr("Andamento por módulo")}</h2><Pill tone="mute">{tr("o cliente vê separado por módulo")}</Pill></div>
+      <div className="sec-h"><h2>{tr("Instâncias & andamento")}</h2><Pill tone="mute">{tr("apelido, acesso e progresso por instância — o cliente vê o apelido")}</Pill></div>
       {cm.length === 0 ? <Empty>{tr("Nenhum módulo contratado — libere módulos acima para acompanhar a implantação.")}</Empty> : cm.map((c: any) => {
         const name = mods.find((m) => m.id === c.vdi_module_id)?.name || tr("Módulo");
-        const rf = rolloutForm[c.id] || { progress: "0", due: "", status: "in_progress" };
+        const rf = rolloutForm[c.id] || { label: "", progress: "0", due: "", status: "in_progress" };
         return (
           <div className="rollrow" key={c.id}>
-            <div className="rollname">{name}</div>
+            <label className="rollf" style={{ flex: "1 1 200px" }}><span>{name}</span><input placeholder={tr("Apelido p/ o cliente (ex.: Nina Comercial)")} value={rf.label} onChange={(e) => setRf(c.id, { label: e.target.value })} /></label>
             <label className="rollf"><span>{tr("Progresso (%)")}</span><input type="number" min={0} max={100} value={rf.progress} onChange={(e) => setRf(c.id, { progress: e.target.value })} /></label>
             <label className="rollf"><span>{tr("Prazo de entrega")}</span><input type="date" value={rf.due} onChange={(e) => setRf(c.id, { due: e.target.value })} /></label>
             <label className="rollf"><span>{tr("Status")}</span><select value={rf.status} onChange={(e) => setRf(c.id, { status: e.target.value })}><option value="in_progress">{tr("Em andamento")}</option><option value="delivered">{tr("Entregue")}</option><option value="on_hold">{tr("Em espera")}</option></select></label>
             <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={() => saveRollout(c.id)}><span className="crasto-btn__label">{tr("Salvar")}</span></button>
+            <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} title={tr("Criar outra instância deste mesmo módulo")} onClick={() => dupInstance(c)}><span className="crasto-btn__label">{tr("+ Duplicar")}</span></button>
+            <button className="icobtn rm" title={tr("Excluir instância")} onClick={() => delInstance(c.id)}><Trash2 size={14} /></button>
           </div>
         );
       })}
@@ -506,11 +512,11 @@ export default function ClienteDetalhe() {
       ))}
 
       {/* Credenciais de módulo (F-D) */}
-      <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Acesso por módulo (URL + login do cliente)")}</h2><Pill tone="mute">{tr("o cliente vê em 'Minhas Soluções'")}</Pill></div>
+      <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Acesso por instância (URL + login do cliente)")}</h2><Pill tone="mute">{tr("o cliente vê em 'Minhas Soluções'")}</Pill></div>
       <div className="addrow" style={{ flexWrap: "wrap" }}>
-        <select value={credf.moduleId} onChange={(e) => pickCredModule(e.target.value)} style={{ minWidth: 160 }}>
-          <option value="">{tr("Módulo…")}</option>
-          {mods.filter((m) => activeSet.has(m.id)).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+        <select value={credf.cmId} onChange={(e) => pickCredInstance(e.target.value)} style={{ minWidth: 180 }}>
+          <option value="">{tr("Instância…")}</option>
+          {cm.map((c: any) => { const mn = mods.find((m) => m.id === c.vdi_module_id)?.name || tr("Módulo"); return <option key={c.id} value={c.id}>{c.label ? `${c.label} — ${mn}` : mn}</option>; })}
         </select>
         <input placeholder={tr("URL de acesso do cliente (https://…)")} value={credf.url} onChange={(e) => setCredf({ ...credf, url: e.target.value })} style={{ flex: 2, minWidth: 200 }} />
         <input placeholder={tr("Login")} value={credf.login} onChange={(e) => setCredf({ ...credf, login: e.target.value })} style={{ flex: 1, minWidth: 120 }} />
@@ -518,17 +524,22 @@ export default function ClienteDetalhe() {
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--crasto-text-body)" }}><input type="checkbox" checked={credf.sso} onChange={(e) => setCredf({ ...credf, sso: e.target.checked })} style={{ width: "auto" }} />{tr("Entra direto (SSO)")}</label>
         <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={saveCred}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{tr("Salvar")}</span></button>
       </div>
-      {(creds ?? []).length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhum acesso cadastrado — o cliente veria vazio.")}</div> : (creds ?? []).map((c) => (
+      {(creds ?? []).length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhum acesso cadastrado — o cliente veria vazio.")}</div> : (creds ?? []).map((c) => {
+        const inst = cm.find((x: any) => x.id === (c as any).client_module_id);
+        const mn = mods.find((m) => m.id === c.vdi_module_id)?.name;
+        const nm = inst?.label || c.label || mn;
+        return (
         <div className="crmrow" key={c.id}>
           <Pill tone={c.sso_enabled ? "ok" : c.login ? "info" : "mute"}>{c.sso_enabled ? "SSO" : c.login ? tr("Login/senha") : tr("Só link")}</Pill>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="nm">{c.label || (mods.find((m) => m.id === c.vdi_module_id)?.name)}</div>
+            <div className="nm">{nm}{inst?.label && mn ? <span className="mt" style={{ fontWeight: 400 }}> · {mn}</span> : null}</div>
             <div className="mt" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.access_url ? c.access_url : tr("Sem URL")}{" · "}{c.sso_enabled ? tr("Entra direto") : (c.login || tr("sem login"))}</div>
           </div>
           <button className="icobtn" title={tr("Editar")} onClick={() => editCred(c)}><Pencil size={14} /></button>
           <button className="icobtn rm" onClick={() => delCred(c.id)}><Trash2 size={14} /></button>
         </div>
-      ))}
+        );
+      })}
 
       {/* Usuários */}
       <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Usuários (acesso ao portal)")}</h2><button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => setInvite(true)}><span className="crasto-btn__icon"><UserPlus size={14} /></span><span className="crasto-btn__label">{tr("Convidar")}</span></button></div>

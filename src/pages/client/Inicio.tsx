@@ -6,7 +6,7 @@ import { useT } from "../../lib/i18n";
 
 type Health = { status: "green" | "amber" | "red"; message: string | null };
 type Impl = { overall_progress: number; due_date: string | null; status: string };
-type Mod = { id: string; status: string; url: string | null; rollout_progress: number; vdi: { name: string; description: string | null; category: string | null } | null };
+type Mod = { id: string; status: string; url: string | null; rollout_progress: number; label: string | null; vdi: { name: string; description: string | null; category: string | null } | null };
 
 const ICONS: Record<string, JSX.Element> = {
   default: <Search />, whatsapp: <MessageCircle />, marketing: <Send />,
@@ -35,14 +35,13 @@ export default function Inicio() {
         const vm = await services.catalog.vdiModules.listByIds(ids, "id,name,description,category,external_url");
         vmap = Object.fromEntries((vm as { id: string }[]).map((v) => [v.id, v]));
       }
-      const cmap = Object.fromEntries((creds as any[]).map((c) => [c.vdi_module_id, c]));
+      const cmap = Object.fromEntries((creds as any[]).map((c) => [c.client_module_id, c]));
       setHealth((h as unknown as Health) ?? null);
       setImpl((i as unknown as Impl) ?? null);
       setMods(rows.map((r) => {
-        const cred = cmap[r.vdi_module_id];
-        // URL de acesso é por cliente (credencial); o link do template é fallback.
+        const cred = cmap[r.id]; // acesso por instância
         const url = cred?.access_url || vmap[r.vdi_module_id]?.external_url || null;
-        return { id: r.id, status: r.status, url, rollout_progress: (r as any).rollout_progress ?? 0, vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null };
+        return { id: r.id, status: r.status, url, rollout_progress: (r as any).rollout_progress ?? 0, label: (r as any).label ?? null, vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null };
       }));
       setLoading(false);
     })();
@@ -106,7 +105,7 @@ export default function Inicio() {
               <div className="mod" key={m.id}>
                 <div className="cover"><div className="glow" />{icon}</div>
                 <div className="body">
-                  <h3>{m.vdi?.name || t("Módulo")}</h3>
+                  <h3>{m.label || m.vdi?.name || t("Módulo")}</h3>
                   <p>{m.vdi?.description || t("Solução de IA da Crasto.AI.")}</p>
                   <div className="foot">
                     <span className={"pill " + st}><span className="d" />{stl}</span>

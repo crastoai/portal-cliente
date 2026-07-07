@@ -27,11 +27,11 @@ export type VdiCatalogEntry = { name: string; department: string | null; descrip
 export type CatalogService = Record<string, any> & { id: string; name: string };
 
 // ---- delivery ----
-export type ClientModule = { id: string; organization_id?: string; vdi_module_id: string; status: string };
+export type ClientModule = { id: string; organization_id?: string; vdi_module_id: string; status: string; label?: string | null; rollout_progress?: number; rollout_due?: string | null; rollout_status?: string };
 export type Implementation = Record<string, any> & { overall_progress: number | null; status: string | null };
 export type SystemHealth = { status: string | null; message?: string | null; organization_id?: string };
 export type ProjectTask = Record<string, any> & { id: string };
-export type ModuleCredential = { id: string; label: string; login: string | null; sso_enabled: boolean; access_url?: string | null; vdi_module_id?: string };
+export type ModuleCredential = { id: string; label: string; login: string | null; sso_enabled: boolean; access_url?: string | null; vdi_module_id?: string; client_module_id?: string };
 
 // ---- commerce ----
 export type Proposal = Record<string, any> & { id: string };

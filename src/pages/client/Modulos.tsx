@@ -4,9 +4,9 @@ import { services } from "../../services";
 import { PageHead, Pill, Empty, useAsync } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 
-type Cred = { id: string; login: string | null; sso_enabled: boolean; vdi_module_id: string; access_url: string | null };
+type Cred = { id: string; login: string | null; sso_enabled: boolean; vdi_module_id: string; access_url: string | null; client_module_id?: string };
 type Mod = {
-  id: string; status: string; vdi_module_id: string;
+  id: string; status: string; vdi_module_id: string; label: string | null;
   vdi: { name: string; description: string | null; category: string | null } | null;
   external_url: string | null; cred: Cred | null;
 };
@@ -21,12 +21,12 @@ async function fetchData(): Promise<{ mods: Mod[]; services: Svc[] }> {
   const ids = cms.map((r) => r.vdi_module_id);
   const vms = ids.length ? await services.catalog.vdiModules.listByIds(ids, "id,name,description,category,external_url") : [];
   const vmap = Object.fromEntries((vms as any[]).map((v) => [v.id, v]));
-  const cmap = Object.fromEntries((creds as any[]).map((c) => [c.vdi_module_id, c]));
+  // credencial é POR INSTÂNCIA (client_module_id).
+  const cmap = Object.fromEntries((creds as any[]).map((c) => [c.client_module_id, c]));
   const mods: Mod[] = cms.map((r) => {
-    const cred = (cmap[r.vdi_module_id] as Cred) ?? null;
-    // URL de acesso é POR CLIENTE (credencial); o link do template é só fallback/legado.
+    const cred = (cmap[r.id] as Cred) ?? null;
     const url = cred?.access_url || (vmap[r.vdi_module_id]?.external_url as string) || null;
-    return { id: r.id, status: r.status, vdi_module_id: r.vdi_module_id, vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null, external_url: url, cred };
+    return { id: r.id, status: r.status, vdi_module_id: r.vdi_module_id, label: (r as any).label ?? null, vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null, external_url: url, cred };
   });
   // Nome/descrição vêm desnormalizados na própria client_services (catalog.services é admin-only).
   const svcList: Svc[] = (csvc as any[]).map((c) => ({
@@ -87,8 +87,8 @@ export default function Modulos() {
               <div className="mod" key={m.id}>
                 <div className="cover"><div className="glow" />{icon(m.vdi?.category)}</div>
                 <div className="body">
-                  <h3>{m.vdi?.name || t("Solução")}</h3>
-                  <p>{m.vdi?.description || t("Solução de IA da Crasto.AI.")}</p>
+                  <h3>{m.label || m.vdi?.name || t("Solução")}</h3>
+                  <p>{m.label ? (m.vdi?.name || "") : (m.vdi?.description || t("Solução de IA da Crasto.AI."))}</p>
 
                   {implementing ? (
                     <div className="foot">
