@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Plus, Search, Building2, FileText, Image as ImageIcon, Users, Upload } from "lucide-react";
+import { Camera, Plus, Search, Building2, FileText, Image as ImageIcon, Users, Upload, Trash2 } from "lucide-react";
 import { services, errorMessage } from "../services";
 import { useAuth } from "../lib/auth";
 import { PageHead, Field, Empty, Pill, useAsync, initials } from "../ui/ui";
@@ -90,6 +90,29 @@ export default function Perfil() {
     );
   };
 
+  // --- CNPJs (matriz + filiais) ---
+  const { data: cnpjData, reload: reloadCnpjs } = useAsync(() => (isClient ? services.identity.cnpjs.mine() : Promise.resolve([] as any[])), [profile?.organization_id]);
+  const [rows, setRows] = useState<any[]>([]);
+  const [rowBusy, setRowBusy] = useState<string>("");
+  useEffect(() => { setRows((cnpjData as any[]) ?? []); }, [cnpjData]);
+  const setRow = (i: number, k: string, v: any) => setRows((r) => r.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  function addCnpj() { setRows((r) => [...r, { cnpj: "", trade_name: "", legal_name: "", is_headquarters: r.length === 0, is_active: true }]); }
+  async function saveCnpj(i: number) {
+    setRowBusy(String(i));
+    try { await services.identity.cnpjs.save(rows[i]); await reloadCnpjs(); flash(t("CNPJ salvo ✓")); }
+    catch (e) { flash(errorMessage(e)); } finally { setRowBusy(""); }
+  }
+  async function toggleCnpj(i: number, k: string) {
+    const v = !rows[i][k]; setRow(i, k, v);
+    const row = { ...rows[i], [k]: v };
+    if (row.id) { try { await services.identity.cnpjs.save(row); await reloadCnpjs(); } catch (e) { flash(errorMessage(e)); } }
+  }
+  async function delCnpj(i: number) {
+    const row = rows[i];
+    if (row.id) { if (!confirm(t("Excluir este CNPJ?"))) return; await services.identity.cnpjs.remove(row.id); await reloadCnpjs(); }
+    else setRows((r) => r.filter((_, j) => j !== i));
+  }
+
   const TABS = [
     { key: "empresa", icon: Building2, label: "Dados da Empresa" },
     { key: "cnpjs", icon: FileText, label: "CNPJs" },
@@ -179,7 +202,38 @@ export default function Perfil() {
             </div>
           )}
 
-          {tab !== "empresa" && (
+          {tab === "cnpjs" && (
+            <div className="card">
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                <h3 style={{ margin: 0 }}>{t("CNPJs Cadastrados")}</h3>
+                {isOwner && <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={addCnpj}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Novo CNPJ")}</span></button>}
+              </div>
+              {rows.length === 0 ? <div className="mt" style={{ padding: "8px 2px" }}>{t("Nenhum CNPJ cadastrado.")}</div> : rows.map((r, i) => (
+                <div className="card" style={{ marginTop: 12, background: "var(--crasto-bg-2)" }} key={r.id || `new${i}`}>
+                  <div className="grid3">
+                    <Field label="CNPJ"><input value={r.cnpj || ""} onChange={(e) => setRow(i, "cnpj", e.target.value)} disabled={!isOwner} placeholder="00.000.000/0000-00" /></Field>
+                    <Field label="Nome fantasia"><input value={r.trade_name || ""} onChange={(e) => setRow(i, "trade_name", e.target.value)} disabled={!isOwner} /></Field>
+                    <Field label="Razão social"><input value={r.legal_name || ""} onChange={(e) => setRow(i, "legal_name", e.target.value)} disabled={!isOwner} /></Field>
+                  </div>
+                  <div className="grid3">
+                    <Field label="Inscrição estadual"><input value={r.inscricao_estadual || ""} onChange={(e) => setRow(i, "inscricao_estadual", e.target.value)} disabled={!isOwner} /></Field>
+                    <Field label="Inscrição municipal"><input value={r.inscricao_municipal || ""} onChange={(e) => setRow(i, "inscricao_municipal", e.target.value)} disabled={!isOwner} /></Field>
+                    <Field label="Regime tributário"><select value={r.regime_tributario || ""} onChange={(e) => setRow(i, "regime_tributario", e.target.value)} disabled={!isOwner}><option value="">{t("Selecione")}</option>{REGIMES.map((x) => <option key={x} value={x}>{t(x)}</option>)}</select></Field>
+                  </div>
+                  <div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}><button type="button" className={"sw" + (r.is_headquarters ? " on" : "")} disabled={!isOwner} onClick={() => toggleCnpj(i, "is_headquarters")} /><span style={{ fontSize: 13, fontWeight: 600 }}>{r.is_headquarters ? t("Matriz") : t("Filial")}</span></div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}><button type="button" className={"sw" + (r.is_active ? " on" : "")} disabled={!isOwner} onClick={() => toggleCnpj(i, "is_active")} /><span style={{ fontSize: 13, fontWeight: 600 }}>{r.is_active ? t("Ativo") : t("Inativo")}</span></div>
+                    {isOwner && <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                      <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={rowBusy === String(i)} onClick={() => saveCnpj(i)}><span className="crasto-btn__label">{rowBusy === String(i) ? t("Salvando…") : t("Salvar")}</span></button>
+                      <button className="icobtn rm" title={t("Excluir")} onClick={() => delCnpj(i)}><Trash2 size={14} /></button>
+                    </div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {tab !== "empresa" && tab !== "cnpjs" && (
             <div className="card"><Empty><p><strong>{t("Em breve.")}</strong> {t("Esta aba está em construção — em breve você poderá gerenciar isso por aqui.")}</p></Empty></div>
           )}
         </>

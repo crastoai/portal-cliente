@@ -56,6 +56,14 @@ export const organizations = {
     unwrap(await supabase.from("organizations").insert(payload).select("id,name").single()) as unknown as { id: string; name: string },
 };
 
+/** CNPJs da empresa (matriz + filiais). Cliente lê/edita via RPC; admin lê direto. */
+export const cnpjs = {
+  mine: async (): Promise<any[]> => { const { data, error } = await supabase.rpc("my_cnpjs"); if (error) throw error; return (data as any[]) ?? []; },
+  save: async (p: Record<string, any>) => unwrap(await supabase.rpc("save_my_cnpj", { p })),
+  remove: async (id: string) => unwrap(await supabase.rpc("delete_my_cnpj", { p_id: id })),
+  listByOrg: async (orgId: string) => unwrapList<any>(await supabase.schema("crm").from("company_cnpjs").select("*").eq("organization_id", orgId).order("is_headquarters", { ascending: false })),
+};
+
 export const profiles = {
   getById: async (uid: string) =>
     unwrap(await supabase.from("profiles").select("*").eq("id", uid).single()) as unknown as Profile,
@@ -113,4 +121,4 @@ export const connectors = {
   remove: async (id: string) => unwrap(await supabase.from("connectors").delete().eq("id", id)),
 };
 
-export const identity = { organizations, profiles, users, clients, connectors, auth };
+export const identity = { organizations, profiles, users, clients, connectors, auth, cnpjs };

@@ -890,6 +890,17 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Em breve.": { en: "Coming soon.", es: "Próximamente." },
   "Esta aba está em construção — em breve você poderá gerenciar isso por aqui.": { en: "This tab is under construction — soon you'll manage this here.", es: "Esta pestaña está en construcción — pronto podrás gestionar esto aquí." },
   "Admin da Crasto.AI — os dados cadastrais das empresas ficam na ficha de cada cliente (Clientes).": { en: "Crasto.AI admin — company registration data lives on each client's page (Clients).", es: "Admin de Crasto.AI — los datos de las empresas están en la ficha de cada cliente (Clientes)." },
+  "CNPJs Cadastrados": { en: "Registered Tax IDs", es: "CNPJs Registrados" },
+  "Novo CNPJ": { en: "New Tax ID", es: "Nuevo CNPJ" },
+  "Nenhum CNPJ cadastrado.": { en: "No Tax ID registered.", es: "Ningún CNPJ registrado." },
+  "Matriz": { en: "Headquarters", es: "Matriz" },
+  "Filial": { en: "Branch", es: "Sucursal" },
+  "Inativo": { en: "Inactive", es: "Inactivo" },
+  "CNPJ salvo ✓": { en: "Tax ID saved ✓", es: "CNPJ guardado ✓" },
+  "Excluir este CNPJ?": { en: "Delete this Tax ID?", es: "¿Eliminar este CNPJ?" },
+  "CNPJs da empresa": { en: "Company Tax IDs", es: "CNPJs de la empresa" },
+  "cadastrados pelo cliente no portal": { en: "registered by the client in the portal", es: "registrados por el cliente en el portal" },
+  "sem nome": { en: "no name", es: "sin nombre" },
   "Nenhum módulo encontrado.": { en: "No module found.", es: "Ningún módulo encontrado." },
 
   // ---- Admin · Propostas & contrato (ciclo comercial) ----
