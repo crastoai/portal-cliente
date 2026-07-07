@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { MessageCircle, Search, Send, Grid3x3, Pencil, Trash2, UserPlus, Plus, Upload, Download, FileText, Building2, Globe, Cake, Eye } from "lucide-react";
 import { preview } from "../../lib/preview";
 import { services as api, errorMessage } from "../../services";
-import { PageHead, Pill, Empty, useAsync, initials, Field, money } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, initials, Avatar, Field, money } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 import { COUNTRIES, countryOf, STAGES, stageOf, DIAL_CODES } from "../../lib/countries";
@@ -548,7 +548,7 @@ export default function ClienteDetalhe() {
       <div className="tbl-wrap">
         <table className="tbl"><thead><tr><th>{tr("Usuário")}</th><th>{tr("Papel")}</th><th>{tr("E-mail")}</th><th>{tr("Acesso")}</th></tr></thead><tbody>
           {users.length === 0 ? <tr><td colSpan={4} style={{ color: "var(--crasto-text-muted)" }}>{tr("Sem logins — convide o responsável.")}</td></tr> : users.map((u) => (
-            <tr key={u.id}><td><div className="cust"><div className="logo" style={{ background: "var(--crasto-bg-3)", color: "var(--crasto-text-primary)" }}>{initials(u.full_name || u.email)}</div><div className="nm">{u.full_name || "—"}</div></div></td><td><Pill tone={u.role === "client_owner" ? "ok" : "mute"}>{u.role === "client_owner" ? tr("Dono") : tr("Membro")}</Pill></td><td className="cust"><span className="em">{u.email}</span></td><td><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} onClick={() => resendAccess(u)} title={tr("Redefine a senha e reenvia o e-mail de acesso")}><span className="crasto-btn__label">{tr("Reenviar acesso")}</span></button></td></tr>
+            <tr key={u.id}><td><div className="cust"><Avatar name={u.full_name || u.email} url={u.avatar_url} /><div className="nm">{u.full_name || "—"}</div></div></td><td><Pill tone={u.role === "client_owner" ? "ok" : "mute"}>{u.role === "client_owner" ? tr("Dono") : tr("Membro")}</Pill></td><td className="cust"><span className="em">{u.email}</span></td><td><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} onClick={() => resendAccess(u)} title={tr("Redefine a senha e reenvia o e-mail de acesso")}><span className="crasto-btn__label">{tr("Reenviar acesso")}</span></button></td></tr>
           ))}
         </tbody></table>
       </div>

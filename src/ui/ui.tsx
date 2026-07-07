@@ -9,6 +9,15 @@ export function initials(s?: string | null) {
   return (s || "?").trim().slice(0, 2).toUpperCase();
 }
 
+/** Avatar com foto (se houver) e fallback nas iniciais. Usa a classe .logo do DS. */
+export function Avatar({ name, url, size = 34, style }: { name?: string | null; url?: string | null; size?: number; style?: React.CSSProperties }) {
+  return (
+    <div className="logo" style={{ width: size, height: size, borderRadius: Math.round(size * 0.27), background: "var(--crasto-bg-3)", color: "var(--crasto-text-primary)", display: "grid", placeItems: "center", fontWeight: 700, fontSize: Math.round(size * 0.38), overflow: "hidden", flexShrink: 0, ...style }}>
+      {url ? <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials(name)}
+    </div>
+  );
+}
+
 export function PageHead({ eyebrow = "Portal", title, sub, right }: { eyebrow?: string; title: string; sub?: string; right?: ReactNode }) {
   const t = useT();
   return (

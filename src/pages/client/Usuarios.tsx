@@ -2,11 +2,11 @@ import { useState } from "react";
 import { UserPlus } from "lucide-react";
 import { services, errorMessage } from "../../services";
 import { useAuth } from "../../lib/auth";
-import { PageHead, Pill, Empty, useAsync, initials, Field } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, Avatar, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 
-type U = { id: string; full_name: string | null; email: string | null; role: string };
+type U = { id: string; full_name: string | null; email: string | null; role: string; avatar_url?: string | null };
 const EMPTY = { email: "", full_name: "", role: "client_member" };
 
 export default function Usuarios() {
@@ -48,7 +48,7 @@ export default function Usuarios() {
             <tbody>
               {users.map((u) => (
                 <tr key={u.id}>
-                  <td><div className="cust"><div className="logo" style={{ background: "var(--crasto-bg-3)", color: "var(--crasto-text-primary)" }}>{initials(u.full_name || u.email)}</div><div className="nm">{u.full_name || "—"}</div></div></td>
+                  <td><div className="cust"><Avatar name={u.full_name || u.email} url={u.avatar_url} /><div className="nm">{u.full_name || "—"}</div></div></td>
                   <td><Pill tone={roleTone(u.role)}>{roleLabel(u.role)}</Pill></td>
                   <td className="cust"><span className="em">{u.email}</span></td>
                 </tr>
