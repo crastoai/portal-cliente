@@ -1,14 +1,18 @@
 // ============================================================================
-// Bounded context: BILLING (schema billing) — faturas do cliente.
+// Bounded context: BILLING — faturas do cliente.
+// SSOT: as faturas do cliente SÃO o Contas a Receber do admin (finance.accounts,
+// schema não exposto). O cliente lê só as próprias via RPC my_faturas (SECURITY
+// DEFINER, escopado à sua organização); parcelas do contrato viram faturas.
 // ============================================================================
 import { supabase } from "../lib/supabase";
-import { unwrapList } from "./core/result";
-import { scopeMine } from "./core/scope";
 import type { Invoice } from "./core/types";
 
 export const invoices = {
-  listMine: async () =>
-    unwrapList<Invoice>(await scopeMine(supabase.schema("billing").from("invoices").select("id,description,amount,due_date,status").order("due_date", { ascending: false }))),
+  listMine: async (): Promise<Invoice[]> => {
+    const { data, error } = await supabase.rpc("my_faturas");
+    if (error) throw error;
+    return (data as Invoice[]) ?? [];
+  },
 };
 
 export const billing = { invoices };

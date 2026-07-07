@@ -373,6 +373,7 @@ export default function Financeiro() {
               <option value="">{t("— avulso / não cadastrado —")}</option>
               {orgs.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
             </select>
+            {af.account_type === "receivable" && <small className="fhint">{af.organization_id ? t("Esta cobrança (e suas parcelas) aparece como fatura no portal deste cliente.") : t("Sem cliente, a cobrança fica só no admin — não aparece em nenhum portal.")}</small>}
           </Field>
           <div className="grid2">
             <Field label={t("Razão Social / Empresa") + " *"}>

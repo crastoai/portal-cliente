@@ -1094,6 +1094,8 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Suas faturas": { en: "Your invoices", es: "Tus facturas" },
   "Nenhuma fatura ainda.": { en: "No invoices yet.", es: "Ninguna factura aún." },
   "Assim que houver cobranças do seu contrato, elas aparecem aqui.": { en: "As soon as your contract has charges, they'll show up here.", es: "En cuanto tu contrato tenga cobros, aparecerán aquí." },
+  "Esta cobrança (e suas parcelas) aparece como fatura no portal deste cliente.": { en: "This charge (and its installments) appears as an invoice in this client's portal.", es: "Este cobro (y sus cuotas) aparece como factura en el portal de este cliente." },
+  "Sem cliente, a cobrança fica só no admin — não aparece em nenhum portal.": { en: "Without a client, the charge stays admin-only — it appears in no portal.", es: "Sin cliente, el cobro queda solo en el admin — no aparece en ningún portal." },
   "Inadimplência": { en: "Overdue", es: "Morosidad" },
   "Cobrança": { en: "Billing", es: "Cobranza" },
   "Conciliação": { en: "Reconciliation", es: "Conciliación" },
