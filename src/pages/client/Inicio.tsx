@@ -6,7 +6,7 @@ import { useT } from "../../lib/i18n";
 
 type Health = { status: "green" | "amber" | "red"; message: string | null };
 type Impl = { overall_progress: number; due_date: string | null; status: string };
-type Mod = { id: string; status: string; vdi: { name: string; description: string | null; category: string | null } | null };
+type Mod = { id: string; status: string; url: string | null; rollout_progress: number; vdi: { name: string; description: string | null; category: string | null } | null };
 
 const ICONS: Record<string, JSX.Element> = {
   default: <Search />, whatsapp: <MessageCircle />, marketing: <Send />,
@@ -22,21 +22,28 @@ export default function Inicio() {
 
   useEffect(() => {
     (async () => {
-      const [h, i, cm] = await Promise.all([
+      const [h, i, cm, creds] = await Promise.all([
         services.delivery.systemHealth.getMine(),
         services.delivery.implementations.getMine(),
         services.delivery.clientModules.listMine(),
+        services.delivery.moduleCredentials.listMine().catch(() => [] as any[]),
       ]);
       const rows = cm ?? [];
       const ids = rows.map((r) => r.vdi_module_id);
-      let vmap: Record<string, Mod["vdi"]> = {};
+      let vmap: Record<string, any> = {};
       if (ids.length) {
-        const vm = await services.catalog.vdiModules.listByIds(ids, "id,name,description,category");
-        vmap = Object.fromEntries((vm as { id: string }[]).map((v) => [v.id, v as unknown as Mod["vdi"]]));
+        const vm = await services.catalog.vdiModules.listByIds(ids, "id,name,description,category,external_url");
+        vmap = Object.fromEntries((vm as { id: string }[]).map((v) => [v.id, v]));
       }
+      const cmap = Object.fromEntries((creds as any[]).map((c) => [c.vdi_module_id, c]));
       setHealth((h as unknown as Health) ?? null);
       setImpl((i as unknown as Impl) ?? null);
-      setMods(rows.map((r) => ({ id: r.id, status: r.status, vdi: vmap[r.vdi_module_id] ?? null })));
+      setMods(rows.map((r) => {
+        const cred = cmap[r.vdi_module_id];
+        // URL de acesso é por cliente (credencial); o link do template é fallback.
+        const url = cred?.access_url || vmap[r.vdi_module_id]?.external_url || null;
+        return { id: r.id, status: r.status, url, rollout_progress: (r as any).rollout_progress ?? 0, vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null };
+      }));
       setLoading(false);
     })();
   }, []);
@@ -46,6 +53,7 @@ export default function Inicio() {
   const daysLeft = impl?.due_date
     ? Math.max(0, Math.ceil((new Date(impl.due_date).getTime() - Date.now()) / 86400000))
     : null;
+  const overall = mods.length ? Math.round(mods.reduce((s, m) => s + (m.rollout_progress || 0), 0) / mods.length) : (impl?.overall_progress ?? 0);
 
   return (
     <div>
@@ -75,7 +83,7 @@ export default function Inicio() {
 
       {/* KPIs */}
       <div className="kpis">
-        <div className="kpi g"><div className="lab">{t("Implantação")}</div><div className="val">{impl?.overall_progress ?? 0}<small>%</small></div><div className="delta">{impl?.status === "delivered" ? t("Entregue") : t("Em andamento")}</div></div>
+        <div className="kpi g"><div className="lab">{t("Implantação")}</div><div className="val">{overall}<small>%</small></div><div className="delta">{overall >= 100 ? t("Entregue") : t("Em andamento")}</div></div>
         <div className="kpi"><div className="lab">{t("Soluções ativas")}</div><div className="val">{mods.filter(m => m.status === "active").length}<small> / {mods.length}</small></div><div className="delta">{t("no seu plano")}</div></div>
         <div className="kpi"><div className="lab">{t("Prazo de entrega")}</div><div className="val" style={{ fontSize: 22 }}>{daysLeft != null ? t("{n} dias", { n: daysLeft }) : "—"}</div><div className="delta">{t("SLA de 30 dias")}</div></div>
         <div className="kpi"><div className="lab">{t("Suporte")}</div><div className="val" style={{ fontSize: 22 }}>{t("Ativo")}</div><div className="delta">{t("WhatsApp & portal")}</div></div>
@@ -102,7 +110,7 @@ export default function Inicio() {
                   <p>{m.vdi?.description || t("Solução de IA da Crasto.AI.")}</p>
                   <div className="foot">
                     <span className={"pill " + st}><span className="d" />{stl}</span>
-                    <button className="crasto-btn crasto-btn--primary crasto-btn--sm"><span className="crasto-btn__label">{t("Acessar")}</span></button>
+                    <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={!m.url} title={m.url ? t("Abrir a solução") : t("Link em configuração")} onClick={() => m.url && window.open(m.url, "_blank", "noopener")}><span className="crasto-btn__label">{t("Acessar")}</span></button>
                   </div>
                 </div>
               </div>
