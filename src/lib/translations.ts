@@ -386,6 +386,10 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Enviado para assinatura ✓": { en: "Sent for signature ✓", es: "Enviado para firma ✓" },
 
   // ---- Admin · Visão geral ----
+  "Chamados & Suporte": { en: "Tickets & Support", es: "Tickets y Soporte" },
+  "Fila de tickets dos clientes.": { en: "Client ticket queue.", es: "Cola de tickets de los clientes." },
+  "{n} abertos": { en: "{n} open", es: "{n} abiertos" },
+  "Nenhum chamado ainda.": { en: "No tickets yet.", es: "Sin tickets aún." },
   "Régua de saúde": { en: "Health rules", es: "Regla de salud" },
   "Cadastrar cliente": { en: "Add client", es: "Registrar cliente" },
   "MRR (receita recorrente)": { en: "MRR (recurring revenue)", es: "MRR (ingreso recurrente)" },

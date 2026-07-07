@@ -3,7 +3,7 @@
 // Leituras "mine" via RLS do usuário logado.
 // ============================================================================
 import { supabase } from "../lib/supabase";
-import { unwrapList } from "./core/result";
+import { unwrap, unwrapList } from "./core/result";
 import type { Ticket, PendingAction } from "./core/types";
 
 const sup = () => supabase.schema("support");
@@ -17,6 +17,11 @@ export const tickets = {
     if (error) return { ok: false, error: error.message };
     return (data as any) ?? { ok: false, error: "sem resposta do servidor" };
   },
+  /** Admin: todos os chamados (com nome do cliente). RLS admin = tudo. */
+  listAll: async () =>
+    unwrapList<Record<string, any>>(await sup().from("tickets").select("id,subject,description,status,organization_id,created_at").order("created_at", { ascending: false })),
+  /** Admin: muda o status do chamado. */
+  setStatus: async (id: string, status: string) => unwrap(await sup().from("tickets").update({ status }).eq("id", id)),
 };
 
 export const pendingActions = {

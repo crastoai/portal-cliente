@@ -25,6 +25,7 @@ import CatalogoModulos from "./pages/admin/CatalogoModulos";
 import Custos from "./pages/admin/Custos";
 import Receita from "./pages/admin/Receita";
 import Integracoes from "./pages/admin/Integracoes";
+import Tickets from "./pages/admin/Tickets";
 
 import Entregas from "./pages/partner/Entregas";
 import Comissoes from "./pages/partner/Comissoes";
@@ -83,6 +84,7 @@ export default function App() {
             <Route path="custos" element={<Custos />} />
             <Route path="receita" element={<Receita />} />
             <Route path="integracoes" element={<Integracoes />} />
+            <Route path="tickets" element={<Tickets />} />
           </Route>
 
           <Route path="/parceiro" element={<PartnerShell />}>
