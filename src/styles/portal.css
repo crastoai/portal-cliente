@@ -226,6 +226,14 @@
 .svcrow .svcico { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--crasto-radius-sm); background: var(--crasto-bg-3); color: var(--crasto-text-primary); flex: none; }
 .svcrow .nm { font-weight: 700; color: var(--crasto-text-primary); }
 .svcrow .mt { color: var(--crasto-text-muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; align-items: start; margin-bottom: 4px; }
+@media (max-width: 760px) { .grid3 { grid-template-columns: 1fr; } }
+.addlink { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; background: none; border: none; color: var(--crasto-blue, #3E6FB8); font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 2px 0; }
+.addlink:hover { text-decoration: underline; }
+.ptabs { display: flex; gap: 4px; flex-wrap: wrap; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md); padding: 5px; margin-bottom: 16px; box-shadow: var(--crasto-shadow-sm); }
+.ptab { display: inline-flex; align-items: center; gap: 7px; padding: 9px 15px; border-radius: var(--crasto-radius-sm); border: none; background: transparent; color: var(--crasto-text-body); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; }
+.ptab:hover { background: var(--crasto-bg-2); color: var(--crasto-text-primary); }
+.ptab.is-active { background: var(--crasto-text-primary); color: #fff; }
 .mods { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; }
 @media (max-width: 820px) { .mods { grid-template-columns: repeat(2,1fr); } }
 @media (max-width: 520px) { .mods { grid-template-columns: 1fr; } }
