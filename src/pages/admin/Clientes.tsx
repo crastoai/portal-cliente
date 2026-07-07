@@ -6,9 +6,9 @@ import { PageHead, Empty, useAsync, money, initials, Field, Pill } from "../../u
 import Modal from "../../ui/Modal";
 import { useT } from "../../lib/i18n";
 import { fetchClients, timeAgo } from "../../lib/adminData";
-import { COUNTRIES, countryOf, STAGES, stageOf } from "../../lib/countries";
+import { COUNTRIES, countryOf, STAGES, stageOf, DIAL_CODES } from "../../lib/countries";
 
-const EMPTY = { name: "", stage: "contato", country: "BR", tax_id: "", founded_on: "", website: "", owner_name: "", whatsapp: "", plan: "", email: "", contact_name: "", password: "" };
+const EMPTY = { name: "", stage: "contato", country: "BR", tax_id: "", founded_on: "", website: "", owner_name: "", whatsapp: "", ddi: "+55", plan: "", email: "", contact_name: "", password: "" };
 
 export default function Clientes() {
   const t = useT();
@@ -43,7 +43,7 @@ export default function Clientes() {
       });
     } catch (e) { setErr(t("Erro ao criar:") + " " + errorMessage(e)); setBusy(false); return; }
     if (f.whatsapp.trim()) {
-      try { await api.crm.phones.add({ organization_id: org.id, label: "WhatsApp", country_code: co.ddi, number: f.whatsapp.trim(), is_primary: true }); } catch { /* telefone é opcional — não bloqueia */ }
+      try { await api.crm.phones.add({ organization_id: org.id, label: "WhatsApp", country_code: f.ddi, number: f.whatsapp.trim(), is_primary: true }); } catch { /* telefone é opcional — não bloqueia */ }
     }
     let msg = t("\"{n}\" cadastrado como {s}.", { n: f.name, s: t(stageOf(f.stage).label) });
     if (f.email.trim()) {
@@ -101,7 +101,7 @@ export default function Clientes() {
         {err && <div className="formerr">{err}</div>}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <Field label="Status no pipeline"><select value={f.stage} onChange={(e) => setF({ ...f, stage: e.target.value })}>{STAGES.map((s) => <option key={s.key} value={s.key}>{t(s.label)}</option>)}</select></Field>
-          <Field label="País"><select value={f.country} onChange={(e) => setF({ ...f, country: e.target.value })}>{COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}</select></Field>
+          <Field label="País"><select value={f.country} onChange={(e) => setF({ ...f, country: e.target.value, ddi: countryOf(e.target.value).ddi })}>{COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}</select></Field>
         </div>
         <Field label="Nome da empresa *"><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder={t("Ex.: Connect Solar Ltda")} /></Field>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -114,7 +114,9 @@ export default function Clientes() {
         </div>
         <Field label="WhatsApp do cliente">
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ padding: "10px 12px", borderRadius: "var(--crasto-radius-sm)", background: "var(--crasto-bg-3)", color: "var(--crasto-text-body)", fontWeight: 700, fontSize: 14, whiteSpace: "nowrap" }}>{co.ddi}</span>
+            <select value={f.ddi} onChange={(e) => setF({ ...f, ddi: e.target.value })} style={{ width: 116, flex: "none" }}>
+              {DIAL_CODES.map((d, i) => <option key={i} value={d.ddi}>{d.flag} {d.ddi}</option>)}
+            </select>
             <input style={{ flex: 1 }} value={f.whatsapp} onChange={(e) => setF({ ...f, whatsapp: e.target.value })} placeholder={t("(11) 91234-5678")} />
           </div>
         </Field>
