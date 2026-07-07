@@ -12,15 +12,18 @@ const sup = () => supabase.schema("support");
 export const tickets = {
   listMine: async () =>
     unwrapList<Ticket>(await scopeMine(sup().from("tickets").select("id,subject,status").order("created_at", { ascending: false }))),
-  /** Abre um chamado: grava + notifica o suporte + confirma ao cliente (edge function). */
-  open: async (body: { subject: string; description?: string }): Promise<{ ok: boolean; number?: string; notified?: boolean; confirmed?: boolean; error?: string }> => {
+  /** Abre um chamado (kind='support') ou solicitação de implantação (kind='implementation_request'). */
+  open: async (body: { subject: string; description?: string; kind?: string }): Promise<{ ok: boolean; number?: string; notified?: boolean; confirmed?: boolean; error?: string }> => {
     const { data, error } = await supabase.functions.invoke("client-support-ticket", { body });
     if (error) return { ok: false, error: error.message };
     return (data as any) ?? { ok: false, error: "sem resposta do servidor" };
   },
-  /** Admin: todos os chamados (com nome do cliente). RLS admin = tudo. */
-  listAll: async () =>
-    unwrapList<Record<string, any>>(await sup().from("tickets").select("id,subject,description,status,organization_id,created_at").order("created_at", { ascending: false })),
+  /** Admin: chamados por tipo (kind='support' | 'implementation_request'). RLS admin = tudo. */
+  listAll: async (kind?: string) => {
+    let qb = sup().from("tickets").select("id,subject,description,status,organization_id,created_at,kind").order("created_at", { ascending: false });
+    if (kind) qb = qb.eq("kind", kind);
+    return unwrapList<Record<string, any>>(await qb);
+  },
   /** Admin: muda o status do chamado. */
   setStatus: async (id: string, status: string) => unwrap(await sup().from("tickets").update({ status }).eq("id", id)),
 };

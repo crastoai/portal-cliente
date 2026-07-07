@@ -46,6 +46,7 @@ export default function Catalogo() {
       const r = await services.support.tickets.open({
         subject: t("Solicitação de implementação") + (empresa ? ` — ${empresa}` : ""),
         description,
+        kind: "implementation_request",
       });
       if (!r.ok) { setToast(t("Não foi possível enviar. Tente de novo.")); }
       else { setSel(new Set()); setToast(t("Solicitação enviada ✓ A Crasto.AI vai avaliar e retornar.")); }

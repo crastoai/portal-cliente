@@ -9,7 +9,7 @@ export default function Tickets() {
   const t = useT();
   const { data, loading, reload } = useAsync(async () => {
     const [tk, orgs] = await Promise.all([
-      services.support.tickets.listAll(),
+      services.support.tickets.listAll("support"),
       services.identity.organizations.listForProposals(),
     ]);
     return { tickets: (tk as any[]) ?? [], orgs: (orgs as any[]) ?? [] };

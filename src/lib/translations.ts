@@ -817,6 +817,14 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Sair da visualização": { en: "Exit preview", es: "Salir de la vista" },
   "Visualização (admin)": { en: "Preview (admin)", es: "Vista previa (admin)" },
   "Trocar foto de perfil": { en: "Change profile photo", es: "Cambiar foto de perfil" },
+  "Solicitações de implantação": { en: "Implementation requests", es: "Solicitudes de implementación" },
+  "Módulos que os clientes pediram para a Crasto.AI implementar.": { en: "Modules clients asked Crasto.AI to implement.", es: "Módulos que los clientes pidieron implementar a Crasto.AI." },
+  "{n} novas": { en: "{n} new", es: "{n} nuevas" },
+  "Nenhuma solicitação de implantação ainda.": { en: "No implementation request yet.", es: "Ninguna solicitud de implementación aún." },
+  "Nova": { en: "New", es: "Nueva" },
+  "Em atendimento": { en: "In progress", es: "En atención" },
+  "Atendida": { en: "Handled", es: "Atendida" },
+  "Cancelada": { en: "Cancelled", es: "Cancelada" },
   "Nenhum módulo encontrado.": { en: "No module found.", es: "Ningún módulo encontrado." },
 
   // ---- Admin · Propostas & contrato (ciclo comercial) ----
