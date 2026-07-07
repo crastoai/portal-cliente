@@ -760,6 +760,10 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Abrir este módulo dentro da Viver de IA": { en: "Open this module inside Viver de IA", es: "Abrir este módulo dentro de Viver de IA" },
   "Link na Viver de IA (Acessar módulo)": { en: "Viver de IA link (Open module)", es: "Enlace en Viver de IA (Abrir módulo)" },
   "É para onde o botão \"Acessar módulo\" leva o admin.": { en: "This is where the \"Open module\" button takes the admin.", es: "Es a donde el botón \"Abrir módulo\" lleva al admin." },
+  "{n} liberados": { en: "{n} enabled", es: "{n} habilitados" },
+  "Buscar módulo…": { en: "Search module…", es: "Buscar módulo…" },
+  "Contratados": { en: "Enabled", es: "Contratados" },
+  "Nenhum módulo encontrado.": { en: "No module found.", es: "Ningún módulo encontrado." },
 
   // ---- Admin · Propostas & contrato (ciclo comercial) ----
   "Propostas & contrato": { en: "Proposals & contract", es: "Propuestas y contrato" },
