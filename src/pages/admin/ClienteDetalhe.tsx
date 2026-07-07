@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { MessageCircle, Search, Send, Grid3x3, Pencil, Trash2, UserPlus, Plus, Upload, Download, FileText, Building2, Globe, Cake, ChevronDown, ChevronRight } from "lucide-react";
+import { MessageCircle, Search, Send, Grid3x3, Pencil, Trash2, UserPlus, Plus, Upload, Download, FileText, Building2, Globe, Cake } from "lucide-react";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, initials, Field, money } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
@@ -51,8 +51,7 @@ export default function ClienteDetalhe() {
   const [taskf, setTaskf] = useState({ name: "", start: "", end: "" });
   const [credf, setCredf] = useState({ moduleId: "", label: "", url: "", login: "", secret: "", sso: false });
   const [modQuery, setModQuery] = useState("");
-  const [onlyOn, setOnlyOn] = useState(false);
-  const [openCats, setOpenCats] = useState<Record<string, boolean>>({});
+  const [modCat, setModCat] = useState("");
   useEffect(() => {
     const i = (data as any)?.impl, h = (data as any)?.healthObj;
     if (i) setImplForm({ progress: String(i.overall_progress ?? 0), due: i.due_date ?? "", status: i.status ?? "in_progress" });
@@ -315,50 +314,46 @@ export default function ClienteDetalhe() {
       {mods.length === 0 ? <Empty>Cadastre módulos no Catálogo primeiro.</Empty> : (() => {
         const q = modQuery.trim().toLowerCase();
         const catOf = (m: any) => (m.department || m.category || tr("Outros")) as string;
-        let list = onlyOn ? mods.filter((m) => activeSet.has(m.id)) : mods;
-        if (q) list = list.filter((m) => `${m.name} ${catOf(m)}`.toLowerCase().includes(q));
+        const cats = Array.from(new Set(mods.map(catOf))).sort((a, b) => a.localeCompare(b, "pt"));
+        const filtered = mods.filter((m) => {
+          const matchQ = !q || `${m.name} ${catOf(m)}`.toLowerCase().includes(q);
+          if (modCat === "__on") return activeSet.has(m.id) && matchQ;
+          return (!modCat || catOf(m) === modCat) && matchQ;
+        });
         const groups: Record<string, any[]> = {};
-        list.forEach((m) => { (groups[catOf(m)] ||= []).push(m); });
+        filtered.forEach((m) => { (groups[catOf(m)] ||= []).push(m); });
         const order = Object.keys(groups).sort((a, b) => a.localeCompare(b, "pt"));
-        const forceOpen = !!q || onlyOn;
+        const grouped = !modCat; // visão "Todas" mostra os cabeçalhos por categoria
+        const card = (m: any) => {
+          const on = activeSet.has(m.id);
+          return (
+            <div className="arow" key={m.id}>
+              <span className="ico" style={{ background: on ? "var(--crasto-text-primary)" : "var(--crasto-text-faint)" }}>{icon(m.category)}</span>
+              <span><span className="t">{m.name}</span><br /><span className="s">{on ? tr("Liberado no portal") : tr("Não contratado")}</span></span>
+              <button className={"sw" + (on ? " on" : "")} onClick={() => toggleModule(m.id, on)} />
+            </div>
+          );
+        };
         return (
           <>
             <div className="catsearch">
               <Search size={16} />
               <input value={modQuery} onChange={(e) => setModQuery(e.target.value)} placeholder={tr("Buscar módulo…")} />
-              <span className="mt" style={{ whiteSpace: "nowrap" }}>{tr("{n} de {total}", { n: list.length, total: mods.length })}</span>
+              <span className="mt" style={{ whiteSpace: "nowrap" }}>{tr("{n} de {total}", { n: filtered.length, total: mods.length })}</span>
             </div>
             <div className="cattabs">
-              <button className={"cattab" + (onlyOn ? " is-active" : "")} onClick={() => setOnlyOn((v) => !v)}>{tr("Só contratados")}<span className="cnt">{activeSet.size}</span></button>
+              <button className={"cattab" + (!modCat ? " is-active" : "")} onClick={() => setModCat("")}>{tr("Todas")}<span className="cnt">{mods.length}</span></button>
+              <button className={"cattab" + (modCat === "__on" ? " is-active" : "")} onClick={() => setModCat("__on")}>{tr("Contratados")}<span className="cnt">{activeSet.size}</span></button>
+              {cats.map((c) => (
+                <button key={c} className={"cattab" + (modCat === c ? " is-active" : "")} onClick={() => setModCat(c)}>{c}<span className="cnt">{mods.filter((m) => catOf(m) === c).length}</span></button>
+              ))}
             </div>
-            {order.length === 0 ? <Empty>{tr("Nenhum módulo encontrado.")}</Empty> : order.map((c) => {
-              const isOpen = forceOpen || !!openCats[c];
-              const onCount = groups[c].filter((m) => activeSet.has(m.id)).length;
-              return (
-                <div className="catacc" key={c}>
-                  <button className="catacc-h" onClick={() => setOpenCats((s) => ({ ...s, [c]: !s[c] }))}>
-                    {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                    <span className="catacc-t">{c}</span>
-                    {onCount > 0 && <Pill tone="ok">{tr("{n} liberados", { n: onCount })}</Pill>}
-                    <span className="cnt">{groups[c].length}</span>
-                  </button>
-                  {isOpen && (
-                    <div className="assign" style={{ marginTop: 10 }}>
-                      {groups[c].map((m) => {
-                        const on = activeSet.has(m.id);
-                        return (
-                          <div className="arow" key={m.id}>
-                            <span className="ico" style={{ background: on ? "var(--crasto-text-primary)" : "var(--crasto-text-faint)" }}>{icon(m.category)}</span>
-                            <span><span className="t">{m.name}</span><br /><span className="s">{on ? tr("Liberado no portal") : tr("Não contratado")}</span></span>
-                            <button className={"sw" + (on ? " on" : "")} onClick={() => toggleModule(m.id, on)} />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {filtered.length === 0 ? <Empty>{tr("Nenhum módulo encontrado.")}</Empty> : grouped ? order.map((d) => (
+              <div key={d} style={{ marginBottom: 8 }}>
+                <div className="sec-h" style={{ marginTop: 18 }}><h2>{d}</h2><Pill tone="mute">{tr("{n} módulos", { n: groups[d].length })}</Pill></div>
+                <div className="assign">{groups[d].map(card)}</div>
+              </div>
+            )) : <div className="assign">{filtered.map(card)}</div>}
           </>
         );
       })()}
