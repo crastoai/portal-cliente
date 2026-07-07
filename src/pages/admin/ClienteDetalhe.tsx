@@ -54,7 +54,7 @@ export default function ClienteDetalhe() {
   const [credf, setCredf] = useState({ moduleId: "", label: "", url: "", login: "", secret: "", sso: false });
   const [modQuery, setModQuery] = useState("");
   const [modCat, setModCat] = useState("__on");
-  const [svcForm, setSvcForm] = useState("");
+  const [svcQuery, setSvcQuery] = useState("");
   useEffect(() => {
     const h = (data as any)?.healthObj;
     if (h) setHealthForm({ status: h.status ?? "green", message: h.message ?? "" });
@@ -174,10 +174,10 @@ export default function ClienteDetalhe() {
     flash(tr("Editando — altere e clique em Salvar. Senha em branco mantém a atual."));
   }
   async function delCred(cid: string) { await api.delivery.moduleCredentials.remove(cid); reload(); }
-  async function addService() {
-    if (!svcForm) { flash(tr("Escolha um serviço.")); return; }
+  async function addService(serviceId: string) {
+    if (!serviceId) { flash(tr("Escolha um serviço.")); return; }
     setBusy(true);
-    try { await api.delivery.clientServices.attach(id!, svcForm); setSvcForm(""); reload(); flash(tr("Serviço adicionado ✓")); }
+    try { await api.delivery.clientServices.attach(id!, serviceId); setSvcQuery(""); reload(); flash(tr("Serviço adicionado ✓")); }
     catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); } finally { setBusy(false); }
   }
   async function setServiceStatus(csId: string, status: string) { await api.delivery.clientServices.setStatus(csId, status); reload(); }
@@ -382,13 +382,28 @@ export default function ClienteDetalhe() {
 
       {/* Serviços contratados */}
       <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Serviços contratados")}</h2><Pill tone="mute">{tr("o cliente vê em 'Meus serviços' (sem link)")}</Pill></div>
-      <div className="addrow">
-        <select value={svcForm} onChange={(e) => setSvcForm(e.target.value)} style={{ flex: 1, minWidth: 220 }}>
-          <option value="">{tr("Serviço…")}</option>
-          {svcCat.filter((s: any) => !csvc.some((c: any) => c.service_id === s.id)).map((s: any) => <option key={s.id} value={s.id}>{s.category ? `${s.category} · ` : ""}{s.name}</option>)}
-        </select>
-        <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={addService}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{tr("Adicionar")}</span></button>
-      </div>
+      {(() => {
+        const q = svcQuery.trim().toLowerCase();
+        const available = svcCat.filter((s: any) => !csvc.some((c: any) => c.service_id === s.id));
+        const matches = q ? available.filter((s: any) => `${s.name} ${s.category || ""}`.toLowerCase().includes(q)) : available;
+        return (
+          <div className="svcpick">
+            <div className="catsearch" style={{ margin: 0 }}>
+              <Search size={16} />
+              <input value={svcQuery} onChange={(e) => setSvcQuery(e.target.value)} placeholder={tr("Buscar serviço para adicionar…")} />
+              <span className="mt" style={{ whiteSpace: "nowrap" }}>{tr("{n} disponíveis", { n: available.length })}</span>
+            </div>
+            <div className="svcpick-list">
+              {matches.length === 0 ? <div className="svcpick-empty">{tr("Nenhum serviço encontrado.")}</div> : matches.map((s: any) => (
+                <button key={s.id} className="svcpick-item" disabled={busy} onClick={() => addService(s.id)}>
+                  <span className="svcpick-plus"><Plus size={14} /></span>
+                  <span style={{ flex: 1, minWidth: 0 }}><span className="nm">{s.name}</span>{s.category ? <span className="cat"> · {s.category}</span> : null}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
       {csvc.length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhum serviço contratado — adicione acima.")}</div> : csvc.map((c: any) => {
         const s = svcCat.find((x: any) => x.id === c.service_id);
         const stl = c.status === "delivered" ? tr("Concluído") : c.status === "in_progress" ? tr("Em execução") : c.status === "scheduled" ? tr("Agendado") : tr("Ativo");

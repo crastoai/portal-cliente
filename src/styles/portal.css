@@ -201,6 +201,14 @@
 .modroll .rbar { height: 8px; border-radius: 999px; background: var(--crasto-bg-3); overflow: hidden; }
 .modroll .rbar > span { display: block; height: 100%; background: var(--crasto-text-primary); border-radius: 999px; transition: width .3s; }
 .modroll .rm { font-size: 12.5px; color: var(--crasto-text-muted); display: flex; justify-content: space-between; gap: 10px; }
+.svcpick { margin-bottom: 12px; }
+.svcpick-list { margin-top: 8px; max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.svcpick-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-sm); background: var(--crasto-surface); cursor: pointer; color: var(--crasto-text-body); transition: border-color .15s, background .15s; }
+.svcpick-item:hover:not(:disabled) { border-color: var(--crasto-text-primary); background: var(--crasto-bg-2); }
+.svcpick-item .nm { font-weight: 700; color: var(--crasto-text-primary); }
+.svcpick-item .cat { color: var(--crasto-text-muted); font-size: 12.5px; }
+.svcpick-plus { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 999px; background: var(--crasto-bg-3); color: var(--crasto-text-primary); flex: none; }
+.svcpick-empty { color: var(--crasto-text-muted); padding: 8px 2px; font-size: 13px; }
 .svcrow { display: flex; align-items: center; gap: 12px; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md); padding: 14px 16px; margin-bottom: 10px; box-shadow: var(--crasto-shadow-sm); }
 .svcrow .svcico { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--crasto-radius-sm); background: var(--crasto-bg-3); color: var(--crasto-text-primary); flex: none; }
 .svcrow .nm { font-weight: 700; color: var(--crasto-text-primary); }

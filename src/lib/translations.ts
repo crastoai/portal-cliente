@@ -788,6 +788,9 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "prestados pela Crasto.AI": { en: "provided by Crasto.AI", es: "prestados por Crasto.AI" },
   "Serviço da Crasto.AI.": { en: "Crasto.AI service.", es: "Servicio de Crasto.AI." },
   "Por hora": { en: "Per hour", es: "Por hora" },
+  "Buscar serviço para adicionar…": { en: "Search a service to add…", es: "Buscar un servicio para añadir…" },
+  "{n} disponíveis": { en: "{n} available", es: "{n} disponibles" },
+  "Nenhum serviço encontrado.": { en: "No service found.", es: "Ningún servicio encontrado." },
   "Nenhum módulo encontrado.": { en: "No module found.", es: "Ningún módulo encontrado." },
 
   // ---- Admin · Propostas & contrato (ciclo comercial) ----
