@@ -775,6 +775,7 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Implantação por solução": { en: "Rollout per solution", es: "Implementación por solución" },
   "concluído": { en: "complete", es: "completado" },
   "sem prazo definido": { en: "no deadline set", es: "sin plazo definido" },
+  "Nenhum módulo contratado ainda — abra \"Todas\" e ative os módulos deste cliente.": { en: "No module enabled yet — open \"All\" and enable this client's modules.", es: "Sin módulos aún — abre \"Todas\" y activa los módulos de este cliente." },
   "Nenhum módulo encontrado.": { en: "No module found.", es: "Ningún módulo encontrado." },
 
   // ---- Admin · Propostas & contrato (ciclo comercial) ----

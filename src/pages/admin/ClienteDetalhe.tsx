@@ -51,7 +51,7 @@ export default function ClienteDetalhe() {
   const [taskf, setTaskf] = useState({ name: "", start: "", end: "" });
   const [credf, setCredf] = useState({ moduleId: "", label: "", url: "", login: "", secret: "", sso: false });
   const [modQuery, setModQuery] = useState("");
-  const [modCat, setModCat] = useState("");
+  const [modCat, setModCat] = useState("__on");
   useEffect(() => {
     const h = (data as any)?.healthObj;
     if (h) setHealthForm({ status: h.status ?? "green", message: h.message ?? "" });
@@ -359,7 +359,7 @@ export default function ClienteDetalhe() {
                 <button key={c} className={"cattab" + (modCat === c ? " is-active" : "")} onClick={() => setModCat(c)}>{c}<span className="cnt">{mods.filter((m) => catOf(m) === c).length}</span></button>
               ))}
             </div>
-            {filtered.length === 0 ? <Empty>{tr("Nenhum módulo encontrado.")}</Empty> : grouped ? order.map((d) => (
+            {filtered.length === 0 ? <Empty>{modCat === "__on" && !q ? tr("Nenhum módulo contratado ainda — abra \"Todas\" e ative os módulos deste cliente.") : tr("Nenhum módulo encontrado.")}</Empty> : grouped ? order.map((d) => (
               <div key={d} style={{ marginBottom: 8 }}>
                 <div className="sec-h" style={{ marginTop: 18 }}><h2>{d}</h2><Pill tone="mute">{tr("{n} módulos", { n: groups[d].length })}</Pill></div>
                 <div className="assign">{groups[d].map(card)}</div>
