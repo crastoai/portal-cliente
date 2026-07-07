@@ -65,12 +65,12 @@ export const projectTasks = {
 
 export const moduleCredentials = {
   listMine: async () =>
-    unwrapList<ModuleCredential>(await del().from("module_credentials").select("id,label,login,sso_enabled,vdi_module_id")),
+    unwrapList<ModuleCredential>(await del().from("module_credentials").select("id,label,login,sso_enabled,access_url,vdi_module_id")),
   listByOrg: async (orgId: string) =>
-    unwrapList<ModuleCredential>(await del().from("module_credentials").select("id,label,login,sso_enabled,vdi_module_id").eq("organization_id", orgId)),
-  /** Admin: define/atualiza a credencial de um módulo (senha criptografada via RPC). */
-  set: async (p: { orgId: string; moduleId: string; label: string; login: string; secret: string; sso: boolean }) =>
-    unwrap(await supabase.rpc("set_module_credential", { p_org: p.orgId, p_module: p.moduleId, p_label: p.label, p_login: p.login, p_secret: p.secret, p_sso: p.sso })),
+    unwrapList<ModuleCredential>(await del().from("module_credentials").select("id,label,login,sso_enabled,access_url,vdi_module_id").eq("organization_id", orgId)),
+  /** Admin: define/atualiza (idempotente) a credencial de um módulo — URL de acesso do cliente + senha criptografada via RPC. */
+  set: async (p: { orgId: string; moduleId: string; label: string; login: string; secret: string; sso: boolean; url?: string }) =>
+    unwrap(await supabase.rpc("set_module_credential", { p_org: p.orgId, p_module: p.moduleId, p_label: p.label, p_login: p.login, p_secret: p.secret, p_sso: p.sso, p_url: p.url || null })),
   remove: async (id: string) => unwrap(await del().from("module_credentials").delete().eq("id", id)),
 };
 

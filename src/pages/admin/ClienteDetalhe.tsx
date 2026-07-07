@@ -49,7 +49,7 @@ export default function ClienteDetalhe() {
   const [implForm, setImplForm] = useState({ progress: "0", due: "", status: "in_progress" });
   const [healthForm, setHealthForm] = useState({ status: "green", message: "" });
   const [taskf, setTaskf] = useState({ name: "", start: "", end: "" });
-  const [credf, setCredf] = useState({ moduleId: "", label: "", login: "", secret: "", sso: false });
+  const [credf, setCredf] = useState({ moduleId: "", label: "", url: "", login: "", secret: "", sso: false });
   useEffect(() => {
     const i = (data as any)?.impl, h = (data as any)?.healthObj;
     if (i) setImplForm({ progress: String(i.overall_progress ?? 0), due: i.due_date ?? "", status: i.status ?? "in_progress" });
@@ -143,13 +143,18 @@ export default function ClienteDetalhe() {
     await api.delivery.projectTasks.update(tid, patch); reload();
   }
   async function delTask(tid: string) { await api.delivery.projectTasks.remove(tid); reload(); }
+  /** Ao escolher o módulo, sugere a URL padrão do template (o admin pode trocar pela URL do cliente). */
+  function pickCredModule(moduleId: string) {
+    const m = mods.find((x) => x.id === moduleId);
+    setCredf((p) => ({ ...p, moduleId, url: p.url || (m as any)?.external_url || "", label: p.label || m?.name || "" }));
+  }
   async function saveCred() {
-    if (!credf.moduleId || !credf.login.trim()) { flash(tr("Escolha o módulo e informe o login.")); return; }
+    if (!credf.moduleId || (!credf.login.trim() && !credf.url.trim() && !credf.sso)) { flash(tr("Escolha o módulo e informe a URL ou o login.")); return; }
     setBusy(true);
     try {
       const m = mods.find((x) => x.id === credf.moduleId);
-      await api.delivery.moduleCredentials.set({ orgId: id!, moduleId: credf.moduleId, label: credf.label || m?.name || "Acesso", login: credf.login.trim(), secret: credf.secret, sso: credf.sso });
-      setCredf({ moduleId: "", label: "", login: "", secret: "", sso: false }); reload(); flash(tr("Credencial salva ✓"));
+      await api.delivery.moduleCredentials.set({ orgId: id!, moduleId: credf.moduleId, label: credf.label || m?.name || "Acesso", url: credf.url.trim(), login: credf.login.trim(), secret: credf.secret, sso: credf.sso });
+      setCredf({ moduleId: "", label: "", url: "", login: "", secret: "", sso: false }); reload(); flash(tr("Credencial salva ✓"));
     } catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); } finally { setBusy(false); }
   }
   async function delCred(cid: string) { await api.delivery.moduleCredentials.remove(cid); reload(); }
@@ -355,21 +360,25 @@ export default function ClienteDetalhe() {
       ))}
 
       {/* Credenciais de módulo (F-D) */}
-      <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Credenciais de acesso por módulo")}</h2><Pill tone="mute">{tr("o cliente vê em 'Minhas Soluções'")}</Pill></div>
-      <div className="addrow">
-        <select value={credf.moduleId} onChange={(e) => setCredf({ ...credf, moduleId: e.target.value })} style={{ minWidth: 160 }}>
+      <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Acesso por módulo (URL + login do cliente)")}</h2><Pill tone="mute">{tr("o cliente vê em 'Minhas Soluções'")}</Pill></div>
+      <div className="addrow" style={{ flexWrap: "wrap" }}>
+        <select value={credf.moduleId} onChange={(e) => pickCredModule(e.target.value)} style={{ minWidth: 160 }}>
           <option value="">{tr("Módulo…")}</option>
           {mods.filter((m) => activeSet.has(m.id)).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
         </select>
-        <input placeholder={tr("Login")} value={credf.login} onChange={(e) => setCredf({ ...credf, login: e.target.value })} style={{ flex: 1, minWidth: 130 }} />
-        <input placeholder={tr("Senha")} value={credf.secret} onChange={(e) => setCredf({ ...credf, secret: e.target.value })} style={{ flex: 1, minWidth: 130 }} />
+        <input placeholder={tr("URL de acesso do cliente (https://…)")} value={credf.url} onChange={(e) => setCredf({ ...credf, url: e.target.value })} style={{ flex: 2, minWidth: 200 }} />
+        <input placeholder={tr("Login")} value={credf.login} onChange={(e) => setCredf({ ...credf, login: e.target.value })} style={{ flex: 1, minWidth: 120 }} />
+        <input placeholder={tr("Senha")} value={credf.secret} onChange={(e) => setCredf({ ...credf, secret: e.target.value })} style={{ flex: 1, minWidth: 120 }} />
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--crasto-text-body)" }}><input type="checkbox" checked={credf.sso} onChange={(e) => setCredf({ ...credf, sso: e.target.checked })} style={{ width: "auto" }} />{tr("Entra direto (SSO)")}</label>
         <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={saveCred}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{tr("Salvar")}</span></button>
       </div>
-      {(creds ?? []).length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhuma credencial cadastrada — o cliente veria vazio.")}</div> : (creds ?? []).map((c) => (
+      {(creds ?? []).length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhum acesso cadastrado — o cliente veria vazio.")}</div> : (creds ?? []).map((c) => (
         <div className="crmrow" key={c.id}>
           <Pill tone={c.sso_enabled ? "ok" : "info"}>{c.sso_enabled ? "SSO" : tr("Login/senha")}</Pill>
-          <div style={{ flex: 1 }}><div className="nm">{c.label || (mods.find((m) => m.id === c.vdi_module_id)?.name)}</div><div className="mt">{c.sso_enabled ? tr("Entra direto") : (c.login || "—")}</div></div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="nm">{c.label || (mods.find((m) => m.id === c.vdi_module_id)?.name)}</div>
+            <div className="mt" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.access_url ? c.access_url : tr("Sem URL")}{" · "}{c.sso_enabled ? tr("Entra direto") : (c.login || "—")}</div>
+          </div>
           <button className="icobtn rm" onClick={() => delCred(c.id)}><Trash2 size={14} /></button>
         </div>
       ))}

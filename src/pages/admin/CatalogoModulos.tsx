@@ -108,7 +108,7 @@ export default function CatalogoModulos() {
           <Field label="Prazo prometido ao cliente (dias)"><input type="number" value={f.client_deadline_days} onChange={(e) => setF({ ...f, client_deadline_days: e.target.value })} placeholder="30" /></Field>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label="Link externo (acesso do cliente)"><input value={f.external_url} onChange={(e) => setF({ ...f, external_url: e.target.value })} placeholder="https://…" /></Field>
+          <Field label="URL padrão do módulo (opcional)"><input value={f.external_url} onChange={(e) => setF({ ...f, external_url: e.target.value })} placeholder="https://…" /><div className="mt" style={{ fontSize: 11.5 }}>{t("O acesso real é por cliente (URL + login) na ficha de cada cliente.")}</div></Field>
           <Field label="Link interno (gestão Crasto)"><input value={f.internal_url} onChange={(e) => setF({ ...f, internal_url: e.target.value })} placeholder={t("https://… (opcional)")} /></Field>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>

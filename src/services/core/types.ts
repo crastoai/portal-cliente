@@ -31,7 +31,7 @@ export type ClientModule = { id: string; organization_id?: string; vdi_module_id
 export type Implementation = Record<string, any> & { overall_progress: number | null; status: string | null };
 export type SystemHealth = { status: string | null; message?: string | null; organization_id?: string };
 export type ProjectTask = Record<string, any> & { id: string };
-export type ModuleCredential = { id: string; label: string; login: string | null; sso_enabled: boolean };
+export type ModuleCredential = { id: string; label: string; login: string | null; sso_enabled: boolean; access_url?: string | null; vdi_module_id?: string };
 
 // ---- commerce ----
 export type Proposal = Record<string, any> & { id: string };

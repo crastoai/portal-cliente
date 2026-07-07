@@ -4,7 +4,7 @@ import { services } from "../../services";
 import { PageHead, Pill, Empty, useAsync } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 
-type Cred = { id: string; login: string | null; sso_enabled: boolean; vdi_module_id: string };
+type Cred = { id: string; login: string | null; sso_enabled: boolean; vdi_module_id: string; access_url: string | null };
 type Mod = {
   id: string; status: string; vdi_module_id: string;
   vdi: { name: string; description: string | null; category: string | null } | null;
@@ -20,12 +20,17 @@ async function fetchData(): Promise<Mod[]> {
   const vms = ids.length ? await services.catalog.vdiModules.listByIds(ids, "id,name,description,category,external_url") : [];
   const vmap = Object.fromEntries((vms as any[]).map((v) => [v.id, v]));
   const cmap = Object.fromEntries((creds as any[]).map((c) => [c.vdi_module_id, c]));
-  return cms.map((r) => ({
-    id: r.id, status: r.status, vdi_module_id: r.vdi_module_id,
-    vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null,
-    external_url: (vmap[r.vdi_module_id]?.external_url as string) ?? null,
-    cred: (cmap[r.vdi_module_id] as Cred) ?? null,
-  }));
+  return cms.map((r) => {
+    const cred = (cmap[r.vdi_module_id] as Cred) ?? null;
+    // URL de acesso é POR CLIENTE (credencial); o link do template é só fallback/legado.
+    const url = cred?.access_url || (vmap[r.vdi_module_id]?.external_url as string) || null;
+    return {
+      id: r.id, status: r.status, vdi_module_id: r.vdi_module_id,
+      vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null,
+      external_url: url,
+      cred,
+    };
+  });
 }
 
 function icon(cat?: string | null) {

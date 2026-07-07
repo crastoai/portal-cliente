@@ -745,6 +745,13 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Farol atualizado ✓": { en: "Status updated ✓", es: "Semáforo actualizado ✓" },
   "Escolha o módulo e informe o login.": { en: "Choose the module and enter the login.", es: "Elige el módulo e indica el usuario." },
   "Credencial salva ✓": { en: "Credential saved ✓", es: "Credencial guardada ✓" },
+  "Acesso por módulo (URL + login do cliente)": { en: "Access per module (client URL + login)", es: "Acceso por módulo (URL + usuario del cliente)" },
+  "URL de acesso do cliente (https://…)": { en: "Client access URL (https://…)", es: "URL de acceso del cliente (https://…)" },
+  "Escolha o módulo e informe a URL ou o login.": { en: "Choose the module and enter the URL or login.", es: "Elige el módulo e indica la URL o el usuario." },
+  "Nenhum acesso cadastrado — o cliente veria vazio.": { en: "No access set — the client would see it empty.", es: "Sin acceso — el cliente lo vería vacío." },
+  "Sem URL": { en: "No URL", es: "Sin URL" },
+  "URL padrão do módulo (opcional)": { en: "Default module URL (optional)", es: "URL predeterminada del módulo (opcional)" },
+  "O acesso real é por cliente (URL + login) na ficha de cada cliente.": { en: "The real access is per client (URL + login) on each client's page.", es: "El acceso real es por cliente (URL + usuario) en la ficha de cada cliente." },
 
   // ---- Admin · Propostas & contrato (ciclo comercial) ----
   "Propostas & contrato": { en: "Proposals & contract", es: "Propuestas y contrato" },
