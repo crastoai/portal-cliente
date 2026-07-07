@@ -5,7 +5,7 @@ import { services as api, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, initials, Field, money } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
-import { COUNTRIES, countryOf, STAGES, stageOf } from "../../lib/countries";
+import { COUNTRIES, countryOf, STAGES, stageOf, DIAL_CODES } from "../../lib/countries";
 
 type Org = any;
 const icon = (cat?: string | null) => { const c = (cat || "").toLowerCase(); return c.includes("atend") ? <MessageCircle size={16} /> : c.includes("market") ? <Send size={16} /> : c.includes("vend") ? <Search size={16} /> : <Grid3x3 size={16} />; };
@@ -45,6 +45,10 @@ export default function ClienteDetalhe() {
   const [inv, setInv] = useState({ email: "", name: "", role: "client_member" });
   const [person, setPerson] = useState({ full_name: "", role: "", email: "", birthday: "" });
   const [phone, setPhone] = useState({ label: "mobile", country_code: "+55", number: "", person_id: "" });
+  const [epId, setEpId] = useState("");
+  const [ep, setEp] = useState({ full_name: "", role: "", email: "", birthday: "" });
+  const [ephId, setEphId] = useState("");
+  const [eph, setEph] = useState({ label: "mobile", country_code: "+55", number: "", person_id: "" });
   const [act, setAct] = useState({ type: "note", title: "", description: "" });
   const [taxid, setTaxid] = useState({ kind: "CNPJ", value: "", address: "" });
   // F-D: implantação, saúde, tarefas, credenciais
@@ -108,6 +112,10 @@ export default function ClienteDetalhe() {
   }
   async function addPerson() { if (!person.full_name.trim()) return; await api.crm.people.add({ organization_id: id, full_name: person.full_name.trim(), role: person.role || null, email: person.email || null, birthday: person.birthday || null }); setPerson({ full_name: "", role: "", email: "", birthday: "" }); reload(); }
   async function addPhone() { if (!phone.number.trim()) return; await api.crm.phones.add({ organization_id: id, label: phone.label, country_code: phone.country_code, number: phone.number.trim(), person_id: phone.person_id || null }); setPhone({ label: "mobile", country_code: "+55", number: "", person_id: "" }); reload(); }
+  function startEditPerson(p: any) { setEpId(p.id); setEp({ full_name: p.full_name || "", role: p.role || "", email: p.email || "", birthday: p.birthday || "" }); }
+  async function savePerson() { if (!ep.full_name.trim()) return; await api.crm.people.update(epId, { full_name: ep.full_name.trim(), role: ep.role || null, email: ep.email || null, birthday: ep.birthday || null }); setEpId(""); reload(); }
+  function startEditPhone(ph: any) { setEphId(ph.id); setEph({ label: ph.label || "mobile", country_code: ph.country_code || "+55", number: ph.number || "", person_id: ph.person_id || "" }); }
+  async function savePhone() { if (!eph.number.trim()) return; await api.crm.phones.update(ephId, { label: eph.label, country_code: eph.country_code, number: eph.number.trim(), person_id: eph.person_id || null }); setEphId(""); reload(); }
   async function addActivity() { if (!act.title.trim()) return; await api.crm.activities.add({ organization_id: id, type: act.type, title: act.title.trim(), description: act.description || null }); setAct({ type: "note", title: "", description: "" }); reload(); }
   async function delRow(_schema: string, table: string, rid: string) { await api.crm.removeRow(table as any, rid); reload(); }
   async function addTaxid() {
@@ -293,31 +301,50 @@ export default function ClienteDetalhe() {
         <input type="date" title={tr("Aniversário")} value={person.birthday} onChange={(e) => setPerson({ ...person, birthday: e.target.value })} />
         <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={addPerson}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{tr("Adicionar")}</span></button>
       </div>
-      {people.map((p) => (
+      {people.map((p) => (epId === p.id ? (
+        <div className="addrow" key={p.id}>
+          <input placeholder={tr("Nome completo")} value={ep.full_name} onChange={(e) => setEp({ ...ep, full_name: e.target.value })} style={{ flex: 2, minWidth: 140 }} />
+          <input placeholder={tr("Cargo (dono, diretor…)")} value={ep.role} onChange={(e) => setEp({ ...ep, role: e.target.value })} style={{ flex: 1, minWidth: 120 }} />
+          <input placeholder={tr("E-mail")} value={ep.email} onChange={(e) => setEp({ ...ep, email: e.target.value })} style={{ flex: 1, minWidth: 140 }} />
+          <input type="date" value={ep.birthday} onChange={(e) => setEp({ ...ep, birthday: e.target.value })} />
+          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={savePerson}><span className="crasto-btn__label">{tr("Salvar")}</span></button>
+          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setEpId("")}><span className="crasto-btn__label">{tr("Cancelar")}</span></button>
+        </div>
+      ) : (
         <div className="crmrow" key={p.id}>
           <div className="logo" style={{ width: 34, height: 34, borderRadius: 9, background: "var(--crasto-bg-3)", color: "var(--crasto-text-primary)", display: "grid", placeItems: "center", fontWeight: 700, fontSize: 13 }}>{initials(p.full_name)}</div>
-          <div><div className="nm">{p.full_name} {p.role && <span className="chip" style={{ marginLeft: 6 }}>{p.role}</span>}</div><div className="mt">{p.email || tr("sem e-mail")}{p.birthday ? ` · 🎂 ${fmtDate(p.birthday)}` : ""}</div></div>
+          <div style={{ flex: 1, minWidth: 0 }}><div className="nm">{p.full_name} {p.role && <span className="chip" style={{ marginLeft: 6 }}>{p.role}</span>}</div><div className="mt">{p.email || tr("sem e-mail")}{p.birthday ? ` · 🎂 ${fmtDate(p.birthday)}` : ""}</div></div>
+          <button className="icobtn" title={tr("Editar")} onClick={() => startEditPerson(p)}><Pencil size={14} /></button>
           <button className="icobtn rm" onClick={() => delRow("crm", "people", p.id)}><Trash2 size={14} /></button>
         </div>
-      ))}
+      )))}
 
       {/* Telefones */}
       <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Telefones")}</h2></div>
       <div className="addrow">
         <select value={phone.label} onChange={(e) => setPhone({ ...phone, label: e.target.value })}><option value="mobile">{tr("Celular")}</option><option value="fixo">{tr("Fixo")}</option><option value="whatsapp">WhatsApp</option></select>
-        <select value={phone.country_code} onChange={(e) => setPhone({ ...phone, country_code: e.target.value })}>{COUNTRIES.map((c) => <option key={c.code} value={c.ddi}>{c.flag} {c.ddi}</option>)}</select>
+        <select value={phone.country_code} onChange={(e) => setPhone({ ...phone, country_code: e.target.value })}>{DIAL_CODES.map((d, i) => <option key={i} value={d.ddi}>{d.flag} {d.ddi}</option>)}</select>
         <input placeholder={tr("Número")} value={phone.number} onChange={(e) => setPhone({ ...phone, number: e.target.value })} style={{ flex: 1, minWidth: 130 }} />
         <select value={phone.person_id} onChange={(e) => setPhone({ ...phone, person_id: e.target.value })}><option value="">{tr("(empresa)")}</option>{people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select>
         <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={addPhone}><span className="crasto-btn__label">{tr("Adicionar")}</span></button>
       </div>
-      {phones.map((ph) => (
+      {phones.map((ph) => (ephId === ph.id ? (
+        <div className="addrow" key={ph.id}>
+          <select value={eph.label} onChange={(e) => setEph({ ...eph, label: e.target.value })}><option value="mobile">{tr("Celular")}</option><option value="fixo">{tr("Fixo")}</option><option value="whatsapp">WhatsApp</option></select>
+          <select value={eph.country_code} onChange={(e) => setEph({ ...eph, country_code: e.target.value })}>{DIAL_CODES.map((d, i) => <option key={i} value={d.ddi}>{d.flag} {d.ddi}</option>)}</select>
+          <input placeholder={tr("Número")} value={eph.number} onChange={(e) => setEph({ ...eph, number: e.target.value })} style={{ flex: 1, minWidth: 130 }} />
+          <select value={eph.person_id} onChange={(e) => setEph({ ...eph, person_id: e.target.value })}><option value="">{tr("(empresa)")}</option>{people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select>
+          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={savePhone}><span className="crasto-btn__label">{tr("Salvar")}</span></button>
+          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setEphId("")}><span className="crasto-btn__label">{tr("Cancelar")}</span></button>
+        </div>
+      ) : (
         <div className="crmrow" key={ph.id}>
           <Pill tone="info">{ph.label}</Pill>
-          <div className="nm tnum">{ph.country_code} {ph.number}</div>
-          {ph.person_id && <span className="mt">{people.find((p) => p.id === ph.person_id)?.full_name}</span>}
+          <div className="nm tnum" style={{ flex: 1, minWidth: 0 }}>{ph.country_code} {ph.number}{ph.person_id ? <span className="mt" style={{ fontWeight: 400 }}> · {people.find((p) => p.id === ph.person_id)?.full_name}</span> : ""}</div>
+          <button className="icobtn" title={tr("Editar")} onClick={() => startEditPhone(ph)}><Pencil size={14} /></button>
           <button className="icobtn rm" onClick={() => delRow("crm", "phones", ph.id)}><Trash2 size={14} /></button>
         </div>
-      ))}
+      )))}
 
       {/* Documentos */}
       <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Documentos")}</h2></div>

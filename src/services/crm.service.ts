@@ -11,12 +11,14 @@ export const people = {
   listByOrg: async (orgId: string) =>
     unwrapList<Person>(await crmSchema().from("people").select("*").eq("organization_id", orgId).order("is_primary", { ascending: false })),
   add: async (payload: Record<string, any>) => unwrap(await crmSchema().from("people").insert(payload)),
+  update: async (id: string, patch: Record<string, any>) => unwrap(await crmSchema().from("people").update(patch).eq("id", id)),
 };
 
 export const phones = {
   listByOrg: async (orgId: string) =>
     unwrapList<Phone>(await crmSchema().from("phones").select("*").eq("organization_id", orgId)),
   add: async (payload: Record<string, any>) => unwrap(await crmSchema().from("phones").insert(payload)),
+  update: async (id: string, patch: Record<string, any>) => unwrap(await crmSchema().from("phones").update(patch).eq("id", id)),
 };
 
 export const documents = {
