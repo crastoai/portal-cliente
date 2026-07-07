@@ -825,6 +825,13 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Em atendimento": { en: "In progress", es: "En atención" },
   "Atendida": { en: "Handled", es: "Atendida" },
   "Cancelada": { en: "Cancelled", es: "Cancelada" },
+  "Falar no WhatsApp": { en: "Message on WhatsApp", es: "Hablar por WhatsApp" },
+  "Avisar que foi resolvido": { en: "Notify it was resolved", es: "Avisar que fue resuelto" },
+  "Cliente avisado por e-mail ✓ Chamado resolvido.": { en: "Client emailed ✓ Ticket resolved.", es: "Cliente avisado por correo ✓ Ticket resuelto." },
+  "Chamado resolvido, mas e-mail não enviado: {e}": { en: "Ticket resolved, but email not sent: {e}", es: "Ticket resuelto, pero correo no enviado: {e}" },
+  "Avisar que recebemos": { en: "Notify we received it", es: "Avisar que la recibimos" },
+  "Cliente avisado por e-mail ✓ Solicitação em atendimento.": { en: "Client emailed ✓ Request in progress.", es: "Cliente avisado por correo ✓ Solicitud en atención." },
+  "Marcada em atendimento, mas e-mail não enviado: {e}": { en: "Marked in progress, but email not sent: {e}", es: "Marcada en atención, pero correo no enviado: {e}" },
   "Nenhum módulo encontrado.": { en: "No module found.", es: "Ningún módulo encontrado." },
 
   // ---- Admin · Propostas & contrato (ciclo comercial) ----

@@ -26,6 +26,12 @@ export const tickets = {
   },
   /** Admin: muda o status do chamado. */
   setStatus: async (id: string, status: string) => unwrap(await sup().from("tickets").update({ status }).eq("id", id)),
+  /** Admin: avisa o cliente por e-mail (template='resolved' | 'received') e atualiza o status (edge). */
+  notify: async (ticketId: string, template: "resolved" | "received"): Promise<{ ok: boolean; status?: string; email?: string; email_sent?: boolean; email_error?: string; error?: string }> => {
+    const { data, error } = await supabase.functions.invoke("admin-ticket-notify", { body: { ticket_id: ticketId, template } });
+    if (error) return { ok: false, error: error.message };
+    return (data as any) ?? { ok: false, error: "sem resposta do servidor" };
+  },
 };
 
 export const pendingActions = {

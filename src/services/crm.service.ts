@@ -17,6 +17,9 @@ export const people = {
 export const phones = {
   listByOrg: async (orgId: string) =>
     unwrapList<Phone>(await crmSchema().from("phones").select("*").eq("organization_id", orgId)),
+  /** Telefones de várias orgs (admin) — para montar o botão de WhatsApp por cliente. */
+  listByOrgs: async (ids: string[]) =>
+    ids.length ? unwrapList<Phone>(await crmSchema().from("phones").select("organization_id,country_code,number,is_primary").in("organization_id", ids)) : [],
   add: async (payload: Record<string, any>) => unwrap(await crmSchema().from("phones").insert(payload)),
   update: async (id: string, patch: Record<string, any>) => unwrap(await crmSchema().from("phones").update(patch).eq("id", id)),
 };
