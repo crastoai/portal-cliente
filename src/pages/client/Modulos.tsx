@@ -107,7 +107,7 @@ export default function Modulos() {
                         </div>
                       )}
 
-                      {cred && !cred.sso_enabled && (
+                      {cred && !cred.sso_enabled && cred.login && (
                         <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--crasto-border-soft)" }}>
                           {shown ? (
                             <div style={{ display: "flex", flexDirection: "column", gap: 7, fontSize: 13 }}>

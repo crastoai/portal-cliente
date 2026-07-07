@@ -764,6 +764,9 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Buscar módulo…": { en: "Search module…", es: "Buscar módulo…" },
   "Contratados": { en: "Enabled", es: "Contratados" },
   "Só contratados": { en: "Enabled only", es: "Solo contratados" },
+  "Só link": { en: "Link only", es: "Solo enlace" },
+  "sem login": { en: "no login", es: "sin usuario" },
+  "Editando — altere e clique em Salvar. Senha em branco mantém a atual.": { en: "Editing — change and click Save. Blank password keeps the current one.", es: "Editando — cambia y haz clic en Guardar. Contraseña en blanco mantiene la actual." },
   "Nenhum módulo encontrado.": { en: "No module found.", es: "Ningún módulo encontrado." },
 
   // ---- Admin · Propostas & contrato (ciclo comercial) ----

@@ -159,6 +159,10 @@ export default function ClienteDetalhe() {
       setCredf({ moduleId: "", label: "", url: "", login: "", secret: "", sso: false }); reload(); flash(tr("Credencial salva ✓"));
     } catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); } finally { setBusy(false); }
   }
+  function editCred(c: any) {
+    setCredf({ moduleId: c.vdi_module_id, label: c.label || "", url: c.access_url || "", login: c.login || "", secret: "", sso: !!c.sso_enabled });
+    flash(tr("Editando — altere e clique em Salvar. Senha em branco mantém a atual."));
+  }
   async function delCred(cid: string) { await api.delivery.moduleCredentials.remove(cid); reload(); }
   async function uploadDoc(file: File, kind: string) {
     setBusy(true);
@@ -410,11 +414,12 @@ export default function ClienteDetalhe() {
       </div>
       {(creds ?? []).length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhum acesso cadastrado — o cliente veria vazio.")}</div> : (creds ?? []).map((c) => (
         <div className="crmrow" key={c.id}>
-          <Pill tone={c.sso_enabled ? "ok" : "info"}>{c.sso_enabled ? "SSO" : tr("Login/senha")}</Pill>
+          <Pill tone={c.sso_enabled ? "ok" : c.login ? "info" : "mute"}>{c.sso_enabled ? "SSO" : c.login ? tr("Login/senha") : tr("Só link")}</Pill>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="nm">{c.label || (mods.find((m) => m.id === c.vdi_module_id)?.name)}</div>
-            <div className="mt" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.access_url ? c.access_url : tr("Sem URL")}{" · "}{c.sso_enabled ? tr("Entra direto") : (c.login || "—")}</div>
+            <div className="mt" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.access_url ? c.access_url : tr("Sem URL")}{" · "}{c.sso_enabled ? tr("Entra direto") : (c.login || tr("sem login"))}</div>
           </div>
+          <button className="icobtn" title={tr("Editar")} onClick={() => editCred(c)}><Pencil size={14} /></button>
           <button className="icobtn rm" onClick={() => delCred(c.id)}><Trash2 size={14} /></button>
         </div>
       ))}
