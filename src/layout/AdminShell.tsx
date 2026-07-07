@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Grid3x3, FileText, Tag, Share2, Coins, TrendingUp, Plug, LifeBuoy, Rocket } from "lucide-react";
+import { LayoutDashboard, Users, Grid3x3, FileText, Tag, Share2, Coins, TrendingUp, Plug, LifeBuoy, Rocket, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
 import Shell, { type NavItem } from "./Shell";
 
 const NAV: NavItem[] = [
@@ -9,6 +9,8 @@ const NAV: NavItem[] = [
   { to: "/admin/servicos", icon: Tag, label: "Serviços & preços", section: "Operação" },
   { to: "/admin/implantacoes", icon: Rocket, label: "Solicitações de implantação", section: "Operação" },
   { to: "/admin/tickets", icon: LifeBuoy, label: "Chamados & Suporte", section: "Operação" },
+  { to: "/admin/contas-pagar", icon: ArrowUpCircle, label: "Contas a Pagar", section: "Financeiro & Parceiros" },
+  { to: "/admin/contas-receber", icon: ArrowDownCircle, label: "Contas a Receber", section: "Financeiro & Parceiros" },
   { to: "/admin/conectores", icon: Share2, label: "Agentes indicadores", section: "Financeiro & Parceiros" },
   { to: "/admin/custos", icon: Coins, label: "Custos & Despesas", tag: "🔒", section: "Financeiro & Parceiros" },
   { to: "/admin/receita", icon: TrendingUp, label: "Receita & churn", section: "Financeiro & Parceiros" },

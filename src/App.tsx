@@ -28,6 +28,8 @@ import CatalogoModulos from "./pages/admin/CatalogoModulos";
 import Custos from "./pages/admin/Custos";
 import Receita from "./pages/admin/Receita";
 import Integracoes from "./pages/admin/Integracoes";
+import ContasPagar from "./pages/admin/ContasPagar";
+import ContasReceber from "./pages/admin/ContasReceber";
 import Tickets from "./pages/admin/Tickets";
 import Implantacoes from "./pages/admin/Implantacoes";
 
@@ -92,6 +94,8 @@ export default function App() {
             <Route path="custos" element={<Custos />} />
             <Route path="receita" element={<Receita />} />
             <Route path="integracoes" element={<Integracoes />} />
+            <Route path="contas-pagar" element={<ContasPagar />} />
+            <Route path="contas-receber" element={<ContasReceber />} />
             <Route path="tickets" element={<Tickets />} />
             <Route path="implantacoes" element={<Implantacoes />} />
             <Route path="perfil" element={<Perfil />} />

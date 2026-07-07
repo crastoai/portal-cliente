@@ -22,10 +22,11 @@ import { billing } from "./billing.service";
 import { automation } from "./automation.service";
 import { storage } from "./storage.service";
 import { analytics } from "./analytics.service";
+import { finance } from "./finance.service";
 
 export const services = {
-  identity, crm, catalog, delivery, commerce, support, billing, automation, storage, analytics,
+  identity, crm, catalog, delivery, commerce, support, billing, automation, storage, analytics, finance,
 };
 
 // Re-export nomeado para quem preferir importar um contexto só.
-export { identity, crm, catalog, delivery, commerce, support, billing, automation, storage, analytics };
+export { identity, crm, catalog, delivery, commerce, support, billing, automation, storage, analytics, finance };
