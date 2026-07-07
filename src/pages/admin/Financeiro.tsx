@@ -6,7 +6,28 @@ import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 
 const today = () => new Date().toISOString().slice(0, 10);
-const A_EMPTY = { id: "", account_type: "payable", description: "", contact_name: "", category: "", amount: "", amount_paid: "", due_date: "", payment_date: "", payment_method: "", recurrence: "", invoice_number: "", notes: "", status: "pending", expense_type: "" };
+const A_EMPTY = {
+  id: "", account_type: "payable",
+  contact_name: "", contact_reference: "", organization_id: "",
+  description: "", services: [] as any[],
+  contract_validity_value: "", contract_validity_unit: "months", contract_total: "",
+  payment_installments: "", installment_amount: "", due_date: "", payment_day_of_month: "", payment_method: "PIX",
+  expense_type: "consumo", category: "", status: "pending", payment_reason: "",
+  amount: "", amount_paid: "", payment_date: "", recurrence: "", invoice_number: "", notes: "",
+};
+const UNITS = [{ v: "days", l: "Dias" }, { v: "months", l: "Meses" }, { v: "years", l: "Anos" }];
+const PAYMETHODS = ["PIX", "Boleto", "Cartão de crédito", "Cartão de débito", "Transferência", "Dinheiro", "Outro"];
+// gera as parcelas (payment_schedule) a partir de nº parcelas + 1ª data + dia de vencimento + valor
+function buildSchedule(n: number, first: string, day: any, val: number) {
+  const out: any[] = [];
+  if (!n || n < 1 || !first) return out;
+  const base = new Date(first + "T00:00:00");
+  for (let i = 0; i < n; i++) {
+    const d = new Date(base.getFullYear(), base.getMonth() + i, day ? Number(day) : base.getDate());
+    out.push({ installment: i + 1, date: d.toISOString().slice(0, 10), amount: Number(val || 0), status: "pending" });
+  }
+  return out;
+}
 const C_EMPTY = { id: "", vendor_name: "", description: "", category: "", currency: "BRL", amount_original: "", exchange_rate: "1", amount_brl: "", recurrence: "mensal", cost_type: "fixo", cost_nature: "recorrente", next_payment_date: "", is_active: true, notes: "" };
 const T_EMPTY = { id: "", type: "income", category: "", amount: "", description: "", status: "completed", transaction_date: "", contact_name: "", payment_method: "", notes: "" };
 
@@ -20,12 +41,14 @@ const TABS = [
 export default function Financeiro() {
   const t = useT();
   const { data, loading, reload } = useAsync(async () => {
-    const [pay, rec, costs, tx] = await Promise.all([
-      services.finance.accounts.list("payable"), services.finance.accounts.list("receivable"), services.finance.costs.list(), services.finance.transactions.list(),
+    const [pay, rec, costs, tx, orgs] = await Promise.all([
+      services.finance.accounts.list("payable"), services.finance.accounts.list("receivable"), services.finance.costs.list(), services.finance.transactions.list(), services.identity.organizations.listBrief(),
     ]);
-    return { pay: (pay as any[]) ?? [], rec: (rec as any[]) ?? [], costs: (costs as any[]) ?? [], tx: (tx as any[]) ?? [] };
+    return { pay: (pay as any[]) ?? [], rec: (rec as any[]) ?? [], costs: (costs as any[]) ?? [], tx: (tx as any[]) ?? [], orgs: (orgs as any[]) ?? [] };
   }, []);
-  const pay = data?.pay ?? [], rec = data?.rec ?? [], costs = data?.costs ?? [], tx = data?.tx ?? [];
+  const pay = data?.pay ?? [], rec = data?.rec ?? [], costs = data?.costs ?? [], tx = data?.tx ?? [], orgs = data?.orgs ?? [];
+  // sugestões de empresa: clientes cadastrados + nomes já usados em lançamentos
+  const companySuggestions = Array.from(new Set([...orgs.map((o: any) => o.name), ...[...pay, ...rec].map((r: any) => r.contact_name).filter(Boolean)])).sort();
   const [tab, setTab] = useState("pagar");
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -93,13 +116,49 @@ export default function Financeiro() {
   function newAccount(type: string) { setAf({ ...A_EMPTY, account_type: type, status: "pending" }); setAOpen(true); }
   function editItem(i: any) {
     if (i._kind === "cost") { const c = costs.find((x) => x.id === i.id); setCf({ id: c.id, vendor_name: c.vendor_name || "", description: c.description || "", category: c.category || "", currency: c.currency || "BRL", amount_original: String(c.amount_original ?? ""), exchange_rate: String(c.exchange_rate ?? "1"), amount_brl: String(c.amount_brl ?? ""), recurrence: c.recurrence || "mensal", cost_type: c.cost_type || "fixo", cost_nature: c.cost_nature || "recorrente", next_payment_date: c.next_payment_date || "", is_active: !!c.is_active, notes: c.notes || "" }); setCOpen(true); }
-    else { setAf({ id: i.id, account_type: i.account_type, description: i.description || "", contact_name: i.contact_name || "", category: i.category || "", amount: String(i.amount ?? ""), amount_paid: String(i.amount_paid ?? ""), due_date: i.due_date || "", payment_date: i.payment_date || "", payment_method: i.payment_method || "", recurrence: i.recurrence || "", invoice_number: i.invoice_number || "", notes: i.notes || "", status: i.status || "pending", expense_type: i.expense_type || "" }); setAOpen(true); }
+    else { setAf({
+      id: i.id, account_type: i.account_type,
+      contact_name: i.contact_name || "", contact_reference: i.contact_reference || "", organization_id: i.organization_id || "",
+      description: i.description || "", services: Array.isArray(i.services) ? i.services : [],
+      contract_validity_value: String(i.contract_validity_value ?? ""), contract_validity_unit: i.contract_validity_unit || "months", contract_total: String(i.contract_total ?? i.amount ?? ""),
+      payment_installments: String(i.payment_installments ?? ""), installment_amount: String(Array.isArray(i.payment_schedule) && i.payment_schedule[0] ? i.payment_schedule[0].amount : ""),
+      due_date: i.due_date || (Array.isArray(i.payment_schedule) && i.payment_schedule[0] ? i.payment_schedule[0].date : ""), payment_day_of_month: String(i.payment_day_of_month ?? ""), payment_method: i.payment_method || "PIX",
+      expense_type: i.expense_type || "consumo", category: i.category || "", status: i.status || "pending", payment_reason: i.payment_reason || "",
+      amount: String(i.amount ?? ""), amount_paid: String(i.amount_paid ?? ""), payment_date: i.payment_date || "", recurrence: i.recurrence || "", invoice_number: i.invoice_number || "", notes: i.notes || "",
+    }); setAOpen(true); }
   }
+  // serviços do fornecedor (lista repetível)
+  const addService = () => setAf((s: any) => ({ ...s, services: [...(s.services || []), { name: "", description: "", list_price: "", special_price: "" }] }));
+  const setService = (idx: number, patch: any) => setAf((s: any) => ({ ...s, services: s.services.map((sv: any, i: number) => i === idx ? { ...sv, ...patch } : sv) }));
+  const rmService = (idx: number) => setAf((s: any) => ({ ...s, services: s.services.filter((_: any, i: number) => i !== idx) }));
+  // recalcula valor da parcela quando muda total x nº de parcelas
+  const setAcc = (patch: any) => setAf((s: any) => {
+    const next = { ...s, ...patch };
+    if (("contract_total" in patch || "payment_installments" in patch)) {
+      const tot = Number(next.contract_total || 0), n = Number(next.payment_installments || 0);
+      if (tot > 0 && n > 0) next.installment_amount = (tot / n).toFixed(2);
+    }
+    return next;
+  });
+  const previewSchedule = buildSchedule(Number(af.payment_installments || 0), af.due_date, af.payment_day_of_month, Number(af.installment_amount || 0));
   async function saveAccount() {
-    if (!af.description.trim() || !af.amount) { flash(t("Informe a descrição e o valor.")); return; }
+    if (!af.contact_name.trim() && !af.description.trim()) { flash(t("Informe a empresa ou a descrição.")); return; }
+    const inst = Number(af.payment_installments || 0), val = Number(af.installment_amount || 0);
+    const total = Number(af.contract_total || 0) || (inst > 0 ? inst * val : val) || Number(af.amount || 0);
+    if (!total) { flash(t("Informe o total do contrato ou o valor da parcela.")); return; }
+    const schedule = buildSchedule(inst, af.due_date, af.payment_day_of_month, val);
+    const paid = af.status === "paid" ? total : Number(af.amount_paid || 0);
     setBusy(true);
-    try { await services.finance.accounts.save({ ...af, amount: af.amount || 0, amount_paid: af.amount_paid || 0 }); setAOpen(false); reload(); flash(t("Conta salva ✓")); }
-    catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
+    try {
+      await services.finance.accounts.save({
+        id: af.id, account_type: af.account_type, contact_name: af.contact_name, contact_reference: af.contact_reference, organization_id: af.organization_id,
+        description: af.description, services: af.services || [], category: af.category, expense_type: af.expense_type, status: af.status,
+        contract_validity_value: af.contract_validity_value, contract_validity_unit: af.contract_validity_unit, contract_total: total,
+        payment_installments: af.payment_installments, payment_day_of_month: af.payment_day_of_month, payment_method: af.payment_method, payment_reason: af.payment_reason,
+        due_date: af.due_date || (schedule[0]?.date ?? ""), payment_schedule: schedule, amount: total, amount_paid: paid, recurrence: af.recurrence, invoice_number: af.invoice_number, notes: af.notes,
+      });
+      setAOpen(false); reload(); flash(t("Conta salva ✓"));
+    } catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
   }
   function recalc(next: any) { const o = Number(next.amount_original || 0); const r = next.currency === "BRL" ? 1 : Number(next.exchange_rate || 1); return { ...next, exchange_rate: next.currency === "BRL" ? "1" : next.exchange_rate, amount_brl: (o * r).toFixed(2) }; }
   const setC = (patch: any) => setCf((s: any) => recalc({ ...s, ...patch }));
@@ -267,27 +326,85 @@ export default function Financeiro() {
         </div>
       </>)}
 
-      {/* Modal conta */}
-      <Modal title={af.id ? t("Editar conta") : (af.account_type === "payable" ? t("Nova conta a pagar") : t("Nova conta a receber"))} open={aOpen} onClose={() => setAOpen(false)}
+      {/* Modal conta (lançamento rico) */}
+      <Modal title={(af.id ? t("Editar Lançamento") : t("Novo Lançamento")) + " — " + (af.account_type === "payable" ? t("A Pagar") : t("A Receber"))} open={aOpen} onClose={() => setAOpen(false)} wide
         footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setAOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={saveAccount}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar")}</span></button></>}>
-        <Field label="Descrição *"><input value={af.description} onChange={(e) => setAf({ ...af, description: e.target.value })} /></Field>
-        <div className="grid2">
-          <Field label={af.account_type === "payable" ? "Fornecedor" : "Cliente"}><input value={af.contact_name} onChange={(e) => setAf({ ...af, contact_name: e.target.value })} /></Field>
-          <Field label="Categoria"><input value={af.category} onChange={(e) => setAf({ ...af, category: e.target.value })} /></Field>
+
+        {/* Identificação */}
+        <div className="finsec">
+          <div className="finsec-h">{af.account_type === "payable" ? t("Identificação do Fornecedor") : t("Identificação do Cliente")}</div>
+          <Field label={t("Cliente cadastrado no sistema")}>
+            <select value={af.organization_id} onChange={(e) => { const o = orgs.find((x: any) => x.id === e.target.value); setAf({ ...af, organization_id: e.target.value, contact_name: o ? o.name : af.contact_name }); }}>
+              <option value="">{t("— avulso / não cadastrado —")}</option>
+              {orgs.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+          </Field>
+          <div className="grid2">
+            <Field label={t("Razão Social / Empresa") + " *"}>
+              <input list="fin-companies" value={af.contact_name} onChange={(e) => setAf({ ...af, contact_name: e.target.value })} placeholder={t("Digite para buscar (ex: SR)")} />
+              <datalist id="fin-companies">{companySuggestions.map((n) => <option key={n} value={n} />)}</datalist>
+              <small className="fhint">{t("Sugestões puxadas do cadastro e de lançamentos anteriores")}</small>
+            </Field>
+            <Field label={t("Contato / Referência")}>
+              <input value={af.contact_reference} onChange={(e) => setAf({ ...af, contact_reference: e.target.value })} placeholder={t("Ex: Account Manager, Autoatendimento, Suporte")} />
+            </Field>
+          </div>
+          <Field label={t("Descrição dos Serviços")}><input value={af.description} onChange={(e) => setAf({ ...af, description: e.target.value })} placeholder={t("Resumo geral dos serviços contratados")} /></Field>
         </div>
-        <div className="grid3">
-          <Field label="Valor (R$) *"><input type="number" step="0.01" value={af.amount} onChange={(e) => setAf({ ...af, amount: e.target.value })} /></Field>
-          <Field label="Já pago (R$)"><input type="number" step="0.01" value={af.amount_paid} onChange={(e) => setAf({ ...af, amount_paid: e.target.value })} /></Field>
-          <Field label="Vencimento"><input type="date" value={af.due_date} onChange={(e) => setAf({ ...af, due_date: e.target.value })} /></Field>
+
+        {/* Serviços do fornecedor */}
+        <div className="finsec">
+          <div className="finsec-h">{t("Serviços do Fornecedor")}<button type="button" className="addlink" onClick={addService}><Plus size={13} /> {t("Adicionar serviço")}</button></div>
+          {(af.services || []).length === 0 ? <div className="fhint" style={{ padding: "2px 0 4px" }}>{t("Nenhum serviço adicionado.")}</div> : (af.services || []).map((sv: any, idx: number) => (
+            <div key={idx} className="svcline">
+              <div className="grid2">
+                <Field label={t("Serviço")}><input value={sv.name} onChange={(e) => setService(idx, { name: e.target.value })} /></Field>
+                <Field label={t("Descrição")}><input value={sv.description} onChange={(e) => setService(idx, { description: e.target.value })} /></Field>
+              </div>
+              <div className="grid3">
+                <Field label={t("Preço de tabela (R$)")}><input type="number" step="0.01" value={sv.list_price} onChange={(e) => setService(idx, { list_price: e.target.value })} /></Field>
+                <Field label={t("Preço especial (R$)")}><input type="number" step="0.01" value={sv.special_price} onChange={(e) => setService(idx, { special_price: e.target.value })} /></Field>
+                <div style={{ display: "flex", alignItems: "flex-end" }}><button type="button" className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => rmService(idx)}><span className="crasto-btn__icon"><Trash2 size={13} /></span><span className="crasto-btn__label">{t("Remover")}</span></button></div>
+              </div>
+            </div>
+          ))}
         </div>
+
+        {/* Vigência do contrato */}
+        <div className="finsec">
+          <div className="finsec-h">{t("Vigência do Contrato")}</div>
+          <div className="grid3">
+            <Field label={t("Duração")}><input type="number" value={af.contract_validity_value} onChange={(e) => setAf({ ...af, contract_validity_value: e.target.value })} placeholder="12" /></Field>
+            <Field label={t("Unidade")}><select value={af.contract_validity_unit} onChange={(e) => setAf({ ...af, contract_validity_unit: e.target.value })}>{UNITS.map((u) => <option key={u.v} value={u.v}>{t(u.l)}</option>)}</select></Field>
+            <Field label={t("Total do Contrato (R$)")}><input type="number" step="0.01" value={af.contract_total} onChange={(e) => setAcc({ contract_total: e.target.value })} /></Field>
+          </div>
+        </div>
+
+        {/* Prazo de pagamento */}
+        <div className="finsec">
+          <div className="finsec-h">{t("Prazo de Pagamento")}</div>
+          <div className="grid2">
+            <Field label={t("Nº de Parcelas")}><input type="number" value={af.payment_installments} onChange={(e) => setAcc({ payment_installments: e.target.value })} placeholder="Ex: 5" /></Field>
+            <Field label={t("Valor da Parcela (R$)")}><input type="number" step="0.01" value={af.installment_amount} onChange={(e) => setAf({ ...af, installment_amount: e.target.value })} /></Field>
+          </div>
+          <div className="grid3">
+            <Field label={t("1ª Parcela (Vencimento)")}><input type="date" value={af.due_date} onChange={(e) => setAf({ ...af, due_date: e.target.value })} /></Field>
+            <Field label={t("Dia de vencimento")}><input type="number" min="1" max="31" value={af.payment_day_of_month} onChange={(e) => setAf({ ...af, payment_day_of_month: e.target.value })} placeholder="Ex: 10" /></Field>
+            <Field label={t("Forma de Pagamento")}><select value={af.payment_method} onChange={(e) => setAf({ ...af, payment_method: e.target.value })}>{PAYMETHODS.map((m) => <option key={m} value={m}>{t(m)}</option>)}</select></Field>
+          </div>
+          {previewSchedule.length > 0 && <div className="fhint" style={{ paddingTop: 2 }}>{t("{n} parcelas", { n: previewSchedule.length })} · {money(previewSchedule.reduce((a, p) => a + Number(p.amount || 0), 0))} · {t("1º venc.")} {previewSchedule[0] ? new Date(previewSchedule[0].date + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</div>}
+        </div>
+
+        {/* Classificação */}
         <div className="grid3">
-          <Field label="Status"><select value={af.status} onChange={(e) => setAf({ ...af, status: e.target.value })}><option value="pending">{t("Pendente")}</option><option value="partial">{t("Parcial")}</option><option value="paid">{t("Pago")}</option><option value="cancelled">{t("Cancelada")}</option></select></Field>
-          <Field label="Recorrência"><select value={af.recurrence} onChange={(e) => setAf({ ...af, recurrence: e.target.value })}><option value="">{t("Sem recorrência")}</option><option value="monthly">{t("Mensal")}</option><option value="yearly">{t("Anual")}</option></select></Field>
           {af.account_type === "payable"
-            ? <Field label="Tipo de despesa"><select value={af.expense_type} onChange={(e) => setAf({ ...af, expense_type: e.target.value })}><option value="">{t("(nenhum)")}</option><option value="consumo">{t("Consumo")}</option><option value="revenda">{t("Revenda")}</option></select></Field>
-            : <Field label="Nº da nota"><input value={af.invoice_number} onChange={(e) => setAf({ ...af, invoice_number: e.target.value })} /></Field>}
+            ? <Field label={t("Tipo de Despesa")}><select value={af.expense_type} onChange={(e) => setAf({ ...af, expense_type: e.target.value })}><option value="consumo">{t("Consumo")}</option><option value="revenda">{t("Revenda")}</option></select></Field>
+            : <Field label={t("Nº da nota")}><input value={af.invoice_number} onChange={(e) => setAf({ ...af, invoice_number: e.target.value })} /></Field>}
+          <Field label={t("Categoria")}><input value={af.category} onChange={(e) => setAf({ ...af, category: e.target.value })} /></Field>
+          <Field label={t("Status")}><select value={af.status} onChange={(e) => setAf({ ...af, status: e.target.value })}><option value="pending">{t("Pendente")}</option><option value="partial">{t("Parcial")}</option><option value="paid">{t("Pago")}</option><option value="cancelled">{t("Cancelada")}</option></select></Field>
         </div>
-        <Field label="Observações"><textarea value={af.notes} onChange={(e) => setAf({ ...af, notes: e.target.value })} /></Field>
+        <Field label={t("Motivo do Pagamento")}><input value={af.payment_reason} onChange={(e) => setAf({ ...af, payment_reason: e.target.value })} placeholder={t("Ex: Parcela 1 de 5 — Implantação")} /></Field>
+        <Field label={t("Observações")}><textarea value={af.notes} onChange={(e) => setAf({ ...af, notes: e.target.value })} /></Field>
       </Modal>
 
       {/* Modal custo */}
