@@ -44,6 +44,12 @@ export const organizations = {
   /** Cliente (dono) edita os próprios dados cadastrais — via RPC whitelisted (não toca em plano/status). */
   updateMine: async (p: { name: string; tax_id: string; founded_on: string | null; website: string; owner_name: string; wa_ddi?: string; wa_number?: string }) =>
     unwrap(await supabase.rpc("update_my_org", { p_name: p.name, p_tax_id: p.tax_id || null, p_founded_on: p.founded_on || null, p_website: p.website || null, p_owner_name: p.owner_name || null, p_wa_ddi: p.wa_ddi || null, p_wa_number: p.wa_number || null })),
+  /** Contato principal (ddi + número) da própria org, para pré-preencher o perfil. */
+  myContact: async (): Promise<{ ddi: string | null; number: string | null } | null> => {
+    const { data, error } = await supabase.rpc("my_org_contact");
+    if (error) return null;
+    return (data as any[])?.[0] ?? null;
+  },
   setStage: async (id: string, stage: string) =>
     unwrap(await supabase.from("organizations").update({ stage }).eq("id", id)),
   create: async (payload: Record<string, any>) =>

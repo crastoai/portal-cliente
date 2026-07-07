@@ -36,18 +36,28 @@ export default function Perfil() {
   }
 
   // --- Dados da empresa (só cliente) ---
-  const { data: org, loading: orgLoading, reload: reloadOrg } = useAsync(
-    () => (isClient ? services.identity.organizations.getById(profile!.organization_id!) : Promise.resolve(null)),
+  const { data, loading: orgLoading, reload: reloadOrg } = useAsync(
+    async () => {
+      if (!isClient) return { org: null, contact: null };
+      const [org, contact] = await Promise.all([
+        services.identity.organizations.getById(profile!.organization_id!),
+        services.identity.organizations.myContact(),
+      ]);
+      return { org, contact };
+    },
     [profile?.organization_id]
   );
+  const org = data?.org;
   const [of, setOf] = useState({ name: "", tax_id: "", founded_on: "", website: "", owner_name: "", wa_ddi: "+55", wa_number: "" });
   const [busyO, setBusyO] = useState(false);
   useEffect(() => {
-    if (org) setOf((p) => ({ ...p, name: (org as any).name || "", tax_id: (org as any).tax_id || "", founded_on: (org as any).founded_on || "", website: (org as any).website || "", owner_name: (org as any).owner_name || "" }));
-  }, [org]);
+    if (!data) return;
+    const o = data.org as any, c = data.contact as any;
+    setOf({ name: o?.name || "", tax_id: o?.tax_id || "", founded_on: o?.founded_on || "", website: o?.website || "", owner_name: o?.owner_name || "", wa_ddi: c?.ddi || "+55", wa_number: c?.number || "" });
+  }, [data]);
   async function saveOrg() {
     setBusyO(true);
-    try { await services.identity.organizations.updateMine({ name: of.name, tax_id: of.tax_id, founded_on: of.founded_on || null, website: of.website, owner_name: of.owner_name, wa_ddi: of.wa_ddi, wa_number: of.wa_number }); await reloadOrg(); setOf((p) => ({ ...p, wa_number: "" })); flash(t("Dados da empresa salvos ✓")); }
+    try { await services.identity.organizations.updateMine({ name: of.name, tax_id: of.tax_id, founded_on: of.founded_on || null, website: of.website, owner_name: of.owner_name, wa_ddi: of.wa_ddi, wa_number: of.wa_number }); await reloadOrg(); flash(t("Dados da empresa salvos ✓")); }
     catch (e) { flash(errorMessage(e)); } finally { setBusyO(false); }
   }
 
