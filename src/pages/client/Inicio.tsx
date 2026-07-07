@@ -4,6 +4,7 @@ import { MessageCircle, Search, Send, Wallet, ArrowRight, AlertTriangle, Clock }
 import { services } from "../../services";
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
+import { money } from "../../ui/ui";
 import { summarizeFaturas, type Fatura, type FaturaSummary } from "../../lib/faturas";
 
 type Health = { status: "green" | "amber" | "red"; message: string | null };

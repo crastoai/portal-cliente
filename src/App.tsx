@@ -31,7 +31,7 @@ import Integracoes from "./pages/admin/Integracoes";
 import ContasPagar from "./pages/admin/ContasPagar";
 import ContasReceber from "./pages/admin/ContasReceber";
 import CustosOperacionais from "./pages/admin/CustosOperacionais";
-import Financeiro from "./pages/admin/Financeiro";
+import FinanceiroAdmin from "./pages/admin/Financeiro";
 import Tickets from "./pages/admin/Tickets";
 import Implantacoes from "./pages/admin/Implantacoes";
 
@@ -99,7 +99,7 @@ export default function App() {
             <Route path="contas-pagar" element={<ContasPagar />} />
             <Route path="contas-receber" element={<ContasReceber />} />
             <Route path="custos-operacionais" element={<CustosOperacionais />} />
-            <Route path="financeiro" element={<Financeiro />} />
+            <Route path="financeiro" element={<FinanceiroAdmin />} />
             <Route path="tickets" element={<Tickets />} />
             <Route path="implantacoes" element={<Implantacoes />} />
             <Route path="perfil" element={<Perfil />} />
