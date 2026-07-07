@@ -797,6 +797,8 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Solicitante": { en: "Requester", es: "Solicitante" },
   "responsável": { en: "owner", es: "responsable" },
   "→ Chamar o cliente no WhatsApp para dar sequência à implantação.": { en: "→ Contact the client on WhatsApp to start the rollout.", es: "→ Contactar al cliente por WhatsApp para iniciar la implementación." },
+  "WhatsApp do cliente": { en: "Client WhatsApp", es: "WhatsApp del cliente" },
+  "(11) 91234-5678": { en: "(11) 91234-5678", es: "(11) 91234-5678" },
   "Nenhum módulo encontrado.": { en: "No module found.", es: "Ningún módulo encontrado." },
 
   // ---- Admin · Propostas & contrato (ciclo comercial) ----

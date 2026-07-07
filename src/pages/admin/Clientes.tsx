@@ -8,7 +8,7 @@ import { useT } from "../../lib/i18n";
 import { fetchClients, timeAgo } from "../../lib/adminData";
 import { COUNTRIES, countryOf, STAGES, stageOf } from "../../lib/countries";
 
-const EMPTY = { name: "", stage: "contato", country: "BR", tax_id: "", founded_on: "", website: "", owner_name: "", plan: "", email: "", contact_name: "", password: "" };
+const EMPTY = { name: "", stage: "contato", country: "BR", tax_id: "", founded_on: "", website: "", owner_name: "", whatsapp: "", plan: "", email: "", contact_name: "", password: "" };
 
 export default function Clientes() {
   const t = useT();
@@ -42,6 +42,9 @@ export default function Clientes() {
         founded_on: f.founded_on || null, website: f.website || null, owner_name: f.owner_name || null, plan: f.plan || null,
       });
     } catch (e) { setErr(t("Erro ao criar:") + " " + errorMessage(e)); setBusy(false); return; }
+    if (f.whatsapp.trim()) {
+      try { await api.crm.phones.add({ organization_id: org.id, label: "WhatsApp", country_code: co.ddi, number: f.whatsapp.trim(), is_primary: true }); } catch { /* telefone é opcional — não bloqueia */ }
+    }
     let msg = t("\"{n}\" cadastrado como {s}.", { n: f.name, s: t(stageOf(f.stage).label) });
     if (f.email.trim()) {
       const r = await api.identity.users.create({ email: f.email.trim(), full_name: f.contact_name || f.owner_name || f.name, organization_id: org.id, role: "client_owner", password: f.password || undefined });
@@ -109,6 +112,12 @@ export default function Clientes() {
           <Field label="Dono / Presidente"><input value={f.owner_name} onChange={(e) => setF({ ...f, owner_name: e.target.value })} placeholder={t("Nome")} /></Field>
           <Field label="Website"><input value={f.website} onChange={(e) => setF({ ...f, website: e.target.value })} placeholder="https://…" /></Field>
         </div>
+        <Field label="WhatsApp do cliente">
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ padding: "10px 12px", borderRadius: "var(--crasto-radius-sm)", background: "var(--crasto-bg-3)", color: "var(--crasto-text-body)", fontWeight: 700, fontSize: 14, whiteSpace: "nowrap" }}>{co.ddi}</span>
+            <input style={{ flex: 1 }} value={f.whatsapp} onChange={(e) => setF({ ...f, whatsapp: e.target.value })} placeholder={t("(11) 91234-5678")} />
+          </div>
+        </Field>
         <div style={{ borderTop: "1px solid var(--crasto-border-soft)", margin: "8px 0 12px", paddingTop: 10 }}>
           <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--crasto-text-muted)", marginBottom: 8 }}>{t("Acesso ao portal (opcional)")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
