@@ -38,7 +38,7 @@ export default function Financeiro() {
               <h3>{t("Próxima cobrança")}</h3>
               <div className="csub">{next?.due_date ? t("Vence em {d}", { d: new Date(next.due_date + "T00:00:00").toLocaleDateString("pt-BR") }) : t("Sem cobranças em aberto")}</div>
               <div style={{ fontSize: 28, fontWeight: 700, color: "var(--crasto-text-primary)" }} className="tnum">{next ? money(next.amount) : money(0)}</div>
-              {next && <div style={{ marginTop: 14 }}><button className="crasto-btn crasto-btn--primary crasto-btn--md" style={{ width: "100%" }}><span className="crasto-btn__label">{t("Pagar agora (Pix / boleto)")}</span></button></div>}
+              {next && <div className="csub" style={{ marginTop: 10 }}>{t("Pagamento via Pix/boleto em breve.")}</div>}
             </div>
           </div>
           <div className="tbl-wrap">

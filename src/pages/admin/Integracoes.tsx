@@ -12,6 +12,8 @@ type Status = Record<string, { status: string; has_secret: boolean; from_addr: s
 const EMAIL_KEYS = new Set(["resend_email"]);
 // integrações que usam uma URL de endpoint (guardada em from_addr)
 const URL_KEYS = new Set(["ai_bridge", "banco_inter"]);
+// integrações ainda não implementadas — aparecem como "Em breve" (não configuráveis)
+const COMING_SOON = new Set(["anthropic", "stripe", "whatsapp_official", "asaas"]);
 // dica de onde obter a chave, por integração
 const HINTS: Record<string, string> = {
   resend_email: "Chave de API do Resend (começa com re_). Para enviar de no-reply@crasto.ai, verifique o domínio crasto.ai no Resend.",
@@ -71,18 +73,22 @@ export default function Integracoes() {
     <div>
       <PageHead eyebrow="Painel Admin" title="Integrações & pagamentos" sub="Conecte as tecnologias que o portal usa. As chaves ficam no cofre — nunca no navegador." />
       <div className="assign">
-        {items.map((i) => (
-          <div className="arow" key={i.key}>
-            <span className="ico" style={{ background: i.status === "connected" ? "#1F8A5B" : "var(--crasto-text-primary)" }}><Plug size={16} /></span>
-            <span><span className="t">{i.display_name}</span><br /><span className="s">{i.key}{st[i.key]?.has_secret ? t(" · chave salva") : ""}</span></span>
-            <Pill tone={tone(i.status)}>{label(i.status)}</Pill>
-            <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" style={{ marginLeft: 10 }} onClick={() => openCfg(i)}>
-              <span className="crasto-btn__icon"><Settings2 size={14} /></span><span className="crasto-btn__label">{t("Configurar")}</span>
-            </button>
+        {items.map((i) => {
+          const soon = COMING_SOON.has(i.key);
+          return (
+          <div className="arow" key={i.key} style={soon ? { opacity: .6 } : undefined}>
+            <span className="ico" style={{ background: soon ? "var(--crasto-text-faint)" : i.status === "connected" ? "#1F8A5B" : "var(--crasto-text-primary)" }}><Plug size={16} /></span>
+            <span><span className="t">{i.display_name}</span><br /><span className="s">{i.key}{!soon && st[i.key]?.has_secret ? t(" · chave salva") : ""}</span></span>
+            {soon
+              ? <Pill tone="mute">{t("Em breve")}</Pill>
+              : <><Pill tone={tone(i.status)}>{label(i.status)}</Pill>
+                <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" style={{ marginLeft: 10 }} onClick={() => openCfg(i)}>
+                  <span className="crasto-btn__icon"><Settings2 size={14} /></span><span className="crasto-btn__label">{t("Configurar")}</span>
+                </button></>}
           </div>
-        ))}
+        );})}
       </div>
-      <div className="note" style={{ marginTop: 22 }}><span>{t("Gateway de pagamento escolhido: Asaas (menor taxa para Pix/boleto no Brasil). Autentique para contratos. Resend para e-mails do portal.")}</span></div>
+      <div className="note" style={{ marginTop: 22 }}><span>{t("Gateway de pagamento: Banco Inter (Pix/boleto). Autentique para contratos. Resend para e-mails. Claude Max (ponte) para a IA da proposta.")}</span></div>
 
       <Modal title={cur ? t("Configurar · {n}", { n: cur.display_name }) : t("Configurar")} open={open} onClose={() => setOpen(false)}
         footer={<>

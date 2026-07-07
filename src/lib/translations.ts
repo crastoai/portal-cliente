@@ -197,6 +197,7 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Vence em {d}": { en: "Due on {d}", es: "Vence el {d}" },
   "Sem cobranças em aberto": { en: "No open charges", es: "Sin cobros pendientes" },
   "Pagar agora (Pix / boleto)": { en: "Pay now (Pix / boleto)", es: "Pagar ahora (Pix / boleto)" },
+  "Pagamento via Pix/boleto em breve.": { en: "Pix/boleto payment coming soon.", es: "Pago vía Pix/boleto próximamente." },
   "Fatura": { en: "Invoice", es: "Factura" },
   "Vencimento": { en: "Due date", es: "Vencimiento" },
   "Valor": { en: "Amount", es: "Importe" },
@@ -247,6 +248,10 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "{n} selecionado": { en: "{n} selected", es: "{n} seleccionado" },
   "{n} selecionados": { en: "{n} selected", es: "{n} seleccionados" },
   "Solicitar implementação": { en: "Request implementation", es: "Solicitar implementación" },
+  "Solicitação de implementação": { en: "Implementation request", es: "Solicitud de implementación" },
+  "O cliente solicitou a implementação de: {lista}": { en: "The client requested the implementation of: {lista}", es: "El cliente solicitó la implementación de: {lista}" },
+  "Não foi possível enviar. Tente de novo.": { en: "Couldn't send. Try again.", es: "No se pudo enviar. Inténtalo de nuevo." },
+  "Solicitação enviada ✓ A Crasto.AI vai avaliar e retornar.": { en: "Request sent ✓ Crasto.AI will review and get back to you.", es: "Solicitud enviada ✓ Crasto.AI la revisará y te responderá." },
 
   // ---- Fluxo de senha (redefinir / nova senha) ----
   "Redefinir senha": { en: "Reset password", es: "Restablecer contraseña" },
@@ -448,6 +453,8 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "{n} configurado ✓": { en: "{n} configured ✓", es: "{n} configurado ✓" },
   " · chave salva": { en: " · key saved", es: " · clave guardada" },
   "Configurar": { en: "Configure", es: "Configurar" },
+  "Em breve": { en: "Coming soon", es: "Próximamente" },
+  "Gateway de pagamento: Banco Inter (Pix/boleto). Autentique para contratos. Resend para e-mails. Claude Max (ponte) para a IA da proposta.": { en: "Payment gateway: Banco Inter (Pix/boleto). Autentique for contracts. Resend for emails. Claude Max (bridge) for the proposal AI.", es: "Pasarela de pago: Banco Inter (Pix/boleto). Autentique para contratos. Resend para correos. Claude Max (puente) para la IA de la propuesta." },
   "Gateway de pagamento escolhido: Asaas (menor taxa para Pix/boleto no Brasil). Autentique para contratos. Resend para e-mails do portal.": { en: "Chosen payment gateway: Asaas (lowest fee for Pix/boleto in Brazil). Autentique for contracts. Resend for portal emails.", es: "Pasarela de pago elegida: Asaas (menor tasa para Pix/boleto en Brasil). Autentique para contratos. Resend para correos del portal." },
   "Configurar · {n}": { en: "Configure · {n}", es: "Configurar · {n}" },
   "Desconectar": { en: "Disconnect", es: "Desconectar" },
