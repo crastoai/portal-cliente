@@ -16,4 +16,14 @@ export const accounts = {
   remove: async (id: string) => unwrap(await supabase.rpc("fin_account_delete", { p_id: id })),
 };
 
-export const finance = { accounts };
+export const costs = {
+  list: async (active?: boolean): Promise<any[]> => {
+    const { data, error } = await supabase.rpc("fin_costs", { p_active: active ?? null });
+    if (error) throw error;
+    return (data as any[]) ?? [];
+  },
+  save: async (p: Record<string, any>) => unwrap(await supabase.rpc("fin_cost_upsert", { p })),
+  remove: async (id: string) => unwrap(await supabase.rpc("fin_cost_delete", { p_id: id })),
+};
+
+export const finance = { accounts, costs };

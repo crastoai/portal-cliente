@@ -11,6 +11,7 @@ const NAV: NavItem[] = [
   { to: "/admin/tickets", icon: LifeBuoy, label: "Chamados & Suporte", section: "Operação" },
   { to: "/admin/contas-pagar", icon: ArrowUpCircle, label: "Contas a Pagar", section: "Financeiro & Parceiros" },
   { to: "/admin/contas-receber", icon: ArrowDownCircle, label: "Contas a Receber", section: "Financeiro & Parceiros" },
+  { to: "/admin/custos-operacionais", icon: Coins, label: "Custos Operacionais", tag: "🔒", section: "Financeiro & Parceiros" },
   { to: "/admin/conectores", icon: Share2, label: "Agentes indicadores", section: "Financeiro & Parceiros" },
   { to: "/admin/custos", icon: Coins, label: "Custos & Despesas", tag: "🔒", section: "Financeiro & Parceiros" },
   { to: "/admin/receita", icon: TrendingUp, label: "Receita & churn", section: "Financeiro & Parceiros" },
