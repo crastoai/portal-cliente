@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Home, LayoutGrid, Activity, Sparkles, Wallet, Users, LifeBuoy, Eye } from "lucide-react";
+import { Home, LayoutGrid, Activity, Sparkles, Wallet, Users, LifeBuoy, Eye, IdCard } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { useAsync } from "../ui/ui";
 import { services } from "../services";
@@ -26,6 +26,7 @@ export default function ClientShell() {
     { to: "/app/solucoes", icon: Sparkles, label: "Soluções disponíveis" },
     { to: "/app/financeiro", icon: Wallet, label: "Financeiro" },
     { to: "/app/usuarios", icon: Users, label: "Usuários & Equipe" },
+    { to: "/app/perfil", icon: IdCard, label: "Dados cadastrais" },
     { to: "/app/suporte", icon: LifeBuoy, label: "Suporte & Ajuda" },
   ];
 

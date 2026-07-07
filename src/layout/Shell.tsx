@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { LogOut, Menu, X, Camera, type LucideIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { services } from "../services";
@@ -8,12 +8,12 @@ import LangSwitcher from "../ui/LangSwitcher";
 import { useT } from "../lib/i18n";
 import { initials } from "../ui/ui";
 
-// Monograma da marca, sem caixa — navy no tema claro, branco no escuro (servidos de /public).
-function Brandmark() {
+// Wordmark completo (logo Crasto.AI) — navy no claro, branco no escuro.
+function Wordmark() {
   return (
-    <span className="side-mark">
-      <img className="mk-light" src="/crasto-monogram-navy.png" alt="Crasto.AI" />
-      <img className="mk-dark" src="/crasto-monogram-white.png" alt="" />
+    <span className="side-wordmark">
+      <img className="mk-light" src="/crasto-wordmark-navy.png" alt="Crasto.AI" />
+      <img className="mk-dark" src="/crasto-wordmark-white.png" alt="Crasto.AI" />
     </span>
   );
 }
@@ -23,6 +23,7 @@ export type NavItem = { to: string; end?: boolean; icon: LucideIcon; label: stri
 export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who: string; sub: string; logoTone?: string }) {
   const { profile, signOut, refreshProfile } = useAuth();
   const t = useT();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [avBusy, setAvBusy] = useState(false);
   const avInput = useRef<HTMLInputElement>(null);
@@ -51,10 +52,7 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
       {/* barra mobile (só < 900px) */}
       <div className="mobilebar">
         <button className="mb-burger" onClick={() => setOpen(true)} aria-label={t("Abrir menu")}><Menu size={20} /></button>
-        <span className="mb-brand">
-          <Brandmark />
-          Crasto.AI
-        </span>
+        <span className="mb-brand"><Wordmark /></span>
         <LangSwitcher />
         <ThemeToggle />
       </div>
@@ -64,12 +62,9 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
       <aside className={"side" + (open ? " open" : "")}>
         <button className="side-close" onClick={() => setOpen(false)} aria-label={t("Fechar menu")}><X size={18} /></button>
 
-        <div className="side-brand">
-          <Brandmark />
-          <div className="side-brand-txt">
-            <div className="nm">Crasto.AI</div>
-            <div className="sub">{t(sub)}</div>
-          </div>
+        <div className="side-brand side-brand--logo">
+          <Wordmark />
+          <div className="side-brand-sub">{t(sub)}</div>
         </div>
 
         <nav className="side-nav">
@@ -92,10 +87,10 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
             <span className="su-av__cam"><Camera size={12} /></span>
           </button>
           <input ref={avInput} type="file" accept="image/*" hidden onChange={onAvatar} />
-          <div className="su-meta">
+          <button type="button" className="su-meta su-meta--btn" title={t("Ver meus dados")} onClick={() => { setOpen(false); navigate(profile?.role === "crasto_admin" ? "/admin/perfil" : "/app/perfil"); }}>
             <div className="su-nm">{who}</div>
             <div className="su-em">{profile?.email}</div>
-          </div>
+          </button>
           <ThemeToggle />
           <button className="su-out" title={t("Sair")} onClick={() => signOut()}><LogOut size={16} /></button>
         </div>

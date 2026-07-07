@@ -16,6 +16,7 @@ import Catalogo from "./pages/client/Catalogo";
 import Financeiro from "./pages/client/Financeiro";
 import Usuarios from "./pages/client/Usuarios";
 import Suporte from "./pages/client/Suporte";
+import Perfil from "./pages/Perfil";
 
 import VisaoGeral from "./pages/admin/VisaoGeral";
 import Clientes from "./pages/admin/Clientes";
@@ -77,6 +78,7 @@ export default function App() {
             <Route path="financeiro" element={<Financeiro />} />
             <Route path="usuarios" element={<Usuarios />} />
             <Route path="suporte" element={<Suporte />} />
+            <Route path="perfil" element={<Perfil />} />
           </Route>
 
           <Route path="/admin" element={<AdminShell />}>
@@ -92,6 +94,7 @@ export default function App() {
             <Route path="integracoes" element={<Integracoes />} />
             <Route path="tickets" element={<Tickets />} />
             <Route path="implantacoes" element={<Implantacoes />} />
+            <Route path="perfil" element={<Perfil />} />
           </Route>
 
           <Route path="/parceiro" element={<PartnerShell />}>
