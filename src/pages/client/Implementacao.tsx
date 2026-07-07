@@ -6,25 +6,36 @@ import { useT } from "../../lib/i18n";
 type Task = { id: string; name: string; planned_start: string; planned_end: string; actual_start: string | null; actual_end: string | null; status: string; sort_order: number };
 type Impl = { overall_progress: number; due_date: string | null; status: string; started_at: string | null };
 type Pend = { id: string; type: string; description: string; status: string };
+type ModRoll = { id: string; vdi_module_id: string; name: string; rollout_progress: number; rollout_due: string | null; rollout_status: string };
 
 const d = (s: string | null) => (s ? new Date(s + "T00:00:00").getTime() : 0);
 
 export default function Implementacao() {
   const tr = useT();
   const { data, loading } = useAsync(async () => {
-    const [i, t, p] = await Promise.all([
+    const [i, t, p, cms] = await Promise.all([
       services.delivery.implementations.getMine(),
       services.delivery.projectTasks.listMine(),
       services.support.pendingActions.listMine(),
+      services.delivery.clientModules.listMine(),
     ]);
-    return { impl: i as unknown as Impl | null, tasks: (t as unknown as Task[]) ?? [], pend: (p as unknown as Pend[]) ?? [] };
+    const ids = (cms as any[]).map((c) => c.vdi_module_id);
+    const vms = ids.length ? await services.catalog.vdiModules.listByIds(ids, "id,name") : [];
+    const vmap = Object.fromEntries((vms as any[]).map((v) => [v.id, v.name]));
+    const modules: ModRoll[] = (cms as any[]).map((c) => ({ id: c.id, vdi_module_id: c.vdi_module_id, name: vmap[c.vdi_module_id] || tr("Solução"), rollout_progress: c.rollout_progress ?? 0, rollout_due: c.rollout_due ?? null, rollout_status: c.rollout_status ?? "in_progress" }));
+    return { impl: i as unknown as Impl | null, tasks: (t as unknown as Task[]) ?? [], pend: (p as unknown as Pend[]) ?? [], modules };
   }, []);
 
   if (loading) return <><PageHead eyebrow="Portal do Cliente" title="Minha implementação" /><Empty>Carregando…</Empty></>;
   const impl = data?.impl ?? null;
   const tasks = data?.tasks ?? [];
   const pend = data?.pend ?? [];
-  const daysLeft = impl?.due_date ? Math.max(0, Math.ceil((d(impl.due_date) - Date.now()) / 86400000)) : null;
+  const modules = data?.modules ?? [];
+  const overall = modules.length ? Math.round(modules.reduce((s, m) => s + (m.rollout_progress || 0), 0) / modules.length) : (impl?.overall_progress ?? 0);
+  const nextDue = modules.map((m) => d(m.rollout_due)).filter(Boolean).sort((a, b) => a - b)[0] || d(impl?.due_date ?? null);
+  const daysLeft = nextDue ? Math.max(0, Math.ceil((nextDue - Date.now()) / 86400000)) : null;
+  const rollLabel = (s: string) => (s === "delivered" ? tr("Entregue") : s === "on_hold" ? tr("Em espera") : tr("Em andamento"));
+  const rollTone = (s: string) => (s === "delivered" ? "ok" : s === "on_hold" ? "warn" : "info") as "ok" | "warn" | "info";
 
   const starts = tasks.map((t) => d(t.planned_start)).filter(Boolean);
   const ends = tasks.map((t) => d(t.planned_end)).filter(Boolean);
@@ -46,8 +57,8 @@ export default function Implementacao() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 14 }}>
           <div>
             <div className="lab">{tr("Progresso geral do contrato")}</div>
-            <div className="big tnum">{impl?.overall_progress ?? 0}%</div>
-            <div style={{ color: "rgba(255,255,255,.7)", fontSize: 13 }}>{tr("{n} etapas", { n: tasks.length })} · {impl?.status === "delivered" ? tr("entregue") : tr("dentro do prazo")}</div>
+            <div className="big tnum">{overall}%</div>
+            <div style={{ color: "rgba(255,255,255,.7)", fontSize: 13 }}>{tr("{n} soluções", { n: modules.length })} · {modules.length && modules.every((m) => m.rollout_status === "delivered") ? tr("entregue") : tr("dentro do prazo")}</div>
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 12, color: "rgba(255,255,255,.6)" }}>{tr("Prazo de entrega")}</div>
@@ -55,8 +66,32 @@ export default function Implementacao() {
             <div style={{ fontSize: 12, color: "var(--crasto-blue)" }}>{tr("SLA de 30 dias")}</div>
           </div>
         </div>
-        <div className="track"><span style={{ width: `${impl?.overall_progress ?? 0}%` }} /></div>
+        <div className="track"><span style={{ width: `${overall}%` }} /></div>
       </div>
+
+      {modules.length > 0 && (
+        <>
+          <div className="sec-h"><h2>{tr("Implantação por solução")}</h2><Pill tone="mute">{tr("{n} soluções", { n: modules.length })}</Pill></div>
+          <div style={{ marginBottom: 26 }}>
+            {modules.map((m) => {
+              const dl = m.rollout_due ? Math.max(0, Math.ceil((d(m.rollout_due) - Date.now()) / 86400000)) : null;
+              return (
+                <div className="modroll" key={m.id}>
+                  <div className="rh">
+                    <span className="rn">{m.name}</span>
+                    <Pill tone={rollTone(m.rollout_status)}>{rollLabel(m.rollout_status)}</Pill>
+                  </div>
+                  <div className="rbar"><span style={{ width: `${m.rollout_progress || 0}%` }} /></div>
+                  <div className="rm">
+                    <span>{m.rollout_progress || 0}% {tr("concluído")}</span>
+                    <span>{m.rollout_status === "delivered" ? tr("entregue") : dl != null ? tr("{n} dias restantes", { n: dl }) : tr("sem prazo definido")}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       <div className="sec-h"><h2>{tr("Cronograma · previsto × realizado")}</h2>
         <span style={{ display: "flex", gap: 16, fontSize: 11.5, fontWeight: 600, color: "var(--crasto-text-body)" }}>

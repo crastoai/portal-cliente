@@ -767,6 +767,14 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Só link": { en: "Link only", es: "Solo enlace" },
   "sem login": { en: "no login", es: "sin usuario" },
   "Editando — altere e clique em Salvar. Senha em branco mantém a atual.": { en: "Editing — change and click Save. Blank password keeps the current one.", es: "Editando — cambia y haz clic en Guardar. Contraseña en blanco mantiene la actual." },
+  "Andamento por módulo": { en: "Rollout per module", es: "Avance por módulo" },
+  "o cliente vê separado por módulo": { en: "the client sees it split by module", es: "el cliente lo ve separado por módulo" },
+  "Andamento do módulo salvo ✓": { en: "Module rollout saved ✓", es: "Avance del módulo guardado ✓" },
+  "Nenhum módulo contratado — libere módulos acima para acompanhar a implantação.": { en: "No module enabled — enable modules above to track the rollout.", es: "Sin módulos habilitados — habilita módulos arriba para seguir la implementación." },
+  "{n} soluções": { en: "{n} solutions", es: "{n} soluciones" },
+  "Implantação por solução": { en: "Rollout per solution", es: "Implementación por solución" },
+  "concluído": { en: "complete", es: "completado" },
+  "sem prazo definido": { en: "no deadline set", es: "sin plazo definido" },
   "Nenhum módulo encontrado.": { en: "No module found.", es: "Ningún módulo encontrado." },
 
   // ---- Admin · Propostas & contrato (ciclo comercial) ----

@@ -9,18 +9,22 @@ import type { ClientModule, Implementation, SystemHealth, ProjectTask, ModuleCre
 
 const del = () => supabase.schema("delivery");
 
+const ROLLOUT_COLS = "id,vdi_module_id,status,rollout_progress,rollout_due,rollout_status";
 export const clientModules = {
   listByOrg: async (orgId: string) =>
-    unwrapList<ClientModule>(await del().from("client_modules").select("id,vdi_module_id,status").eq("organization_id", orgId)),
+    unwrapList<ClientModule>(await del().from("client_modules").select(ROLLOUT_COLS).eq("organization_id", orgId)),
   listAll: async () =>
     unwrapList<ClientModule>(await del().from("client_modules").select("organization_id")),
   /** Do cliente logado (RLS aplica o filtro). */
   listMine: async () =>
-    unwrapList<ClientModule>(await del().from("client_modules").select("id,status,vdi_module_id")),
+    unwrapList<ClientModule>(await del().from("client_modules").select(ROLLOUT_COLS)),
   attach: async (orgId: string, moduleId: string) =>
     unwrap(await del().from("client_modules").insert({ organization_id: orgId, vdi_module_id: moduleId, status: "active" })),
   detach: async (orgId: string, moduleId: string) =>
     unwrap(await del().from("client_modules").delete().eq("organization_id", orgId).eq("vdi_module_id", moduleId)),
+  /** Admin: atualiza o andamento da implantação de UM módulo contratado. */
+  updateRollout: async (id: string, patch: Record<string, any>) =>
+    unwrap(await del().from("client_modules").update(patch).eq("id", id)),
 };
 
 export const implementations = {

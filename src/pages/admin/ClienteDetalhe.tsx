@@ -46,16 +46,19 @@ export default function ClienteDetalhe() {
   const [act, setAct] = useState({ type: "note", title: "", description: "" });
   const [taxid, setTaxid] = useState({ kind: "CNPJ", value: "", address: "" });
   // F-D: implantação, saúde, tarefas, credenciais
-  const [implForm, setImplForm] = useState({ progress: "0", due: "", status: "in_progress" });
+  const [rolloutForm, setRolloutForm] = useState<Record<string, { progress: string; due: string; status: string }>>({});
   const [healthForm, setHealthForm] = useState({ status: "green", message: "" });
   const [taskf, setTaskf] = useState({ name: "", start: "", end: "" });
   const [credf, setCredf] = useState({ moduleId: "", label: "", url: "", login: "", secret: "", sso: false });
   const [modQuery, setModQuery] = useState("");
   const [modCat, setModCat] = useState("");
   useEffect(() => {
-    const i = (data as any)?.impl, h = (data as any)?.healthObj;
-    if (i) setImplForm({ progress: String(i.overall_progress ?? 0), due: i.due_date ?? "", status: i.status ?? "in_progress" });
+    const h = (data as any)?.healthObj;
     if (h) setHealthForm({ status: h.status ?? "green", message: h.message ?? "" });
+    const cms = ((data as any)?.cm ?? []) as any[];
+    const rf: Record<string, { progress: string; due: string; status: string }> = {};
+    cms.forEach((c) => { rf[c.id] = { progress: String(c.rollout_progress ?? 0), due: c.rollout_due ?? "", status: c.rollout_status ?? "in_progress" }; });
+    setRolloutForm(rf);
   }, [data]);
   const [busy, setBusy] = useState(false); const [toast, setToast] = useState(""); const [err, setErr] = useState("");
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 7000); };
@@ -64,6 +67,7 @@ export default function ClienteDetalhe() {
   if (!data?.org) return <><PageHead eyebrow="CRM" title="Detalhe" /><Empty>Não encontrado.</Empty></>;
   const { org, mods, cm, users, people, phones, docs, acts, progress, health, taxids, proposals, impl, healthObj, tasks, creds } = data;
   const activeSet = new Set(cm.map((c) => c.vdi_module_id));
+  const rollAvg = cm.length ? Math.round(cm.reduce((s: number, c: any) => s + (c.rollout_progress || 0), 0) / cm.length) : (progress || 0);
   const co = countryOf(org.country); const st = stageOf(org.stage);
 
   async function saveEdit() {
@@ -123,11 +127,14 @@ export default function ClienteDetalhe() {
   }
   async function setPrimaryTaxid(tid: string) { await api.crm.taxIds.setPrimary(id!, tid); reload(); }
   async function delTaxid(tid: string) { await api.crm.taxIds.remove(tid); reload(); }
-  async function saveImpl() {
+  async function saveRollout(cmId: string) {
+    const rf = rolloutForm[cmId]; if (!rf) return;
     setBusy(true);
-    try { await api.delivery.implementations.upsert(id!, { overall_progress: Math.max(0, Math.min(100, Number(implForm.progress) || 0)), due_date: implForm.due || null, status: implForm.status }); reload(); flash(tr("Implantação atualizada ✓")); }
+    try { await api.delivery.clientModules.updateRollout(cmId, { rollout_progress: Math.max(0, Math.min(100, Number(rf.progress) || 0)), rollout_due: rf.due || null, rollout_status: rf.status }); reload(); flash(tr("Andamento do módulo salvo ✓")); }
     catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); } finally { setBusy(false); }
   }
+  const setRf = (cmId: string, patch: Partial<{ progress: string; due: string; status: string }>) =>
+    setRolloutForm((s) => ({ ...s, [cmId]: { progress: "0", due: "", status: "in_progress", ...s[cmId], ...patch } }));
   async function saveHealth() {
     setBusy(true);
     try { await api.delivery.systemHealth.upsert(id!, { status: healthForm.status, message: healthForm.message || null }); reload(); flash(tr("Farol atualizado ✓")); }
@@ -251,7 +258,7 @@ export default function ClienteDetalhe() {
       )}
 
       <div className="kpis" style={{ marginBottom: 22 }}>
-        <div className="kpi g"><div className="lab">{tr("Implantação")}</div><div className="val tnum">{progress}<small>%</small></div><div className="delta">{health === "green" ? tr("no ar") : "—"}</div></div>
+        <div className="kpi g"><div className="lab">{tr("Implantação")}</div><div className="val tnum">{rollAvg}<small>%</small></div><div className="delta">{health === "green" ? tr("no ar") : "—"}</div></div>
         <div className="kpi"><div className="lab">{tr("Módulos ativos")}</div><div className="val tnum">{cm.filter((c) => c.status === "active").length}</div><div className="delta">{tr("liberados")}</div></div>
         <div className="kpi"><div className="lab">{tr("Pessoas")}</div><div className="val tnum">{people.length}</div><div className="delta">{tr("contatos")}</div></div>
         <div className="kpi"><div className="lab">{tr("Documentos")}</div><div className="val tnum">{docs.length}</div><div className="delta">{tr("arquivos")}</div></div>
@@ -364,23 +371,29 @@ export default function ClienteDetalhe() {
 
       {/* Implantação & Saúde (F-D) */}
       <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Implantação & saúde")}</h2><Pill tone="mute">{tr("o cliente vê no Gantt e no farol")}</Pill></div>
-      <div className="grid2" style={{ marginBottom: 14 }}>
-        <div className="card">
-          <h3>{tr("Andamento da implantação")}</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 }}>
-            <label className="frow"><span>{tr("Progresso (%)")}</span><input type="number" min={0} max={100} value={implForm.progress} onChange={(e) => setImplForm({ ...implForm, progress: e.target.value })} /></label>
-            <label className="frow"><span>{tr("Prazo de entrega")}</span><input type="date" value={implForm.due} onChange={(e) => setImplForm({ ...implForm, due: e.target.value })} /></label>
-          </div>
-          <label className="frow"><span>{tr("Status")}</span><select value={implForm.status} onChange={(e) => setImplForm({ ...implForm, status: e.target.value })}><option value="in_progress">{tr("Em andamento")}</option><option value="delivered">{tr("Entregue")}</option><option value="on_hold">{tr("Em espera")}</option></select></label>
-          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" style={{ marginTop: 8 }} disabled={busy} onClick={saveImpl}><span className="crasto-btn__label">{tr("Salvar")}</span></button>
-        </div>
-        <div className="card">
-          <h3>{tr("Farol de saúde")}</h3>
+      <div className="card" style={{ marginBottom: 14 }}>
+        <h3>{tr("Farol de saúde")}</h3>
+        <div className="grid2">
           <label className="frow" style={{ marginTop: 8 }}><span>{tr("Status")}</span><select value={healthForm.status} onChange={(e) => setHealthForm({ ...healthForm, status: e.target.value })}><option value="green">🟢 {tr("No ar")}</option><option value="amber">🟡 {tr("Atenção")}</option><option value="red">🔴 {tr("Crítico")}</option></select></label>
-          <label className="frow"><span>{tr("Mensagem ao cliente")}</span><input value={healthForm.message} onChange={(e) => setHealthForm({ ...healthForm, message: e.target.value })} placeholder={tr("Ex.: Tudo funcionando normalmente.")} /></label>
-          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" style={{ marginTop: 8 }} disabled={busy} onClick={saveHealth}><span className="crasto-btn__label">{tr("Salvar")}</span></button>
+          <label className="frow" style={{ marginTop: 8 }}><span>{tr("Mensagem ao cliente")}</span><input value={healthForm.message} onChange={(e) => setHealthForm({ ...healthForm, message: e.target.value })} placeholder={tr("Ex.: Tudo funcionando normalmente.")} /></label>
         </div>
+        <button className="crasto-btn crasto-btn--primary crasto-btn--sm" style={{ marginTop: 8 }} disabled={busy} onClick={saveHealth}><span className="crasto-btn__label">{tr("Salvar")}</span></button>
       </div>
+
+      <div className="sec-h"><h2>{tr("Andamento por módulo")}</h2><Pill tone="mute">{tr("o cliente vê separado por módulo")}</Pill></div>
+      {cm.length === 0 ? <Empty>{tr("Nenhum módulo contratado — libere módulos acima para acompanhar a implantação.")}</Empty> : cm.map((c: any) => {
+        const name = mods.find((m) => m.id === c.vdi_module_id)?.name || tr("Módulo");
+        const rf = rolloutForm[c.id] || { progress: "0", due: "", status: "in_progress" };
+        return (
+          <div className="rollrow" key={c.id}>
+            <div className="rollname">{name}</div>
+            <label className="rollf"><span>{tr("Progresso (%)")}</span><input type="number" min={0} max={100} value={rf.progress} onChange={(e) => setRf(c.id, { progress: e.target.value })} /></label>
+            <label className="rollf"><span>{tr("Prazo de entrega")}</span><input type="date" value={rf.due} onChange={(e) => setRf(c.id, { due: e.target.value })} /></label>
+            <label className="rollf"><span>{tr("Status")}</span><select value={rf.status} onChange={(e) => setRf(c.id, { status: e.target.value })}><option value="in_progress">{tr("Em andamento")}</option><option value="delivered">{tr("Entregue")}</option><option value="on_hold">{tr("Em espera")}</option></select></label>
+            <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={() => saveRollout(c.id)}><span className="crasto-btn__label">{tr("Salvar")}</span></button>
+          </div>
+        );
+      })}
 
       {/* Tarefas / cronograma */}
       <div className="sec-h"><h2>{tr("Etapas do cronograma")}</h2><Pill tone="mute">{tr("vira o Gantt do cliente")}</Pill></div>
