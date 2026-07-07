@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { MessageCircle, Search, Send, Grid3x3, Pencil, Trash2, UserPlus, Plus, Upload, Download, FileText, Building2, Globe, Cake } from "lucide-react";
+import { MessageCircle, Search, Send, Grid3x3, Pencil, Trash2, UserPlus, Plus, Upload, Download, FileText, Building2, Globe, Cake, Eye } from "lucide-react";
+import { preview } from "../../lib/preview";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, initials, Field, money } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
@@ -227,6 +228,7 @@ export default function ClienteDetalhe() {
     <div>
       <PageHead eyebrow={`CRM · ${co.flag} ${co.name}`} title={org.name} sub={`${co.idLabel}: ${org.tax_id || "—"}  ·  ${org.website || "sem site"}`}
         right={<>
+          <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => { preview.set(id!, org.name); nav("/app"); }}><span className="crasto-btn__icon"><Eye size={14} /></span><span className="crasto-btn__label">{tr("Visualizar cliente")}</span></button>
           <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => { setEf(org); setEdit(true); }}><span className="crasto-btn__icon"><Pencil size={14} /></span><span className="crasto-btn__label">{tr("Editar")}</span></button>
           <button className="crasto-btn crasto-btn--destructive crasto-btn--sm" onClick={del} disabled={busy}><span className="crasto-btn__icon"><Trash2 size={14} /></span><span className="crasto-btn__label">{tr("Excluir")}</span></button>
         </>} />

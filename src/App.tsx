@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./lib/auth";
+import { preview } from "./lib/preview";
 import Login from "./pages/Login";
 import ResetRequest from "./pages/ResetRequest";
 import NewPassword from "./pages/NewPassword";
@@ -38,6 +40,9 @@ function homeFor(role?: string) {
 
 export default function App() {
   const { session, profile, loading } = useAuth();
+  const isAdmin = !!session && profile?.role === "crasto_admin";
+  // Segurança: "Ver como cliente" é só para admin — qualquer outro papel (ou sem sessão) limpa o preview.
+  useEffect(() => { if (!isAdmin) preview.clear(); }, [isAdmin]);
   if (loading || (session && !profile)) {
     return <div style={{ padding: 40, color: "var(--crasto-text-muted)" }}>Carregando…</div>;
   }

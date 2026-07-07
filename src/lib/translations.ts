@@ -812,6 +812,10 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Instância…": { en: "Instance…", es: "Instancia…" },
   "Escolha a instância e informe a URL ou o login.": { en: "Choose the instance and enter the URL or login.", es: "Elige la instancia e indica la URL o el usuario." },
   "Acesso salvo ✓": { en: "Access saved ✓", es: "Acceso guardado ✓" },
+  "Visualizar cliente": { en: "View as client", es: "Ver como cliente" },
+  "Visualizando como": { en: "Viewing as", es: "Viendo como" },
+  "Sair da visualização": { en: "Exit preview", es: "Salir de la vista" },
+  "Visualização (admin)": { en: "Preview (admin)", es: "Vista previa (admin)" },
   "Nenhum módulo encontrado.": { en: "No module found.", es: "Ningún módulo encontrado." },
 
   // ---- Admin · Propostas & contrato (ciclo comercial) ----

@@ -4,13 +4,14 @@
 // ============================================================================
 import { supabase } from "../lib/supabase";
 import { unwrap, unwrapList } from "./core/result";
+import { scopeMine } from "./core/scope";
 import type { Ticket, PendingAction } from "./core/types";
 
 const sup = () => supabase.schema("support");
 
 export const tickets = {
   listMine: async () =>
-    unwrapList<Ticket>(await sup().from("tickets").select("id,subject,status").order("created_at", { ascending: false })),
+    unwrapList<Ticket>(await scopeMine(sup().from("tickets").select("id,subject,status").order("created_at", { ascending: false }))),
   /** Abre um chamado: grava + notifica o suporte + confirma ao cliente (edge function). */
   open: async (body: { subject: string; description?: string }): Promise<{ ok: boolean; number?: string; notified?: boolean; confirmed?: boolean; error?: string }> => {
     const { data, error } = await supabase.functions.invoke("client-support-ticket", { body });
@@ -26,7 +27,7 @@ export const tickets = {
 
 export const pendingActions = {
   listMine: async () =>
-    unwrapList<PendingAction>(await sup().from("pending_actions").select("id,type,description,status").order("status", { ascending: false })),
+    unwrapList<PendingAction>(await scopeMine(sup().from("pending_actions").select("id,type,description,status").order("status", { ascending: false }))),
 };
 
 export const support = { tickets, pendingActions };

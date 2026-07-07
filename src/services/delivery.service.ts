@@ -5,6 +5,7 @@
 // ============================================================================
 import { supabase } from "../lib/supabase";
 import { unwrap, unwrapList } from "./core/result";
+import { scopeMine } from "./core/scope";
 import type { ClientModule, Implementation, SystemHealth, ProjectTask, ModuleCredential } from "./core/types";
 
 const del = () => supabase.schema("delivery");
@@ -17,7 +18,7 @@ export const clientModules = {
     unwrapList<ClientModule>(await del().from("client_modules").select("organization_id")),
   /** Do cliente logado (RLS aplica o filtro). */
   listMine: async () =>
-    unwrapList<ClientModule>(await del().from("client_modules").select(ROLLOUT_COLS).order("created_at")),
+    unwrapList<ClientModule>(await scopeMine(del().from("client_modules").select(ROLLOUT_COLS).order("created_at"))),
   /** Liga um módulo (cria a 1ª instância). */
   attach: async (orgId: string, moduleId: string) =>
     unwrap(await del().from("client_modules").insert({ organization_id: orgId, vdi_module_id: moduleId, status: "active" })),
@@ -38,7 +39,7 @@ export const implementations = {
   getByOrg: async (orgId: string) =>
     unwrap(await del().from("implementations").select("*").eq("organization_id", orgId).maybeSingle()) as unknown as Implementation | null,
   getMine: async () =>
-    unwrap(await del().from("implementations").select("overall_progress,due_date,status,started_at").maybeSingle()) as unknown as Implementation | null,
+    unwrap(await scopeMine(del().from("implementations").select("overall_progress,due_date,status,started_at")).maybeSingle()) as unknown as Implementation | null,
   listBrief: async () =>
     unwrapList<Implementation & { organization_id: string }>(await del().from("implementations").select("organization_id,overall_progress,status")),
   /** Admin: cria ou atualiza a implantação do cliente (1 por org). */
@@ -53,7 +54,7 @@ export const systemHealth = {
   getByOrg: async (orgId: string) =>
     unwrap(await del().from("system_health").select("status,message").eq("organization_id", orgId).maybeSingle()) as unknown as SystemHealth | null,
   getMine: async () =>
-    unwrap(await del().from("system_health").select("status,message").maybeSingle()) as unknown as SystemHealth | null,
+    unwrap(await scopeMine(del().from("system_health").select("status,message")).maybeSingle()) as unknown as SystemHealth | null,
   listBrief: async () =>
     unwrapList<SystemHealth>(await del().from("system_health").select("organization_id,status")),
   /** Admin: define o farol (status + mensagem) do cliente. */
@@ -66,7 +67,7 @@ export const systemHealth = {
 
 export const projectTasks = {
   listMine: async () =>
-    unwrapList<ProjectTask>(await del().from("project_tasks").select("*").order("sort_order")),
+    unwrapList<ProjectTask>(await scopeMine(del().from("project_tasks").select("*").order("sort_order"))),
   listByOrg: async (orgId: string) =>
     unwrapList<ProjectTask>(await del().from("project_tasks").select("*").eq("organization_id", orgId).order("sort_order")),
   add: async (payload: Record<string, any>) => unwrap(await del().from("project_tasks").insert(payload)),
@@ -76,7 +77,7 @@ export const projectTasks = {
 
 export const moduleCredentials = {
   listMine: async () =>
-    unwrapList<ModuleCredential>(await del().from("module_credentials").select("id,label,login,sso_enabled,access_url,vdi_module_id,client_module_id")),
+    unwrapList<ModuleCredential>(await scopeMine(del().from("module_credentials").select("id,label,login,sso_enabled,access_url,vdi_module_id,client_module_id"))),
   listByOrg: async (orgId: string) =>
     unwrapList<ModuleCredential>(await del().from("module_credentials").select("id,label,login,sso_enabled,access_url,vdi_module_id,client_module_id").eq("organization_id", orgId)),
   /** Admin: define/atualiza (idempotente) o acesso de UMA instância — URL + login + senha criptografada via RPC. */
@@ -91,7 +92,7 @@ export const clientServices = {
     unwrapList<any>(await del().from("client_services").select(SVC_COLS).eq("organization_id", orgId)),
   /** Do cliente logado (RLS aplica o filtro). Nome/descrição vêm desnormalizados (catalog.services é admin-only). */
   listMine: async () =>
-    unwrapList<any>(await del().from("client_services").select(SVC_COLS)),
+    unwrapList<any>(await scopeMine(del().from("client_services").select(SVC_COLS))),
   /** Admin: anexa o serviço já com os campos de exibição (sem preço) copiados. */
   attach: async (orgId: string, svc: { id: string; name?: string; description?: string | null; category?: string | null; unit?: string | null }) =>
     unwrap(await del().from("client_services").insert({ organization_id: orgId, service_id: svc.id, status: "active", service_name: svc.name ?? null, service_description: svc.description ?? null, service_category: svc.category ?? null, service_unit: svc.unit ?? null })),
