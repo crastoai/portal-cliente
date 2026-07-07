@@ -55,6 +55,7 @@ export default function ClienteDetalhe() {
   const [modQuery, setModQuery] = useState("");
   const [modCat, setModCat] = useState("__on");
   const [svcQuery, setSvcQuery] = useState("");
+  const [svcRows, setSvcRows] = useState<any[]>([]);
   useEffect(() => {
     const h = (data as any)?.healthObj;
     if (h) setHealthForm({ status: h.status ?? "green", message: h.message ?? "" });
@@ -62,13 +63,14 @@ export default function ClienteDetalhe() {
     const rf: Record<string, { progress: string; due: string; status: string }> = {};
     cms.forEach((c) => { rf[c.id] = { progress: String(c.rollout_progress ?? 0), due: c.rollout_due ?? "", status: c.rollout_status ?? "in_progress" }; });
     setRolloutForm(rf);
+    setSvcRows(((data as any)?.csvc ?? []) as any[]);
   }, [data]);
   const [busy, setBusy] = useState(false); const [toast, setToast] = useState(""); const [err, setErr] = useState("");
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 7000); };
 
   if (loading) return <><PageHead eyebrow="CRM" title="Detalhe" /><Empty>Carregando…</Empty></>;
   if (!data?.org) return <><PageHead eyebrow="CRM" title="Detalhe" /><Empty>Não encontrado.</Empty></>;
-  const { org, mods, cm, users, people, phones, docs, acts, progress, health, taxids, proposals, impl, healthObj, tasks, creds, csvc, svcCat } = data;
+  const { org, mods, cm, users, people, phones, docs, acts, progress, health, taxids, proposals, impl, healthObj, tasks, creds, svcCat } = data;
   const activeSet = new Set(cm.map((c) => c.vdi_module_id));
   const rollAvg = cm.length ? Math.round(cm.reduce((s: number, c: any) => s + (c.rollout_progress || 0), 0) / cm.length) : (progress || 0);
   const co = countryOf(org.country); const st = stageOf(org.stage);
@@ -174,14 +176,21 @@ export default function ClienteDetalhe() {
     flash(tr("Editando — altere e clique em Salvar. Senha em branco mantém a atual."));
   }
   async function delCred(cid: string) { await api.delivery.moduleCredentials.remove(cid); reload(); }
+  const refreshServices = async () => setSvcRows((await api.delivery.clientServices.listByOrg(id!)) as any[]);
   async function addService(serviceId: string) {
     if (!serviceId) { flash(tr("Escolha um serviço.")); return; }
     setBusy(true);
-    try { await api.delivery.clientServices.attach(id!, serviceId); setSvcQuery(""); reload(); flash(tr("Serviço adicionado ✓")); }
+    try { await api.delivery.clientServices.attach(id!, serviceId); setSvcQuery(""); await refreshServices(); flash(tr("Serviço adicionado ✓")); }
     catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); } finally { setBusy(false); }
   }
-  async function setServiceStatus(csId: string, status: string) { await api.delivery.clientServices.setStatus(csId, status); reload(); }
-  async function delService(csId: string) { await api.delivery.clientServices.detach(csId); reload(); }
+  async function setServiceStatus(csId: string, status: string) {
+    setSvcRows((rows) => rows.map((r) => (r.id === csId ? { ...r, status } : r))); // otimista
+    try { await api.delivery.clientServices.setStatus(csId, status); } catch { await refreshServices(); }
+  }
+  async function delService(csId: string) {
+    setSvcRows((rows) => rows.filter((r) => r.id !== csId)); // otimista
+    try { await api.delivery.clientServices.detach(csId); } catch { await refreshServices(); }
+  }
   async function uploadDoc(file: File, kind: string) {
     setBusy(true);
     try {
@@ -384,7 +393,7 @@ export default function ClienteDetalhe() {
       <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Serviços contratados")}</h2><Pill tone="mute">{tr("o cliente vê em 'Meus serviços' (sem link)")}</Pill></div>
       {(() => {
         const q = svcQuery.trim().toLowerCase();
-        const available = svcCat.filter((s: any) => !csvc.some((c: any) => c.service_id === s.id));
+        const available = svcCat.filter((s: any) => !svcRows.some((c: any) => c.service_id === s.id));
         const matches = q ? available.filter((s: any) => `${s.name} ${s.category || ""}`.toLowerCase().includes(q)) : available;
         return (
           <div className="svcpick">
@@ -404,7 +413,7 @@ export default function ClienteDetalhe() {
           </div>
         );
       })()}
-      {csvc.length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhum serviço contratado — adicione acima.")}</div> : csvc.map((c: any) => {
+      {svcRows.length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhum serviço contratado — adicione acima.")}</div> : svcRows.map((c: any) => {
         const s = svcCat.find((x: any) => x.id === c.service_id);
         const stl = c.status === "delivered" ? tr("Concluído") : c.status === "in_progress" ? tr("Em execução") : c.status === "scheduled" ? tr("Agendado") : tr("Ativo");
         const stt = c.status === "delivered" ? "ok" : c.status === "scheduled" ? "warn" : c.status === "in_progress" ? "info" : "ok";
