@@ -791,6 +791,12 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Buscar serviço para adicionar…": { en: "Search a service to add…", es: "Buscar un servicio para añadir…" },
   "{n} disponíveis": { en: "{n} available", es: "{n} disponibles" },
   "Nenhum serviço encontrado.": { en: "No service found.", es: "Ningún servicio encontrado." },
+  "Buscar solução por nome, categoria ou descrição…": { en: "Search solution by name, category or description…", es: "Buscar solución por nombre, categoría o descripción…" },
+  "Nenhuma solução encontrada.": { en: "No solution found.", es: "Ninguna solución encontrada." },
+  "O cliente solicitou a implementação de:": { en: "The client requested the implementation of:", es: "El cliente solicitó la implementación de:" },
+  "Solicitante": { en: "Requester", es: "Solicitante" },
+  "responsável": { en: "owner", es: "responsable" },
+  "→ Chamar o cliente no WhatsApp para dar sequência à implantação.": { en: "→ Contact the client on WhatsApp to start the rollout.", es: "→ Contactar al cliente por WhatsApp para iniciar la implementación." },
   "Nenhum módulo encontrado.": { en: "No module found.", es: "Ningún módulo encontrado." },
 
   // ---- Admin · Propostas & contrato (ciclo comercial) ----
