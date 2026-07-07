@@ -173,7 +173,8 @@
 /* ===== módulos ===== */
 .sec-h { display: flex; align-items: center; justify-content: space-between; margin: 8px 0 16px; }
 .sec-h h2 { font-size: 18px; font-weight: 600; }
-.catsearch { display: flex; align-items: center; gap: 10px; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md); padding: 10px 14px; margin: 6px 0 4px; box-shadow: var(--crasto-shadow-sm); color: var(--crasto-text-muted); }
+.catsearch { display: flex; align-items: center; gap: 10px; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md); padding: 10px 14px; margin: 6px 0 4px; box-shadow: var(--crasto-shadow-sm); color: var(--crasto-text-muted); transition: border-color .15s; }
+.catsearch:focus-within { border-color: var(--crasto-text-primary); }
 .catsearch input { flex: 1; border: none; background: transparent; outline: none; font-size: 14px; color: var(--crasto-text-primary); padding: 0; }
 .catsearch input::placeholder { color: var(--crasto-text-muted); }
 .cattabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
