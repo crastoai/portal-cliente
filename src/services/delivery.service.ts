@@ -78,4 +78,16 @@ export const moduleCredentials = {
   remove: async (id: string) => unwrap(await del().from("module_credentials").delete().eq("id", id)),
 };
 
-export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials };
+export const clientServices = {
+  listByOrg: async (orgId: string) =>
+    unwrapList<any>(await del().from("client_services").select("id,service_id,status,notes").eq("organization_id", orgId)),
+  /** Do cliente logado (RLS aplica o filtro). */
+  listMine: async () =>
+    unwrapList<any>(await del().from("client_services").select("id,service_id,status,notes")),
+  attach: async (orgId: string, serviceId: string) =>
+    unwrap(await del().from("client_services").insert({ organization_id: orgId, service_id: serviceId, status: "active" })),
+  detach: async (id: string) => unwrap(await del().from("client_services").delete().eq("id", id)),
+  setStatus: async (id: string, status: string) => unwrap(await del().from("client_services").update({ status }).eq("id", id)),
+};
+
+export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices };

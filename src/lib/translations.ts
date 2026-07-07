@@ -776,6 +776,18 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "concluído": { en: "complete", es: "completado" },
   "sem prazo definido": { en: "no deadline set", es: "sin plazo definido" },
   "Nenhum módulo contratado ainda — abra \"Todas\" e ative os módulos deste cliente.": { en: "No module enabled yet — open \"All\" and enable this client's modules.", es: "Sin módulos aún — abre \"Todas\" y activa los módulos de este cliente." },
+  "Serviços contratados": { en: "Contracted services", es: "Servicios contratados" },
+  "o cliente vê em 'Meus serviços' (sem link)": { en: "the client sees it in 'My services' (no link)", es: "el cliente lo ve en 'Mis servicios' (sin enlace)" },
+  "Serviço…": { en: "Service…", es: "Servicio…" },
+  "Nenhum serviço contratado — adicione acima.": { en: "No service contracted — add one above.", es: "Sin servicios — añade uno arriba." },
+  "Escolha um serviço.": { en: "Choose a service.", es: "Elige un servicio." },
+  "Serviço adicionado ✓": { en: "Service added ✓", es: "Servicio añadido ✓" },
+  "Em execução": { en: "In progress", es: "En ejecución" },
+  "Agendado": { en: "Scheduled", es: "Programado" },
+  "Meus serviços": { en: "My services", es: "Mis servicios" },
+  "prestados pela Crasto.AI": { en: "provided by Crasto.AI", es: "prestados por Crasto.AI" },
+  "Serviço da Crasto.AI.": { en: "Crasto.AI service.", es: "Servicio de Crasto.AI." },
+  "Por hora": { en: "Per hour", es: "Por hora" },
   "Nenhum módulo encontrado.": { en: "No module found.", es: "Ningún módulo encontrado." },
 
   // ---- Admin · Propostas & contrato (ciclo comercial) ----

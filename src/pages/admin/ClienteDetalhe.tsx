@@ -18,7 +18,7 @@ export default function ClienteDetalhe() {
   const tr = useT();
   const { data, loading, reload } = useAsync(async () => {
     if (!id) return null;
-    const [org, mods, cm, users, people, phones, docs, acts, impl, health, taxids, proposals, tasks, creds] = await Promise.all([
+    const [org, mods, cm, users, people, phones, docs, acts, impl, health, taxids, proposals, tasks, creds, csvc, svcCat] = await Promise.all([
       api.identity.organizations.getById(id),
       api.catalog.vdiModules.listActiveByName(),
       api.delivery.clientModules.listByOrg(id),
@@ -33,8 +33,10 @@ export default function ClienteDetalhe() {
       api.commerce.proposals.listByOrg(id),
       api.delivery.projectTasks.listByOrg(id),
       api.delivery.moduleCredentials.listByOrg(id),
+      api.delivery.clientServices.listByOrg(id),
+      api.catalog.services.listClientFacing(),
     ]);
-    return { org: org as Org, mods: (mods as any[]) ?? [], cm: (cm as any[]) ?? [], users: (users as any[]) ?? [], people: (people as any[]) ?? [], phones: (phones as any[]) ?? [], docs: (docs as any[]) ?? [], acts: (acts as any[]) ?? [], progress: (impl as any)?.overall_progress ?? 0, health: (health as any)?.status ?? null, impl: (impl as any) ?? null, healthObj: (health as any) ?? null, taxids: (taxids as any[]) ?? [], proposals: (proposals as any[]) ?? [], tasks: (tasks as any[]) ?? [], creds: (creds as any[]) ?? [] };
+    return { org: org as Org, mods: (mods as any[]) ?? [], cm: (cm as any[]) ?? [], users: (users as any[]) ?? [], people: (people as any[]) ?? [], phones: (phones as any[]) ?? [], docs: (docs as any[]) ?? [], acts: (acts as any[]) ?? [], progress: (impl as any)?.overall_progress ?? 0, health: (health as any)?.status ?? null, impl: (impl as any) ?? null, healthObj: (health as any) ?? null, taxids: (taxids as any[]) ?? [], proposals: (proposals as any[]) ?? [], tasks: (tasks as any[]) ?? [], creds: (creds as any[]) ?? [], csvc: (csvc as any[]) ?? [], svcCat: (svcCat as any[]) ?? [] };
   }, [id]);
 
   const [edit, setEdit] = useState(false);
@@ -52,6 +54,7 @@ export default function ClienteDetalhe() {
   const [credf, setCredf] = useState({ moduleId: "", label: "", url: "", login: "", secret: "", sso: false });
   const [modQuery, setModQuery] = useState("");
   const [modCat, setModCat] = useState("__on");
+  const [svcForm, setSvcForm] = useState("");
   useEffect(() => {
     const h = (data as any)?.healthObj;
     if (h) setHealthForm({ status: h.status ?? "green", message: h.message ?? "" });
@@ -65,7 +68,7 @@ export default function ClienteDetalhe() {
 
   if (loading) return <><PageHead eyebrow="CRM" title="Detalhe" /><Empty>Carregando…</Empty></>;
   if (!data?.org) return <><PageHead eyebrow="CRM" title="Detalhe" /><Empty>Não encontrado.</Empty></>;
-  const { org, mods, cm, users, people, phones, docs, acts, progress, health, taxids, proposals, impl, healthObj, tasks, creds } = data;
+  const { org, mods, cm, users, people, phones, docs, acts, progress, health, taxids, proposals, impl, healthObj, tasks, creds, csvc, svcCat } = data;
   const activeSet = new Set(cm.map((c) => c.vdi_module_id));
   const rollAvg = cm.length ? Math.round(cm.reduce((s: number, c: any) => s + (c.rollout_progress || 0), 0) / cm.length) : (progress || 0);
   const co = countryOf(org.country); const st = stageOf(org.stage);
@@ -171,6 +174,14 @@ export default function ClienteDetalhe() {
     flash(tr("Editando — altere e clique em Salvar. Senha em branco mantém a atual."));
   }
   async function delCred(cid: string) { await api.delivery.moduleCredentials.remove(cid); reload(); }
+  async function addService() {
+    if (!svcForm) { flash(tr("Escolha um serviço.")); return; }
+    setBusy(true);
+    try { await api.delivery.clientServices.attach(id!, svcForm); setSvcForm(""); reload(); flash(tr("Serviço adicionado ✓")); }
+    catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); } finally { setBusy(false); }
+  }
+  async function setServiceStatus(csId: string, status: string) { await api.delivery.clientServices.setStatus(csId, status); reload(); }
+  async function delService(csId: string) { await api.delivery.clientServices.detach(csId); reload(); }
   async function uploadDoc(file: File, kind: string) {
     setBusy(true);
     try {
@@ -368,6 +379,37 @@ export default function ClienteDetalhe() {
           </>
         );
       })()}
+
+      {/* Serviços contratados */}
+      <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Serviços contratados")}</h2><Pill tone="mute">{tr("o cliente vê em 'Meus serviços' (sem link)")}</Pill></div>
+      <div className="addrow">
+        <select value={svcForm} onChange={(e) => setSvcForm(e.target.value)} style={{ flex: 1, minWidth: 220 }}>
+          <option value="">{tr("Serviço…")}</option>
+          {svcCat.filter((s: any) => !csvc.some((c: any) => c.service_id === s.id)).map((s: any) => <option key={s.id} value={s.id}>{s.category ? `${s.category} · ` : ""}{s.name}</option>)}
+        </select>
+        <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={addService}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{tr("Adicionar")}</span></button>
+      </div>
+      {csvc.length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhum serviço contratado — adicione acima.")}</div> : csvc.map((c: any) => {
+        const s = svcCat.find((x: any) => x.id === c.service_id);
+        const stl = c.status === "delivered" ? tr("Concluído") : c.status === "in_progress" ? tr("Em execução") : c.status === "scheduled" ? tr("Agendado") : tr("Ativo");
+        const stt = c.status === "delivered" ? "ok" : c.status === "scheduled" ? "warn" : c.status === "in_progress" ? "info" : "ok";
+        return (
+          <div className="crmrow" key={c.id}>
+            <Pill tone={stt as any}>{stl}</Pill>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="nm">{s?.name || tr("Serviço")}</div>
+              <div className="mt">{[s?.category, s?.unit].filter(Boolean).join(" · ")}</div>
+            </div>
+            <select value={c.status} onChange={(e) => setServiceStatus(c.id, e.target.value)} className="selorg" style={{ width: 150 }}>
+              <option value="active">{tr("Ativo")}</option>
+              <option value="in_progress">{tr("Em execução")}</option>
+              <option value="delivered">{tr("Concluído")}</option>
+              <option value="scheduled">{tr("Agendado")}</option>
+            </select>
+            <button className="icobtn rm" onClick={() => delService(c.id)}><Trash2 size={14} /></button>
+          </div>
+        );
+      })}
 
       {/* Implantação & Saúde (F-D) */}
       <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Implantação & saúde")}</h2><Pill tone="mute">{tr("o cliente vê no Gantt e no farol")}</Pill></div>

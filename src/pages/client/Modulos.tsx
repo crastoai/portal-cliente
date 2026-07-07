@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MessageCircle, Search, Send, Grid3x3, Eye, Copy, ExternalLink, ShieldCheck } from "lucide-react";
+import { MessageCircle, Search, Send, Grid3x3, Eye, Copy, ExternalLink, ShieldCheck, Briefcase } from "lucide-react";
 import { services } from "../../services";
 import { PageHead, Pill, Empty, useAsync } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
@@ -10,27 +10,32 @@ type Mod = {
   vdi: { name: string; description: string | null; category: string | null } | null;
   external_url: string | null; cred: Cred | null;
 };
+type Svc = { id: string; status: string; name: string; description: string | null; category: string | null; unit: string | null };
 
-async function fetchData(): Promise<Mod[]> {
-  const [cms, creds] = await Promise.all([
+async function fetchData(): Promise<{ mods: Mod[]; services: Svc[] }> {
+  const [cms, creds, csvc] = await Promise.all([
     services.delivery.clientModules.listMine(),
     services.delivery.moduleCredentials.listMine().catch(() => [] as any[]),
+    services.delivery.clientServices.listMine().catch(() => [] as any[]),
   ]);
   const ids = cms.map((r) => r.vdi_module_id);
   const vms = ids.length ? await services.catalog.vdiModules.listByIds(ids, "id,name,description,category,external_url") : [];
   const vmap = Object.fromEntries((vms as any[]).map((v) => [v.id, v]));
   const cmap = Object.fromEntries((creds as any[]).map((c) => [c.vdi_module_id, c]));
-  return cms.map((r) => {
+  const mods: Mod[] = cms.map((r) => {
     const cred = (cmap[r.vdi_module_id] as Cred) ?? null;
     // URL de acesso é POR CLIENTE (credencial); o link do template é só fallback/legado.
     const url = cred?.access_url || (vmap[r.vdi_module_id]?.external_url as string) || null;
-    return {
-      id: r.id, status: r.status, vdi_module_id: r.vdi_module_id,
-      vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null,
-      external_url: url,
-      cred,
-    };
+    return { id: r.id, status: r.status, vdi_module_id: r.vdi_module_id, vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null, external_url: url, cred };
   });
+  const sids = (csvc as any[]).map((c) => c.service_id);
+  const svs = sids.length ? await services.catalog.services.listByIds(sids) : [];
+  const smap = Object.fromEntries((svs as any[]).map((s) => [s.id, s]));
+  const svcList: Svc[] = (csvc as any[]).map((c) => {
+    const s = smap[c.service_id] || {};
+    return { id: c.id, status: c.status, name: s.name || "Serviço", description: s.description ?? null, category: s.category ?? null, unit: s.unit ?? null };
+  });
+  return { mods, services: svcList };
 }
 
 function icon(cat?: string | null) {
@@ -44,7 +49,8 @@ function icon(cat?: string | null) {
 export default function Modulos() {
   const t = useT();
   const { data, loading } = useAsync(fetchData, []);
-  const mods = data ?? [];
+  const mods = data?.mods ?? [];
+  const svcs = data?.services ?? [];
   const [revealed, setRevealed] = useState<Record<string, { login: string | null; pw: string }>>({});
   const [busy, setBusy] = useState<string>("");
   const [copied, setCopied] = useState<string>("");
@@ -59,13 +65,19 @@ export default function Modulos() {
     navigator.clipboard?.writeText(text);
     setCopied(tag); setTimeout(() => setCopied(""), 1500);
   }
+  const unitLabel = (u: string | null) => {
+    const map: Record<string, string> = { mensal: t("Mensal"), projeto: t("Projeto"), hora: t("Por hora"), setup_unico: t("Setup único") };
+    return u ? (map[u] || u) : "";
+  };
+  const svcLabel = (s: string) => (s === "delivered" ? t("Concluído") : s === "in_progress" ? t("Em execução") : s === "scheduled" ? t("Agendado") : t("Ativo"));
+  const svcTone = (s: string) => (s === "scheduled" ? "warn" : s === "in_progress" ? "info" : "ok") as "warn" | "info" | "ok";
 
   return (
     <div>
       <PageHead eyebrow="Portal do Cliente" title="Minhas Soluções" sub="Suas soluções e como entrar em cada uma — tudo aqui." />
-      {loading ? <Empty>Carregando…</Empty> : mods.length === 0 ? (
+      {loading ? <Empty>Carregando…</Empty> : (mods.length === 0 && svcs.length === 0) ? (
         <Empty><p><strong>{t("Nenhuma solução ativa ainda.")}</strong> {t("Assim que a Crasto.AI liberar suas soluções, elas aparecem aqui com o acesso.")}</p></Empty>
-      ) : (
+      ) : mods.length > 0 && (
         <div className="mods">
           {mods.map((m) => {
             const implementing = m.status === "implementing" || m.status === "pending";
@@ -139,6 +151,24 @@ export default function Modulos() {
           })}
         </div>
       )}
+
+      {svcs.length > 0 && (
+        <>
+          <div className="sec-h" style={{ marginTop: mods.length > 0 ? 26 : 0 }}><h2>{t("Meus serviços")}</h2><Pill tone="mute">{t("prestados pela Crasto.AI")}</Pill></div>
+          {svcs.map((s) => (
+            <div className="svcrow" key={s.id}>
+              <span className="svcico"><Briefcase size={18} /></span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="nm">{s.name}</div>
+                <div className="mt">{s.description || s.category || t("Serviço da Crasto.AI.")}</div>
+              </div>
+              {s.unit && <span className="chip">{unitLabel(s.unit)}</span>}
+              <Pill tone={svcTone(s.status)}>{svcLabel(s.status)}</Pill>
+            </div>
+          ))}
+        </>
+      )}
+
       <div className="note" style={{ marginTop: 20 }}>
         <ShieldCheck size={16} />
         <span>{t("Suas senhas ficam protegidas e só aparecem quando você clica em \"Ver login e senha\". O botão Acessar abre a solução direto.")}</span>
