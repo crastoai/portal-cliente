@@ -1080,6 +1080,8 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Vence em {n} dia(s)": { en: "Due in {n} day(s)", es: "Vence en {n} día(s)" },
   "Pagar sua fatura": { en: "Pay your invoice", es: "Pagar tu factura" },
   "Disponível quando integrarmos o banco Inter": { en: "Available once we integrate Banco Inter", es: "Disponible cuando integremos Banco Inter" },
+  "Disponível em breve": { en: "Coming soon", es: "Disponible pronto" },
+  "Pagamento automático por boleto e Pix chega em breve. Enquanto isso, pague pelos canais abaixo:": { en: "Automatic boleto and Pix payment is coming soon. Meanwhile, pay through the channels below:", es: "El pago automático por boleto y Pix llega pronto. Mientras tanto, paga por los canales de abajo:" },
   "Emitir boleto": { en: "Generate boleto", es: "Emitir boleto" },
   "Pagar com Pix": { en: "Pay with Pix", es: "Pagar con Pix" },
   "Boleto e Pix automáticos chegam com a integração ao banco Inter. Enquanto isso, pague pelos canais abaixo:": { en: "Automatic boleto and Pix arrive with the Banco Inter integration. Meanwhile, pay through the channels below:", es: "Boleto y Pix automáticos llegan con la integración a Banco Inter. Mientras tanto, paga por los canales de abajo:" },

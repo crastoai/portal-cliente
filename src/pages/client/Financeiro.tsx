@@ -73,14 +73,14 @@ export default function Financeiro() {
               <span className="soon"><Clock size={12} />{t("Em breve")}</span>
             </div>
             <div className="pay-methods">
-              <button className="paymethod" disabled title={t("Disponível quando integrarmos o banco Inter")}>
+              <button className="paymethod" disabled title={t("Disponível em breve")}>
                 <FileText size={18} /><span>{t("Emitir boleto")}</span>
               </button>
-              <button className="paymethod" disabled title={t("Disponível quando integrarmos o banco Inter")}>
+              <button className="paymethod" disabled title={t("Disponível em breve")}>
                 <QrCode size={18} /><span>{t("Pagar com Pix")}</span>
               </button>
             </div>
-            <p className="pay-note">{t("Boleto e Pix automáticos chegam com a integração ao banco Inter. Enquanto isso, pague pelos canais abaixo:")}</p>
+            <p className="pay-note">{t("Pagamento automático por boleto e Pix chega em breve. Enquanto isso, pague pelos canais abaixo:")}</p>
 
             <div className="pay-now">
               {cfg.pixKey ? (
