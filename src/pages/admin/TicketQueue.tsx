@@ -85,16 +85,19 @@ export default function TicketQueue({ cfg }: { cfg: QueueConfig }) {
           <div className="catsearch">
             <span style={{ display: "grid", placeItems: "center" }}>{cfg.icon}</span>
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("Buscar por cliente, assunto ou descrição…")} />
-            <select value={clientF} onChange={(e) => setClientF(e.target.value)} style={{ maxWidth: 220, flex: "none" }}>
+            <span className="mt" style={{ whiteSpace: "nowrap" }}>{t("{n} de {total}", { n: filtered.length, total: items.length })}</span>
+          </div>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <div className="cattabs" style={{ margin: "12px 0 4px", flex: 1 }}>
+              <button className={"cattab" + (!statusF ? " is-active" : "")} onClick={() => setStatusF("")}>{t("Todos")}<span className="cnt">{items.length}</span></button>
+              {STATUSES.filter((s) => statusCounts[s]).map((s) => (
+                <button key={s} className={"cattab" + (statusF === s ? " is-active" : "")} onClick={() => setStatusF(s)}>{cfg.statusLabel(s)}<span className="cnt">{statusCounts[s]}</span></button>
+              ))}
+            </div>
+            <select className="selorg" value={clientF} onChange={(e) => setClientF(e.target.value)} style={{ width: 220, flex: "none" }}>
               <option value="">{t("Todos os clientes")}</option>
               {clientsWithItems.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.n})</option>)}
             </select>
-          </div>
-          <div className="cattabs">
-            <button className={"cattab" + (!statusF ? " is-active" : "")} onClick={() => setStatusF("")}>{t("Todos")}<span className="cnt">{items.length}</span></button>
-            {STATUSES.filter((s) => statusCounts[s]).map((s) => (
-              <button key={s} className={"cattab" + (statusF === s ? " is-active" : "")} onClick={() => setStatusF(s)}>{cfg.statusLabel(s)}<span className="cnt">{statusCounts[s]}</span></button>
-            ))}
           </div>
 
           {filtered.length === 0 ? <Empty>{t("Nada encontrado com esses filtros.")}</Empty> : filtered.map((it) => {
