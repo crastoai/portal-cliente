@@ -51,7 +51,19 @@ export const profiles = {
   getById: async (uid: string) =>
     unwrap(await supabase.from("profiles").select("*").eq("id", uid).single()) as unknown as Profile,
   listByOrg: async (orgId: string) =>
-    unwrapList<Profile>(await supabase.from("profiles").select("id,full_name,email,role").eq("organization_id", orgId)),
+    unwrapList<Profile>(await supabase.from("profiles").select("id,full_name,email,role,avatar_url").eq("organization_id", orgId)),
+  update: async (uid: string, patch: Record<string, any>) => unwrap(await supabase.from("profiles").update(patch).eq("id", uid)),
+  /** Sobe a foto de perfil (bucket público `avatars/<uid>/…`), grava a URL no profile e devolve a URL. */
+  uploadAvatar: async (uid: string, file: File): Promise<string> => {
+    const ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
+    const path = `${uid}/avatar.${ext}`;
+    const up = await supabase.storage.from("avatars").upload(path, file, { upsert: true, contentType: file.type || "image/png" });
+    if (up.error) throw up.error;
+    const pub = supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
+    const url = `${pub}?v=${Date.now()}`;
+    await supabase.from("profiles").update({ avatar_url: url }).eq("id", uid);
+    return url;
+  },
 };
 
 export const users = {

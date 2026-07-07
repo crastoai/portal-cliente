@@ -61,6 +61,11 @@
 /* card de usuário no rodapé */
 .side-user { display: flex; align-items: center; gap: 9px; margin-top: auto; padding: 9px 10px; border-radius: var(--crasto-radius-md); border: 1px solid var(--crasto-border-soft); background: var(--crasto-glass-card); box-shadow: 0 1px 0 rgba(255,255,255,.9) inset; }
 .su-av { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; color: #fff; font-size: 13px; background: linear-gradient(145deg, var(--crasto-navy), #0a2350); flex-shrink: 0; }
+.su-av--btn { position: relative; padding: 0; border: none; cursor: pointer; overflow: hidden; }
+.su-av--btn:disabled { cursor: default; opacity: .6; }
+.su-av--btn img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.su-av__cam { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(1,14,38,.55); color: #fff; opacity: 0; transition: opacity .15s; }
+.su-av--btn:hover .su-av__cam { opacity: 1; }
 .su-meta { min-width: 0; flex: 1; }
 .su-nm { font-weight: 600; color: var(--crasto-text-primary); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .su-em { font-size: 11px; color: var(--crasto-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

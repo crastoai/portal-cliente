@@ -816,6 +816,7 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Visualizando como": { en: "Viewing as", es: "Viendo como" },
   "Sair da visualização": { en: "Exit preview", es: "Salir de la vista" },
   "Visualização (admin)": { en: "Preview (admin)", es: "Vista previa (admin)" },
+  "Trocar foto de perfil": { en: "Change profile photo", es: "Cambiar foto de perfil" },
   "Nenhum módulo encontrado.": { en: "No module found.", es: "Ningún módulo encontrado." },
 
   // ---- Admin · Propostas & contrato (ciclo comercial) ----

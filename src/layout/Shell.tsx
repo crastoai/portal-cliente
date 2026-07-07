@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
-import { LogOut, Menu, X, type LucideIcon } from "lucide-react";
+import { LogOut, Menu, X, Camera, type LucideIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
+import { services } from "../services";
 import ThemeToggle from "../ui/ThemeToggle";
 import LangSwitcher from "../ui/LangSwitcher";
 import { useT } from "../lib/i18n";
@@ -20,10 +21,22 @@ function Brandmark() {
 export type NavItem = { to: string; end?: boolean; icon: LucideIcon; label: string; tag?: string; section?: string };
 
 export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who: string; sub: string; logoTone?: string }) {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, refreshProfile } = useAuth();
   const t = useT();
   const [open, setOpen] = useState(false);
+  const [avBusy, setAvBusy] = useState(false);
+  const avInput = useRef<HTMLInputElement>(null);
   const ini = initials(profile?.full_name || profile?.email);
+
+  async function onAvatar(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; e.target.value = "";
+    if (!file || !profile?.id) return;
+    if (!file.type.startsWith("image/")) return;
+    setAvBusy(true);
+    try { await services.identity.profiles.uploadAvatar(profile.id, file); await refreshProfile(); }
+    catch { /* silencioso — mantém a foto atual */ }
+    finally { setAvBusy(false); }
+  }
 
   // agrupa a navegação por seção, preservando a ordem (padrão do DS de sistema)
   const groups: { section?: string; items: NavItem[] }[] = [];
@@ -74,7 +87,11 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
 
         <div className="side-lang"><LangSwitcher up /></div>
         <div className="side-user">
-          <span className="su-av" style={logoTone ? { background: logoTone } : undefined}>{ini}</span>
+          <button type="button" className="su-av su-av--btn" title={t("Trocar foto de perfil")} disabled={avBusy} onClick={() => avInput.current?.click()} style={!profile?.avatar_url && logoTone ? { background: logoTone } : undefined}>
+            {profile?.avatar_url ? <img src={profile.avatar_url} alt="" /> : ini}
+            <span className="su-av__cam"><Camera size={12} /></span>
+          </button>
+          <input ref={avInput} type="file" accept="image/*" hidden onChange={onAvatar} />
           <div className="su-meta">
             <div className="su-nm">{who}</div>
             <div className="su-em">{profile?.email}</div>
