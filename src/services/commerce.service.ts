@@ -34,9 +34,13 @@ export const proposals = {
   },
   /** Chat/voz: interpreta uma instrução via ponte de IA (Claude Max). */
   ai: async (instruction: string, context: unknown): Promise<{ ok: boolean; offline?: boolean; reply?: string; actions?: any[]; error?: string }> => {
-    const { data, error } = await supabase.functions.invoke("proposal-ai", { body: { instruction, context } });
-    if (error) return { ok: false, error: error.message };
-    return data;
+    // timeout de segurança: o chat nunca fica preso "Pensando" para sempre
+    const invoke = supabase.functions.invoke("proposal-ai", { body: { instruction, context } });
+    const timeout = new Promise<{ __timeout: true }>((r) => setTimeout(() => r({ __timeout: true }), 75000));
+    const res: any = await Promise.race([invoke, timeout]);
+    if (res?.__timeout) return { ok: false, offline: true, error: "A IA demorou demais para responder. Tente novamente." };
+    if (res?.error) return { ok: false, error: res.error.message };
+    return res?.data;
   },
 };
 
