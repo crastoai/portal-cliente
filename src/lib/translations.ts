@@ -752,6 +752,14 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Sem URL": { en: "No URL", es: "Sin URL" },
   "URL padrão do módulo (opcional)": { en: "Default module URL (optional)", es: "URL predeterminada del módulo (opcional)" },
   "O acesso real é por cliente (URL + login) na ficha de cada cliente.": { en: "The real access is per client (URL + login) on each client's page.", es: "El acceso real es por cliente (URL + usuario) en la ficha de cada cliente." },
+  "Buscar módulo por nome, categoria ou descrição…": { en: "Search module by name, category or description…", es: "Buscar módulo por nombre, categoría o descripción…" },
+  "{n} de {total}": { en: "{n} of {total}", es: "{n} de {total}" },
+  "Nenhum módulo encontrado para \"{q}\".": { en: "No module found for \"{q}\".", es: "Ningún módulo encontrado para \"{q}\"." },
+  "{n} módulos": { en: "{n} modules", es: "{n} módulos" },
+  "Acessar módulo": { en: "Open module", es: "Abrir módulo" },
+  "Abrir este módulo dentro da Viver de IA": { en: "Open this module inside Viver de IA", es: "Abrir este módulo dentro de Viver de IA" },
+  "Link na Viver de IA (Acessar módulo)": { en: "Viver de IA link (Open module)", es: "Enlace en Viver de IA (Abrir módulo)" },
+  "É para onde o botão \"Acessar módulo\" leva o admin.": { en: "This is where the \"Open module\" button takes the admin.", es: "Es a donde el botón \"Abrir módulo\" lleva al admin." },
 
   // ---- Admin · Propostas & contrato (ciclo comercial) ----
   "Propostas & contrato": { en: "Proposals & contract", es: "Propuestas y contrato" },

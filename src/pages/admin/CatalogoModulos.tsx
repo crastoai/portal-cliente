@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Grid3x3, Pencil, Trash2, Clock } from "lucide-react";
+import { Plus, Grid3x3, Pencil, Trash2, Clock, Search, ExternalLink } from "lucide-react";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
@@ -25,6 +25,7 @@ export default function CatalogoModulos() {
   const [f, setF] = useState<any>({ ...EMPTY });
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [toast, setToast] = useState("");
   const [clients, setClients] = useState<{ id: string; name: string; status: string }[] | null>(null);
+  const [query, setQuery] = useState("");
   const editing = !!f.id;
 
   function openNew() { setF({ ...EMPTY }); setErr(""); setClients(null); setOpen(true); }
@@ -64,26 +65,50 @@ export default function CatalogoModulos() {
     <div>
       <PageHead eyebrow="Painel Admin" title="Catálogo de módulos" sub="Módulos do Viver de IA que a Crasto configura e oferece."
         right={<button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={openNew}><span className="crasto-btn__icon"><Plus size={15} /></span><span className="crasto-btn__label">{t("Novo módulo")}</span></button>} />
-      {loading ? <Empty>Carregando…</Empty> : rows.length === 0 ? <Empty><p><strong>{t("Catálogo vazio.")}</strong> {t("Clique em \"Novo módulo\" e comece a digitar — os nomes do Viver de IA aparecem sozinhos.")}</p></Empty> : (
-        <div className="mods">
-          {rows.map((m: V) => (
-            <div className="mod" key={m.id}>
-              <div className="cover"><div className="glow" /><Grid3x3 /></div>
-              <div className="body">
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}><h3>{m.name}</h3><span className="chip">{m.version}</span></div>
-                <p>{m.department ? `${m.department} · ` : ""}{m.customization === "standard" ? t("Standard") : t("Sob medida")} · {t("{n}d úteis", { n: m.setup_workdays })} / {t("{n}d cliente", { n: m.client_deadline_days })}</p>
-                <div className="foot">
-                  <Pill tone={m.status === "published" ? "ok" : m.status === "beta" ? "warn" : "mute"}>{m.status === "published" ? t("Publicado") : m.status === "beta" ? t("Beta") : t("Rascunho")}</Pill>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button className="icobtn" title={t("Editar / gestão")} onClick={() => openEdit(m)}><Pencil size={14} /></button>
-                    <button className="icobtn" title={t("Excluir")} onClick={() => del(m)}><Trash2 size={14} /></button>
-                  </div>
+      {loading ? <Empty>Carregando…</Empty> : rows.length === 0 ? <Empty><p><strong>{t("Catálogo vazio.")}</strong> {t("Clique em \"Novo módulo\" e comece a digitar — os nomes do Viver de IA aparecem sozinhos.")}</p></Empty> : (() => {
+        const q = query.trim().toLowerCase();
+        const filtered = rows.filter((m: V) => !q || `${m.name} ${m.department || ""} ${m.description || ""}`.toLowerCase().includes(q));
+        const groups: Record<string, V[]> = {};
+        filtered.forEach((m: V) => { const d = (m.department || t("Outros")) as string; (groups[d] ||= []).push(m); });
+        const order = Object.keys(groups).sort((a, b) => a.localeCompare(b, "pt"));
+        return (
+          <>
+            <div className="catsearch">
+              <Search size={16} />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("Buscar módulo por nome, categoria ou descrição…")} />
+              <span className="mt" style={{ whiteSpace: "nowrap" }}>{t("{n} de {total}", { n: filtered.length, total: rows.length })}</span>
+            </div>
+            {filtered.length === 0 ? <Empty>{t("Nenhum módulo encontrado para \"{q}\".", { q: query })}</Empty> : order.map((d) => (
+              <div key={d} style={{ marginBottom: 8 }}>
+                <div className="sec-h" style={{ marginTop: 18 }}><h2>{d}</h2><Pill tone="mute">{t("{n} módulos", { n: groups[d].length })}</Pill></div>
+                <div className="mods">
+                  {groups[d].map((m: V) => (
+                    <div className="mod" key={m.id}>
+                      <div className="cover"><div className="glow" /><Grid3x3 /></div>
+                      <div className="body">
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}><h3>{m.name}</h3><span className="chip">{m.version}</span></div>
+                        <p>{m.customization === "standard" ? t("Standard") : t("Sob medida")} · {t("{n}d úteis", { n: m.setup_workdays })} / {t("{n}d cliente", { n: m.client_deadline_days })}</p>
+                        {m.internal_url && (
+                          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" style={{ marginTop: 4, marginBottom: 8, width: "100%" }} title={t("Abrir este módulo dentro da Viver de IA")} onClick={() => window.open(m.internal_url, "_blank", "noopener")}>
+                            <span className="crasto-btn__icon"><ExternalLink size={14} /></span><span className="crasto-btn__label">{t("Acessar módulo")}</span>
+                          </button>
+                        )}
+                        <div className="foot">
+                          <Pill tone={m.status === "published" ? "ok" : m.status === "beta" ? "warn" : "mute"}>{m.status === "published" ? t("Publicado") : m.status === "beta" ? t("Beta") : t("Rascunho")}</Pill>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <button className="icobtn" title={t("Editar / gestão")} onClick={() => openEdit(m)}><Pencil size={14} /></button>
+                            <button className="icobtn" title={t("Excluir")} onClick={() => del(m)}><Trash2 size={14} /></button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </>
+        );
+      })()}
 
       <Modal title={editing ? t("Editar módulo") : t("Novo módulo")} open={open} onClose={() => setOpen(false)}
         footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={submit}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar")}</span></button></>}>
@@ -109,7 +134,7 @@ export default function CatalogoModulos() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <Field label="URL padrão do módulo (opcional)"><input value={f.external_url} onChange={(e) => setF({ ...f, external_url: e.target.value })} placeholder="https://…" /><div className="mt" style={{ fontSize: 11.5 }}>{t("O acesso real é por cliente (URL + login) na ficha de cada cliente.")}</div></Field>
-          <Field label="Link interno (gestão Crasto)"><input value={f.internal_url} onChange={(e) => setF({ ...f, internal_url: e.target.value })} placeholder={t("https://… (opcional)")} /></Field>
+          <Field label="Link na Viver de IA (Acessar módulo)"><input value={f.internal_url} onChange={(e) => setF({ ...f, internal_url: e.target.value })} placeholder="https://app.viverdeia.ai/solucoes/…" /><div className="mt" style={{ fontSize: 11.5 }}>{t("É para onde o botão \"Acessar módulo\" leva o admin.")}</div></Field>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <Field label="Status"><select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}><option value="published">{t("Publicado")}</option><option value="beta">{t("Beta (em teste)")}</option><option value="draft">{t("Rascunho")}</option></select></Field>

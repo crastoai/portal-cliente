@@ -173,6 +173,9 @@
 /* ===== módulos ===== */
 .sec-h { display: flex; align-items: center; justify-content: space-between; margin: 8px 0 16px; }
 .sec-h h2 { font-size: 18px; font-weight: 600; }
+.catsearch { display: flex; align-items: center; gap: 10px; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md); padding: 10px 14px; margin: 6px 0 4px; box-shadow: var(--crasto-shadow-sm); color: var(--crasto-text-muted); }
+.catsearch input { flex: 1; border: none; background: transparent; outline: none; font-size: 14px; color: var(--crasto-text-primary); padding: 0; }
+.catsearch input::placeholder { color: var(--crasto-text-muted); }
 .mods { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; }
 @media (max-width: 820px) { .mods { grid-template-columns: repeat(2,1fr); } }
 @media (max-width: 520px) { .mods { grid-template-columns: 1fr; } }
