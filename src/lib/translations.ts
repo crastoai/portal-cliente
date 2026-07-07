@@ -832,6 +832,11 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Avisar que recebemos": { en: "Notify we received it", es: "Avisar que la recibimos" },
   "Cliente avisado por e-mail ✓ Solicitação em atendimento.": { en: "Client emailed ✓ Request in progress.", es: "Cliente avisado por correo ✓ Solicitud en atención." },
   "Marcada em atendimento, mas e-mail não enviado: {e}": { en: "Marked in progress, but email not sent: {e}", es: "Marcada en atención, pero correo no enviado: {e}" },
+  "Buscar por cliente, assunto ou descrição…": { en: "Search by client, subject or description…", es: "Buscar por cliente, asunto o descripción…" },
+  "Todos os clientes": { en: "All clients", es: "Todos los clientes" },
+  "Nada encontrado com esses filtros.": { en: "Nothing found with these filters.", es: "Nada encontrado con estos filtros." },
+  "Cliente sem telefone no CRM": { en: "Client has no phone in the CRM", es: "Cliente sin teléfono en el CRM" },
+  "Reenviar aviso": { en: "Resend notice", es: "Reenviar aviso" },
   "Nenhum módulo encontrado.": { en: "No module found.", es: "Ningún módulo encontrado." },
 
   // ---- Admin · Propostas & contrato (ciclo comercial) ----
