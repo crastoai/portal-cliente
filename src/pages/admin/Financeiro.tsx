@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Plus, Pencil, Trash2, Search, ChevronRight, ChevronDown, CheckCircle2 } from "lucide-react";
 import { services, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, money, Field } from "../../ui/ui";
@@ -177,6 +177,20 @@ export default function Financeiro() {
     } catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
   }
   async function delItem(i: any) { if (!confirm(t("Excluir este lançamento?"))) return; if (i._kind === "cost") await services.finance.costs.remove(i.id); else await services.finance.accounts.remove(i.id); reload(); }
+  // baixa/reabre uma parcela do payment_schedule e recomputa amount_paid + status da conta
+  async function toggleInstallment(i: any, num: number) {
+    const cur = Array.isArray(i.payment_schedule) ? i.payment_schedule : [];
+    const sched = cur.map((p: any) => p.installment === num
+      ? (p.status === "paid" ? { ...p, status: "pending", amount_paid: 0, paid_at: null } : { ...p, status: "paid", amount_paid: Number(p.amount || 0), paid_at: new Date().toISOString() })
+      : p);
+    const paid = sched.filter((p: any) => p.status === "paid").reduce((a: number, p: any) => a + Number(p.amount || 0), 0);
+    const total = Number(i.amount || 0) || sched.reduce((a: number, p: any) => a + Number(p.amount || 0), 0);
+    const status = paid >= total && total > 0 ? "paid" : paid > 0 ? "partial" : "pending";
+    const lastPaid = sched.filter((p: any) => p.status === "paid").map((p: any) => p.date).sort().slice(-1)[0] || null;
+    setBusy(true);
+    try { await services.finance.accounts.save({ id: i.id, payment_schedule: sched, amount_paid: paid, status, payment_date: status === "paid" ? (lastPaid || today()) : "" }); reload(); flash(t("Parcela atualizada ✓")); }
+    catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
+  }
 
   // handlers tesouraria
   function newTx(type: string) { setTf({ ...T_EMPTY, type, transaction_date: today() }); setTOpen(true); }
@@ -302,23 +316,44 @@ export default function Financeiro() {
                     <td className="tnum" style={{ textAlign: "right", color: g.restante > 0 ? "#B54708" : "var(--crasto-text-muted)" }}>{money(g.restante)}</td>
                     <td><Pill tone={stTone(g.status) as any}>{stLabel(g.status)}</Pill></td>
                   </tr>
-                  {expanded[g.name] && g.list.map((i: any) => (
-                    <tr key={i.id} className="finrow">
+                  {expanded[g.name] && g.list.map((i: any) => {
+                    const parc = i._kind === "account" && Array.isArray(i.payment_schedule) ? i.payment_schedule : [];
+                    return (
+                    <Fragment key={i.id}>
+                    <tr className="finrow">
                       <td></td>
-                      <td colSpan={2}><div className="nm" style={{ fontSize: 13 }}>{i.description}</div><div className="mt">{[i.category, i._kind === "cost" ? t("Custo") : t("Conta")].filter(Boolean).join(" · ")}</div></td>
+                      <td colSpan={2}><div className="nm" style={{ fontSize: 13 }}>{i.description || i.contact_name}</div><div className="mt">{[i.category, i._kind === "cost" ? t("Custo") : t("Conta"), parc.length ? t("{n} parcelas", { n: parc.length }) : ""].filter(Boolean).join(" · ")}</div></td>
                       <td className="tnum">{i.due_date ? new Date(i.due_date + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</td>
                       <td className="tnum" style={{ textAlign: "right" }}>{money(Number(i.amount || 0))}</td>
                       <td className="tnum" style={{ textAlign: "right", color: "#1F8A5B" }}>{money(Number(i.amount_paid || 0))}</td>
                       <td className="tnum" style={{ textAlign: "right" }}>{money(rem(i))}</td>
                       <td>
                         <div style={{ display: "flex", gap: 4 }}>
-                          {i.status !== "paid" && <button className="icobtn" title={t("Marcar como paga")} onClick={(e) => { e.stopPropagation(); markPaid(i); }}><CheckCircle2 size={13} /></button>}
+                          {i.status !== "paid" && parc.length === 0 && <button className="icobtn" title={t("Marcar como paga")} onClick={(e) => { e.stopPropagation(); markPaid(i); }}><CheckCircle2 size={13} /></button>}
                           <button className="icobtn" title={t("Editar")} onClick={(e) => { e.stopPropagation(); editItem(i); }}><Pencil size={13} /></button>
                           <button className="icobtn rm" title={t("Excluir")} onClick={(e) => { e.stopPropagation(); delItem(i); }}><Trash2 size={13} /></button>
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    {parc.map((p: any) => (
+                      <tr key={i.id + "-p" + p.installment} className="finrow finparc">
+                        <td></td>
+                        <td colSpan={2}><div className="mt" style={{ paddingLeft: 12 }}>{t("Parcela {k}/{n}", { k: p.installment, n: parc.length })}</div></td>
+                        <td className="tnum">{p.date ? new Date(p.date + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</td>
+                        <td className="tnum" style={{ textAlign: "right" }}>{money(Number(p.amount || 0))}</td>
+                        <td className="tnum" style={{ textAlign: "right", color: "#1F8A5B" }}>{money(p.status === "paid" ? Number(p.amount || 0) : 0)}</td>
+                        <td className="tnum" style={{ textAlign: "right" }}>{money(p.status === "paid" ? 0 : Number(p.amount || 0))}</td>
+                        <td>
+                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                            <Pill tone={p.status === "paid" ? "ok" : "info"}>{p.status === "paid" ? t("Paga") : t("Pendente")}</Pill>
+                            <button className="icobtn" title={p.status === "paid" ? t("Reabrir parcela") : t("Baixar parcela")} onClick={(e) => { e.stopPropagation(); toggleInstallment(i, p.installment); }}><CheckCircle2 size={13} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    </Fragment>
+                    );
+                  })}
                 </>
               ))}
             </tbody>
