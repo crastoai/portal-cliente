@@ -19,7 +19,7 @@ export default function ClienteDetalhe() {
   const tr = useT();
   const { data, loading, reload } = useAsync(async () => {
     if (!id) return null;
-    const [org, mods, cm, users, people, phones, docs, acts, impl, health, taxids, proposals, tasks, creds, csvc, svcCat, cnpjs] = await Promise.all([
+    const [org, mods, cm, users, people, phones, docs, acts, impl, health, taxids, proposals, tasks, creds, csvc, svcCat, cnpjs, partners] = await Promise.all([
       api.identity.organizations.getById(id),
       api.catalog.vdiModules.listActiveByName(),
       api.delivery.clientModules.listByOrg(id),
@@ -37,8 +37,9 @@ export default function ClienteDetalhe() {
       api.delivery.clientServices.listByOrg(id),
       api.catalog.services.listClientFacing(),
       api.identity.cnpjs.listByOrg(id).catch(() => []),
+      api.identity.partners.listByOrg(id).catch(() => []),
     ]);
-    return { org: org as Org, mods: (mods as any[]) ?? [], cm: (cm as any[]) ?? [], users: (users as any[]) ?? [], people: (people as any[]) ?? [], phones: (phones as any[]) ?? [], docs: (docs as any[]) ?? [], acts: (acts as any[]) ?? [], progress: (impl as any)?.overall_progress ?? 0, health: (health as any)?.status ?? null, impl: (impl as any) ?? null, healthObj: (health as any) ?? null, taxids: (taxids as any[]) ?? [], proposals: (proposals as any[]) ?? [], tasks: (tasks as any[]) ?? [], creds: (creds as any[]) ?? [], csvc: (csvc as any[]) ?? [], svcCat: (svcCat as any[]) ?? [], cnpjs: (cnpjs as any[]) ?? [] };
+    return { org: org as Org, mods: (mods as any[]) ?? [], cm: (cm as any[]) ?? [], users: (users as any[]) ?? [], people: (people as any[]) ?? [], phones: (phones as any[]) ?? [], docs: (docs as any[]) ?? [], acts: (acts as any[]) ?? [], progress: (impl as any)?.overall_progress ?? 0, health: (health as any)?.status ?? null, impl: (impl as any) ?? null, healthObj: (health as any) ?? null, taxids: (taxids as any[]) ?? [], proposals: (proposals as any[]) ?? [], tasks: (tasks as any[]) ?? [], creds: (creds as any[]) ?? [], csvc: (csvc as any[]) ?? [], svcCat: (svcCat as any[]) ?? [], cnpjs: (cnpjs as any[]) ?? [], partners: (partners as any[]) ?? [] };
   }, [id]);
 
   const [edit, setEdit] = useState(false);
@@ -76,7 +77,7 @@ export default function ClienteDetalhe() {
 
   if (loading) return <><PageHead eyebrow="CRM" title="Detalhe" /><Empty>Carregando…</Empty></>;
   if (!data?.org) return <><PageHead eyebrow="CRM" title="Detalhe" /><Empty>Não encontrado.</Empty></>;
-  const { org, mods, cm, users, people, phones, docs, acts, progress, health, taxids, proposals, impl, healthObj, tasks, creds, svcCat, cnpjs } = data;
+  const { org, mods, cm, users, people, phones, docs, acts, progress, health, taxids, proposals, impl, healthObj, tasks, creds, svcCat, cnpjs, partners } = data;
   const activeSet = new Set(cm.map((c) => c.vdi_module_id));
   const rollAvg = cm.length ? Math.round(cm.reduce((s: number, c: any) => s + (c.rollout_progress || 0), 0) / cm.length) : (progress || 0);
   const co = countryOf(org.country); const st = stageOf(org.stage);
@@ -281,6 +282,17 @@ export default function ClienteDetalhe() {
             <Pill tone={c.is_headquarters ? "ok" : "info"}>{c.is_headquarters ? tr("Matriz") : tr("Filial")}</Pill>
             <div style={{ flex: 1, minWidth: 0 }}><div className="nm tnum">{c.cnpj || "—"} {!c.is_active && <span className="chip" style={{ marginLeft: 6 }}>{tr("Inativo")}</span>}</div><div className="mt">{[c.trade_name, c.legal_name].filter(Boolean).join(" · ") || tr("sem nome")}</div></div>
             <div className="mt" style={{ whiteSpace: "nowrap" }}>{c.regime_tributario || ""}</div>
+          </div>
+        ))}
+      </>)}
+
+      {/* Sócios cadastrados pelo cliente */}
+      {(partners ?? []).length > 0 && (<>
+        <div className="sec-h" style={{ marginTop: 20 }}><h2>{tr("Sócios")}</h2><Pill tone="mute">{tr("cadastrados pelo cliente no portal")}</Pill></div>
+        {partners.map((p: any) => (
+          <div className="crmrow" key={p.id}>
+            <Pill tone={p.is_ceo ? "ok" : "info"}>{p.is_ceo ? tr("Administrador") : tr("Sócio")}</Pill>
+            <div style={{ flex: 1, minWidth: 0 }}><div className="nm">{p.full_name || "—"} {!p.is_active && <span className="chip" style={{ marginLeft: 6 }}>{tr("Inativo")}</span>}</div><div className="mt">{[p.role_title, p.cpf, p.ownership_percentage != null ? `${p.ownership_percentage}%` : null].filter(Boolean).join(" · ")}</div></div>
           </div>
         ))}
       </>)}

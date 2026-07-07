@@ -64,6 +64,21 @@ export const cnpjs = {
   listByOrg: async (orgId: string) => unwrapList<any>(await supabase.schema("crm").from("company_cnpjs").select("*").eq("organization_id", orgId).order("is_headquarters", { ascending: false })),
 };
 
+/** Sócios da empresa. Cliente via RPC (owner-only); admin lê direto. */
+export const partners = {
+  mine: async (): Promise<any[]> => { const { data, error } = await supabase.rpc("my_partners"); if (error) throw error; return (data as any[]) ?? []; },
+  save: async (p: Record<string, any>) => unwrap(await supabase.rpc("save_my_partner", { p })),
+  remove: async (id: string) => unwrap(await supabase.rpc("delete_my_partner", { p_id: id })),
+  listByOrg: async (orgId: string) => unwrapList<any>(await supabase.schema("crm").from("company_partners").select("*").eq("organization_id", orgId).order("is_ceo", { ascending: false })),
+};
+
+/** Documentos do cliente (qualquer usuário da org). Registro via RPC; arquivo via storage R2. */
+export const clientDocs = {
+  mine: async (): Promise<any[]> => { const { data, error } = await supabase.rpc("my_documents"); if (error) throw error; return (data as any[]) ?? []; },
+  add: async (p: { kind?: string; file_name: string; storage_path: string }) => unwrap(await supabase.rpc("add_my_document", { p })),
+  remove: async (id: string): Promise<string | null> => { const { data, error } = await supabase.rpc("delete_my_document", { p_id: id }); if (error) throw error; return (data as string) ?? null; },
+};
+
 export const profiles = {
   getById: async (uid: string) =>
     unwrap(await supabase.from("profiles").select("*").eq("id", uid).single()) as unknown as Profile,
@@ -121,4 +136,4 @@ export const connectors = {
   remove: async (id: string) => unwrap(await supabase.from("connectors").delete().eq("id", id)),
 };
 
-export const identity = { organizations, profiles, users, clients, connectors, auth, cnpjs };
+export const identity = { organizations, profiles, users, clients, connectors, auth, cnpjs, partners, clientDocs };

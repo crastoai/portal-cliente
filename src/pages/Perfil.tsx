@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Plus, Search, Building2, FileText, Image as ImageIcon, Users, Upload, Trash2 } from "lucide-react";
+import { Camera, Plus, Search, Building2, FileText, Users, Upload, Download, Trash2 } from "lucide-react";
 import { services, errorMessage } from "../services";
 import { useAuth } from "../lib/auth";
 import { PageHead, Field, Empty, Pill, useAsync, initials } from "../ui/ui";
@@ -113,10 +113,38 @@ export default function Perfil() {
     else setRows((r) => r.filter((_, j) => j !== i));
   }
 
+  // --- Sócios ---
+  const { data: partData, reload: reloadPart } = useAsync(() => (isClient ? services.identity.partners.mine() : Promise.resolve([] as any[])), [profile?.organization_id]);
+  const [prows, setProws] = useState<any[]>([]);
+  const [pBusy, setPBusy] = useState<string>("");
+  useEffect(() => { setProws((partData as any[]) ?? []); }, [partData]);
+  const setP = (i: number, k: string, v: any) => setProws((r) => r.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  function addPartner() { setProws((r) => [...r, { full_name: "", cpf: "", role_title: "", ownership_percentage: "", email: "", mobile_phone: "", is_ceo: r.length === 0, is_active: true }]); }
+  async function savePartner(i: number) { setPBusy(String(i)); try { await services.identity.partners.save(prows[i]); await reloadPart(); flash(t("Sócio salvo ✓")); } catch (e) { flash(errorMessage(e)); } finally { setPBusy(""); } }
+  async function togglePartner(i: number, k: string) { const v = !prows[i][k]; setP(i, k, v); const row = { ...prows[i], [k]: v }; if (row.id) { try { await services.identity.partners.save(row); await reloadPart(); } catch (e) { flash(errorMessage(e)); } } }
+  async function delPartner(i: number) { const row = prows[i]; if (row.id) { if (!confirm(t("Excluir este sócio?"))) return; await services.identity.partners.remove(row.id); await reloadPart(); } else setProws((r) => r.filter((_, j) => j !== i)); }
+
+  // --- Documentos ---
+  const { data: docData, reload: reloadDocs } = useAsync(() => (isClient ? services.identity.clientDocs.mine() : Promise.resolve([] as any[])), [profile?.organization_id]);
+  const docInput = useRef<HTMLInputElement>(null);
+  const [docKind, setDocKind] = useState("Contrato social");
+  const [docBusy, setDocBusy] = useState(false);
+  async function onDoc(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; e.target.value = "";
+    if (!file || !profile?.organization_id) return;
+    setDocBusy(true);
+    try {
+      const key = await services.storage.upload(profile.organization_id, file);
+      await services.identity.clientDocs.add({ kind: docKind, file_name: file.name, storage_path: key });
+      await reloadDocs(); flash(t("Documento enviado ✓"));
+    } catch (err) { flash(errorMessage(err)); } finally { setDocBusy(false); }
+  }
+  async function dlDoc(path: string) { const url = await services.storage.getUrl(path); if (url) window.open(url, "_blank"); }
+  async function delDoc(d: any) { if (!confirm(t("Excluir este documento?"))) return; try { const path = await services.identity.clientDocs.remove(d.id); if (path) await services.storage.remove(path); await reloadDocs(); } catch (e) { flash(errorMessage(e)); } }
+
   const TABS = [
     { key: "empresa", icon: Building2, label: "Dados da Empresa" },
     { key: "cnpjs", icon: FileText, label: "CNPJs" },
-    { key: "identidade", icon: ImageIcon, label: "Identidade Visual" },
     { key: "socios", icon: Users, label: "Sócios" },
     { key: "docs", icon: Upload, label: "Documentos" },
   ];
@@ -233,8 +261,58 @@ export default function Perfil() {
             </div>
           )}
 
-          {tab !== "empresa" && tab !== "cnpjs" && (
-            <div className="card"><Empty><p><strong>{t("Em breve.")}</strong> {t("Esta aba está em construção — em breve você poderá gerenciar isso por aqui.")}</p></Empty></div>
+          {tab === "socios" && (
+            <div className="card">
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                <h3 style={{ margin: 0 }}>{t("Sócios")}</h3>
+                {isOwner && <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={addPartner}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Novo sócio")}</span></button>}
+              </div>
+              {prows.length === 0 ? <div className="mt" style={{ padding: "8px 2px" }}>{t("Nenhum sócio cadastrado.")}</div> : prows.map((r, i) => (
+                <div className="card" style={{ marginTop: 12, background: "var(--crasto-bg-2)" }} key={r.id || `np${i}`}>
+                  <div className="grid3">
+                    <Field label="Nome completo"><input value={r.full_name || ""} onChange={(e) => setP(i, "full_name", e.target.value)} disabled={!isOwner} /></Field>
+                    <Field label="CPF"><input value={r.cpf || ""} onChange={(e) => setP(i, "cpf", e.target.value)} disabled={!isOwner} placeholder="000.000.000-00" /></Field>
+                    <Field label="Cargo"><input value={r.role_title || ""} onChange={(e) => setP(i, "role_title", e.target.value)} disabled={!isOwner} placeholder={t("Ex.: Sócio-administrador")} /></Field>
+                  </div>
+                  <div className="grid3">
+                    <Field label="Participação (%)"><input type="number" min={0} max={100} value={r.ownership_percentage ?? ""} onChange={(e) => setP(i, "ownership_percentage", e.target.value)} disabled={!isOwner} /></Field>
+                    <Field label="E-mail"><input value={r.email || ""} onChange={(e) => setP(i, "email", e.target.value)} disabled={!isOwner} /></Field>
+                    <Field label="Telefone"><input value={r.mobile_phone || ""} onChange={(e) => setP(i, "mobile_phone", e.target.value)} disabled={!isOwner} /></Field>
+                  </div>
+                  <div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}><button type="button" className={"sw" + (r.is_ceo ? " on" : "")} disabled={!isOwner} onClick={() => togglePartner(i, "is_ceo")} /><span style={{ fontSize: 13, fontWeight: 600 }}>{t("Administrador")}</span></div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}><button type="button" className={"sw" + (r.is_active ? " on" : "")} disabled={!isOwner} onClick={() => togglePartner(i, "is_active")} /><span style={{ fontSize: 13, fontWeight: 600 }}>{r.is_active ? t("Ativo") : t("Inativo")}</span></div>
+                    {isOwner && <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                      <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={pBusy === String(i)} onClick={() => savePartner(i)}><span className="crasto-btn__label">{pBusy === String(i) ? t("Salvando…") : t("Salvar")}</span></button>
+                      <button className="icobtn rm" title={t("Excluir")} onClick={() => delPartner(i)}><Trash2 size={14} /></button>
+                    </div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {tab === "docs" && (
+            <div className="card">
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                <h3 style={{ margin: 0 }}>{t("Documentos")}</h3>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <select value={docKind} onChange={(e) => setDocKind(e.target.value)} className="selorg" style={{ width: 180 }}>
+                    {["Contrato social", "Cartão CNPJ", "Documento do sócio", "Comprovante de endereço", "Outro"].map((k) => <option key={k} value={k}>{t(k)}</option>)}
+                  </select>
+                  <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={docBusy} onClick={() => docInput.current?.click()}><span className="crasto-btn__icon"><Upload size={14} /></span><span className="crasto-btn__label">{docBusy ? t("Enviando…") : t("Enviar documento")}</span></button>
+                  <input ref={docInput} type="file" hidden onChange={onDoc} />
+                </div>
+              </div>
+              {((docData as any[]) ?? []).length === 0 ? <div className="mt" style={{ padding: "8px 2px" }}>{t("Nenhum documento enviado.")}</div> : ((docData as any[]) ?? []).map((d) => (
+                <div className="crmrow" key={d.id}>
+                  <span className="ico" style={{ background: "var(--crasto-bg-3)", color: "var(--crasto-text-primary)" }}><FileText size={16} /></span>
+                  <div style={{ flex: 1, minWidth: 0 }}><div className="nm">{d.file_name}</div><div className="mt">{d.kind} · {new Date(d.uploaded_at).toLocaleDateString("pt-BR")}</div></div>
+                  <button className="icobtn" title={t("Baixar")} onClick={() => dlDoc(d.storage_path)}><Download size={14} /></button>
+                  <button className="icobtn rm" title={t("Excluir")} onClick={() => delDoc(d)}><Trash2 size={14} /></button>
+                </div>
+              ))}
+            </div>
           )}
         </>
       )}
