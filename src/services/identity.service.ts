@@ -62,6 +62,9 @@ export const cnpjs = {
   save: async (p: Record<string, any>) => unwrap(await supabase.rpc("save_my_cnpj", { p })),
   remove: async (id: string) => unwrap(await supabase.rpc("delete_my_cnpj", { p_id: id })),
   listByOrg: async (orgId: string) => unwrapList<any>(await supabase.schema("crm").from("company_cnpjs").select("*").eq("organization_id", orgId).order("is_headquarters", { ascending: false })),
+  /** Admin gerencia os registros legais de uma org (via RPC admin, escopo explícito). */
+  adminSave: async (p: Record<string, any>) => unwrap(await supabase.rpc("admin_registration_upsert", { p })),
+  adminRemove: async (id: string) => unwrap(await supabase.rpc("admin_registration_delete", { p_id: id })),
 };
 
 /** Sócios da empresa. Cliente via RPC (owner-only); admin lê direto. */

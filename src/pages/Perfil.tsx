@@ -4,6 +4,7 @@ import { services, errorMessage } from "../services";
 import { useAuth } from "../lib/auth";
 import { PageHead, Field, Empty, Pill, useAsync, initials } from "../ui/ui";
 import { useT } from "../lib/i18n";
+import { COUNTRIES, reg, regTypeFor } from "../lib/registrations";
 
 const REGIMES = ["Simples Nacional", "Lucro Presumido", "Lucro Real", "MEI", "Isento / Outro"];
 const EMPTY = { name: "", legal_name: "", tax_id: "", state_registration: "", municipal_registration: "", tax_regime: "", owner_name: "", founded_on: "", zip: "", state: "", city: "", address: "", address_number: "", district: "", address_complement: "", emails: [] as string[], phones: [] as string[], websites: [] as string[] };
@@ -96,10 +97,13 @@ export default function Perfil() {
   const [rowBusy, setRowBusy] = useState<string>("");
   useEffect(() => { setRows((cnpjData as any[]) ?? []); }, [cnpjData]);
   const setRow = (i: number, k: string, v: any) => setRows((r) => r.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
-  function addCnpj() { setRows((r) => [...r, { cnpj: "", trade_name: "", legal_name: "", is_headquarters: r.length === 0, is_active: true }]); }
+  function addCnpj() { setRows((r) => [...r, { cnpj: "", trade_name: "", legal_name: "", country: "BR", reg_type: "cnpj", is_headquarters: r.length === 0, is_active: true }]); }
+  function setCountry(i: number, c: string) { setRows((r) => r.map((x, j) => (j === i ? { ...x, country: c, reg_type: regTypeFor(c) } : x))); }
   async function saveCnpj(i: number) {
+    const row = rows[i];
+    if (row.cnpj && !reg(row.reg_type).validate(row.cnpj)) { flash(t("Número do registro inválido para o país selecionado.")); return; }
     setRowBusy(String(i));
-    try { await services.identity.cnpjs.save(rows[i]); await reloadCnpjs(); flash(t("CNPJ salvo ✓")); }
+    try { await services.identity.cnpjs.save(row); await reloadCnpjs(); flash(t("Registro salvo ✓")); }
     catch (e) { flash(errorMessage(e)); } finally { setRowBusy(""); }
   }
   async function toggleCnpj(i: number, k: string) {
@@ -144,7 +148,7 @@ export default function Perfil() {
 
   const TABS = [
     { key: "empresa", icon: Building2, label: "Dados da Empresa" },
-    { key: "cnpjs", icon: FileText, label: "CNPJs" },
+    { key: "cnpjs", icon: FileText, label: "Registros legais" },
     { key: "socios", icon: Users, label: "Sócios" },
     { key: "docs", icon: Upload, label: "Documentos" },
   ];
@@ -233,21 +237,24 @@ export default function Perfil() {
           {tab === "cnpjs" && (
             <div className="card">
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                <h3 style={{ margin: 0 }}>{t("CNPJs Cadastrados")}</h3>
-                {isOwner && <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={addCnpj}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Novo CNPJ")}</span></button>}
+                <div><h3 style={{ margin: 0 }}>{t("Registros legais")}</h3><div className="mt">{t("Um grupo pode ter vários registros — inclusive em países diferentes.")}</div></div>
+                {isOwner && <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={addCnpj}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Novo registro")}</span></button>}
               </div>
-              {rows.length === 0 ? <div className="mt" style={{ padding: "8px 2px" }}>{t("Nenhum CNPJ cadastrado.")}</div> : rows.map((r, i) => (
+              {rows.length === 0 ? <div className="mt" style={{ padding: "8px 2px" }}>{t("Nenhum registro cadastrado.")}</div> : rows.map((r, i) => { const rc = reg(r.reg_type); return (
                 <div className="card" style={{ marginTop: 12, background: "var(--crasto-bg-2)" }} key={r.id || `new${i}`}>
                   <div className="grid3">
-                    <Field label="CNPJ"><input value={r.cnpj || ""} onChange={(e) => setRow(i, "cnpj", e.target.value)} disabled={!isOwner} placeholder="00.000.000/0000-00" /></Field>
-                    <Field label="Nome fantasia"><input value={r.trade_name || ""} onChange={(e) => setRow(i, "trade_name", e.target.value)} disabled={!isOwner} /></Field>
+                    <Field label="País"><select value={r.country || "BR"} onChange={(e) => setCountry(i, e.target.value)} disabled={!isOwner}>{COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}</select></Field>
+                    <Field label={rc.label + (r.reg_type === "other" ? "" : "")}><input value={r.cnpj || ""} onChange={(e) => setRow(i, "cnpj", e.target.value)} onBlur={(e) => setRow(i, "cnpj", rc.format(e.target.value))} disabled={!isOwner} placeholder={rc.placeholder} /></Field>
                     <Field label="Razão social"><input value={r.legal_name || ""} onChange={(e) => setRow(i, "legal_name", e.target.value)} disabled={!isOwner} /></Field>
                   </div>
                   <div className="grid3">
-                    <Field label="Inscrição estadual"><input value={r.inscricao_estadual || ""} onChange={(e) => setRow(i, "inscricao_estadual", e.target.value)} disabled={!isOwner} /></Field>
-                    <Field label="Inscrição municipal"><input value={r.inscricao_municipal || ""} onChange={(e) => setRow(i, "inscricao_municipal", e.target.value)} disabled={!isOwner} /></Field>
-                    <Field label="Regime tributário"><select value={r.regime_tributario || ""} onChange={(e) => setRow(i, "regime_tributario", e.target.value)} disabled={!isOwner}><option value="">{t("Selecione")}</option>{REGIMES.map((x) => <option key={x} value={x}>{t(x)}</option>)}</select></Field>
+                    <Field label="Nome fantasia"><input value={r.trade_name || ""} onChange={(e) => setRow(i, "trade_name", e.target.value)} disabled={!isOwner} /></Field>
+                    {rc.br ? <>
+                      <Field label="Inscrição estadual"><input value={r.inscricao_estadual || ""} onChange={(e) => setRow(i, "inscricao_estadual", e.target.value)} disabled={!isOwner} /></Field>
+                      <Field label="Regime tributário"><select value={r.regime_tributario || ""} onChange={(e) => setRow(i, "regime_tributario", e.target.value)} disabled={!isOwner}><option value="">{t("Selecione")}</option>{REGIMES.map((x) => <option key={x} value={x}>{t(x)}</option>)}</select></Field>
+                    </> : <Field label="Observações"><input value={r.notes || ""} onChange={(e) => setRow(i, "notes", e.target.value)} disabled={!isOwner} /></Field>}
                   </div>
+                  {rc.br && <div className="grid3"><Field label="Inscrição municipal"><input value={r.inscricao_municipal || ""} onChange={(e) => setRow(i, "inscricao_municipal", e.target.value)} disabled={!isOwner} /></Field></div>}
                   <div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}><button type="button" className={"sw" + (r.is_headquarters ? " on" : "")} disabled={!isOwner} onClick={() => toggleCnpj(i, "is_headquarters")} /><span style={{ fontSize: 13, fontWeight: 600 }}>{r.is_headquarters ? t("Matriz") : t("Filial")}</span></div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}><button type="button" className={"sw" + (r.is_active ? " on" : "")} disabled={!isOwner} onClick={() => toggleCnpj(i, "is_active")} /><span style={{ fontSize: 13, fontWeight: 600 }}>{r.is_active ? t("Ativo") : t("Inativo")}</span></div>
@@ -257,7 +264,7 @@ export default function Perfil() {
                     </div>}
                   </div>
                 </div>
-              ))}
+              ); })}
             </div>
           )}
 

@@ -7,6 +7,7 @@ import { PageHead, Pill, Empty, useAsync, initials, Avatar, Field, money } from 
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 import { COUNTRIES, countryOf, STAGES, stageOf, DIAL_CODES } from "../../lib/countries";
+import { reg as regInfo, regTypeFor, COUNTRIES as REG_COUNTRIES, countryName as regCountryName } from "../../lib/registrations";
 
 type Org = any;
 const icon = (cat?: string | null) => { const c = (cat || "").toLowerCase(); return c.includes("atend") ? <MessageCircle size={16} /> : c.includes("market") ? <Send size={16} /> : c.includes("vend") ? <Search size={16} /> : <Grid3x3 size={16} />; };
@@ -54,6 +55,12 @@ export default function ClienteDetalhe() {
   const [eph, setEph] = useState({ label: "mobile", country_code: "+55", number: "", person_id: "" });
   const [act, setAct] = useState({ type: "note", title: "", description: "" });
   const [taxid, setTaxid] = useState({ kind: "CNPJ", value: "", address: "" });
+  const [regOpen, setRegOpen] = useState(false);
+  const [regF, setRegF] = useState<any>({ id: "", organization_id: id, country: "BR", reg_type: "cnpj", cnpj: "", legal_name: "", trade_name: "", is_headquarters: false, is_active: true });
+  function newReg() { setRegF({ id: "", organization_id: id, country: "BR", reg_type: "cnpj", cnpj: "", legal_name: "", trade_name: "", is_headquarters: false, is_active: true }); setRegOpen(true); }
+  function editReg(c: any) { setRegF({ id: c.id, organization_id: id, country: c.country || "BR", reg_type: c.reg_type || "cnpj", cnpj: c.cnpj || "", legal_name: c.legal_name || "", trade_name: c.trade_name || "", is_headquarters: !!c.is_headquarters, is_active: c.is_active !== false }); setRegOpen(true); }
+  async function saveReg() { if (regF.cnpj && !regInfo(regF.reg_type).validate(regF.cnpj)) { alert(tr("Número do registro inválido para o país selecionado.")); return; } try { await api.identity.cnpjs.adminSave(regF); setRegOpen(false); reload(); } catch (e) { alert(errorMessage(e)); } }
+  async function delReg(c: any) { if (!confirm(tr("Excluir este registro?"))) return; await api.identity.cnpjs.adminRemove(c.id); reload(); }
   // F-D: implantação, saúde, tarefas, credenciais
   const [rolloutForm, setRolloutForm] = useState<Record<string, { label: string; progress: string; due: string; status: string }>>({});
   const [healthForm, setHealthForm] = useState({ status: "green", message: "" });
@@ -274,17 +281,34 @@ export default function ClienteDetalhe() {
         </div>
       ))}
 
-      {/* CNPJs cadastrados pelo cliente (aba "Dados cadastrais" do portal) */}
-      {(cnpjs ?? []).length > 0 && (<>
-        <div className="sec-h" style={{ marginTop: 20 }}><h2>{tr("CNPJs da empresa")}</h2><Pill tone="mute">{tr("cadastrados pelo cliente no portal")}</Pill></div>
-        {cnpjs.map((c: any) => (
-          <div className="crmrow" key={c.id}>
-            <Pill tone={c.is_headquarters ? "ok" : "info"}>{c.is_headquarters ? tr("Matriz") : tr("Filial")}</Pill>
-            <div style={{ flex: 1, minWidth: 0 }}><div className="nm tnum">{c.cnpj || "—"} {!c.is_active && <span className="chip" style={{ marginLeft: 6 }}>{tr("Inativo")}</span>}</div><div className="mt">{[c.trade_name, c.legal_name].filter(Boolean).join(" · ") || tr("sem nome")}</div></div>
-            <div className="mt" style={{ whiteSpace: "nowrap" }}>{c.regime_tributario || ""}</div>
+      {/* Grupo & registros legais (internacional — Grupo × N registros × país) */}
+      <div className="sec-h" style={{ marginTop: 20 }}><h2>{tr("Grupo & registros legais")}</h2><Pill tone="mute">{tr("Grupo × N registros · internacional")}</Pill>
+        <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" style={{ marginLeft: "auto" }} onClick={newReg}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{tr("Adicionar registro")}</span></button></div>
+      {(cnpjs ?? []).length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhum registro legal cadastrado.")}</div> : cnpjs.map((c: any) => (
+        <div className="crmrow" key={c.id}>
+          <Pill tone={c.is_headquarters ? "ok" : "info"}>{c.is_headquarters ? tr("Matriz") : tr("Filial")}</Pill>
+          <div style={{ flex: 1, minWidth: 0 }}><div className="nm tnum">{regInfo(c.reg_type).label} {c.cnpj || "—"} {!c.is_active && <span className="chip" style={{ marginLeft: 6 }}>{tr("Inativo")}</span>}</div><div className="mt">{[regCountryName(c.country), c.trade_name || c.legal_name].filter(Boolean).join(" · ") || tr("sem nome")}</div></div>
+          <div style={{ display: "flex", gap: 4 }}>
+            <button className="icobtn" title={tr("Editar")} onClick={() => editReg(c)}><Pencil size={13} /></button>
+            <button className="icobtn rm" title={tr("Excluir")} onClick={() => delReg(c)}><Trash2 size={13} /></button>
           </div>
-        ))}
-      </>)}
+        </div>
+      ))}
+      <Modal title={regF.id ? tr("Editar registro legal") : tr("Novo registro legal")} open={regOpen} onClose={() => setRegOpen(false)}
+        footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setRegOpen(false)}><span className="crasto-btn__label">{tr("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={saveReg}><span className="crasto-btn__label">{tr("Salvar")}</span></button></>}>
+        <div className="grid2">
+          <Field label="País"><select value={regF.country} onChange={(e) => setRegF({ ...regF, country: e.target.value, reg_type: regTypeFor(e.target.value) })}>{REG_COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}</select></Field>
+          <Field label={regInfo(regF.reg_type).label}><input value={regF.cnpj} onChange={(e) => setRegF({ ...regF, cnpj: e.target.value })} onBlur={(e) => setRegF({ ...regF, cnpj: regInfo(regF.reg_type).format(e.target.value) })} placeholder={regInfo(regF.reg_type).placeholder} /></Field>
+        </div>
+        <div className="grid2">
+          <Field label="Razão social"><input value={regF.legal_name} onChange={(e) => setRegF({ ...regF, legal_name: e.target.value })} /></Field>
+          <Field label="Nome fantasia"><input value={regF.trade_name} onChange={(e) => setRegF({ ...regF, trade_name: e.target.value })} /></Field>
+        </div>
+        <div style={{ display: "flex", gap: 18, marginTop: 6 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8 }}><button type="button" className={"sw" + (regF.is_headquarters ? " on" : "")} onClick={() => setRegF({ ...regF, is_headquarters: !regF.is_headquarters })} /><span style={{ fontSize: 13, fontWeight: 600 }}>{regF.is_headquarters ? tr("Matriz") : tr("Filial")}</span></label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8 }}><button type="button" className={"sw" + (regF.is_active ? " on" : "")} onClick={() => setRegF({ ...regF, is_active: !regF.is_active })} /><span style={{ fontSize: 13, fontWeight: 600 }}>{regF.is_active ? tr("Ativo") : tr("Inativo")}</span></label>
+        </div>
+      </Modal>
 
       {/* Sócios cadastrados pelo cliente */}
       {(partners ?? []).length > 0 && (<>
