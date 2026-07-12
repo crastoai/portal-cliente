@@ -37,4 +37,15 @@ export const transactions = {
   remove: async (id: string) => unwrap(await supabase.rpc("fin_transaction_delete", { p_id: id })),
 };
 
-export const finance = { accounts, costs, transactions };
+export const aiCost = {
+  /** Painel completo de custo de IA (resumo + por plataforma + por cliente + linhas) no período. 🔒 admin. */
+  panel: async (from?: string, to?: string): Promise<any> => {
+    const { data, error } = await supabase.rpc("admin_ai_cost", { p_from: from ?? null, p_to: to ?? null });
+    if (error) throw error;
+    return data ?? {};
+  },
+  save: async (p: Record<string, any>) => unwrap(await supabase.rpc("fin_ai_cost_upsert", { p })),
+  remove: async (id: string) => unwrap(await supabase.rpc("fin_ai_cost_delete", { p_id: id })),
+};
+
+export const finance = { accounts, costs, transactions, aiCost };
