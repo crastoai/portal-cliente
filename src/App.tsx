@@ -34,6 +34,7 @@ import CustosOperacionais from "./pages/admin/CustosOperacionais";
 import CustoIA from "./pages/admin/CustoIA";
 import FinanceiroAdmin from "./pages/admin/Financeiro";
 import ConsoleStub from "./pages/admin/ConsoleStub";
+import ConsoleAuditoria from "./pages/admin/ConsoleAuditoria";
 import Tickets from "./pages/admin/Tickets";
 import Implantacoes from "./pages/admin/Implantacoes";
 
@@ -108,7 +109,7 @@ export default function App() {
             <Route path="console/memorias" element={<ConsoleStub title="Memórias & Conhecimento" sub="Cérebro Global da Crasto.AI + herança por cliente." note="Lê agents.knowledge/rules (scope='global'). O conteúdo entra com o Cérebro Global." />} />
             <Route path="console/regras" element={<ConsoleStub title="Regras Globais" sub="Políticas aplicadas a todos os agentes, com imposição." note="Lê agents.rules (scope='global', enforcement obrigatória/default)." />} />
             <Route path="console/permissoes" element={<ConsoleStub title="Permissões & Acessos" sub="RBAC de 2 níveis: papéis de plataforma × papéis por cliente." note="Fundação: profiles.role. Próxima entrega: tela de gestão de papéis (Fase C)." />} />
-            <Route path="console/auditoria" element={<ConsoleStub title="Auditoria & Logs" sub="Trilha append-only imutável: quem fez o quê, quando e por quê." note="Grava em audit.events (criado). Já registra 'Entrar no CRM' do Dashboard; a visão central chega em seguida." />} />
+            <Route path="console/auditoria" element={<ConsoleAuditoria />} />
             <Route path="console/apis" element={<ConsoleStub title="APIs & Chaves" sub="Cofre de chaves de provedores + overrides por cliente." note="Reusa automation.integrations (cofre já existe). Tela de gestão em seguida." />} />
             <Route path="console/modelos" element={<ConsoleStub title="Modelos LLM" sub="Provedores/modelos disponíveis + seleção por agente + custo." note="Reusa finance.ai_usage + automation.integrations; custo já vive em Custo de IA." />} />
             <Route path="console/skills" element={<ConsoleStub title="Catálogo de Skills" sub="Capacidades do agente (skill-packs) — distinto do catálogo comercial." note="Lê agents.skill_packs/installed_packs (criados, vazios)." />} />
