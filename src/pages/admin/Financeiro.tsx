@@ -4,6 +4,7 @@ import { services, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, money, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
+import CustoIA from "./CustoIA";
 
 const today = () => new Date().toISOString().slice(0, 10);
 const A_EMPTY = {
@@ -35,6 +36,7 @@ const TABS = [
   { key: "pagar", label: "A Pagar" }, { key: "receber", label: "A Receber" },
   { key: "cobranca", label: "Cobrança" }, { key: "conciliacao", label: "Conciliação" },
   { key: "nfs", label: "NFs" }, { key: "tesouraria", label: "Tesouraria" },
+  { key: "custos-ia", label: "Custos de IA" },
   { key: "antecipacoes", label: "Antecipações" }, { key: "transacoes", label: "Transações" },
 ];
 
@@ -223,7 +225,9 @@ export default function Financeiro() {
         {TABS.map((tb) => <button key={tb.key} className={"ptab" + (tab === tb.key ? " is-active" : "")} onClick={() => setTab(tb.key)}>{t(tb.label)}</button>)}
       </div>
 
-      {loading ? <Empty>Carregando…</Empty> : tab === "tesouraria" ? (<>
+      {loading && tab !== "custos-ia" ? <Empty>Carregando…</Empty> : tab === "custos-ia" ? (
+        <CustoIA embedded />
+      ) : tab === "tesouraria" ? (<>
         {/* barra de ação tesouraria */}
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
           <div className="catsearch" style={{ margin: 0, flex: 1, minWidth: 220 }}>

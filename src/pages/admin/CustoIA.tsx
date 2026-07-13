@@ -33,7 +33,7 @@ const monthEndISO = (d: Date) => new Date(d.getFullYear(), d.getMonth() + 1, 0).
 const fmtTokens = (n: number) => (!n ? "—" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : String(n));
 const E_EMPTY = { id: "", organization_id: "", provider: "", platform: "claude_api", purpose: "", kind: "cliente", status: "active", tokens_in: "", tokens_out: "", cost: "", period_start: "", period_end: "" };
 
-export default function CustoIA() {
+export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
   const t = useT();
   const [ref, setRef] = useState(() => new Date());
   const from = monthISO(ref), to = monthEndISO(ref);
@@ -79,9 +79,10 @@ export default function CustoIA() {
 
   return (
     <div>
-      <PageHead eyebrow="Painel Admin · Financeiro 🔒" title="Gestão Financeira — Custo de IA"
+      {!embedded && <PageHead eyebrow="Painel Admin · Financeiro 🔒" title="Gestão Financeira — Custo de IA"
         sub="Todos os custos de IA da Crasto.AI, por plataforma e por cliente. Clique num indicador para ir ao detalhe."
-        right={<button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={newRow}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Registrar custo")}</span></button>} />
+        right={<button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={newRow}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Registrar custo")}</span></button>} />}
+      {embedded && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}><button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={newRow}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Registrar custo")}</span></button></div>}
 
       {/* seletor de período */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
