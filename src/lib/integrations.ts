@@ -53,3 +53,10 @@ export const HINTS: Record<string, string> = {
 };
 
 export const fieldsFor = (key: string): IntegField[] => INTEGRATION_FIELDS[key] ?? [{ key: "api_key", label: "Chave / segredo", kind: "secret", primary: true }];
+
+// Integrações cujas credenciais vivem no AMBIENTE DO SERVIDOR (edge secrets), não no banco.
+// A arquitetura pede segredo fora do código — estas já seguem esse padrão. Mapeia key → env vars.
+export const SERVER_MANAGED: Record<string, string[]> = {
+  cloudflare_r2: ["R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_KEY"],
+  autentique: ["AUTENTIQUE_TOKEN"],
+};
