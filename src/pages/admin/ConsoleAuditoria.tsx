@@ -48,10 +48,10 @@ export default function ConsoleAuditoria() {
         <div className="kpi g"><div className="lab"><ShieldCheck size={13} style={{ verticalAlign: -2, marginRight: 5 }} />{t("Imutável")}</div><div className="val" style={{ fontSize: 20 }}>{t("append-only")}</div><div className="delta">{t("não editável")}</div></div>
       </div>
 
-      <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 12 }}>
-        <label style={{ fontSize: 12 }}><div className="pixlab">{t("De")}</div><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-        <label style={{ fontSize: 12 }}><div className="pixlab">{t("Até")}</div><input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
-        <label style={{ fontSize: 12 }}><div className="pixlab">{t("Cliente")}</div>
+      <div className="filt" style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 14 }}>
+        <label><div className="pixlab">{t("De")}</div><input className="inp" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
+        <label><div className="pixlab">{t("Até")}</div><input className="inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+        <label><div className="pixlab">{t("Cliente")}</div>
           <select value={org} onChange={(e) => setOrg(e.target.value)}><option value="">{t("Todos")}</option>{orgs.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}</select>
         </label>
       </div>
