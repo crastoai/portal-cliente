@@ -27,6 +27,8 @@ export const adminAnalytics = {
   llmModels: <T = any[]>() => rpc<T>("admin_llm_models"),
   accessList: <T = any>() => rpc<T>("admin_access_list"),
   setUserRole: (userId: string, role: string) => rpc<void>("admin_set_user_role", { p_user: userId, p_role: role }),
+  userAccess: <T = any>(userId: string) => rpc<T>("admin_user_access", { p_user: userId }),
+  setUserAccess: (userId: string, role: string, screens: string[]) => rpc<void>("admin_set_user_access", { p_user: userId, p_role: role, p_screens: screens }),
   auditLog: <T = any[]>(from?: string, to?: string, org?: string) => rpc<T>("admin_audit_log", { p_from: from ?? null, p_to: to ?? null, p_org: org ?? null }),
   auditRecord: (p: Record<string, any>) => rpc<string>("admin_audit_record", { p }),
   // Governança global (Console · top-down): Cérebro Global · Regras Globais · Catálogo de Skills

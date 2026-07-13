@@ -139,4 +139,13 @@ export const connectors = {
   remove: async (id: string) => unwrap(await supabase.from("connectors").delete().eq("id", id)),
 };
 
-export const identity = { organizations, profiles, users, clients, connectors, auth, cnpjs, partners, clientDocs };
+/** Telas que o usuário logado pode ver no portal (['*'] = todas). Base do menu por permissão. */
+export const access = {
+  myScreens: async (): Promise<string[] | null> => {
+    const { data, error } = await supabase.rpc("my_screens");
+    if (error) return null;
+    return (data as string[]) ?? null;
+  },
+};
+
+export const identity = { organizations, profiles, users, clients, connectors, auth, cnpjs, partners, clientDocs, access };

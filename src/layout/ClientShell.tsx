@@ -1,17 +1,24 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Home, LayoutGrid, Activity, Sparkles, Wallet, Users, LifeBuoy, Eye, IdCard } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { useAsync } from "../ui/ui";
 import { services } from "../services";
 import { preview } from "../lib/preview";
 import { useT } from "../lib/i18n";
+import { CLIENT_SCREENS, allowedScreens } from "../lib/screens";
 import Shell, { type NavItem } from "./Shell";
+
+const SCREEN_ICON: Record<string, any> = {
+  inicio: Home, modulos: LayoutGrid, implementacao: Activity, solucoes: Sparkles,
+  financeiro: Wallet, usuarios: Users, perfil: IdCard, suporte: LifeBuoy,
+};
 
 export default function ClientShell() {
   const { profile } = useAuth();
   const t = useT();
   const navigate = useNavigate();
+  const location = useLocation();
   const [pv, setPv] = useState({ active: preview.active(), name: preview.orgName() });
   useEffect(() => preview.subscribe(() => setPv({ active: preview.active(), name: preview.orgName() })), []);
 
@@ -19,16 +26,21 @@ export default function ClientShell() {
   const { data: impl } = useAsync(() => services.delivery.implementations.getMine(), [pv.active]);
   const implDone = impl ? (((impl as any).overall_progress ?? 0) >= 100 || (impl as any).status === "delivered") : false;
 
-  const nav: NavItem[] = [
-    { to: "/app", end: true, icon: Home, label: "Início" },
-    { to: "/app/modulos", icon: LayoutGrid, label: "Minhas Soluções" },
-    ...(!implDone ? [{ to: "/app/implementacao", icon: Activity, label: "Minha Implementação" }] : []),
-    { to: "/app/solucoes", icon: Sparkles, label: "Soluções disponíveis" },
-    { to: "/app/financeiro", icon: Wallet, label: "Financeiro" },
-    { to: "/app/usuarios", icon: Users, label: "Usuários & Equipe" },
-    { to: "/app/perfil", icon: IdCard, label: "Dados cadastrais" },
-    { to: "/app/suporte", icon: LifeBuoy, label: "Suporte & Ajuda" },
-  ];
+  // Permissão POR TELA: o menu mostra só as telas que este usuário pode ver (dono = todas).
+  const { data: myScreens } = useAsync(() => services.identity.access.myScreens(), [pv.active]);
+  const allowed = allowedScreens(myScreens as string[] | null);
+
+  // Guarda de rota: se cair numa tela sem permissão, volta ao Início.
+  useEffect(() => {
+    if (!myScreens) return;
+    const scr = CLIENT_SCREENS.find((s) => (s.to === "/app" ? location.pathname === "/app" : location.pathname.startsWith(s.to)));
+    if (scr && !allowed.has(scr.key)) navigate("/app", { replace: true });
+  }, [location.pathname, myScreens]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const nav: NavItem[] = CLIENT_SCREENS
+    .filter((s) => allowed.has(s.key))
+    .filter((s) => s.key !== "implementacao" || !implDone)
+    .map((s) => ({ to: s.to, end: s.key === "inicio", icon: SCREEN_ICON[s.key], label: s.label }));
 
   function exitPreview() {
     const oid = preview.orgId();
