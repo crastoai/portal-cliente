@@ -543,3 +543,60 @@
 }
 /* cabeçalho de tabela transparente sobre o vidro */
 .tbl thead th { background: transparent; }
+
+/* =============================================================
+   RESPONSIVE — ajustes para telas menores (≤ 480px)
+   ============================================================= */
+
+/* Attgrid (anexos proposta): 1 coluna */
+@media (max-width: 480px) {
+  .attgrid { grid-template-columns: 1fr; }
+}
+
+/* Credenciais: 1 coluna em mobile estreito */
+@media (max-width: 480px) {
+  .cred-row { grid-template-columns: 1fr; row-gap: 8px; padding: 12px 14px; }
+}
+
+/* Herocard: valor menor */
+@media (max-width: 480px) {
+  .herocard .big { font-size: 28px; }
+  .herocard { padding: 16px; }
+}
+
+/* Proposta grid: já tem breakpoint 860px → 1col, ok */
+
+/* Gantt: nome mais curto em mobile */
+@media (max-width: 480px) {
+  .gaxis, .grow { grid-template-columns: 72px 1fr; }
+  .grow .gname { font-size: 11px; }
+}
+
+/* Pendências: wrap em mobile */
+@media (max-width: 480px) {
+  .pend { flex-wrap: wrap; gap: 10px; padding: 12px; }
+  .pend .pact { margin-left: 0; width: 100%; }
+}
+
+/* Filt-bar: coluna em mobile muito estreito */
+@media (max-width: 380px) {
+  .filt-bar { flex-direction: column; align-items: stretch; }
+}
+
+/* Propitem: wrap para input de preço */
+@media (max-width: 480px) {
+  .propitem { flex-wrap: wrap; }
+  .propitem .pinp { margin-left: 0; }
+}
+
+/* Lead/timeline: compactar */
+@media (max-width: 480px) {
+  .lead { gap: 8px; }
+  .lead .sc { font-size: 12px; }
+}
+
+/* Rollrow (catálogo/pricing): compactar */
+@media (max-width: 480px) {
+  .rollrow { gap: 8px; padding: 10px 12px; }
+  .rollname { flex: 1 1 100%; }
+}
