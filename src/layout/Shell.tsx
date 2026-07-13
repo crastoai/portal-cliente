@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { LogOut, Menu, X, Camera, type LucideIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { services } from "../services";
@@ -24,6 +24,7 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
   const { profile, signOut, refreshProfile } = useAuth();
   const t = useT();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const [avBusy, setAvBusy] = useState(false);
   const avInput = useRef<HTMLInputElement>(null);
@@ -72,7 +73,10 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
             <div className="navgroup" key={gi}>
               {g.section && <div className="navsec">{t(g.section)}</div>}
               {g.items.map((n) => (
-                <NavLink key={n.to} to={n.to} end={n.end} onClick={() => setOpen(false)} className={({ isActive }) => "navlink" + (isActive ? " on" : "")}>
+                <NavLink key={n.to} to={n.to} end={n.end} onClick={() => setOpen(false)} className={({ isActive }) => {
+                  const match = isActive || (n.to === "/admin/clientes" && pathname.startsWith("/admin/cliente/"));
+                  return "navlink" + (match ? " on" : "");
+                }}>
                   <n.icon size={17} /> <span className="navlink-lbl">{t(n.label)}</span>{n.tag && <span className="tag">{n.tag}</span>}
                 </NavLink>
               ))}
