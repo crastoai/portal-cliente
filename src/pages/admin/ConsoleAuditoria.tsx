@@ -6,13 +6,15 @@ import { useT } from "../../lib/i18n";
 
 // Auditoria & Logs (SPEC 3.6) — visão central da trilha append-only (audit.events).
 const ACTION_LABEL: Record<string, string> = {
+  login: "Login",
   impersonate_attempt: "Entrou no CRM (impersonação)",
   impersonate: "Impersonação",
   config_change: "Alterou configuração",
   secret_reveal: "Revelou segredo",
   role_change: "Mudou papel",
+  access_change: "Mudou acesso",
 };
-const ACTION_TONE = (a: string) => (a.startsWith("impersonate") ? "info" : a === "secret_reveal" ? "crit" : a === "role_change" ? "warn" : "mute");
+const ACTION_TONE = (a: string) => (a === "login" ? "ok" : a.startsWith("impersonate") ? "info" : a === "secret_reveal" ? "crit" : a === "role_change" || a === "access_change" ? "warn" : "mute");
 const fmtDT = (s: string) => new Date(s).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
 
 export default function ConsoleAuditoria() {
@@ -48,12 +50,12 @@ export default function ConsoleAuditoria() {
         <div className="kpi g"><div className="lab"><ShieldCheck size={13} style={{ verticalAlign: -2, marginRight: 5 }} />{t("Imutável")}</div><div className="val" style={{ fontSize: 20 }}>{t("append-only")}</div><div className="delta">{t("não editável")}</div></div>
       </div>
 
-      <div className="filt" style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 14 }}>
-        <label><div className="pixlab">{t("De")}</div><input className="inp" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-        <label><div className="pixlab">{t("Até")}</div><input className="inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
-        <label><div className="pixlab">{t("Cliente")}</div>
+      <div className="filt-bar" style={{ marginBottom: 14 }}>
+        <div className="filt"><span>{t("De")}</span><input className="inp" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
+        <div className="filt"><span>{t("Até")}</span><input className="inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
+        <div className="filt"><span>{t("Cliente")}</span>
           <select value={org} onChange={(e) => setOrg(e.target.value)}><option value="">{t("Todos")}</option>{orgs.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}</select>
-        </label>
+        </div>
       </div>
 
       <div className="tbl-wrap">
