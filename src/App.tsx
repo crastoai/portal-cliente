@@ -37,6 +37,9 @@ import ConsoleStub from "./pages/admin/ConsoleStub";
 import ConsoleAuditoria from "./pages/admin/ConsoleAuditoria";
 import ConsoleModelos from "./pages/admin/ConsoleModelos";
 import ConsolePermissoes from "./pages/admin/ConsolePermissoes";
+import ConsoleMemorias from "./pages/admin/ConsoleMemorias";
+import ConsoleRegras from "./pages/admin/ConsoleRegras";
+import ConsoleSkills from "./pages/admin/ConsoleSkills";
 import Tickets from "./pages/admin/Tickets";
 import Implantacoes from "./pages/admin/Implantacoes";
 
@@ -108,12 +111,12 @@ export default function App() {
             <Route path="custo-ia" element={<CustoIA />} />
             {/* Console · IA (admin) — camada operacional dos agentes */}
             <Route path="console/health" element={<ConsoleStub title="Health Check" sub="Saúde operacional cross-cliente: filas, DLQ, isolamento, disponibilidade." note="Lê os schemas agents/whatsapp (criados, vazios). Acende quando o WhatsApp CRM publicar filas e agentes." />} />
-            <Route path="console/memorias" element={<ConsoleStub title="Memórias & Conhecimento" sub="Cérebro Global da Crasto.AI + herança por cliente." note="Lê agents.knowledge/rules (scope='global'). O conteúdo entra com o Cérebro Global." />} />
-            <Route path="console/regras" element={<ConsoleStub title="Regras Globais" sub="Políticas aplicadas a todos os agentes, com imposição." note="Lê agents.rules (scope='global', enforcement obrigatória/default)." />} />
+            <Route path="console/memorias" element={<ConsoleMemorias />} />
+            <Route path="console/regras" element={<ConsoleRegras />} />
             <Route path="console/permissoes" element={<ConsolePermissoes />} />
             <Route path="console/auditoria" element={<ConsoleAuditoria />} />
             <Route path="console/modelos" element={<ConsoleModelos />} />
-            <Route path="console/skills" element={<ConsoleStub title="Catálogo de Skills" sub="Capacidades do agente (skill-packs) — distinto do catálogo comercial." note="Lê agents.skill_packs/installed_packs (criados, vazios)." />} />
+            <Route path="console/skills" element={<ConsoleSkills />} />
             <Route path="tickets" element={<Tickets />} />
             <Route path="implantacoes" element={<Implantacoes />} />
             <Route path="perfil" element={<Perfil />} />

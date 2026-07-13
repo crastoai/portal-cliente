@@ -29,6 +29,16 @@ export const adminAnalytics = {
   setUserRole: (userId: string, role: string) => rpc<void>("admin_set_user_role", { p_user: userId, p_role: role }),
   auditLog: <T = any[]>(from?: string, to?: string, org?: string) => rpc<T>("admin_audit_log", { p_from: from ?? null, p_to: to ?? null, p_org: org ?? null }),
   auditRecord: (p: Record<string, any>) => rpc<string>("admin_audit_record", { p }),
+  // Governança global (Console · top-down): Cérebro Global · Regras Globais · Catálogo de Skills
+  brainList: <T = any[]>() => rpc<T>("admin_brain_list"),
+  brainUpsert: (p: Record<string, any>) => rpc<string>("admin_brain_upsert", { p }),
+  brainRemove: (id: string) => rpc<void>("admin_brain_delete", { p_id: id }),
+  rulesList: <T = any[]>() => rpc<T>("admin_rules_list"),
+  ruleUpsert: (p: Record<string, any>) => rpc<string>("admin_rule_upsert", { p }),
+  ruleRemove: (id: string) => rpc<void>("admin_rule_delete", { p_id: id }),
+  skillsList: <T = any[]>() => rpc<T>("admin_skills_list"),
+  skillUpsert: (p: Record<string, any>) => rpc<string>("admin_skill_upsert", { p }),
+  skillRemove: (id: string) => rpc<void>("admin_skill_delete", { p_id: id }),
 };
 
 // ---- Cliente / Parceiro ----
