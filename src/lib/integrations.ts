@@ -1,0 +1,55 @@
+// Campos REAIS de configuração por provedor de integração.
+// kind: 'text' → guardado em meta (não-secreto, exibido em texto)
+//       'from' → guardado na coluna from_addr (URL/remetente, não-secreto)
+//       'secret' → segredo; o marcado primary vai na coluna `secret` (compat com o runtime),
+//                  os demais vão em `secrets` (jsonb). NUNCA retornam ao navegador (só "salvo").
+export type IntegField = { key: string; label: string; kind: "text" | "from" | "secret"; primary?: boolean; placeholder?: string };
+
+export const INTEGRATION_FIELDS: Record<string, IntegField[]> = {
+  anthropic: [{ key: "api_key", label: "API Key (Anthropic)", kind: "secret", primary: true, placeholder: "sk-ant-..." }],
+  openai: [{ key: "api_key", label: "API Key (OpenAI)", kind: "secret", primary: true, placeholder: "sk-..." }],
+  google: [{ key: "api_key", label: "API Key (Google AI Studio)", kind: "secret", primary: true, placeholder: "AIza..." }],
+  elevenlabs: [{ key: "api_key", label: "API Key (ElevenLabs)", kind: "secret", primary: true }],
+  autentique: [{ key: "api_token", label: "API Token (Autentique)", kind: "secret", primary: true }],
+  asaas: [{ key: "api_key", label: "API Key (Asaas)", kind: "secret", primary: true }],
+  stripe: [{ key: "secret_key", label: "Secret Key (Stripe)", kind: "secret", primary: true, placeholder: "sk_live_..." }],
+  resend_email: [
+    { key: "api_key", label: "API Key (Resend)", kind: "secret", primary: true, placeholder: "re_..." },
+    { key: "from", label: "Remetente (from)", kind: "from", placeholder: "Crasto.AI <no-reply@crasto.ai>" },
+  ],
+  ai_bridge: [
+    { key: "url", label: "URL da ponte", kind: "from", placeholder: "https://ponte.crasto.ai/assist" },
+    { key: "shared_secret", label: "Segredo compartilhado (PONTE_SECRET)", kind: "secret", primary: true },
+  ],
+  cloudflare_r2: [
+    { key: "account_id", label: "Account ID", kind: "text" },
+    { key: "access_key_id", label: "Access Key ID", kind: "text" },
+    { key: "secret_access_key", label: "Secret Access Key", kind: "secret", primary: true },
+    { key: "bucket", label: "Bucket", kind: "text", placeholder: "crasto-documentos" },
+    { key: "endpoint", label: "Endpoint (S3 API)", kind: "text", placeholder: "https://<account>.r2.cloudflarestorage.com" },
+  ],
+  banco_inter: [
+    { key: "base_url", label: "URL base da API", kind: "text", placeholder: "https://cdpj.partners.bancointer.com.br" },
+    { key: "conta_corrente", label: "Conta corrente", kind: "text" },
+    { key: "client_id", label: "Client ID", kind: "text" },
+    { key: "client_secret", label: "Client Secret", kind: "secret", primary: true },
+    { key: "cert_pem", label: "Certificado mTLS (.crt/.pem)", kind: "secret" },
+    { key: "key_pem", label: "Chave privada (.key)", kind: "secret" },
+  ],
+  whatsapp_official: [
+    { key: "phone_number_id", label: "Phone Number ID", kind: "text" },
+    { key: "waba_id", label: "WhatsApp Business Account ID", kind: "text" },
+    { key: "access_token", label: "Access Token", kind: "secret", primary: true },
+    { key: "verify_token", label: "Verify Token (webhook)", kind: "secret" },
+  ],
+};
+
+export const HINTS: Record<string, string> = {
+  resend_email: "Chave do Resend (re_...). Para enviar de no-reply@crasto.ai, verifique o domínio no Resend.",
+  ai_bridge: "Liga o chat/voz da proposta ao Claude Max. Rode a ponte e cole a URL + o mesmo PONTE_SECRET. Ver PONTE_CLAUDE_MAX_Setup.md.",
+  banco_inter: "Faturamento Pix/boleto. O Inter exige certificado mTLS — o cert/chave ficam no cofre e o serviço roda na VPS.",
+  cloudflare_r2: "Bucket R2 para documentos. Endpoint no formato https://<account>.r2.cloudflarestorage.com.",
+  whatsapp_official: "WhatsApp Cloud API (Meta): phone_number_id, WABA ID, access token e verify token do webhook.",
+};
+
+export const fieldsFor = (key: string): IntegField[] => INTEGRATION_FIELDS[key] ?? [{ key: "api_key", label: "Chave / segredo", kind: "secret", primary: true }];
