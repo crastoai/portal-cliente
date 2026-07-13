@@ -25,6 +25,7 @@ export const adminAnalytics = {
   // Console · IA (admin-only): camada operacional do Dashboard + trilha de auditoria
   consoleOverview: <T = any>() => rpc<T>("admin_console_overview"),
   llmModels: <T = any[]>() => rpc<T>("admin_llm_models"),
+  setDefaultModel: (provider: string, model: string) => rpc<void>("admin_set_default_model", { p_provider: provider, p_model: model }),
   accessList: <T = any>() => rpc<T>("admin_access_list"),
   setUserRole: (userId: string, role: string) => rpc<void>("admin_set_user_role", { p_user: userId, p_role: role }),
   userAccess: <T = any>(userId: string) => rpc<T>("admin_user_access", { p_user: userId }),
