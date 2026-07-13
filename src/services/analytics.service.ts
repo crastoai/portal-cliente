@@ -22,6 +22,10 @@ export const adminAnalytics = {
   // Régua de saúde (pesos/limiares do health score) — configurável sem código
   healthConfig: <T = any>() => rpc<T>("admin_health_config"),
   setHealthConfig: (cfg: unknown) => rpc<{ ok: boolean }>("admin_set_health_config", { p: cfg }),
+  // Console · IA (admin-only): camada operacional do Dashboard + trilha de auditoria
+  consoleOverview: <T = any>() => rpc<T>("admin_console_overview"),
+  auditLog: <T = any[]>(from?: string, to?: string, org?: string) => rpc<T>("admin_audit_log", { p_from: from ?? null, p_to: to ?? null, p_org: org ?? null }),
+  auditRecord: (p: Record<string, any>) => rpc<string>("admin_audit_record", { p }),
 };
 
 // ---- Cliente / Parceiro ----
