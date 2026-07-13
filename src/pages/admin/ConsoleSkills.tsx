@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Plus, Pencil, Trash2, Blocks } from "lucide-react";
 import { services, errorMessage } from "../../services";
-import { PageHead, Pill, Empty, useAsync, Field } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, useToast, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 import DocField from "../../ui/DocField";
@@ -16,14 +16,13 @@ export default function ConsoleSkills() {
   const [open, setOpen] = useState(false);
   const [f, setF] = useState<any>({ ...EMPTY });
   const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState("");
-  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 5000); };
+  const toast = useToast();
 
   async function save() {
-    if (!f.name.trim()) { flash(t("Dê um nome ao skill.")); return; }
+    if (!f.name.trim()) { toast.warn(t("Dê um nome ao skill.")); return; }
     setBusy(true);
-    try { await services.analytics.admin.skillUpsert(f); setOpen(false); reload(); flash(t("Skill salvo ✓")); }
-    catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
+    try { await services.analytics.admin.skillUpsert(f); setOpen(false); reload(); toast.ok(t("Skill salvo ✓")); }
+    catch (e) { toast.err(errorMessage(e)); } finally { setBusy(false); }
   }
   async function del(p: any) { if (!confirm(t("Excluir este skill?"))) return; await services.analytics.admin.skillRemove(p.id); reload(); }
 
@@ -69,7 +68,7 @@ export default function ConsoleSkills() {
         <Field label="Imposição"><select value={f.enforcement} onChange={(e) => setF({ ...f, enforcement: e.target.value })}><option value="default">{t("Padrão (opcional por agente)")}</option><option value="obrigatoria">{t("Obrigatória (todo agente)")}</option></select></Field>
         <Field label="Documento anexo (como a IA aprende a skill)"><DocField path={f.document_path} name={f.document_name} onChange={(p, n) => setF({ ...f, document_path: p, document_name: n })} /></Field>
       </Modal>
-      {toast && <div className="toast">{toast}</div>}
+      {toast.node}
     </div>
   );
 }

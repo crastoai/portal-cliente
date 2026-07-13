@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Plus, Pencil, Trash2, BookOpen } from "lucide-react";
 import { services, errorMessage } from "../../services";
-import { PageHead, Empty, useAsync, Field } from "../../ui/ui";
+import { PageHead, Empty, useAsync, useToast, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 import DocField from "../../ui/DocField";
@@ -16,14 +16,13 @@ export default function ConsoleMemorias() {
   const [open, setOpen] = useState(false);
   const [f, setF] = useState<any>({ ...EMPTY });
   const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState("");
-  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 5000); };
+  const toast = useToast();
 
   async function save() {
-    if (!f.title.trim() && !f.body.trim()) { flash(t("Dê um título ou conteúdo.")); return; }
+    if (!f.title.trim() && !f.body.trim()) { toast.warn(t("Dê um título ou conteúdo.")); return; }
     setBusy(true);
-    try { await services.analytics.admin.brainUpsert(f); setOpen(false); reload(); flash(t("Conhecimento salvo ✓")); }
-    catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
+    try { await services.analytics.admin.brainUpsert(f); setOpen(false); reload(); toast.ok(t("Conhecimento salvo ✓")); }
+    catch (e) { toast.err(errorMessage(e)); } finally { setBusy(false); }
   }
   async function del(i: any) { if (!confirm(t("Excluir este item?"))) return; await services.analytics.admin.brainRemove(i.id); reload(); }
 
@@ -66,7 +65,7 @@ export default function ConsoleMemorias() {
         <Field label="Fonte (doc de referência)"><input value={f.source_ref} onChange={(e) => setF({ ...f, source_ref: e.target.value })} placeholder={t("Ex.: Plano Diretor · Posicionamento")} /></Field>
         <Field label="Documento anexo (fonte para a IA)"><DocField path={f.document_path} name={f.document_name} onChange={(p, n) => setF({ ...f, document_path: p, document_name: n })} /></Field>
       </Modal>
-      {toast && <div className="toast">{toast}</div>}
+      {toast.node}
     </div>
   );
 }

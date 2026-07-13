@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Shield, Users, Building2, Lock, Search, ChevronDown, ChevronRight, SlidersHorizontal, Check } from "lucide-react";
 import { services, errorMessage } from "../../services";
-import { PageHead, Pill, Empty, useAsync, initials } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, useToast, initials } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 import { CLIENT_SCREENS, ALL_SCREEN_KEYS, BASE_SCREEN, allowedScreens } from "../../lib/screens";
@@ -27,8 +27,7 @@ export default function ConsolePermissoes() {
   const clients: Client[] = data?.clients ?? [];
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<Record<string, boolean>>({});
-  const [toast, setToast] = useState("");
-  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 5000); };
+  const toast = useToast();
 
   // popup de configuração de acesso
   const [cfg, setCfg] = useState<{ user: U; orgName: string } | null>(null);
@@ -65,8 +64,8 @@ export default function ConsolePermissoes() {
       const role = pf.owner ? "client_owner" : "client_member";
       const screens = pf.owner ? [] : Array.from(new Set([BASE_SCREEN, ...pf.screens]));
       await services.analytics.admin.setUserAccess(cfg.user.id, role, screens);
-      setCfg(null); await reload(); flash(t("Acesso atualizado ✓"));
-    } catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
+      setCfg(null); await reload(); toast.ok(t("Acesso atualizado ✓"));
+    } catch (e) { toast.err(errorMessage(e)); } finally { setBusy(false); }
   }
 
   return (
@@ -162,7 +161,7 @@ export default function ConsolePermissoes() {
           {pf.owner && <div className="note"><Check size={15} /><div>{t("Este usuário verá todas as telas do portal e poderá gerenciar a empresa.")}</div></div>}
         </>)}
       </Modal>
-      {toast && <div className="toast">{toast}</div>}
+      {toast.node}
     </div>
   );
 }

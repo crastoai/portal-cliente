@@ -192,7 +192,11 @@
 .frow input, .frow select, .frow textarea { width: 100%; border: 1px solid var(--crasto-border); border-radius: var(--crasto-radius-sm); padding: 10px 12px; font-size: 13.5px; color: var(--crasto-text-primary); background: var(--crasto-surface); font-family: inherit; }
 .frow textarea { resize: vertical; min-height: 70px; }
 .formerr { background: #F6E7E7; color: var(--crasto-danger); border: 1px solid #eecccc; border-radius: var(--crasto-radius-sm); padding: 8px 12px; font-size: 12.5px; margin-bottom: 12px; }
-.toast { position: fixed; bottom: 24px; right: 24px; background: var(--crasto-navy); color: #fff; padding: 12px 18px; border-radius: var(--crasto-radius-md); box-shadow: var(--crasto-shadow-lg); font-size: 13.5px; font-weight: 500; z-index: 200; }
+.toast { position: fixed; bottom: 24px; right: 24px; background: var(--crasto-navy); color: #fff; padding: 12px 18px 12px 16px; border-radius: var(--crasto-radius-md); box-shadow: var(--crasto-shadow-lg); font-size: 13.5px; font-weight: 500; z-index: 200; display: flex; align-items: center; gap: 9px; max-width: min(92vw, 460px); border-left: 4px solid transparent; }
+.toast::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.85); flex: none; }
+.toast--ok { background: #1B7A4F; border-left-color: #0E5233; }
+.toast--err { background: #B23A2E; border-left-color: #7A2019; }
+.toast--warn { background: #A56A0C; border-left-color: #714808; }
 
 /* inputs dentro de crasto-field: remove o anel duplo de foco (o "contorno no texto") */
 .crasto-field input:focus, .crasto-field input:focus-visible,

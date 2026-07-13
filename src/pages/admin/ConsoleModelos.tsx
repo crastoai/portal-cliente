@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Cpu, KeyRound, DollarSign, Star } from "lucide-react";
 import { Link } from "react-router-dom";
 import { services, errorMessage } from "../../services";
-import { PageHead, Pill, Empty, useAsync, money } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, useToast, money } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 
 // Modelos LLM (SPEC 3.8) — catálogo + conexão REAL (chave no cofre) + custo + modelo padrão.
@@ -16,13 +16,12 @@ export default function ConsoleModelos() {
   const costMonth = models.reduce((s, m) => s + Number(m.cost_month || 0), 0);
   const providers = new Set(models.map((m) => m.provider)).size;
   const [busy, setBusy] = useState("");
-  const [toast, setToast] = useState("");
-  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 5000); };
+  const toast = useToast();
 
   async function setDefault(m: any) {
     setBusy(m.provider + m.model);
-    try { await services.analytics.admin.setDefaultModel(m.provider, m.model); await reload(); flash(t("Modelo padrão atualizado ✓")); }
-    catch (e) { flash(errorMessage(e)); } finally { setBusy(""); }
+    try { await services.analytics.admin.setDefaultModel(m.provider, m.model); await reload(); toast.ok(t("Modelo padrão atualizado ✓")); }
+    catch (e) { toast.err(errorMessage(e)); } finally { setBusy(""); }
   }
 
   return (
@@ -65,7 +64,7 @@ export default function ConsoleModelos() {
         <Cpu size={15} />
         <div>{t("O modelo padrão é o que os agentes usam quando não há escolha específica. A conexão real com o provedor é verificada pelo motor de IA (no servidor) ao fazer a primeira chamada — não é um status simulado. O custo por modelo aparece quando o motor registrar o uso; a seleção de modelo por agente entra com o WhatsApp CRM.")}</div>
       </div>
-      {toast && <div className="toast">{toast}</div>}
+      {toast.node}
     </div>
   );
 }

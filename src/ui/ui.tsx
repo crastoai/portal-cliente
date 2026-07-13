@@ -1,5 +1,23 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useT } from "../lib/i18n";
+
+/** Toast tipado (DS): sucesso=verde, erro=vermelho, atenção=laranja.
+ *  Uso: const toast = useToast(); toast.ok("Salvo ✓"); toast.err(msg); ... {toast.node} */
+export function useToast(ms = 5000) {
+  const [t, setT] = useState<{ msg: string; tone: "ok" | "err" | "warn" } | null>(null);
+  const ref = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const show = (msg: string, tone: "ok" | "err" | "warn") => {
+    setT({ msg, tone });
+    if (ref.current) clearTimeout(ref.current);
+    ref.current = setTimeout(() => setT(null), ms);
+  };
+  return {
+    node: t ? <div className={"toast toast--" + t.tone}>{t.msg}</div> : null,
+    ok: (m: string) => show(m, "ok"),
+    err: (m: string) => show(m, "err"),
+    warn: (m: string) => show(m, "warn"),
+  };
+}
 
 export function money(n: number | string | null | undefined) {
   const v = Number(n ?? 0);

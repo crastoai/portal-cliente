@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Plug, Settings2 } from "lucide-react";
 import { services as api, errorMessage } from "../../services";
-import { PageHead, Pill, useAsync, Field } from "../../ui/ui";
+import { PageHead, Pill, useAsync, useToast, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 import { fieldsFor, HINTS, SERVER_MANAGED, type IntegField } from "../../lib/integrations";
@@ -24,11 +24,11 @@ export default function Integracoes() {
   const [cur, setCur] = useState<Integ | null>(null);
   const [cfg, setCfg] = useState<any>(null);
   const [vals, setVals] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [toast, setToast] = useState("");
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  const toast = useToast();
 
   const tone = (s: string) => (s === "connected" ? "ok" : s === "error" ? "warn" : "mute");
   const label = (s: string) => (s === "connected" ? t("Conectado") : s === "error" ? t("Ação necessária") : t("Desconectado"));
-  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 5000); };
   const fields = cur ? fieldsFor(cur.key) : [];
   const managed = cur ? SERVER_MANAGED[cur.key] : undefined; // env vars, se gerenciado no servidor
   const isSet = (f: IntegField) => (f.primary ? !!cfg?.primary_set : (cfg?.secrets_set ?? []).includes(f.key));
@@ -62,7 +62,7 @@ export default function Integracoes() {
     const connected = primaryNow || !!cfg?.primary_set;
     try {
       await api.automation.integrations.saveConfig({ key: cur.key, meta, from, secret, secrets, status: connected ? "connected" : "disconnected" });
-      setOpen(false); reload(); flash(t("{n} configurado ✓", { n: cur.display_name }));
+      setOpen(false); reload(); toast.ok(t("{n} configurado ✓", { n: cur.display_name }));
     } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
   }
   async function disconnect() {
@@ -123,7 +123,7 @@ export default function Integracoes() {
           </>
         )}
       </Modal>
-      {toast && <div className="toast">{toast}</div>}
+      {toast.node}
     </div>
   );
 }
