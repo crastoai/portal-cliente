@@ -24,6 +24,7 @@ export const adminAnalytics = {
   setHealthConfig: (cfg: unknown) => rpc<{ ok: boolean }>("admin_set_health_config", { p: cfg }),
   // Console · IA (admin-only): camada operacional do Dashboard + trilha de auditoria
   consoleOverview: <T = any>() => rpc<T>("admin_console_overview"),
+  llmModels: <T = any[]>() => rpc<T>("admin_llm_models"),
   auditLog: <T = any[]>(from?: string, to?: string, org?: string) => rpc<T>("admin_audit_log", { p_from: from ?? null, p_to: to ?? null, p_org: org ?? null }),
   auditRecord: (p: Record<string, any>) => rpc<string>("admin_audit_record", { p }),
 };

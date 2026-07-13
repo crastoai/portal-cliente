@@ -16,7 +16,7 @@ const NAV: NavItem[] = [
   { to: "/admin/console/regras", icon: ScrollText, label: "Regras Globais", section: CONSOLE },
   { to: "/admin/console/permissoes", icon: Lock, label: "Permissões & Acessos", section: CONSOLE },
   { to: "/admin/console/auditoria", icon: ClipboardList, label: "Auditoria & Logs", section: CONSOLE },
-  { to: "/admin/console/apis", icon: KeyRound, label: "APIs & Chaves", section: CONSOLE },
+  { to: "/admin/integracoes", icon: KeyRound, label: "APIs & Chaves", section: CONSOLE },
   { to: "/admin/console/modelos", icon: Cpu, label: "Modelos LLM", section: CONSOLE },
   { to: "/admin/console/skills", icon: Blocks, label: "Catálogo de Skills", section: CONSOLE },
   { to: "/admin/financeiro", icon: DollarSign, label: "Financeiro", tag: "🔒", section: "Financeiro & Parceiros" },
