@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { UserPlus, Search } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, Empty, useAsync, money, initials, Field, Pill } from "../../ui/ui";
 import Modal from "../../ui/Modal";
@@ -56,6 +56,7 @@ export default function Clientes() {
   }
 
   const co = countryOf(f.country);
+  const nav = useNavigate();
 
   return (
     <div className="crmpage">
@@ -80,14 +81,14 @@ export default function Clientes() {
               {rows.map((c) => {
                 const st = stageOf(c.stage); const country = countryOf(c.country);
                 return (
-                  <tr key={c.id}>
+                  <tr key={c.id} style={{ cursor: "pointer" }} onClick={() => nav(`/admin/cliente/${c.id}`)}>
                     <td><div className="cust"><div className="logo">{initials(c.name)}</div><div><div className="nm">{c.name}</div><div className="em">{c.owner_name || c.email || "—"}</div></div></div></td>
                     <td><Pill tone={st.tone}>{t(st.label)}</Pill></td>
                     <td>{country.flag} {country.code}</td>
                     <td className="tnum" style={{ color: "var(--crasto-text-body)" }}>{c.tax_id || "—"}</td>
                     <td style={{ color: "var(--crasto-text-muted)" }}>{c.last_activity ? timeAgo(c.last_activity) : (c.last_access ? timeAgo(c.last_access) : "—")}</td>
                     <td className="tnum" style={{ fontWeight: 600, color: "var(--crasto-text-primary)" }}>{money(c.mrr)}</td>
-                    <td><Link className="sec-h link" to={`/admin/cliente/${c.id}`}>{t("Ver detalhe")}</Link></td>
+                    <td><Link className="sec-h link" to={`/admin/cliente/${c.id}`} onClick={(e) => e.stopPropagation()}>{t("Ver detalhe")}</Link></td>
                   </tr>
                 );
               })}
