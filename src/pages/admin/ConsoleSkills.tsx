@@ -4,9 +4,10 @@ import { services, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
+import DocField from "../../ui/DocField";
 
 // Catálogo de Skills (SPEC 3.9) — capacidades DO AGENTE (skill-packs). Distinto do catálogo comercial.
-const EMPTY = { id: "", key: "", name: "", description: "", enforcement: "default" };
+const EMPTY = { id: "", key: "", name: "", description: "", enforcement: "default", document_path: "", document_name: "" };
 
 export default function ConsoleSkills() {
   const t = useT();
@@ -41,10 +42,10 @@ export default function ConsoleSkills() {
                 : packs.map((p) => (
                   <tr key={p.id}>
                     <td><div className="nm"><Blocks size={13} style={{ verticalAlign: -2, marginRight: 5, opacity: .6 }} />{p.name}</div>{p.key && <div className="mt tnum">{p.key}</div>}</td>
-                    <td className="mt">{p.description || "—"}</td>
+                    <td className="mt">{p.description || "—"}{p.document_name && <div style={{ marginTop: 2 }}>{t("anexo")}: {p.document_name}</div>}</td>
                     <td><Pill tone={p.enforcement === "obrigatoria" ? "crit" : "mute"}>{p.enforcement === "obrigatoria" ? t("Obrigatória") : t("Padrão")}</Pill></td>
                     <td><div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                      <button className="icobtn" title={t("Editar")} onClick={() => { setF({ id: p.id, key: p.key || "", name: p.name || "", description: p.description || "", enforcement: p.enforcement || "default" }); setOpen(true); }}><Pencil size={13} /></button>
+                      <button className="icobtn" title={t("Editar")} onClick={() => { setF({ id: p.id, key: p.key || "", name: p.name || "", description: p.description || "", enforcement: p.enforcement || "default", document_path: p.document_path || "", document_name: p.document_name || "" }); setOpen(true); }}><Pencil size={13} /></button>
                       <button className="icobtn rm" title={t("Excluir")} onClick={() => del(p)}><Trash2 size={13} /></button>
                     </div></td>
                   </tr>
@@ -66,6 +67,7 @@ export default function ConsoleSkills() {
         </div>
         <Field label="Descrição"><textarea value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
         <Field label="Imposição"><select value={f.enforcement} onChange={(e) => setF({ ...f, enforcement: e.target.value })}><option value="default">{t("Padrão (opcional por agente)")}</option><option value="obrigatoria">{t("Obrigatória (todo agente)")}</option></select></Field>
+        <Field label="Documento anexo (como a IA aprende a skill)"><DocField path={f.document_path} name={f.document_name} onChange={(p, n) => setF({ ...f, document_path: p, document_name: n })} /></Field>
       </Modal>
       {toast && <div className="toast">{toast}</div>}
     </div>

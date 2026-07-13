@@ -250,6 +250,8 @@
 .screenpick.on .box { background: var(--crasto-blue, #3E6FB8); border-color: var(--crasto-blue, #3E6FB8); }
 .screenpick .lb { font-size: 13px; color: var(--crasto-text-primary); }
 .screenpick .lb em { color: var(--crasto-text-muted); font-style: normal; font-size: 11px; }
+.docchip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 8px 6px 11px; background: var(--crasto-bg-2); border: 1px solid var(--crasto-border-soft); border-radius: 10px; font-size: 13px; }
+.docchip .nm { color: var(--crasto-text-primary); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ===== kpis ===== */
 .kpis { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 28px; }

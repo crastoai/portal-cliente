@@ -4,9 +4,10 @@ import { services, errorMessage } from "../../services";
 import { PageHead, Empty, useAsync, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
+import DocField from "../../ui/DocField";
 
 // Memórias & Conhecimento (SPEC 3.3) — Cérebro Global da Crasto.AI (top-down; o cliente herda).
-const EMPTY = { id: "", title: "", body: "", source_ref: "" };
+const EMPTY = { id: "", title: "", body: "", source_ref: "", document_path: "", document_name: "" };
 
 export default function ConsoleMemorias() {
   const t = useT();
@@ -41,10 +42,10 @@ export default function ConsoleMemorias() {
                   <BookOpen size={16} style={{ color: "var(--crasto-blue, #3E6FB8)", flex: "none", marginTop: 2 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <h3 style={{ margin: 0 }}>{i.title || t("(sem título)")}</h3>
-                    {i.source_ref && <div className="mt">{t("fonte")}: {i.source_ref}</div>}
+                    {(i.source_ref || i.document_name) && <div className="mt">{[i.source_ref && `${t("fonte")}: ${i.source_ref}`, i.document_name && `${t("anexo")}: ${i.document_name}`].filter(Boolean).join(" · ")}</div>}
                   </div>
                   <div style={{ display: "flex", gap: 4 }}>
-                    <button className="icobtn" title={t("Editar")} onClick={() => { setF({ id: i.id, title: i.title || "", body: i.body || "", source_ref: i.source_ref || "" }); setOpen(true); }}><Pencil size={13} /></button>
+                    <button className="icobtn" title={t("Editar")} onClick={() => { setF({ id: i.id, title: i.title || "", body: i.body || "", source_ref: i.source_ref || "", document_path: i.document_path || "", document_name: i.document_name || "" }); setOpen(true); }}><Pencil size={13} /></button>
                     <button className="icobtn rm" title={t("Excluir")} onClick={() => del(i)}><Trash2 size={13} /></button>
                   </div>
                 </div>
@@ -63,6 +64,7 @@ export default function ConsoleMemorias() {
         <Field label="Título"><input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder={t("Ex.: Tom de voz da Crasto.AI")} /></Field>
         <Field label="Conteúdo"><textarea value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} style={{ minHeight: 140 }} /></Field>
         <Field label="Fonte (doc de referência)"><input value={f.source_ref} onChange={(e) => setF({ ...f, source_ref: e.target.value })} placeholder={t("Ex.: Plano Diretor · Posicionamento")} /></Field>
+        <Field label="Documento anexo (fonte para a IA)"><DocField path={f.document_path} name={f.document_name} onChange={(p, n) => setF({ ...f, document_path: p, document_name: n })} /></Field>
       </Modal>
       {toast && <div className="toast">{toast}</div>}
     </div>

@@ -4,10 +4,11 @@ import { services, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
+import DocField from "../../ui/DocField";
 
 // Regras Globais (SPEC 3.4) — políticas top-down aplicadas a todos os agentes.
 const TYPES = [{ v: "seguranca", l: "Segurança" }, { v: "conformidade", l: "Conformidade" }, { v: "qualidade", l: "Qualidade" }];
-const EMPTY = { id: "", rule: "", rule_type: "seguranca", enforcement: "default", status: "ativa", source_ref: "" };
+const EMPTY = { id: "", rule: "", rule_type: "seguranca", enforcement: "default", status: "ativa", source_ref: "", document_path: "", document_name: "" };
 
 export default function ConsoleRegras() {
   const t = useT();
@@ -48,12 +49,12 @@ export default function ConsoleRegras() {
               : rules.length === 0 ? <tr><td colSpan={5}><Empty><p><strong>{t("Nenhuma regra global ainda.")}</strong> {t("Crie a primeira política que todos os agentes devem seguir.")}</p></Empty></td></tr>
                 : rules.map((r) => (
                   <tr key={r.id}>
-                    <td><div className="nm">{r.rule}</div>{r.source_ref && <div className="mt">{t("fonte")}: {r.source_ref}</div>}</td>
+                    <td><div className="nm">{r.rule}</div><div className="mt">{[r.source_ref && `${t("fonte")}: ${r.source_ref}`, r.document_name && `${t("anexo")}: ${r.document_name}`].filter(Boolean).join(" · ")}</div></td>
                     <td>{t(typeLabel(r.rule_type))}</td>
                     <td><Pill tone={r.enforcement === "obrigatoria" ? "crit" : "mute"}>{r.enforcement === "obrigatoria" ? t("Obrigatória") : t("Padrão")}</Pill></td>
                     <td><Pill tone={r.status === "ativa" ? "ok" : "mute"}>{r.status === "ativa" ? t("Ativa") : t("Rascunho")}</Pill></td>
                     <td><div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                      <button className="icobtn" title={t("Editar")} onClick={() => { setF({ id: r.id, rule: r.rule || "", rule_type: r.rule_type || "seguranca", enforcement: r.enforcement || "default", status: r.status || "ativa", source_ref: r.source_ref || "" }); setOpen(true); }}><Pencil size={13} /></button>
+                      <button className="icobtn" title={t("Editar")} onClick={() => { setF({ id: r.id, rule: r.rule || "", rule_type: r.rule_type || "seguranca", enforcement: r.enforcement || "default", status: r.status || "ativa", source_ref: r.source_ref || "", document_path: r.document_path || "", document_name: r.document_name || "" }); setOpen(true); }}><Pencil size={13} /></button>
                       <button className="icobtn rm" title={t("Excluir")} onClick={() => del(r)}><Trash2 size={13} /></button>
                     </div></td>
                   </tr>
@@ -71,6 +72,7 @@ export default function ConsoleRegras() {
           <Field label="Status"><select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}><option value="ativa">{t("Ativa")}</option><option value="rascunho">{t("Rascunho")}</option></select></Field>
         </div>
         <Field label="Fonte (doc de referência)"><input value={f.source_ref} onChange={(e) => setF({ ...f, source_ref: e.target.value })} placeholder={t("Ex.: Plano Diretor · LGPD")} /></Field>
+        <Field label="Documento anexo (fonte para a IA)"><DocField path={f.document_path} name={f.document_name} onChange={(p, n) => setF({ ...f, document_path: p, document_name: n })} /></Field>
       </Modal>
       {toast && <div className="toast">{toast}</div>}
     </div>
