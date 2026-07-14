@@ -4,11 +4,12 @@ import { HealthController } from './health/health.controller';
 import { IdentityModule } from './identity/identity.module';
 import { DeliveryModule } from './delivery/delivery.module';
 import { CatalogModule } from './catalog/catalog.module';
+import { CrmModule } from './crm/crm.module';
 
 // Middle-end do Portal do Cliente. Contextos DDD entram como módulos, incrementalmente:
-// identity → delivery → catalog → commerce → support → automation → finance → billing → analytics.
+// identity → delivery → catalog → crm → commerce → support → automation → finance → billing → analytics.
 @Module({
-  imports: [CommonModule, IdentityModule, DeliveryModule, CatalogModule],
+  imports: [CommonModule, IdentityModule, DeliveryModule, CatalogModule, CrmModule],
   controllers: [HealthController],
 })
 export class AppModule {}
