@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
+import { api } from "./api";
 import { services } from "../services";
 
 export type Profile = {
@@ -54,7 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signIn(email: string, password: string) {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (!error) supabase.rpc("audit_login").catch(() => {});
+    // auditoria de login via a Portal API (não fala direto com o banco). Fire-and-forget.
+    if (!error) api.post("/api/analytics/rpc", { name: "audit_login" }).catch(() => {});
     return error ? { error: error.message } : {};
   }
   async function signOut() {

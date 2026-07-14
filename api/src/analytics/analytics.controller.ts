@@ -15,8 +15,8 @@ const ALLOWED = new Set<string>([
   'admin_rules_list', 'admin_rule_upsert', 'admin_rule_delete', 'admin_skills_list', 'admin_skill_upsert', 'admin_skill_delete',
   // cliente / parceiro
   'client_support_hours', 'connector_commissions', 'reveal_module_secret',
-  // settings
-  'business_settings',
+  // settings + auditoria de login
+  'business_settings', 'audit_login',
 ]);
 
 @Controller('analytics')
