@@ -34,6 +34,7 @@ import CustosOperacionais from "./pages/admin/CustosOperacionais";
 import CustoIA from "./pages/admin/CustoIA";
 import FinanceiroAdmin from "./pages/admin/Financeiro";
 import ConsoleStub from "./pages/admin/ConsoleStub";
+import ConsoleHealthCheck from "./pages/admin/ConsoleHealthCheck";
 import ConsoleAuditoria from "./pages/admin/ConsoleAuditoria";
 import ConsoleModelos from "./pages/admin/ConsoleModelos";
 import ConsolePermissoes from "./pages/admin/ConsolePermissoes";
@@ -110,7 +111,7 @@ export default function App() {
             <Route path="financeiro" element={<FinanceiroAdmin />} />
             <Route path="custo-ia" element={<CustoIA />} />
             {/* Console · IA (admin) — camada operacional dos agentes */}
-            <Route path="console/health" element={<ConsoleStub title="Health Check" sub="Saúde operacional cross-cliente: filas, DLQ, isolamento, disponibilidade." note="Lê os schemas agents/whatsapp (criados, vazios). Acende quando o WhatsApp CRM publicar filas e agentes." />} />
+            <Route path="console/health" element={<ConsoleHealthCheck />} />
             <Route path="console/memorias" element={<ConsoleMemorias />} />
             <Route path="console/regras" element={<ConsoleRegras />} />
             <Route path="console/permissoes" element={<ConsolePermissoes />} />
