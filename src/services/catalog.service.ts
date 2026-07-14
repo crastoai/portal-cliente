@@ -1,46 +1,36 @@
 // ============================================================================
-// Bounded context: CATALOG (schema catalog) — módulos VdI, catálogo mestre, serviços.
+// Bounded context: CATALOG — módulos VdI, catálogo mestre, serviços.
+// DADO passa pela Portal API (middle-end) — o cliente NUNCA fala direto com o banco.
+// RLS no servidor: cliente vê módulos ativos + serviços client-facing; admin vê tudo.
 // ============================================================================
-import { supabase } from "../lib/supabase";
-import { unwrap, unwrapList } from "./core/result";
+import { api } from "../lib/api";
 import type { VdiModule, VdiCatalogEntry, CatalogService } from "./core/types";
 
-const cat = () => supabase.schema("catalog");
-
 export const vdiModules = {
-  /** Módulos ativos com campos enxutos (catálogo do cliente). */
   listActive: async (fields = "id,name,description,category") =>
-    unwrapList<VdiModule>(await cat().from("vdi_modules").select(fields).eq("active", true).order("category")),
-  listActiveByName: async () =>
-    unwrapList<VdiModule>(await cat().from("vdi_modules").select("id,name,category,department,internal_url").eq("active", true).order("name")),
-  listAll: async () =>
-    unwrapList<VdiModule>(await cat().from("vdi_modules").select("*").order("department").order("name")),
+    api.get<VdiModule[]>(`/api/catalog/vdi-modules/active?fields=${encodeURIComponent(fields)}`),
+  listActiveByName: async () => api.get<VdiModule[]>(`/api/catalog/vdi-modules/active-by-name`),
+  listAll: async () => api.get<VdiModule[]>(`/api/catalog/vdi-modules`),
   listByIds: async (ids: string[], fields = "id,name,description,category") =>
-    ids.length ? unwrapList<VdiModule>(await cat().from("vdi_modules").select(fields).in("id", ids)) : [],
-  create: async (payload: Record<string, any>) => unwrap(await cat().from("vdi_modules").insert(payload)),
-  update: async (id: string, payload: Record<string, any>) =>
-    unwrap(await cat().from("vdi_modules").update(payload).eq("id", id)),
-  remove: async (id: string) => unwrap(await cat().from("vdi_modules").delete().eq("id", id)),
+    ids.length ? api.get<VdiModule[]>(`/api/catalog/vdi-modules/by-ids?ids=${ids.join(",")}&fields=${encodeURIComponent(fields)}`) : Promise.resolve([]),
+  create: async (payload: Record<string, any>) => api.post(`/api/catalog/vdi-modules`, payload),
+  update: async (id: string, payload: Record<string, any>) => api.patch(`/api/catalog/vdi-modules/${id}`, payload),
+  remove: async (id: string) => api.del(`/api/catalog/vdi-modules/${id}`),
 };
 
 export const vdiCatalog = {
-  listNames: async () =>
-    unwrapList<VdiCatalogEntry>(await cat().from("vdi_catalog").select("name,department,description").order("name")),
+  listNames: async () => api.get<VdiCatalogEntry[]>(`/api/catalog/vdi-catalog/names`),
 };
 
 export const services = {
-  list: async () => unwrapList<CatalogService>(await cat().from("services").select("*").order("category")),
-  /** Serviços que podem ser oferecidos ao cliente (ativos e NÃO internos). */
-  listClientFacing: async () =>
-    unwrapList<CatalogService>(await cat().from("services").select("id,name,description,category,unit").eq("active", true).eq("internal", false).order("category").order("name")),
+  list: async () => api.get<CatalogService[]>(`/api/catalog/services`),
+  listClientFacing: async () => api.get<CatalogService[]>(`/api/catalog/services/client-facing`),
   listByIds: async (ids: string[]) =>
-    ids.length ? unwrapList<CatalogService>(await cat().from("services").select("id,name,description,category,unit").in("id", ids)) : [],
-  listForProposals: async () =>
-    unwrapList<CatalogService>(await cat().from("services").select("id,name,unit,price_table,category").order("price_table", { ascending: false })),
-  create: async (payload: Record<string, any>) => unwrap(await cat().from("services").insert(payload)),
-  update: async (id: string, payload: Record<string, any>) =>
-    unwrap(await cat().from("services").update(payload).eq("id", id)),
-  remove: async (id: string) => unwrap(await cat().from("services").delete().eq("id", id)),
+    ids.length ? api.get<CatalogService[]>(`/api/catalog/services/by-ids?ids=${ids.join(",")}`) : Promise.resolve([]),
+  listForProposals: async () => api.get<CatalogService[]>(`/api/catalog/services/proposals`),
+  create: async (payload: Record<string, any>) => api.post(`/api/catalog/services`, payload),
+  update: async (id: string, payload: Record<string, any>) => api.patch(`/api/catalog/services/${id}`, payload),
+  remove: async (id: string) => api.del(`/api/catalog/services/${id}`),
 };
 
 export const catalog = { vdiModules, vdiCatalog, services };
