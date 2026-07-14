@@ -87,16 +87,74 @@ export default function ConsoleHealthCheck() {
           <div style={{ flex: 1 }}><h3 style={{ margin: 0 }}>{t("Presença global")}</h3><div className="csub" style={{ margin: 0 }}>{t("onde estão os clientes (mapa ilustrativo)")}</div></div>
           <span className="pill ok" style={{ marginLeft: "auto" }}><span className="d" />{total} {t("clientes ativos")}</span>
         </div>
-        <svg viewBox="0 0 1000 460" style={{ width: "100%", height: "auto", display: "block" }}>
-          <rect x="1" y="1" width="998" height="458" rx="16" fill="var(--crasto-bg-2)" stroke="var(--crasto-border-soft)" />
-          <g stroke="var(--crasto-border-soft)" strokeWidth="1"><line x1="0" y1="115" x2="1000" y2="115" /><line x1="0" y1="230" x2="1000" y2="230" /><line x1="0" y1="345" x2="1000" y2="345" /><line x1="250" y1="0" x2="250" y2="460" /><line x1="500" y1="0" x2="500" y2="460" /><line x1="750" y1="0" x2="750" y2="460" /></g>
-          <g fill="var(--crasto-text-faint)" opacity=".22"><ellipse cx="225" cy="140" rx="115" ry="72" /><ellipse cx="360" cy="305" rx="52" ry="92" /><ellipse cx="348" cy="70" rx="34" ry="24" /><ellipse cx="520" cy="120" rx="46" ry="32" /><ellipse cx="558" cy="255" rx="70" ry="95" /><ellipse cx="720" cy="150" rx="145" ry="82" /><ellipse cx="735" cy="245" rx="55" ry="46" /><ellipse cx="835" cy="330" rx="56" ry="38" /></g>
-          <g><circle cx="250" cy="135" r="6" fill="none" stroke="var(--crasto-text-muted)" strokeWidth="2" strokeDasharray="3 3" /><text x="250" y="118" textAnchor="middle" fontSize="13" fill="var(--crasto-text-muted)">EUA · {t("mercado futuro")}</text></g>
+        <svg viewBox="0 0 1000 500" style={{ width: "100%", height: "auto", display: "block" }}>
+          <rect x="0" y="0" width="1000" height="500" rx="16" fill="var(--crasto-bg-2)" stroke="var(--crasto-border-soft)" />
+          {/* Grid — latitude */}
+          <g stroke="var(--crasto-border-soft)" strokeWidth=".5" opacity=".5" strokeDasharray="4 3">
+            <line x1="30" y1="83" x2="970" y2="83" /><line x1="30" y1="167" x2="970" y2="167" />
+            <line x1="30" y1="250" x2="970" y2="250" /><line x1="30" y1="333" x2="970" y2="333" />
+            <line x1="30" y1="417" x2="970" y2="417" />
+          </g>
+          {/* Grid — longitude */}
+          <g stroke="var(--crasto-border-soft)" strokeWidth=".5" opacity=".5" strokeDasharray="4 3">
+            <line x1="83" y1="30" x2="83" y2="470" /><line x1="167" y1="30" x2="167" y2="470" />
+            <line x1="250" y1="30" x2="250" y2="470" /><line x1="333" y1="30" x2="333" y2="470" />
+            <line x1="417" y1="30" x2="417" y2="470" /><line x1="500" y1="30" x2="500" y2="470" />
+            <line x1="583" y1="30" x2="583" y2="470" /><line x1="667" y1="30" x2="667" y2="470" />
+            <line x1="750" y1="30" x2="750" y2="470" /><line x1="833" y1="30" x2="833" y2="470" />
+            <line x1="917" y1="30" x2="917" y2="470" />
+          </g>
+          {/* Continents */}
+          <g fill="#B8C9D9" stroke="#92A8BE" strokeWidth=".7" strokeLinejoin="round">
+            {/* North America */}
+            <path d="M 33,61 Q 38,78 45,94 L 58,92 Q 80,88 105,86 L 125,88 Q 138,95 147,108 Q 152,116 155,128 Q 157,138 160,147 Q 165,156 175,168 Q 185,178 195,186 Q 202,192 215,198 Q 228,203 242,208 L 250,211 Q 258,215 267,220 L 275,225 L 278,228 Q 275,220 270,214 L 262,208 Q 258,200 260,194 L 258,192 Q 252,188 244,184 L 236,180 Q 242,174 250,170 Q 258,168 266,169 Q 270,173 275,181 Q 279,173 283,162 Q 287,152 292,144 Q 296,138 305,133 Q 316,128 332,126 Q 342,124 353,119 Q 346,106 336,98 Q 315,84 292,78 Q 265,70 238,65 Q 205,60 175,57 Q 145,55 115,55 Q 85,55 60,55 Z" />
+            {/* Greenland */}
+            <path d="M 358,40 Q 353,48 352,58 Q 355,68 365,72 Q 375,74 385,70 Q 395,64 398,54 Q 398,45 392,40 Q 382,36 370,37 Z" />
+            {/* South America */}
+            <path d="M 278,228 Q 290,222 308,217 Q 322,213 336,214 Q 345,218 352,228 Q 358,242 363,258 Q 367,278 370,300 Q 370,318 367,335 Q 360,352 350,367 Q 338,380 322,388 Q 310,393 300,390 Q 288,382 278,367 Q 270,348 266,328 Q 262,305 261,282 Q 261,260 264,242 Q 268,233 274,230 Z" />
+            {/* Europe */}
+            <path d="M 467,55 Q 462,68 460,82 Q 460,92 464,100 Q 468,108 475,114 Q 482,118 492,119 Q 503,118 514,114 Q 525,108 536,105 Q 542,104 546,108 Q 544,114 538,122 Q 530,130 522,136 Q 514,140 506,140 Q 498,138 490,142 Q 480,148 472,155 Q 466,150 460,144 Q 455,134 454,122 Q 454,108 458,94 Q 462,78 467,55 Z" />
+            {/* UK & Ireland */}
+            <path d="M 462,95 Q 458,102 456,110 Q 457,118 462,118 Q 466,114 468,108 Q 468,100 465,96 Z" />
+            <path d="M 455,100 Q 452,106 453,112 Q 456,112 457,108 Q 457,103 455,100 Z" />
+            {/* Iceland */}
+            <path d="M 440,68 Q 436,72 436,78 Q 438,82 444,82 Q 450,80 451,75 Q 450,70 446,68 Z" />
+            {/* Africa */}
+            <path d="M 472,158 Q 485,155 500,152 Q 518,149 535,150 Q 553,152 570,156 Q 583,160 592,167 Q 590,178 592,192 Q 598,205 610,214 Q 622,220 636,225 Q 630,242 622,262 Q 615,280 608,298 Q 600,316 590,332 Q 578,345 564,352 Q 548,356 536,350 Q 526,340 519,325 Q 514,308 510,288 Q 506,268 503,250 Q 499,235 492,224 Q 482,217 470,214 Q 460,212 454,208 Q 456,198 462,185 Q 468,172 472,162 Z" />
+            {/* Madagascar */}
+            <path d="M 610,312 Q 615,306 620,314 Q 620,328 616,338 Q 612,340 608,332 Q 607,322 610,312 Z" />
+            {/* Asia */}
+            <path d="M 548,55 Q 550,70 554,85 Q 560,96 570,100 Q 582,98 598,92 Q 618,86 642,82 Q 668,78 698,76 Q 728,76 758,80 Q 785,85 810,90 Q 830,92 845,90 Q 858,94 870,103 Q 882,115 892,130 Q 898,145 896,158 Q 890,168 878,175 Q 864,180 848,186 Q 835,192 824,200 Q 815,208 806,218 Q 798,224 788,226 Q 776,228 766,235 Q 758,244 754,255 Q 748,248 740,238 Q 732,230 722,228 Q 714,232 708,244 Q 702,254 697,258 Q 690,250 684,238 Q 676,224 665,215 Q 652,208 638,200 Q 622,192 608,182 Q 596,174 584,166 Q 574,160 565,155 Q 558,150 554,142 Q 550,132 549,118 Q 548,105 548,88 Z" />
+            {/* Japan */}
+            <path d="M 880,122 Q 884,130 884,140 Q 882,150 878,156 Q 874,152 872,144 Q 872,134 876,126 Z" />
+            {/* Sri Lanka */}
+            <path d="M 702,226 Q 708,228 708,234 Q 706,238 702,236 Q 698,232 700,228 Z" />
+            {/* Sumatra/Malaysia */}
+            <path d="M 758,252 Q 768,248 780,250 Q 788,254 795,260 Q 790,266 780,266 Q 770,264 762,258 Z" />
+            {/* Borneo */}
+            <path d="M 802,250 Q 812,246 822,250 Q 826,258 822,266 Q 814,270 806,266 Q 800,260 802,250 Z" />
+            {/* Papua */}
+            <path d="M 870,262 Q 880,258 892,260 Q 898,266 894,274 Q 886,278 878,274 Q 872,268 870,262 Z" />
+            {/* Australia */}
+            <path d="M 842,298 Q 856,290 874,286 Q 894,284 910,290 Q 922,298 928,312 Q 928,328 920,342 Q 910,354 896,360 Q 880,362 866,358 Q 852,350 846,338 Q 842,324 840,310 Z" />
+            {/* New Zealand */}
+            <path d="M 944,356 Q 948,362 948,372 Q 946,380 942,382 Q 938,376 938,366 Q 940,360 944,356 Z" />
+            <path d="M 940,384 Q 944,388 942,394 Q 940,396 936,392 Q 936,388 940,384 Z" />
+          </g>
+          {/* Labels — EUA (mercado futuro) */}
           <g>
-            <circle cx="368" cy="292" r="16" fill="none" stroke="var(--crasto-navy)" strokeOpacity="0.45"><animate attributeName="r" values="10;26;10" dur="2.6s" repeatCount="indefinite" /><animate attributeName="stroke-opacity" values="0.5;0;0.5" dur="2.6s" repeatCount="indefinite" /></circle>
-            <circle cx="368" cy="292" r="7" fill="var(--crasto-navy)" />
-            <text x="368" y="332" textAnchor="middle" fontSize="15" fill="var(--crasto-text-primary)" fontWeight="600">{t("São Paulo")} · BR</text>
-            <text x="368" y="350" textAnchor="middle" fontSize="12" fill="var(--crasto-text-muted)">{total} {t("clientes")} · {agentsTotal} {t("agentes")}</text>
+            <circle cx="220" cy="140" r="5" fill="none" stroke="var(--crasto-text-muted)" strokeWidth="1.5" strokeDasharray="2 2" opacity=".6" />
+            <text x="220" y="128" textAnchor="middle" fontSize="11" fill="var(--crasto-text-muted)" opacity=".7">EUA · {t("mercado futuro")}</text>
+          </g>
+          {/* São Paulo marker */}
+          <g>
+            <circle cx="370" cy="315" r="18" fill="none" stroke="var(--crasto-navy)" strokeOpacity="0.4">
+              <animate attributeName="r" values="10;28;10" dur="2.6s" repeatCount="indefinite" />
+              <animate attributeName="stroke-opacity" values="0.5;0;0.5" dur="2.6s" repeatCount="indefinite" />
+            </circle>
+            <circle cx="370" cy="315" r="6" fill="var(--crasto-navy)" />
+            <text x="370" y="342" textAnchor="middle" fontSize="14" fill="var(--crasto-text-primary)" fontWeight="600">{t("São Paulo")} · BR</text>
+            <text x="370" y="358" textAnchor="middle" fontSize="11.5" fill="var(--crasto-text-muted)">{total} {t("clientes")} · {agentsTotal} {t("agentes")}</text>
           </g>
         </svg>
       </div>
