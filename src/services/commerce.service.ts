@@ -1,25 +1,23 @@
 // ============================================================================
-// Bounded context: COMMERCE (schema commerce) — propostas e itens de proposta.
+// Bounded context: COMMERCE — propostas, itens de proposta, contratos.
+// DADO passa pela Portal API (middle-end) — o cliente NUNCA fala direto com o banco.
+// Geração de contrato (.docx), envio Autentique e IA da proposta ficam em Edge Functions.
 // ============================================================================
 import { supabase } from "../lib/supabase";
-import { unwrap, unwrapList } from "./core/result";
+import { api } from "../lib/api";
 import type { Proposal } from "./core/types";
-
-const com = () => supabase.schema("commerce");
 
 export const proposals = {
   /** Cria a proposta e retorna o registro (com id) para inserir os itens. */
-  create: async (payload: Record<string, any>) =>
-    unwrap(await com().from("proposals").insert(payload).select("*").single()) as unknown as Proposal,
+  create: async (payload: Record<string, any>) => api.post<Proposal>(`/api/commerce/proposals`, payload),
   /** Propostas de um cliente (para o admin marcar como ganha). */
-  listByOrg: async (orgId: string) =>
-    unwrapList<Record<string, any>>(await com().from("proposals").select("id,title,subtotal,status,accepted_at,connector_id,created_at").eq("organization_id", orgId).order("created_at", { ascending: false })),
-  /** Marca a proposta como GANHA (liga MRR + plano + comissão). */
-  accept: async (proposal_id: string) => unwrap(await supabase.rpc("admin_accept_proposal", { p_proposal_id: proposal_id })),
+  listByOrg: async (orgId: string) => api.get<Record<string, any>[]>(`/api/commerce/proposals?org=${orgId}`),
+  /** Marca a proposta como GANHA (liga MRR + plano + comissão) — RPC no servidor. */
+  accept: async (proposal_id: string) => api.post(`/api/commerce/proposals/${proposal_id}/accept`),
   /** Reabre (desfaz o ganho). */
-  reopen: async (proposal_id: string) => unwrap(await supabase.rpc("admin_reopen_proposal", { p_proposal_id: proposal_id })),
-  addItems: async (rows: Record<string, any>[]) =>
-    rows.length ? unwrap(await com().from("proposal_items").insert(rows)) : null,
+  reopen: async (proposal_id: string) => api.post(`/api/commerce/proposals/${proposal_id}/reopen`),
+  addItems: async (rows: Record<string, any>[]) => (rows.length ? api.post(`/api/commerce/proposal-items`, rows) : Promise.resolve(null)),
+
   /** Gera o contrato .docx (molde do jurídico) e devolve link de download. */
   generateContract: async (proposal_id: string): Promise<{ ok: boolean; download_url?: string; filename?: string; error?: string }> => {
     const { data, error } = await supabase.functions.invoke("contract-generate", { body: { proposal_id } });
@@ -34,7 +32,6 @@ export const proposals = {
   },
   /** Chat/voz: interpreta uma instrução via ponte de IA (Claude Max). */
   ai: async (instruction: string, context: unknown): Promise<{ ok: boolean; offline?: boolean; reply?: string; actions?: any[]; error?: string }> => {
-    // timeout de segurança: o chat nunca fica preso "Pensando" para sempre
     const invoke = supabase.functions.invoke("proposal-ai", { body: { instruction, context } });
     const timeout = new Promise<{ __timeout: true }>((r) => setTimeout(() => r({ __timeout: true }), 75000));
     const res: any = await Promise.race([invoke, timeout]);
