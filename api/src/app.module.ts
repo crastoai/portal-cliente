@@ -9,11 +9,12 @@ import { CommerceModule } from './commerce/commerce.module';
 import { SupportModule } from './support/support.module';
 import { AutomationModule } from './automation/automation.module';
 import { BillingModule } from './billing/billing.module';
+import { FinanceModule } from './finance/finance.module';
 
 // Middle-end do Portal do Cliente. Contextos DDD entram como módulos, incrementalmente:
 // identity → delivery → catalog → crm → commerce → support → automation → finance → billing → analytics.
 @Module({
-  imports: [CommonModule, IdentityModule, DeliveryModule, CatalogModule, CrmModule, CommerceModule, SupportModule, AutomationModule, BillingModule],
+  imports: [CommonModule, IdentityModule, DeliveryModule, CatalogModule, CrmModule, CommerceModule, SupportModule, AutomationModule, BillingModule, FinanceModule],
   controllers: [HealthController],
 })
 export class AppModule {}

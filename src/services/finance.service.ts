@@ -1,51 +1,39 @@
 // ============================================================================
-// Bounded context: FINANCE (schema finance — NÃO exposto) — Contas a Pagar/Receber
-// da Crasto.AI. 🔒 Admin-only: todo acesso via RPC SECURITY DEFINER (is_crasto_admin).
+// Bounded context: FINANCE (schema finance — NÃO exposto) — Contas a Pagar/Receber,
+// custos, tesouraria e custo de IA da Crasto.AI. 🔒 Admin-only.
+// DADO passa pela Portal API (middle-end, AdminGuard) — o cliente NUNCA fala direto
+// com o banco. As RPCs SECURITY DEFINER revalidam is_crasto_admin no servidor.
 // ============================================================================
-import { supabase } from "../lib/supabase";
-import { unwrap } from "./core/result";
+import { api } from "../lib/api";
+
+const qs = (o: Record<string, any>) => {
+  const p = Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== "").map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`);
+  return p.length ? `?${p.join("&")}` : "";
+};
 
 export const accounts = {
-  /** Lista contas por tipo ('payable' | 'receivable') e status opcional. */
-  list: async (type?: "payable" | "receivable", status?: string): Promise<any[]> => {
-    const { data, error } = await supabase.rpc("fin_accounts", { p_type: type ?? null, p_status: status ?? null });
-    if (error) throw error;
-    return (data as any[]) ?? [];
-  },
-  save: async (p: Record<string, any>) => unwrap(await supabase.rpc("fin_account_upsert", { p })),
-  remove: async (id: string) => unwrap(await supabase.rpc("fin_account_delete", { p_id: id })),
+  list: async (type?: "payable" | "receivable", status?: string): Promise<any[]> => api.get<any[]>(`/api/finance/accounts${qs({ type, status })}`),
+  save: async (p: Record<string, any>) => api.post(`/api/finance/accounts`, p),
+  remove: async (id: string) => api.del(`/api/finance/accounts/${id}`),
 };
 
 export const costs = {
-  list: async (active?: boolean): Promise<any[]> => {
-    const { data, error } = await supabase.rpc("fin_costs", { p_active: active ?? null });
-    if (error) throw error;
-    return (data as any[]) ?? [];
-  },
-  save: async (p: Record<string, any>) => unwrap(await supabase.rpc("fin_cost_upsert", { p })),
-  remove: async (id: string) => unwrap(await supabase.rpc("fin_cost_delete", { p_id: id })),
+  list: async (active?: boolean): Promise<any[]> => api.get<any[]>(`/api/finance/costs${qs({ active })}`),
+  save: async (p: Record<string, any>) => api.post(`/api/finance/costs`, p),
+  remove: async (id: string) => api.del(`/api/finance/costs/${id}`),
 };
 
 export const transactions = {
-  /** Lista lançamentos de tesouraria por tipo ('income' | 'expense') e status opcional. */
-  list: async (type?: "income" | "expense", status?: string): Promise<any[]> => {
-    const { data, error } = await supabase.rpc("fin_transactions", { p_type: type ?? null, p_status: status ?? null });
-    if (error) throw error;
-    return (data as any[]) ?? [];
-  },
-  save: async (p: Record<string, any>) => unwrap(await supabase.rpc("fin_transaction_upsert", { p })),
-  remove: async (id: string) => unwrap(await supabase.rpc("fin_transaction_delete", { p_id: id })),
+  list: async (type?: "income" | "expense", status?: string): Promise<any[]> => api.get<any[]>(`/api/finance/transactions${qs({ type, status })}`),
+  save: async (p: Record<string, any>) => api.post(`/api/finance/transactions`, p),
+  remove: async (id: string) => api.del(`/api/finance/transactions/${id}`),
 };
 
 export const aiCost = {
   /** Painel completo de custo de IA (resumo + por plataforma + por cliente + linhas) no período. 🔒 admin. */
-  panel: async (from?: string, to?: string): Promise<any> => {
-    const { data, error } = await supabase.rpc("admin_ai_cost", { p_from: from ?? null, p_to: to ?? null });
-    if (error) throw error;
-    return data ?? {};
-  },
-  save: async (p: Record<string, any>) => unwrap(await supabase.rpc("fin_ai_cost_upsert", { p })),
-  remove: async (id: string) => unwrap(await supabase.rpc("fin_ai_cost_delete", { p_id: id })),
+  panel: async (from?: string, to?: string): Promise<any> => api.get<any>(`/api/finance/ai-cost${qs({ from, to })}`),
+  save: async (p: Record<string, any>) => api.post(`/api/finance/ai-cost`, p),
+  remove: async (id: string) => api.del(`/api/finance/ai-cost/${id}`),
 };
 
 export const finance = { accounts, costs, transactions, aiCost };
