@@ -1,32 +1,25 @@
 // ============================================================================
-// Bounded context: SUPPORT (schema support) — tickets e ações pendentes.
-// Leituras "mine" via RLS do usuário logado.
+// Bounded context: SUPPORT — tickets, ações pendentes, incidentes, notificações.
+// DADO passa pela Portal API (middle-end) — o cliente NUNCA fala direto com o banco.
+// Abrir chamado e notificar cliente ficam em Edge Functions (server-side).
 // ============================================================================
 import { supabase } from "../lib/supabase";
-import { unwrap, unwrapList } from "./core/result";
-import { scopeMine } from "./core/scope";
+import { api } from "../lib/api";
 import type { Ticket, PendingAction } from "./core/types";
 
-const sup = () => supabase.schema("support");
-
 export const tickets = {
-  listMine: async () =>
-    unwrapList<Ticket>(await scopeMine(sup().from("tickets").select("id,subject,status").order("created_at", { ascending: false }))),
-  /** Abre um chamado (kind='support') ou solicitação de implantação (kind='implementation_request'). */
+  listMine: async () => api.get<Ticket[]>(`/api/support/tickets/mine`),
+  /** Abre um chamado (kind='support') ou solicitação de implantação — Edge Function. */
   open: async (body: { subject: string; description?: string; kind?: string }): Promise<{ ok: boolean; number?: string; notified?: boolean; confirmed?: boolean; error?: string }> => {
     const { data, error } = await supabase.functions.invoke("client-support-ticket", { body });
     if (error) return { ok: false, error: error.message };
     return (data as any) ?? { ok: false, error: "sem resposta do servidor" };
   },
-  /** Admin: chamados por tipo (kind='support' | 'implementation_request'). RLS admin = tudo. */
-  listAll: async (kind?: string) => {
-    let qb = sup().from("tickets").select("id,subject,description,status,organization_id,created_at,kind").order("created_at", { ascending: false });
-    if (kind) qb = qb.eq("kind", kind);
-    return unwrapList<Record<string, any>>(await qb);
-  },
+  /** Admin: chamados por tipo (RLS admin = tudo). */
+  listAll: async (kind?: string) => api.get<Record<string, any>[]>(`/api/support/tickets${kind ? `?kind=${encodeURIComponent(kind)}` : ""}`),
   /** Admin: muda o status do chamado. */
-  setStatus: async (id: string, status: string) => unwrap(await sup().from("tickets").update({ status }).eq("id", id)),
-  /** Admin: avisa o cliente por e-mail (template='resolved' | 'received') e atualiza o status (edge). */
+  setStatus: async (id: string, status: string) => api.patch(`/api/support/tickets/${id}/status`, { status }),
+  /** Admin: avisa o cliente por e-mail e atualiza o status — Edge Function. */
   notify: async (ticketId: string, template: "resolved" | "received"): Promise<{ ok: boolean; status?: string; email?: string; email_sent?: boolean; email_error?: string; error?: string }> => {
     const { data, error } = await supabase.functions.invoke("admin-ticket-notify", { body: { ticket_id: ticketId, template } });
     if (error) return { ok: false, error: error.message };
@@ -35,8 +28,7 @@ export const tickets = {
 };
 
 export const pendingActions = {
-  listMine: async () =>
-    unwrapList<PendingAction>(await scopeMine(sup().from("pending_actions").select("id,type,description,status").order("status", { ascending: false }))),
+  listMine: async () => api.get<PendingAction[]>(`/api/support/pending-actions/mine`),
 };
 
 export const support = { tickets, pendingActions };
