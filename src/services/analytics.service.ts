@@ -3,11 +3,13 @@
 // via funções SECURITY DEFINER no Postgres (search_path travado + checagem de admin).
 // A UI chama nomes de negócio, nunca o nome cru do RPC.
 // ============================================================================
-import { supabase } from "../lib/supabase";
-import { unwrap } from "./core/result";
+import { api } from "../lib/api";
 
+// TODAS as RPCs de analytics passam pela Portal API (middle-end) — o cliente NUNCA fala
+// direto com o banco. O proxy no servidor tem whitelist e roda a RPC em asUser; cada RPC
+// SECURITY DEFINER revalida admin/escopo. A UI segue chamando os mesmos nomes de negócio.
 async function rpc<T>(name: string, params?: Record<string, any>): Promise<T> {
-  return unwrap(await supabase.rpc(name, params)) as unknown as T;
+  return api.post<T>("/api/analytics/rpc", { name, params: params ?? {} });
 }
 
 // ---- Admin (Crasto) ----
