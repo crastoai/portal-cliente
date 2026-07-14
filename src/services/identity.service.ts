@@ -1,13 +1,15 @@
 // ============================================================================
-// Bounded context: IDENTITY (schema public) — organizações, perfis, conectores.
-// Toda leitura/escrita de tenancy e RBAC do lado do cliente passa por aqui.
+// Bounded context: IDENTITY — organizações, perfis, conectores.
+// DADO passa pela Portal API (middle-end) — o cliente NUNCA fala direto com o banco.
+// Ficam no cliente só o que é do Supabase por natureza: Auth (login/senha),
+// Storage (upload de avatar) e Edge Functions (criação/convite de usuário).
 // ============================================================================
 import { supabase } from "../lib/supabase";
-import { unwrap, unwrapList, ServiceError } from "./core/result";
+import { api } from "../lib/api";
+import { ServiceError } from "./core/result";
 import type { Organization, Profile, Connector } from "./core/types";
 
-// Invoca uma Edge Function com 1 retry em falha de REDE (ex.: função reiniciando após
-// deploy → "Failed to send a request"). Não trata erro de negócio (que volta em data.ok=false).
+// Invoca uma Edge Function com 1 retry em falha de REDE (função reiniciando após deploy).
 async function invokeRetry(name: string, body: unknown) {
   let res = await supabase.functions.invoke(name, { body });
   if (res.error) {
@@ -17,14 +19,12 @@ async function invokeRetry(name: string, body: unknown) {
   return res;
 }
 
-// Fluxo nativo de senha do Supabase (recovery seguro) — usado nas telas de login/reset.
+// Fluxo nativo de senha do Supabase (recovery seguro) — fica no cliente (Auth).
 export const auth = {
-  /** Envia o e-mail de redefinição (branded, via Resend/SMTP configurado no Auth). */
   requestReset: async (email: string) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/nova-senha` });
     if (error) throw new ServiceError(error.message);
   },
-  /** Define a nova senha e limpa a flag de troca obrigatória. */
   updatePassword: async (password: string) => {
     const { error } = await supabase.auth.updateUser({ password, data: { must_change_password: false } });
     if (error) throw new ServiceError(error.message);
@@ -32,63 +32,49 @@ export const auth = {
 };
 
 export const organizations = {
-  getById: async (id: string) =>
-    unwrap(await supabase.from("organizations").select("*").eq("id", id).maybeSingle()) as unknown as Organization | null,
-  listBrief: async () =>
-    unwrapList<{ id: string; name: string }>(await supabase.from("organizations").select("id,name").order("name")),
-  listForProposals: async () =>
-    unwrapList<{ id: string; name: string; cnpj: string | null }>(
-      await supabase.from("organizations").select("id,name,cnpj").order("name")),
-  update: async (id: string, patch: Partial<Organization> | Record<string, any>) =>
-    unwrap(await supabase.from("organizations").update(patch).eq("id", id)),
-  /** Cliente (dono) edita os próprios dados cadastrais — via RPC whitelisted (jsonb; não toca em plano/status). */
-  updateMine: async (p: Record<string, any>) =>
-    unwrap(await supabase.rpc("update_my_org", { p })),
-  /** Contato principal (ddi + número) da própria org, para pré-preencher o perfil. */
-  myContact: async (): Promise<{ ddi: string | null; number: string | null } | null> => {
-    const { data, error } = await supabase.rpc("my_org_contact");
-    if (error) return null;
-    return (data as any[])?.[0] ?? null;
-  },
-  setStage: async (id: string, stage: string) =>
-    unwrap(await supabase.from("organizations").update({ stage }).eq("id", id)),
-  create: async (payload: Record<string, any>) =>
-    unwrap(await supabase.from("organizations").insert(payload).select("id,name").single()) as unknown as { id: string; name: string },
+  getById: async (id: string) => api.get<Organization | null>(`/api/identity/org/${id}`),
+  listBrief: async () => api.get<{ id: string; name: string }[]>(`/api/identity/organizations/brief`),
+  listForProposals: async () => api.get<{ id: string; name: string; cnpj: string | null }[]>(`/api/identity/organizations/proposals`),
+  update: async (id: string, patch: Partial<Organization> | Record<string, any>) => api.patch(`/api/identity/org/${id}`, patch),
+  /** Cliente (dono) edita os próprios dados cadastrais — RPC whitelisted no servidor. */
+  updateMine: async (p: Record<string, any>) => api.post(`/api/identity/org/mine`, p),
+  /** Contato principal (ddi + número) da própria org. */
+  myContact: async (): Promise<{ ddi: string | null; number: string | null } | null> =>
+    api.get<{ ddi: string | null; number: string | null } | null>(`/api/identity/org/mine/contact`).catch(() => null),
+  setStage: async (id: string, stage: string) => api.patch(`/api/identity/org/${id}/stage`, { stage }),
+  create: async (payload: Record<string, any>) => api.post<{ id: string; name: string }>(`/api/identity/organizations`, payload),
 };
 
-/** CNPJs da empresa (matriz + filiais). Cliente lê/edita via RPC; admin lê direto. */
+/** CNPJs da empresa (matriz + filiais). */
 export const cnpjs = {
-  mine: async (): Promise<any[]> => { const { data, error } = await supabase.rpc("my_cnpjs"); if (error) throw error; return (data as any[]) ?? []; },
-  save: async (p: Record<string, any>) => unwrap(await supabase.rpc("save_my_cnpj", { p })),
-  remove: async (id: string) => unwrap(await supabase.rpc("delete_my_cnpj", { p_id: id })),
-  listByOrg: async (orgId: string) => unwrapList<any>(await supabase.schema("crm").from("company_cnpjs").select("*").eq("organization_id", orgId).order("is_headquarters", { ascending: false })),
-  /** Admin gerencia os registros legais de uma org (via RPC admin, escopo explícito). */
-  adminSave: async (p: Record<string, any>) => unwrap(await supabase.rpc("admin_registration_upsert", { p })),
-  adminRemove: async (id: string) => unwrap(await supabase.rpc("admin_registration_delete", { p_id: id })),
+  mine: async (): Promise<any[]> => api.get<any[]>(`/api/identity/cnpjs/mine`),
+  save: async (p: Record<string, any>) => api.post(`/api/identity/cnpjs`, p),
+  remove: async (id: string) => api.del(`/api/identity/cnpjs/${id}`),
+  listByOrg: async (orgId: string) => api.get<any[]>(`/api/identity/cnpjs/org/${orgId}`),
+  adminSave: async (p: Record<string, any>) => api.post(`/api/identity/cnpjs/admin`, p),
+  adminRemove: async (id: string) => api.del(`/api/identity/cnpjs/admin/${id}`),
 };
 
-/** Sócios da empresa. Cliente via RPC (owner-only); admin lê direto. */
+/** Sócios da empresa. */
 export const partners = {
-  mine: async (): Promise<any[]> => { const { data, error } = await supabase.rpc("my_partners"); if (error) throw error; return (data as any[]) ?? []; },
-  save: async (p: Record<string, any>) => unwrap(await supabase.rpc("save_my_partner", { p })),
-  remove: async (id: string) => unwrap(await supabase.rpc("delete_my_partner", { p_id: id })),
-  listByOrg: async (orgId: string) => unwrapList<any>(await supabase.schema("crm").from("company_partners").select("*").eq("organization_id", orgId).order("is_ceo", { ascending: false })),
+  mine: async (): Promise<any[]> => api.get<any[]>(`/api/identity/partners/mine`),
+  save: async (p: Record<string, any>) => api.post(`/api/identity/partners`, p),
+  remove: async (id: string) => api.del(`/api/identity/partners/${id}`),
+  listByOrg: async (orgId: string) => api.get<any[]>(`/api/identity/partners/org/${orgId}`),
 };
 
-/** Documentos do cliente (qualquer usuário da org). Registro via RPC; arquivo via storage R2. */
+/** Documentos do cliente. Registro via API; arquivo via storage (abaixo). */
 export const clientDocs = {
-  mine: async (): Promise<any[]> => { const { data, error } = await supabase.rpc("my_documents"); if (error) throw error; return (data as any[]) ?? []; },
-  add: async (p: { kind?: string; file_name: string; storage_path: string }) => unwrap(await supabase.rpc("add_my_document", { p })),
-  remove: async (id: string): Promise<string | null> => { const { data, error } = await supabase.rpc("delete_my_document", { p_id: id }); if (error) throw error; return (data as string) ?? null; },
+  mine: async (): Promise<any[]> => api.get<any[]>(`/api/identity/docs/mine`),
+  add: async (p: { kind?: string; file_name: string; storage_path: string }) => api.post(`/api/identity/docs`, p),
+  remove: async (id: string): Promise<string | null> => api.del<string | null>(`/api/identity/docs/${id}`),
 };
 
 export const profiles = {
-  getById: async (uid: string) =>
-    unwrap(await supabase.from("profiles").select("*").eq("id", uid).single()) as unknown as Profile,
-  listByOrg: async (orgId: string) =>
-    unwrapList<Profile>(await supabase.from("profiles").select("id,full_name,email,role,avatar_url").eq("organization_id", orgId)),
-  update: async (uid: string, patch: Record<string, any>) => unwrap(await supabase.from("profiles").update(patch).eq("id", uid)),
-  /** Sobe a foto de perfil (bucket público `avatars/<uid>/…`), grava a URL no profile e devolve a URL. */
+  getById: async (uid: string) => api.get<Profile>(`/api/identity/profiles/${uid}`),
+  listByOrg: async (orgId: string) => api.get<Profile[]>(`/api/identity/profiles?org=${orgId}`),
+  update: async (uid: string, patch: Record<string, any>) => api.patch(`/api/identity/profiles/${uid}`, patch),
+  /** Sobe a foto (Storage do Supabase) e grava a URL no profile via API. */
   uploadAvatar: async (uid: string, file: File): Promise<string> => {
     const ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
     const path = `${uid}/avatar.${ext}`;
@@ -96,25 +82,23 @@ export const profiles = {
     if (up.error) throw up.error;
     const pub = supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
     const url = `${pub}?v=${Date.now()}`;
-    await supabase.from("profiles").update({ avatar_url: url }).eq("id", uid);
+    await api.patch(`/api/identity/profiles/${uid}`, { avatar_url: url });
     return url;
   },
 };
 
 export const users = {
-  /** Cria o login do responsável via Edge Function `admin-create-user` (+ envia e-mail de boas-vindas). */
+  /** Cria o login do responsável via Edge Function (server-side; + e-mail de boas-vindas). */
   create: async (body: { email: string; full_name: string; organization_id: string; role: string; password?: string }): Promise<{ ok: boolean; email?: string; password?: string; error?: string; email_sent?: boolean; email_error?: string }> => {
     const { data, error } = await invokeRetry("admin-create-user", body);
     if (error) return { ok: false, error: error.message };
     return (data as any) ?? { ok: false, error: "sem resposta do servidor" };
   },
-  /** Cliente (dono) convida um membro da própria organização + e-mail de acesso. */
   invite: async (body: { email: string; full_name?: string; role?: string }): Promise<{ ok: boolean; email_sent?: boolean; email_error?: string; error?: string }> => {
     const { data, error } = await invokeRetry("client-invite-user", body);
     if (error) return { ok: false, error: error.message };
     return (data as any) ?? { ok: false, error: "sem resposta do servidor" };
   },
-  /** Redefine a senha de um usuário existente e REENVIA o e-mail de acesso branded. */
   resendAccess: async (body: { user_id: string; email: string; full_name?: string; password?: string }): Promise<{ ok: boolean; email?: string; password?: string; email_sent?: boolean; email_error?: string; error?: string }> => {
     const { data, error } = await invokeRetry("admin-resend-access", body);
     if (error) return { ok: false, error: error.message };
@@ -123,7 +107,6 @@ export const users = {
 };
 
 export const clients = {
-  /** Exclui organização + logins + dados via Edge Function `admin-delete-client` (atômico). */
   remove: async (orgId: string): Promise<{ ok: boolean; error?: string }> => {
     const { data, error } = await invokeRetry("admin-delete-client", { organization_id: orgId });
     if (error) return { ok: false, error: error.message };
@@ -132,20 +115,15 @@ export const clients = {
 };
 
 export const connectors = {
-  list: async () => unwrapList<Connector>(await supabase.from("connectors").select("*").order("name")),
-  create: async (payload: Record<string, any>) => unwrap(await supabase.from("connectors").insert(payload)),
-  update: async (id: string, payload: Record<string, any>) =>
-    unwrap(await supabase.from("connectors").update(payload).eq("id", id)),
-  remove: async (id: string) => unwrap(await supabase.from("connectors").delete().eq("id", id)),
+  list: async () => api.get<Connector[]>(`/api/identity/connectors`),
+  create: async (payload: Record<string, any>) => api.post(`/api/identity/connectors`, payload),
+  update: async (id: string, payload: Record<string, any>) => api.patch(`/api/identity/connectors/${id}`, payload),
+  remove: async (id: string) => api.del(`/api/identity/connectors/${id}`),
 };
 
-/** Telas que o usuário logado pode ver no portal (['*'] = todas). Base do menu por permissão. */
+/** Telas que o usuário logado pode ver (['*'] = todas). Base do menu por permissão. */
 export const access = {
-  myScreens: async (): Promise<string[] | null> => {
-    const { data, error } = await supabase.rpc("my_screens");
-    if (error) return null;
-    return (data as string[]) ?? null;
-  },
+  myScreens: async (): Promise<string[] | null> => api.get<string[] | null>(`/api/identity/screens`).catch(() => null),
 };
 
 export const identity = { organizations, profiles, users, clients, connectors, auth, cnpjs, partners, clientDocs, access };
