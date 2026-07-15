@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, Logger } from '@ne
 import { RlsDbService } from '../common/rls-db.service';
 import { EmailService } from '../common/email.service';
 import { IdpService } from '../common/idp.service';
+import { AuditService } from '../common/audit.service';
 import { crmInviteNewUser, crmInviteExistingUser } from '../common/email-templates';
 
 // Acesso do cliente ao WhatsApp CRM.
@@ -22,7 +23,7 @@ export class CrmAccessService {
   private log = new Logger('CrmAccess');
   private readonly crmApi = process.env.CRM_API_URL || '';
   private readonly crmWeb = process.env.CRM_WEB_URL || '';
-  constructor(private readonly db: RlsDbService, private readonly email: EmailService, private readonly idp: IdpService) {}
+  constructor(private readonly db: RlsDbService, private readonly email: EmailService, private readonly idp: IdpService, private readonly audit: AuditService) {}
 
   // ---- infra ---------------------------------------------------------------
 
@@ -91,7 +92,7 @@ export class CrmAccessService {
   }
 
   /** Vincula o agente do CRM que atende este módulo. Valida que o agente é DESTA org. */
-  async linkAgent(orgId: string, auth: string, agentId: string | null) {
+  async linkAgent(req: any, orgId: string, auth: string, agentId: string | null) {
     const mod = await this.requireModule(orgId);
     if (agentId) {
       const detail = await this.crm(`/admin/client/${orgId}`, auth);
@@ -99,6 +100,7 @@ export class CrmAccessService {
         throw new BadRequestException('Este agente não pertence a este cliente.');
     }
     await this.db.asService((c) => c.query(`update delivery.client_modules set crm_agent_id=$2, updated_at=now() where id=$1`, [mod.id, agentId]));
+    await this.audit.log(req, 'crm_agent_linked', { targetType: 'agent', targetId: agentId, org: orgId, system: 'crm', ctx: { modulo: mod.name } });
     return { ok: true, agent_id: agentId };
   }
 
@@ -109,7 +111,7 @@ export class CrmAccessService {
    * 1) identidade no Portal → 2) acesso no CRM → 3) e-mail.
    * Se o e-mail falhar o acesso continua válido (o admin reenvia) — nunca o contrário.
    */
-  async invite(orgId: string, auth: string, b: { email?: string; full_name?: string; role?: string }) {
+  async invite(req: any, orgId: string, auth: string, b: { email?: string; full_name?: string; role?: string }) {
     await this.requireModule(orgId);
     const email = String(b.email || '').trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new BadRequestException('E-mail inválido.');
@@ -135,11 +137,15 @@ export class CrmAccessService {
 
     // 3) aviso
     const sent = await this.notify(email, b.full_name || user?.full_name, await this.orgName(orgId), link);
+    await this.audit.log(req, 'crm_access_granted', {
+      targetType: 'user', targetId: uid, org: orgId, system: 'crm',
+      ctx: { email, papel: role, link_de_senha: !!link, email_enviado: sent.ok },
+    });
     return { user, email_sent: sent.ok, email_error: sent.error, password_link_sent: !!link };
   }
 
   /** Reenvia o convite (link novo — o anterior morre). Não mexe no acesso já concedido. */
-  async resend(orgId: string, auth: string, userId: string) {
+  async resend(req: any, orgId: string, auth: string, userId: string) {
     await this.requireModule(orgId);
     const { users } = await this.crm(`/admin/client/${orgId}/users`, auth);
     const u = (users || []).find((x: any) => x.id === userId);
@@ -149,6 +155,7 @@ export class CrmAccessService {
     const link = (await this.idp.accessLink(u.email, `${this.crmWeb}/definir-senha`, u.full_name)).url;
     const sent = await this.notify(u.email, u.full_name, await this.orgName(orgId), link);
     if (!sent.ok) throw new BadRequestException(sent.error || 'Falha ao enviar o e-mail.');
+    await this.audit.log(req, 'crm_access_resent', { targetType: 'user', targetId: userId, org: orgId, system: 'crm', ctx: { email: u.email } });
     return { ok: true, password_link_sent: !!link };
   }
 
@@ -160,8 +167,10 @@ export class CrmAccessService {
   }
 
   /** Tira o acesso ao CRM. A conta no Portal continua — só some o CRM para essa pessoa. */
-  async revoke(orgId: string, auth: string, userId: string) {
+  async revoke(req: any, orgId: string, auth: string, userId: string) {
     await this.requireModule(orgId);
-    return this.crm(`/admin/client/${orgId}/users/${userId}`, auth, { method: 'DELETE' });
+    const r = await this.crm(`/admin/client/${orgId}/users/${userId}`, auth, { method: 'DELETE' });
+    await this.audit.log(req, 'crm_access_revoked', { targetType: 'user', targetId: userId, org: orgId, system: 'crm' });
+    return r;
   }
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, Req } from '@nestjs/common';
 import { UsersService } from './users.service';
 
 /**
@@ -17,5 +17,5 @@ export class IdentityPublicController {
    * pessoa realmente tiver conta.
    */
   @Post('forgot')
-  forgot(@Body() b: any) { return this.users.forgot(b?.email, b?.target); }
+  forgot(@Req() req: any, @Body() b: any) { return this.users.forgot(req, b?.email, b?.target); }
 }

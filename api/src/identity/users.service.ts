@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/com
 import { RlsDbService } from '../common/rls-db.service';
 import { EmailService } from '../common/email.service';
 import { IdpService } from '../common/idp.service';
+import { AuditService } from '../common/audit.service';
 import { portalInvite, passwordReset } from '../common/email-templates';
 
 /**
@@ -25,6 +26,7 @@ export class UsersService {
     private readonly db: RlsDbService,
     private readonly email: EmailService,
     private readonly idp: IdpService,
+    private readonly audit: AuditService,
   ) {}
 
   private readonly portalWeb = (process.env.PORTAL_WEB_URL || 'https://portal.crasto.ai').replace(/\/$/, '');
@@ -35,7 +37,7 @@ export class UsersService {
   }
 
   /** Concede acesso ao Portal: identidade + perfil na org + e-mail com link de senha. */
-  private async grant(orgId: string, b: { email?: string; full_name?: string; role?: string }) {
+  private async grant(req: any, orgId: string, b: { email?: string; full_name?: string; role?: string }) {
     const email = String(b.email || '').trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new BadRequestException('E-mail inválido.');
     const role = b.role === 'client_owner' ? 'client_owner' : 'client_member';
@@ -63,27 +65,31 @@ export class UsersService {
 
     const tpl = portalInvite({ name: b.full_name, org: await this.orgName(orgId), url: acc.url, hours: this.idp.linkHours, isNew: acc.isNew });
     const sent = await this.email.send(email, tpl.subject, tpl.html);
+    await this.audit.log(req, 'portal_access_granted', {
+      targetType: 'user', targetId: acc.id, org: orgId,
+      ctx: { email, papel: role, conta_nova: acc.isNew, email_enviado: sent.ok },
+    });
     return { ok: true, email, invited: true, email_sent: sent.ok, email_error: sent.error };
   }
 
   /** Admin cria o login de um cliente qualquer (tela ClienteDetalhe). */
-  async createByAdmin(b: { email?: string; full_name?: string; organization_id?: string; role?: string }) {
+  async createByAdmin(req: any, b: { email?: string; full_name?: string; organization_id?: string; role?: string }) {
     if (!b.organization_id) throw new BadRequestException('organization_id obrigatório.');
     const exists = await this.db.asService(async (c) =>
       (await c.query(`select 1 from public.organizations where id=$1`, [b.organization_id])).rowCount);
     if (!exists) throw new BadRequestException('Cliente não encontrado.');
-    return this.grant(b.organization_id, b);
+    return this.grant(req, b.organization_id, b);
   }
 
   /** Cliente-dono convida alguém da PRÓPRIA empresa (tela Usuários do cliente). */
-  async inviteByOwner(uid: string, b: { email?: string; full_name?: string; role?: string }) {
+  async inviteByOwner(req: any, uid: string, b: { email?: string; full_name?: string; role?: string }) {
     const me = await this.db.asService(async (c) =>
       (await c.query(`select role, organization_id from public.profiles where id=$1`, [uid])).rows[0]);
     if (!me?.organization_id) throw new ForbiddenException('Seu usuário não está ligado a uma empresa.');
     // Só o dono convida. O papel de plataforma nunca sai daqui.
     if (me.role !== 'client_owner' && me.role !== 'crasto_admin')
       throw new ForbiddenException('Só o dono da conta pode convidar usuários.');
-    return this.grant(me.organization_id, b);
+    return this.grant(req, me.organization_id, b);
   }
 
   /**
@@ -95,7 +101,7 @@ export class UsersService {
    * de envio vira ferramenta de flood na caixa de entrada de terceiros.
    */
   private lastSent = new Map<string, number>();
-  async forgot(rawEmail?: string, target?: string) {
+  async forgot(req: any, rawEmail?: string, target?: string) {
     const email = String(rawEmail || '').trim().toLowerCase();
     const resposta = { ok: true as const }; // idêntica em todos os caminhos
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return resposta;
@@ -118,7 +124,12 @@ export class UsersService {
       `select p.full_name, o.name org from public.profiles p
          left join public.organizations o on o.id = p.organization_id where p.id=$1`, [ident.id])).rows[0]);
     const tpl = passwordReset({ name: u?.full_name, org: u?.org || 'Crasto.AI', url: acc.url, hours: this.idp.linkHours, isCrm });
-    await this.email.send(email, tpl.subject, tpl.html);
+    const sent = await this.email.send(email, tpl.subject, tpl.html);
+    // Ator é a própria pessoa (rota pública, sem JWT) — registramos por e-mail.
+    await this.audit.log({ ...req, user: { id: ident.id, email } }, 'password_reset_requested', {
+      targetType: 'user', targetId: ident.id, system: isCrm ? 'crm' : 'portal',
+      ctx: { email, email_enviado: sent.ok },
+    });
     return resposta;
   }
 
@@ -126,7 +137,7 @@ export class UsersService {
    * Admin reenvia o acesso. Manda um link para a pessoa DEFINIR a senha — não redefine
    * a atual. Enquanto ela não usar o link, a senha antiga continua funcionando.
    */
-  async resend(userId: string) {
+  async resend(req: any, userId: string) {
     const u = await this.db.asService(async (c) =>
       (await c.query(`select email, full_name, organization_id, role from public.profiles where id=$1`, [userId])).rows[0]);
     if (!u?.email) throw new BadRequestException('Usuário não encontrado.');
@@ -137,6 +148,10 @@ export class UsersService {
       url: acc.url, hours: this.idp.linkHours, isNew: acc.isNew,
     });
     const sent = await this.email.send(u.email, tpl.subject, tpl.html);
+    await this.audit.log(req, 'access_link_resent', {
+      targetType: 'user', targetId: userId, org: u.organization_id,
+      ctx: { email: u.email, email_enviado: sent.ok },
+    });
     return { ok: true, email: u.email, email_sent: sent.ok, email_error: sent.error };
   }
 }

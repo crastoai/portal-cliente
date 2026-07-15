@@ -16,12 +16,12 @@ export class SupportController {
 
   /** Cliente abre chamado/solicitação — a org vem da RLS, nunca do corpo. */
   @Post('tickets')
-  open(@Req() req: any, @Body() b: any) { return this.tickets.open(this.uid(req), b); }
+  open(@Req() req: any, @Body() b: any) { return this.tickets.open(req, this.uid(req), b); }
 
   /** Admin avisa o cliente por e-mail e move o status. */
   @Post('tickets/:id/notify')
   @UseGuards(AdminGuard)
-  notify(@Req() req: any, @Param('id') id: string, @Body() b: any) { return this.tickets.notify(this.uid(req), id, b?.template); }
+  notify(@Req() req: any, @Param('id') id: string, @Body() b: any) { return this.tickets.notify(req, this.uid(req), id, b?.template); }
 
   @Get('tickets/mine')
   ticketsMine(@Req() req: any) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select id,subject,status from support.tickets order by created_at desc')).rows); }

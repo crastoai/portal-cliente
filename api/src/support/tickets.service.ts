@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { RlsDbService } from '../common/rls-db.service';
 import { EmailService } from '../common/email.service';
+import { AuditService } from '../common/audit.service';
 import { ticketReceived, ticketResolved, requestReceived, ticketInternalAlert } from '../common/email-templates';
 
 /**
@@ -14,7 +15,7 @@ import { ticketReceived, ticketResolved, requestReceived, ticketInternalAlert } 
  */
 @Injectable()
 export class TicketsService {
-  constructor(private readonly db: RlsDbService, private readonly email: EmailService) {}
+  constructor(private readonly db: RlsDbService, private readonly email: EmailService, private readonly audit: AuditService) {}
 
   /** Código humano do chamado. Não há coluna `number`: derivamos do id (estável e curto). */
   private code(id: string) { return id.replace(/-/g, '').slice(0, 6).toUpperCase(); }
@@ -26,7 +27,7 @@ export class TicketsService {
   }
 
   /** Cliente abre um chamado (suporte) ou uma solicitação de implantação. */
-  async open(uid: string, b: { subject?: string; description?: string; kind?: string }) {
+  async open(req: any, uid: string, b: { subject?: string; description?: string; kind?: string }) {
     const subject = String(b.subject || '').trim();
     if (!subject) throw new BadRequestException('Informe o assunto.');
     const kind = b.kind === 'implementation_request' ? 'implementation_request' : 'support';
@@ -54,11 +55,12 @@ export class TicketsService {
     const notified = (await Promise.all(inbox.map((to) => this.email.send(to, alert.subject, alert.html))))
       .some((r) => r.ok);
 
+    await this.audit.log(req, 'ticket_opened', { targetType: 'ticket', targetId: t.id, org: t.organization_id, ctx: { numero: code, tipo: kind, assunto: subject } });
     return { ok: true, number: code, id: t.id, confirmed, notified };
   }
 
   /** Admin avisa o cliente e move o status do chamado. */
-  async notify(uid: string, ticketId: string, template: string) {
+  async notify(req: any, uid: string, ticketId: string, template: string) {
     const tpl = template === 'received' ? 'received' : 'resolved';
     const t = await this.db.asService(async (c) => (await c.query(
       `select t.id, t.subject, t.kind, t.created_by, t.status,
@@ -79,6 +81,7 @@ export class TicketsService {
     const status = tpl === 'resolved' ? 'resolved' : 'in_progress';
     await this.db.asUser(uid, (c) => c.query(`update support.tickets set status=$2, updated_at=now() where id=$1`, [ticketId, status]));
 
+    await this.audit.log(req, 'ticket_notified', { targetType: 'ticket', targetId: ticketId, ctx: { numero: code, status, email_enviado: sent.ok } });
     return { ok: true, status, email: t.email, email_sent: sent.ok, email_error: sent.error };
   }
 }

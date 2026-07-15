@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { services, errorMessage } from "../services";
+import { api } from "../lib/api";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { useT } from "../lib/i18n";
@@ -51,6 +52,12 @@ export default function NewPassword() {
     setBusy(true); setErr("");
     try {
       await services.identity.auth.updatePassword(pw);
+      // Trilha: quem definiu senha, quando, e se foi o primeiro acesso (veio de convite).
+      api.post("/api/audit/event", {
+        action: "password_set", system: "portal",
+        first_access: !!token && tokenType === "invite",
+        via: token ? "link" : "sessao",
+      }).catch(() => {});
       setOk(true);
       setTimeout(() => nav("/", { replace: true }), 1400);
     } catch (e) {

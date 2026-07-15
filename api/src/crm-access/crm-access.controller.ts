@@ -17,15 +17,15 @@ export class CrmAccessController {
 
   @Put(':orgId/agent')
   linkAgent(@Req() req: any, @Param('orgId') orgId: string, @Body() b: any) {
-    return this.svc.linkAgent(orgId, this.auth(req), b?.agent_id ?? null);
+    return this.svc.linkAgent(req, orgId, this.auth(req), b?.agent_id ?? null);
   }
 
   @Post(':orgId/users')
-  invite(@Req() req: any, @Param('orgId') orgId: string, @Body() b: any) { return this.svc.invite(orgId, this.auth(req), b); }
+  invite(@Req() req: any, @Param('orgId') orgId: string, @Body() b: any) { return this.svc.invite(req, orgId, this.auth(req), b); }
 
   @Post(':orgId/users/:id/resend')
-  resend(@Req() req: any, @Param('orgId') orgId: string, @Param('id') id: string) { return this.svc.resend(orgId, this.auth(req), id); }
+  resend(@Req() req: any, @Param('orgId') orgId: string, @Param('id') id: string) { return this.svc.resend(req, orgId, this.auth(req), id); }
 
   @Delete(':orgId/users/:id')
-  revoke(@Req() req: any, @Param('orgId') orgId: string, @Param('id') id: string) { return this.svc.revoke(orgId, this.auth(req), id); }
+  revoke(@Req() req: any, @Param('orgId') orgId: string, @Param('id') id: string) { return this.svc.revoke(req, orgId, this.auth(req), id); }
 }

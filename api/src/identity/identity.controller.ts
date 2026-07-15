@@ -19,16 +19,16 @@ export class IdentityController {
   /** Admin cria o login de um cliente. */
   @Post('users')
   @UseGuards(AdminGuard)
-  createUser(@Body() b: any) { return this.users.createByAdmin(b); }
+  createUser(@Req() req: any, @Body() b: any) { return this.users.createByAdmin(req, b); }
 
   /** Cliente-dono convida alguém da própria empresa (o serviço confere o papel). */
   @Post('users/invite')
-  inviteUser(@Req() req: any, @Body() b: any) { return this.users.inviteByOwner(this.uid(req), b); }
+  inviteUser(@Req() req: any, @Body() b: any) { return this.users.inviteByOwner(req, this.uid(req), b); }
 
   /** Admin reenvia o acesso — manda link novo, NÃO redefine a senha da pessoa. */
   @Post('users/:id/resend')
   @UseGuards(AdminGuard)
-  resendUser(@Param('id') id: string) { return this.users.resend(id); }
+  resendUser(@Req() req: any, @Param('id') id: string) { return this.users.resend(req, id); }
 
   // UPDATE dinâmico seguro: colunas validadas (só [a-z0-9_]) + valores parametrizados.
   private setClause(patch: Record<string, any>, startAt: number) {

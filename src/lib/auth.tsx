@@ -55,11 +55,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signIn(email: string, password: string) {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    // auditoria de login via a Portal API (não fala direto com o banco). Fire-and-forget.
-    if (!error) api.post("/api/analytics/rpc", { name: "audit_login" }).catch(() => {});
+    // Auditoria: o login acontece entre o navegador e o Auth — o servidor não o vê,
+    // então quem reporta é a tela. Fire-and-forget: auditar não pode travar a entrada.
+    if (!error) api.post("/api/audit/event", { action: "login", system: "portal" }).catch(() => {});
     return error ? { error: error.message } : {};
   }
   async function signOut() {
+    // Auditar ANTES: depois do signOut não há mais token para autenticar o registro.
+    await api.post("/api/audit/event", { action: "logout", system: "portal" }).catch(() => {});
     await supabase.auth.signOut();
   }
   async function refreshProfile() {
