@@ -122,7 +122,7 @@ export default function ClienteDetalhe() {
     setInvite(false); setInv({ email: "", name: "", role: "client_member" }); reload();
     // Não há senha para mostrar: a pessoa define a dela pelo link. É o ponto da mudança.
     flash(r.email_sent
-      ? tr("✉️ Convite enviado para {e} — ela define a própria senha.", { e: r.email })
+      ? tr("✉️ Convite enviado para {e} — ela define a própria senha.", { e: r.email ?? inv.email.trim() })
       : tr("Acesso criado, mas o e-mail falhou: {err}", { err: r.email_error || "—" }));
   }
   async function addPerson() { if (!person.full_name.trim()) return; await api.crm.people.add({ organization_id: id, full_name: person.full_name.trim(), role: person.role || null, email: person.email || null, birthday: person.birthday || null }); setPerson({ full_name: "", role: "", email: "", birthday: "" }); reload(); }
