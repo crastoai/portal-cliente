@@ -4,6 +4,7 @@
 // Mesma arquitetura do WhatsApp CRM.
 // ============================================================================
 import { supabase } from "./supabase";
+import { previewOrgId } from "./preview";
 import { ServiceError } from "../services/core/result";
 
 const API_URL = (import.meta.env.VITE_API_URL as string) || "https://portal-api.4hqjjr.easypanel.host";
@@ -15,11 +16,16 @@ async function token(): Promise<string | null> {
 
 async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const t = await token();
+  // "Ver como cliente": diz ao servidor qual org o admin está visualizando. Quem VALIDA
+  // é o banco (só crasto_admin é atendido, e o bypass de admin cai) — isto aqui é só o
+  // recado. Um cliente mandando o header não consegue nada.
+  const org = previewOrgId();
   const res = await fetch(`${API_URL}${path}`, {
     ...opts,
     headers: {
       "Content-Type": "application/json",
       ...(t ? { Authorization: "Bearer " + t } : {}),
+      ...(org ? { "X-Preview-Org": org } : {}),
       ...(opts.headers || {}),
     },
   });

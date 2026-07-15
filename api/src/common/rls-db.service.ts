@@ -1,5 +1,6 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
+import { previewOrg } from './preview.store';
 
 /**
  * Acesso ao Postgres do Portal SEMPRE no contexto RLS do usuário.
@@ -30,6 +31,11 @@ export class RlsDbService implements OnModuleDestroy {
       await c.query("select set_config('request.jwt.claims', $1, true)", [
         JSON.stringify({ sub: userId, role: 'authenticated' }),
       ]);
+      // "Ver como cliente": declara a org visualizada. Quem valida é o BANCO —
+      // current_org_id() só honra isto para crasto_admin, e is_admin_viewing_all()
+      // fica falso, tirando o bypass do admin. `set local` morre com a transação.
+      const org = previewOrg();
+      if (org) await c.query("select set_config('request.impersonate_org', $1, true)", [org]);
       const out = await fn(c);
       await c.query('commit');
       return out;
