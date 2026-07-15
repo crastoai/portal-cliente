@@ -25,7 +25,8 @@ async function fetchData(): Promise<{ mods: Mod[]; services: Svc[] }> {
   const cmap = Object.fromEntries((creds as any[]).map((c) => [c.client_module_id, c]));
   const mods: Mod[] = cms.map((r) => {
     const cred = (cmap[r.id] as Cred) ?? null;
-    const url = cred?.access_url || (vmap[r.vdi_module_id]?.external_url as string) || null;
+    // Ordem: URL desta instância → WhatsApp CRM (a API resolve; é a mesma p/ todos) → template.
+    const url = cred?.access_url || ((r as any).crm_url as string) || (vmap[r.vdi_module_id]?.external_url as string) || null;
     return { id: r.id, status: r.status, vdi_module_id: r.vdi_module_id, label: (r as any).label ?? null, vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null, external_url: url, cred };
   });
   // Nome/descrição vêm desnormalizados na própria client_services (catalog.services é admin-only).

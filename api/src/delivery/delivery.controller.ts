@@ -17,8 +17,24 @@ export class DeliveryController {
   private readonly ROLLOUT = 'id,vdi_module_id,status,label,rollout_progress,rollout_due,rollout_status';
 
   // ── client_modules ──
+  /**
+   * Soluções do cliente. Para o WhatsApp CRM devolvemos `crm_url` pronta: é a MESMA
+   * URL para todo mundo (o tenant vem do login), então não é para o admin digitar por
+   * cliente nem duplicar no catálogo — assim o botão "Acessar" acende sozinho no
+   * instante em que o módulo é ativado, e nunca fica apontando para endereço velho.
+   */
   @Get('client-modules/mine')
-  cmMine(@Req() req: any) { return this.db.asUser(this.uid(req), async (c) => (await c.query(`select ${this.ROLLOUT} from delivery.client_modules order by created_at`)).rows); }
+  cmMine(@Req() req: any) {
+    const crmWeb = (process.env.CRM_WEB_URL || '').replace(/\/$/, '') || null;
+    // Colunas qualificadas: com o join, `id`/`status` existem nas duas tabelas.
+    const cols = this.ROLLOUT.split(',').map((k) => `cm.${k.trim()}`).join(', ');
+    return this.db.asUser(this.uid(req), async (c) => (await c.query(
+      `select ${cols},
+              case when m.crm_solution and $1::text is not null then $1::text end as crm_url
+         from delivery.client_modules cm
+         join catalog.vdi_modules m on m.id = cm.vdi_module_id
+        order by cm.created_at`, [crmWeb])).rows);
+  }
   @Get('client-modules/all')
   cmAll(@Req() req: any) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select organization_id from delivery.client_modules')).rows); }
   @Get('client-modules')

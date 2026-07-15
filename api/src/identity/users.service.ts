@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/com
 import { RlsDbService } from '../common/rls-db.service';
 import { EmailService } from '../common/email.service';
 import { IdpService } from '../common/idp.service';
-import { portalInvite } from '../common/email-templates';
+import { portalInvite, passwordReset } from '../common/email-templates';
 
 /**
  * Acesso de pessoas ao Portal do Cliente.
@@ -84,6 +84,42 @@ export class UsersService {
     if (me.role !== 'client_owner' && me.role !== 'crasto_admin')
       throw new ForbiddenException('Só o dono da conta pode convidar usuários.');
     return this.grant(me.organization_id, b);
+  }
+
+  /**
+   * "Esqueci minha senha" (público). Só sai e-mail se a conta existir — mas a RESPOSTA
+   * é sempre a mesma: responder "não existe" entregaria quem é cliente da Crasto.AI.
+   * `target` escolhe onde a pessoa define a senha (é a mesma conta nos dois).
+   *
+   * Trava anti-abuso: 1 e-mail por endereço a cada 90s. Sem isso, um endpoint público
+   * de envio vira ferramenta de flood na caixa de entrada de terceiros.
+   */
+  private lastSent = new Map<string, number>();
+  async forgot(rawEmail?: string, target?: string) {
+    const email = String(rawEmail || '').trim().toLowerCase();
+    const resposta = { ok: true as const }; // idêntica em todos os caminhos
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return resposta;
+
+    const agora = Date.now();
+    const ultimo = this.lastSent.get(email) ?? 0;
+    if (agora - ultimo < 90_000) return resposta;
+    this.lastSent.set(email, agora);
+    if (this.lastSent.size > 5000) this.lastSent.clear(); // teto de memória
+
+    const ident = await this.idp.lookup(email);
+    if (!ident) return resposta; // conta não existe → nada é enviado
+
+    const isCrm = target === 'crm';
+    const base = isCrm
+      ? `${(process.env.CRM_WEB_URL || '').replace(/\/$/, '')}/definir-senha`
+      : `${this.portalWeb}/nova-senha`;
+    const acc = await this.idp.accessLink(email, base);
+    const u = await this.db.asService(async (c) => (await c.query(
+      `select p.full_name, o.name org from public.profiles p
+         left join public.organizations o on o.id = p.organization_id where p.id=$1`, [ident.id])).rows[0]);
+    const tpl = passwordReset({ name: u?.full_name, org: u?.org || 'Crasto.AI', url: acc.url, hours: this.idp.linkHours, isCrm });
+    await this.email.send(email, tpl.subject, tpl.html);
+    return resposta;
   }
 
   /**

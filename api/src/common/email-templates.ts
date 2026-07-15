@@ -1,140 +1,165 @@
-// Layout único dos e-mails transacionais da Crasto.AI.
-// HTML de e-mail é hostil: nada de flex/grid/CSS externo — tabela + estilo inline.
-// Paleta alinhada ao Design System (fundo escuro, acento âmbar da marca).
+// Templates transacionais da Crasto.AI. A casca e os tokens vêm do Design System
+// oficial (ver email-theme.ts — porte fiel de DesignSystem/emails/). Aqui só o CONTEÚDO.
+// Nada de cor/fonte/estrutura inventada: se faltar peça, ela nasce no DS, não aqui.
+import { Mail, layout, lede, para, strong, cta, callout, rawLink, esc, color, FONT } from './email-theme';
 
-const BG = '#0b0d10', CARD = '#14181d', LINE = '#242a31', TXT = '#e8eaed', MUTED = '#9aa4b2', ACCENT = '#f0b429';
+const first = (name?: string | null) => (name ? ' ' + esc(name.trim().split(/\s+/)[0]) : '');
 
-function esc(s: string) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
+// ---- acesso (senha nunca viaja: vai um link de uso único) --------------------
 
-/** Casca padrão: cabeçalho Crasto.AI + corpo + rodapé. `body` já vem em HTML. */
-export function layout(opts: { title: string; body: string; cta?: { label: string; url: string }; footnote?: string }) {
-  const cta = opts.cta
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0"><tr><td style="border-radius:8px;background:${ACCENT}">
-         <a href="${esc(opts.cta.url)}" style="display:inline-block;padding:13px 26px;font:600 15px/1 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1a1206;text-decoration:none">${esc(opts.cta.label)}</a>
-       </td></tr></table>
-       <p style="margin:0 0 4px;font:400 12px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:${MUTED}">Se o botão não funcionar, copie e cole este endereço no navegador:</p>
-       <p style="margin:0;font:400 12px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:${MUTED};word-break:break-all">${esc(opts.cta.url)}</p>`
-    : '';
-  return `<!doctype html><html><body style="margin:0;padding:0;background:${BG}">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BG};padding:32px 16px">
-    <tr><td align="center">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:${CARD};border:1px solid ${LINE};border-radius:14px">
-        <tr><td style="padding:28px 32px 0">
-          <p style="margin:0;font:700 17px/1 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:${TXT};letter-spacing:-.2px">Crasto<span style="color:${ACCENT}">.AI</span></p>
-        </td></tr>
-        <tr><td style="padding:20px 32px 32px">
-          <h1 style="margin:0 0 14px;font:600 21px/1.3 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:${TXT}">${esc(opts.title)}</h1>
-          ${opts.body}
-          ${cta}
-          ${opts.footnote ? `<p style="margin:24px 0 0;padding-top:18px;border-top:1px solid ${LINE};font:400 12px/1.6 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:${MUTED}">${opts.footnote}</p>` : ''}
-        </td></tr>
-      </table>
-      <p style="margin:16px 0 0;font:400 11px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:${MUTED}">Crasto.AI · mensagem automática, não responda este e-mail.</p>
-    </td></tr>
-  </table></body></html>`;
-}
-
-const P = `margin:0 0 12px;font:400 15px/1.65 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:${TXT}`;
-
-/** Convite ao WhatsApp CRM para quem AINDA NÃO tem senha: leva à página de definir senha. */
-export function crmInviteNewUser(p: { name?: string | null; org: string; url: string; hours: number }) {
+/** Convite ao WhatsApp CRM — quem ainda não tem senha define a dela. */
+export function crmInviteNewUser(p: { name?: string | null; org: string; url: string; hours: number }): Mail {
   return {
     subject: `Seu acesso ao WhatsApp CRM — ${p.org}`,
     html: layout({
+      preview: `Defina sua senha e comece a usar o WhatsApp CRM de ${p.org}.`,
+      eyebrow: 'Acesso liberado',
       title: 'Seu acesso ao WhatsApp CRM está pronto',
-      body: `<p style="${P}">Olá${p.name ? ' ' + esc(p.name.split(' ')[0]) : ''}, você foi liberado para usar o <strong>WhatsApp CRM</strong> de <strong>${esc(p.org)}</strong>.</p>
-             <p style="${P}">Para começar, defina a sua senha de acesso. Ela é pessoal — só você a conhece.</p>`,
-      cta: { label: 'Definir minha senha', url: p.url },
-      footnote: `Este link vale por ${p.hours}h e só pode ser usado uma vez. Se ele expirar, peça um novo convite ao time da Crasto.AI. Se você não esperava este e-mail, ignore-o: nada será criado sem você definir a senha.`,
+      reason: `Você recebeu este e-mail porque foi liberado para usar o WhatsApp CRM de ${p.org}.`,
+      body:
+        lede(`Olá${first(p.name)}, você foi liberado para usar o ${strong('WhatsApp CRM')} de ${strong(esc(p.org))}.`) +
+        para('Para começar, defina a sua senha de acesso. Ela é pessoal — só você a conhece.') +
+        cta(p.url, 'Definir minha senha') +
+        rawLink(p.url) +
+        para(`<span style="font-size:13px;color:${color.muted}">Este link vale por ${p.hours}h e só pode ser usado uma vez. Se expirar, peça um novo convite ao time da Crasto.AI. Se você não esperava este e-mail, ignore-o: nada será criado sem você definir a senha.</span>`, 'margin:20px 0 0'),
+    }),
+  };
+}
+
+/** Quem JÁ tem conta Crasto.AI: a senha dele continua a mesma — nada de link. */
+export function crmInviteExistingUser(p: { name?: string | null; org: string; url: string }): Mail {
+  return {
+    subject: `Você agora tem acesso ao WhatsApp CRM — ${p.org}`,
+    html: layout({
+      preview: `Use sua conta Crasto.AI para entrar no WhatsApp CRM de ${p.org}.`,
+      eyebrow: 'Acesso liberado',
+      title: 'Seu acesso ao WhatsApp CRM foi liberado',
+      reason: `Você recebeu este e-mail porque foi liberado para usar o WhatsApp CRM de ${p.org}.`,
+      body:
+        lede(`Olá${first(p.name)}, você já pode usar o ${strong('WhatsApp CRM')} de ${strong(esc(p.org))}.`) +
+        para(`Use o ${strong('mesmo e-mail e senha')} que você já usa na Crasto.AI — sua conta é a mesma, não é preciso criar outra.`) +
+        cta(p.url, 'Acessar o WhatsApp CRM') +
+        para(`<span style="font-size:13px;color:${color.muted}">Esqueceu a senha? Use a opção “Esqueci minha senha” na tela de entrada.</span>`, 'margin:20px 0 0'),
+    }),
+  };
+}
+
+/** Convite ao Portal do Cliente (substitui o e-mail legado com senha em texto claro). */
+export function portalInvite(p: { name?: string | null; org: string; url: string; hours: number; isNew: boolean }): Mail {
+  return {
+    subject: p.isNew ? `Seu acesso ao Portal da Crasto.AI — ${p.org}` : `Definir a senha do seu acesso — ${p.org}`,
+    html: layout({
+      preview: p.isNew ? `Defina sua senha e acesse o Portal do Cliente da Crasto.AI.` : 'Defina uma nova senha para o seu acesso.',
+      eyebrow: p.isNew ? 'Acesso liberado' : 'Definir senha',
+      title: p.isNew ? 'Seu acesso ao Portal do Cliente está pronto' : 'Defina a sua senha de acesso',
+      reason: p.isNew
+        ? `Você recebeu este e-mail porque foi liberado para acessar o Portal do Cliente da Crasto.AI (${p.org}).`
+        : 'Você recebeu este e-mail porque foi solicitado um link para definir a senha do seu acesso.',
+      body:
+        lede(`Olá${first(p.name)}, ${p.isNew
+          ? `você foi liberado para acessar o ${strong('Portal do Cliente')} da Crasto.AI (${strong(esc(p.org))}), onde ficam as suas soluções, faturas e chamados.`
+          : `use o botão abaixo para definir a senha do seu acesso ao Portal da Crasto.AI (${strong(esc(p.org))}).`}`) +
+        para('Clique no botão e escolha a sua senha. Ela é pessoal — nem a equipe da Crasto.AI a conhece.') +
+        cta(p.url, 'Definir minha senha') +
+        rawLink(p.url) +
+        para(`<span style="font-size:13px;color:${color.muted}">Este link vale por ${p.hours}h e só pode ser usado uma vez. Se expirar, peça um novo ao time da Crasto.AI.${p.isNew ? ' Se você não esperava este e-mail, ignore-o: nada é criado sem você definir a senha.' : ' Enquanto você não definir a nova senha, a atual continua valendo.'}</span>`, 'margin:20px 0 0'),
     }),
   };
 }
 
 /**
- * Convite ao Portal do Cliente. Substitui o e-mail legado que mandava uma senha
- * temporária em texto claro: agora vai um link de uso único e a pessoa escolhe a senha.
+ * "Esqueci minha senha" — pedido pela PRÓPRIA pessoa na tela de entrada.
+ * A senha atual continua valendo até ela usar o link (recovery não redefine nada).
  */
-export function portalInvite(p: { name?: string | null; org: string; url: string; hours: number; isNew: boolean }) {
+export function passwordReset(p: { name?: string | null; org: string; url: string; hours: number; isCrm: boolean }): Mail {
+  const onde = p.isCrm ? 'WhatsApp CRM' : 'Portal do Cliente';
   return {
-    subject: p.isNew ? `Seu acesso ao Portal da Crasto.AI — ${p.org}` : `Definir a senha do seu acesso — ${p.org}`,
+    subject: 'Redefinir a sua senha — Crasto.AI',
     html: layout({
-      title: p.isNew ? 'Seu acesso ao Portal do Cliente está pronto' : 'Defina a sua senha de acesso',
-      body: `<p style="${P}">Olá${p.name ? ' ' + esc(p.name.split(' ')[0]) : ''}, ${p.isNew
-        ? `você foi liberado para acessar o <strong>Portal do Cliente</strong> da Crasto.AI (<strong>${esc(p.org)}</strong>), onde ficam as suas soluções, faturas e chamados.`
-        : `use o botão abaixo para definir a senha do seu acesso ao Portal da Crasto.AI (<strong>${esc(p.org)}</strong>).`}</p>
-             <p style="${P}">Clique no botão e escolha a sua senha. Ela é pessoal — nem a equipe da Crasto.AI a conhece.</p>`,
-      cta: { label: 'Definir minha senha', url: p.url },
-      footnote: `Este link vale por ${p.hours}h e só pode ser usado uma vez. Se expirar, peça um novo ao time da Crasto.AI.${p.isNew ? ' Se você não esperava este e-mail, ignore-o: nada é criado sem você definir a senha.' : ' Enquanto você não definir a nova senha, a atual continua valendo.'}`,
+      preview: `Link para você criar uma nova senha de acesso ao ${onde}.`,
+      eyebrow: 'Redefinir senha',
+      title: 'Vamos criar uma nova senha',
+      reason: `Você recebeu este e-mail porque foi pedida a redefinição de senha do seu acesso ao ${onde}.`,
+      body:
+        lede(`Olá${first(p.name)}, recebemos um pedido para redefinir a senha do seu acesso ao ${strong(onde)}.`) +
+        para('Clique no botão para escolher uma senha nova. Ela é pessoal — nem a equipe da Crasto.AI a conhece.') +
+        cta(p.url, 'Criar nova senha') +
+        rawLink(p.url) +
+        para(`<span style="font-size:13px;color:${color.muted}">Este link vale por ${p.hours}h e só pode ser usado uma vez. ${strong('Se não foi você quem pediu, ignore este e-mail')} — a sua senha atual continua valendo e nada muda.</span>`, 'margin:20px 0 0'),
     }),
   };
 }
 
-/** Cliente abriu um chamado → confirmação para ele. */
-export function ticketReceived(p: { name?: string | null; code: string; subject: string }) {
+// ---- chamados ---------------------------------------------------------------
+
+const ticketBox = (code: string, subject: string) =>
+  callout(
+    `<p style="margin:0 0 6px;font-family:${FONT};font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:${color.muted}">Chamado #${esc(code)}</p>
+     <p style="margin:0;font-family:${FONT};font-size:15px;line-height:1.5;color:${color.ink};font-weight:600">${esc(subject)}</p>`,
+  );
+
+export function ticketReceived(p: { name?: string | null; code: string; subject: string }): Mail {
   return {
     subject: `Recebemos o seu chamado #${p.code}`,
     html: layout({
+      preview: `Chamado #${p.code} registrado. Avisamos assim que houver novidade.`,
+      eyebrow: 'Suporte',
       title: 'Recebemos o seu chamado',
-      body: `<p style="${P}">Olá${p.name ? ' ' + esc(p.name.split(' ')[0]) : ''}, o seu chamado <strong>#${esc(p.code)}</strong> foi registrado e já está com o nosso time.</p>
-             <p style="${P}"><strong>Assunto:</strong> ${esc(p.subject)}</p>
-             <p style="${P}">Avisamos por e-mail assim que houver novidade. Você também acompanha pelo Portal, em Suporte.</p>`,
+      reason: 'Você recebeu este e-mail porque abriu um chamado no Portal da Crasto.AI.',
+      body:
+        lede(`Olá${first(p.name)}, o seu chamado foi registrado e já está com o nosso time.`) +
+        ticketBox(p.code, p.subject) +
+        para('Avisamos por e-mail assim que houver novidade. Você também acompanha pelo Portal, em Suporte.'),
     }),
   };
 }
 
-/** Chamado resolvido → aviso ao cliente. */
-export function ticketResolved(p: { name?: string | null; code: string; subject: string }) {
+export function ticketResolved(p: { name?: string | null; code: string; subject: string }): Mail {
   return {
     subject: `Seu chamado #${p.code} foi resolvido`,
     html: layout({
+      preview: `O chamado #${p.code} foi concluído pelo nosso time.`,
+      eyebrow: 'Suporte',
       title: 'Seu chamado foi resolvido',
-      body: `<p style="${P}">Olá${p.name ? ' ' + esc(p.name.split(' ')[0]) : ''}, o chamado <strong>#${esc(p.code)}</strong> foi concluído pelo nosso time.</p>
-             <p style="${P}"><strong>Assunto:</strong> ${esc(p.subject)}</p>
-             <p style="${P}">Se ainda não estiver resolvido para você, é só responder pelo Portal que reabrimos.</p>`,
+      reason: 'Você recebeu este e-mail porque abriu um chamado no Portal da Crasto.AI.',
+      body:
+        lede(`Olá${first(p.name)}, o seu chamado foi concluído pelo nosso time.`) +
+        ticketBox(p.code, p.subject) +
+        para('Se ainda não estiver resolvido para você, é só responder pelo Portal que reabrimos.'),
     }),
   };
 }
 
-/** Solicitação de implantação recebida → aviso ao cliente. */
-export function requestReceived(p: { name?: string | null; code: string; subject: string }) {
+export function requestReceived(p: { name?: string | null; code: string; subject: string }): Mail {
   return {
     subject: `Recebemos a sua solicitação #${p.code}`,
     html: layout({
+      preview: `Solicitação #${p.code} recebida pelo time de implantação.`,
+      eyebrow: 'Implantação',
       title: 'Recebemos a sua solicitação',
-      body: `<p style="${P}">Olá${p.name ? ' ' + esc(p.name.split(' ')[0]) : ''}, a sua solicitação <strong>#${esc(p.code)}</strong> chegou ao nosso time de implantação.</p>
-             <p style="${P}"><strong>Assunto:</strong> ${esc(p.subject)}</p>
-             <p style="${P}">Em breve entramos em contato com os próximos passos.</p>`,
+      reason: 'Você recebeu este e-mail porque solicitou uma implantação no Portal da Crasto.AI.',
+      body:
+        lede(`Olá${first(p.name)}, a sua solicitação chegou ao nosso time de implantação.`) +
+        ticketBox(p.code, p.subject) +
+        para('Em breve entramos em contato com os próximos passos.'),
     }),
   };
 }
 
-/** Aviso INTERNO (para a Crasto) de que entrou um chamado novo. */
-export function ticketInternalAlert(p: { code: string; org: string; subject: string; description?: string | null; kind: string; who?: string | null }) {
+/** Aviso INTERNO (Crasto) — o cliente não recebe. */
+export function ticketInternalAlert(p: { code: string; org: string; subject: string; description?: string | null; kind: string; who?: string | null }): Mail {
+  const tipo = p.kind === 'implementation_request' ? 'Implantação' : 'Suporte';
   return {
-    subject: `[${p.kind === 'implementation_request' ? 'Implantação' : 'Suporte'}] #${p.code} — ${p.org}`,
+    subject: `[${tipo}] #${p.code} — ${p.org}`,
     html: layout({
-      title: `Novo chamado — ${p.org}`,
-      body: `<p style="${P}"><strong>#${esc(p.code)}</strong> · ${esc(p.kind === 'implementation_request' ? 'Solicitação de implantação' : 'Suporte')}</p>
-             <p style="${P}"><strong>Cliente:</strong> ${esc(p.org)}${p.who ? ` · aberto por ${esc(p.who)}` : ''}</p>
-             <p style="${P}"><strong>Assunto:</strong> ${esc(p.subject)}</p>
-             ${p.description ? `<p style="${P}"><strong>Detalhe:</strong> ${esc(p.description)}</p>` : ''}`,
-      footnote: 'Aviso interno — o cliente não recebe esta mensagem.',
-    }),
-  };
-}
-
-/** Quem JÁ tem conta Crasto.AI: não mandamos link de senha — a senha dele continua a mesma. */
-export function crmInviteExistingUser(p: { name?: string | null; org: string; url: string }) {
-  return {
-    subject: `Você agora tem acesso ao WhatsApp CRM — ${p.org}`,
-    html: layout({
-      title: 'Seu acesso ao WhatsApp CRM foi liberado',
-      body: `<p style="${P}">Olá${p.name ? ' ' + esc(p.name.split(' ')[0]) : ''}, você já pode usar o <strong>WhatsApp CRM</strong> de <strong>${esc(p.org)}</strong>.</p>
-             <p style="${P}">Use o <strong>mesmo e-mail e senha</strong> que você já usa na Crasto.AI — sua conta é a mesma, não é preciso criar outra.</p>`,
-      cta: { label: 'Acessar o WhatsApp CRM', url: p.url },
-      footnote: 'Esqueceu a senha? Use a opção "Esqueci minha senha" na tela de entrada.',
+      preview: `${p.org}: ${p.subject}`,
+      eyebrow: `Novo chamado · ${tipo}`,
+      title: p.org,
+      reason: 'Aviso interno da operação — enviado aos administradores da Crasto.AI.',
+      body:
+        ticketBox(p.code, p.subject) +
+        para(`${strong('Cliente:')} ${esc(p.org)}${p.who ? ` · aberto por ${esc(p.who)}` : ''}`) +
+        (p.description ? para(`${strong('Detalhe:')} ${esc(p.description)}`) : ''),
     }),
   };
 }
