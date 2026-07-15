@@ -3,6 +3,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { api } from "./api";
 import { services } from "../services";
+import { marcarAtividade } from "./idle";
 
 export type Profile = {
   id: string;
@@ -55,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signIn(email: string, password: string) {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (!error) marcarAtividade(); // entrar É interagir — zera o relógio da inatividade
     // Auditoria: o login acontece entre o navegador e o Auth — o servidor não o vê,
     // então quem reporta é a tela. Fire-and-forget: auditar não pode travar a entrada.
     if (!error) api.post("/api/audit/event", { action: "login", system: "portal" }).catch(() => {});

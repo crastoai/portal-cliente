@@ -29,14 +29,12 @@ export function marcarAtividade() {
   try { localStorage.setItem(KEY, String(agora())); } catch { /* aba privada: cai no fallback abaixo */ }
 }
 
-function ultimaAtividade(): number {
+function ultimaAtividade(): number | null {
   try {
     const v = Number(localStorage.getItem(KEY));
     if (Number.isFinite(v) && v > 0) return v;
   } catch { /* ignora */ }
-  const t = agora();
-  marcarAtividade();
-  return t;
+  return null;
 }
 
 /**
@@ -53,7 +51,10 @@ export function useIdleGuard(ativo: boolean, sair: (motivo: "inatividade" | "esc
 
   useEffect(() => {
     if (!ativo) { setAvisando(false); avisandoRef.current = false; saindoRef.current = false; return; }
-    marcarAtividade();
+    // NÃO marcamos atividade aqui: montar não é interagir. Se marcássemos, um F5
+    // (ou o navegador recarregando a aba sozinho) zeraria o contador e a sessão
+    // voltaria a durar para sempre. Quem marca é o login e a interação de verdade.
+    if (ultimaAtividade() === null) marcarAtividade(); // 1ª vez neste navegador
 
     // Throttle: mousemove dispara centenas de vezes por segundo; escrever no
     // localStorage a cada uma é desperdício puro.
@@ -69,7 +70,9 @@ export function useIdleGuard(ativo: boolean, sair: (motivo: "inatividade" | "esc
     eventos.forEach((e) => window.addEventListener(e, aoInteragir, { passive: true }));
 
     const tick = () => {
-      const parado = agora() - ultimaAtividade();
+      const ultima = ultimaAtividade();
+      if (ultima === null) return;
+      const parado = agora() - ultima;
       if (parado >= IDLE_MS + WARN_MS) {
         if (saindoRef.current) return;
         saindoRef.current = true;
