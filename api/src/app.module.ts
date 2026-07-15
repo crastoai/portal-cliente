@@ -11,11 +11,13 @@ import { AutomationModule } from './automation/automation.module';
 import { BillingModule } from './billing/billing.module';
 import { FinanceModule } from './finance/finance.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { CrmAccessModule } from './crm-access/crm-access.module';
 
 // Middle-end do Portal do Cliente. Contextos DDD entram como módulos, incrementalmente:
 // identity → delivery → catalog → crm → commerce → support → automation → finance → billing → analytics.
+// crm-access não é um contexto DDD: é a ponte Portal↔WhatsApp CRM (provisionamento de acesso).
 @Module({
-  imports: [CommonModule, IdentityModule, DeliveryModule, CatalogModule, CrmModule, CommerceModule, SupportModule, AutomationModule, BillingModule, FinanceModule, AnalyticsModule],
+  imports: [CommonModule, IdentityModule, DeliveryModule, CatalogModule, CrmModule, CommerceModule, SupportModule, AutomationModule, BillingModule, FinanceModule, AnalyticsModule, CrmAccessModule],
   controllers: [HealthController],
 })
 export class AppModule {}
