@@ -163,3 +163,45 @@ export function ticketInternalAlert(p: { code: string; org: string; subject: str
     }),
   };
 }
+
+/**
+ * Roteamento: a agente passou um lead para uma pessoa.
+ *
+ * Vai o CONTEXTO, não um "apareceu um lead": quem é, como falar com ele, e as últimas
+ * falas. Sem isso a pessoa tem de abrir o CRM para saber do que se trata — e o e-mail
+ * vira só um alarme.
+ */
+export function leadRoteado(p: {
+  destino: string; agente: string; lead: string; telefone?: string | null;
+  empresa?: string | null; email?: string | null; motivo?: string | null;
+  falas: { de: 'lead' | 'agente'; texto: string }[]; url?: string | null;
+}): Mail {
+  const linha = (rot: string, val?: string | null) =>
+    val ? `<p style="margin:0 0 4px;font-family:${FONT};font-size:14px;line-height:1.6;color:${color.body}">
+             <span style="color:${color.muted}">${esc(rot)}:</span> ${strong(esc(val))}</p>` : '';
+  const conversa = p.falas.length
+    ? callout(
+        `<p style="margin:0 0 10px;font-family:${FONT};font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:${color.muted}">A conversa até aqui</p>` +
+        p.falas.map((f) =>
+          `<p style="margin:0 0 8px;font-family:${FONT};font-size:14px;line-height:1.55;color:${color.body}">
+             <span style="color:${color.muted}">${f.de === 'lead' ? '👤 Lead' : '🤖 ' + esc(p.agente)}:</span> ${esc(f.texto)}</p>`).join(''),
+      )
+    : '';
+  return {
+    subject: `${p.destino} — ${p.lead} está esperando no WhatsApp`,
+    html: layout({
+      preview: `${p.lead}${p.empresa ? ` (${p.empresa})` : ''} foi passado para ${p.destino} pela ${p.agente}.`,
+      eyebrow: 'Atendimento',
+      title: `${p.lead} está esperando`,
+      reason: `Você recebeu este e-mail porque está configurado como destino de roteamento ("${esc(p.destino)}") no WhatsApp CRM.`,
+      body:
+        lede(`A <strong>${esc(p.agente)}</strong> passou este atendimento para <strong>${esc(p.destino)}</strong>${p.motivo ? ` (${esc(p.motivo)})` : ''}. O lead está aguardando resposta.`) +
+        callout(
+          linha('Quem', p.lead) + linha('WhatsApp', p.telefone) + linha('Empresa', p.empresa) + linha('E-mail', p.email),
+        ) +
+        conversa +
+        (p.url ? cta(p.url, 'Abrir a conversa no CRM') : '') +
+        para(`<span style="font-size:13px;color:${color.muted}">Responda pelo CRM para o lead ver a resposta no WhatsApp dele.</span>`),
+    }),
+  };
+}
