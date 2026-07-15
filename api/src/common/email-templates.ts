@@ -52,6 +52,79 @@ export function crmInviteNewUser(p: { name?: string | null; org: string; url: st
   };
 }
 
+/**
+ * Convite ao Portal do Cliente. Substitui o e-mail legado que mandava uma senha
+ * temporária em texto claro: agora vai um link de uso único e a pessoa escolhe a senha.
+ */
+export function portalInvite(p: { name?: string | null; org: string; url: string; hours: number; isNew: boolean }) {
+  return {
+    subject: p.isNew ? `Seu acesso ao Portal da Crasto.AI — ${p.org}` : `Definir a senha do seu acesso — ${p.org}`,
+    html: layout({
+      title: p.isNew ? 'Seu acesso ao Portal do Cliente está pronto' : 'Defina a sua senha de acesso',
+      body: `<p style="${P}">Olá${p.name ? ' ' + esc(p.name.split(' ')[0]) : ''}, ${p.isNew
+        ? `você foi liberado para acessar o <strong>Portal do Cliente</strong> da Crasto.AI (<strong>${esc(p.org)}</strong>), onde ficam as suas soluções, faturas e chamados.`
+        : `use o botão abaixo para definir a senha do seu acesso ao Portal da Crasto.AI (<strong>${esc(p.org)}</strong>).`}</p>
+             <p style="${P}">Clique no botão e escolha a sua senha. Ela é pessoal — nem a equipe da Crasto.AI a conhece.</p>`,
+      cta: { label: 'Definir minha senha', url: p.url },
+      footnote: `Este link vale por ${p.hours}h e só pode ser usado uma vez. Se expirar, peça um novo ao time da Crasto.AI.${p.isNew ? ' Se você não esperava este e-mail, ignore-o: nada é criado sem você definir a senha.' : ' Enquanto você não definir a nova senha, a atual continua valendo.'}`,
+    }),
+  };
+}
+
+/** Cliente abriu um chamado → confirmação para ele. */
+export function ticketReceived(p: { name?: string | null; code: string; subject: string }) {
+  return {
+    subject: `Recebemos o seu chamado #${p.code}`,
+    html: layout({
+      title: 'Recebemos o seu chamado',
+      body: `<p style="${P}">Olá${p.name ? ' ' + esc(p.name.split(' ')[0]) : ''}, o seu chamado <strong>#${esc(p.code)}</strong> foi registrado e já está com o nosso time.</p>
+             <p style="${P}"><strong>Assunto:</strong> ${esc(p.subject)}</p>
+             <p style="${P}">Avisamos por e-mail assim que houver novidade. Você também acompanha pelo Portal, em Suporte.</p>`,
+    }),
+  };
+}
+
+/** Chamado resolvido → aviso ao cliente. */
+export function ticketResolved(p: { name?: string | null; code: string; subject: string }) {
+  return {
+    subject: `Seu chamado #${p.code} foi resolvido`,
+    html: layout({
+      title: 'Seu chamado foi resolvido',
+      body: `<p style="${P}">Olá${p.name ? ' ' + esc(p.name.split(' ')[0]) : ''}, o chamado <strong>#${esc(p.code)}</strong> foi concluído pelo nosso time.</p>
+             <p style="${P}"><strong>Assunto:</strong> ${esc(p.subject)}</p>
+             <p style="${P}">Se ainda não estiver resolvido para você, é só responder pelo Portal que reabrimos.</p>`,
+    }),
+  };
+}
+
+/** Solicitação de implantação recebida → aviso ao cliente. */
+export function requestReceived(p: { name?: string | null; code: string; subject: string }) {
+  return {
+    subject: `Recebemos a sua solicitação #${p.code}`,
+    html: layout({
+      title: 'Recebemos a sua solicitação',
+      body: `<p style="${P}">Olá${p.name ? ' ' + esc(p.name.split(' ')[0]) : ''}, a sua solicitação <strong>#${esc(p.code)}</strong> chegou ao nosso time de implantação.</p>
+             <p style="${P}"><strong>Assunto:</strong> ${esc(p.subject)}</p>
+             <p style="${P}">Em breve entramos em contato com os próximos passos.</p>`,
+    }),
+  };
+}
+
+/** Aviso INTERNO (para a Crasto) de que entrou um chamado novo. */
+export function ticketInternalAlert(p: { code: string; org: string; subject: string; description?: string | null; kind: string; who?: string | null }) {
+  return {
+    subject: `[${p.kind === 'implementation_request' ? 'Implantação' : 'Suporte'}] #${p.code} — ${p.org}`,
+    html: layout({
+      title: `Novo chamado — ${p.org}`,
+      body: `<p style="${P}"><strong>#${esc(p.code)}</strong> · ${esc(p.kind === 'implementation_request' ? 'Solicitação de implantação' : 'Suporte')}</p>
+             <p style="${P}"><strong>Cliente:</strong> ${esc(p.org)}${p.who ? ` · aberto por ${esc(p.who)}` : ''}</p>
+             <p style="${P}"><strong>Assunto:</strong> ${esc(p.subject)}</p>
+             ${p.description ? `<p style="${P}"><strong>Detalhe:</strong> ${esc(p.description)}</p>` : ''}`,
+      footnote: 'Aviso interno — o cliente não recebe esta mensagem.',
+    }),
+  };
+}
+
 /** Quem JÁ tem conta Crasto.AI: não mandamos link de senha — a senha dele continua a mesma. */
 export function crmInviteExistingUser(p: { name?: string | null; org: string; url: string }) {
   return {

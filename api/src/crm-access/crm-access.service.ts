@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { RlsDbService } from '../common/rls-db.service';
 import { EmailService } from '../common/email.service';
+import { IdpService } from '../common/idp.service';
 import { crmInviteNewUser, crmInviteExistingUser } from '../common/email-templates';
 
 // Acesso do cliente ao WhatsApp CRM.
@@ -21,12 +22,7 @@ export class CrmAccessService {
   private log = new Logger('CrmAccess');
   private readonly crmApi = process.env.CRM_API_URL || '';
   private readonly crmWeb = process.env.CRM_WEB_URL || '';
-  private readonly gotrue = (process.env.SUPABASE_URL || '') + '/auth/v1';
-  private readonly svcKey = process.env.PORTAL_SERVICE_KEY || '';
-  /** Validade do link de convite — espelha o GoTrue (MAILER_OTP_EXP padrão = 24h). */
-  private readonly linkHours = 24;
-
-  constructor(private readonly db: RlsDbService, private readonly email: EmailService) {}
+  constructor(private readonly db: RlsDbService, private readonly email: EmailService, private readonly idp: IdpService) {}
 
   // ---- infra ---------------------------------------------------------------
 
@@ -106,40 +102,6 @@ export class CrmAccessService {
     return { ok: true, agent_id: agentId };
   }
 
-  // ---- identidade ----------------------------------------------------------
-
-  /**
-   * Identidade no IdP: existe? já tem senha? (a senha é a mesma do Portal — conta única)
-   * Via RPC security-definer: `service_role` NÃO lê auth.users (de propósito — lá mora o
-   * hash de senha). A função devolve só estes dois fatos e nada mais.
-   */
-  private async identity(email: string): Promise<{ id: string; hasPassword: boolean } | null> {
-    return this.db.asService(async (c) => {
-      const u = (await c.query(`select * from public.crm_identity_lookup($1)`, [email])).rows[0];
-      return u ? { id: u.id, hasPassword: u.has_password } : null;
-    });
-  }
-
-  /**
-   * Gera o token de convite/recuperação no GoTrue e devolve a URL da página do CRM.
-   * Usamos `hashed_token` + a nossa própria página (verifyOtp) em vez do action_link:
-   * o link é do domínio do CRM e não depende da allow-list de redirect do Supabase.
-   */
-  private async passwordLink(email: string, type: 'invite' | 'recovery'): Promise<{ url: string; userId?: string }> {
-    if (!this.svcKey) throw new BadRequestException('PORTAL_SERVICE_KEY ausente na API — não é possível gerar o convite.');
-    const r = await fetch(`${this.gotrue}/admin/generate_link`, {
-      method: 'POST',
-      headers: { apikey: this.svcKey, Authorization: 'Bearer ' + this.svcKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, email }),
-    });
-    const j: any = await r.json().catch(() => ({}));
-    if (!r.ok) throw new BadRequestException(j?.msg || j?.message || `Falha ao gerar o link (${r.status})`);
-    const token = j.hashed_token || j.properties?.hashed_token;
-    if (!token) throw new BadRequestException('GoTrue não devolveu o token do convite.');
-    const userId = j.id || j.user?.id;
-    return { url: `${this.crmWeb}/definir-senha?token=${encodeURIComponent(token)}&type=${type}`, userId };
-  }
-
   // ---- convite / revogação -------------------------------------------------
 
   /**
@@ -153,22 +115,22 @@ export class CrmAccessService {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new BadRequestException('E-mail inválido.');
     const role = b.role === 'client_owner' ? 'client_owner' : 'client_member';
 
-    // 1) identidade (conta única Crasto.AI). Sem senha ainda → convite; com senha → só aviso.
-    let ident = await this.identity(email);
+    // 1) identidade (conta única Crasto.AI). Sem senha ainda → link p/ ela definir;
+    //    com senha → NENHUM link (não se manda troca de senha a quem não pediu), só o aviso.
+    const found = await this.idp.lookup(email);
     let link: string | null = null;
-    if (!ident) {
-      const gen = await this.passwordLink(email, 'invite'); // cria o usuário no Auth
-      link = gen.url;
-      ident = (await this.identity(email)) || (gen.userId ? { id: gen.userId, hasPassword: false } : null);
-      if (!ident) throw new BadRequestException('Não foi possível criar a identidade deste usuário.');
-    } else if (!ident.hasPassword) {
-      link = (await this.passwordLink(email, 'recovery')).url;
+    let uid: string;
+    if (found?.hasPassword) {
+      uid = found.id;
+    } else {
+      const acc = await this.idp.accessLink(email, `${this.crmWeb}/definir-senha`, b.full_name);
+      uid = acc.id; link = acc.url;
     }
 
     // 2) acesso no CRM (fonte da verdade da autorização de lá)
     const { user } = await this.crm(`/admin/client/${orgId}/users`, auth, {
       method: 'POST',
-      body: JSON.stringify({ id: ident.id, email, full_name: b.full_name || null, role }),
+      body: JSON.stringify({ id: uid, email, full_name: b.full_name || null, role }),
     });
 
     // 3) aviso
@@ -182,8 +144,9 @@ export class CrmAccessService {
     const { users } = await this.crm(`/admin/client/${orgId}/users`, auth);
     const u = (users || []).find((x: any) => x.id === userId);
     if (!u) throw new BadRequestException('Usuário não tem acesso ao CRM deste cliente.');
-    const ident = await this.identity(u.email);
-    const link = ident && !ident.hasPassword ? (await this.passwordLink(u.email, 'recovery')).url : null;
+    // Reenviar = novo link para a pessoa definir a senha. NUNCA redefine a senha atual
+    // (recovery só permite definir uma nova; a antiga vale até ela usar o link).
+    const link = (await this.idp.accessLink(u.email, `${this.crmWeb}/definir-senha`, u.full_name)).url;
     const sent = await this.notify(u.email, u.full_name, await this.orgName(orgId), link);
     if (!sent.ok) throw new BadRequestException(sent.error || 'Falha ao enviar o e-mail.');
     return { ok: true, password_link_sent: !!link };
@@ -191,7 +154,7 @@ export class CrmAccessService {
 
   private notify(email: string, name: string | null | undefined, org: string, link: string | null) {
     const tpl = link
-      ? crmInviteNewUser({ name, org, url: link, hours: this.linkHours })
+      ? crmInviteNewUser({ name, org, url: link, hours: this.idp.linkHours })
       : crmInviteExistingUser({ name, org, url: this.crmWeb });
     return this.email.send(email, tpl.subject, tpl.html);
   }

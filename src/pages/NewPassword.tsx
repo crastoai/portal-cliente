@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { services, errorMessage } from "../services";
+import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { useT } from "../lib/i18n";
 import LangSwitcher from "../ui/LangSwitcher";
@@ -11,6 +12,31 @@ export default function NewPassword() {
   const t = useT();
   const nav = useNavigate();
   const forced = (session?.user?.user_metadata as any)?.must_change_password === true;
+  // Convite da Crasto.AI: o e-mail traz ?token=… (uso único). Trocamos o token por uma
+  // sessão aqui mesmo — assim o link é do NOSSO domínio e não dependemos da allow-list
+  // de redirect do Supabase. Sem token, segue o fluxo normal (sessão de recuperação).
+  const url = new URL(window.location.href);
+  const token = url.searchParams.get("token");
+  const tokenType = url.searchParams.get("type") === "invite" ? "invite" : "recovery";
+  const [checking, setChecking] = useState(!!token && !session);
+  const [linkErr, setLinkErr] = useState("");
+
+  useEffect(() => {
+    if (!token) return;
+    (async () => {
+      const { error } = await supabase.auth.verifyOtp({ token_hash: token, type: tokenType as any });
+      if (error) {
+        // Mensagem NOSSA: o GoTrue responde em inglês e não diz o que fazer.
+        setLinkErr(t("Este link expirou ou já foi usado. Peça um novo ao time da Crasto.AI."));
+      } else {
+        // Tira o token da URL para não ficar no histórico do navegador.
+        window.history.replaceState({}, "", url.pathname);
+      }
+      setChecking(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -52,7 +78,11 @@ export default function NewPassword() {
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}><LangSwitcher /></div>
           <h1>{forced ? t("Defina sua senha") : t("Nova senha")}</h1>
           <p className="sub">{forced ? t("Por segurança, crie uma senha própria para continuar.") : t("Escolha uma nova senha para o seu acesso.")}</p>
-          {ok ? (
+          {checking ? (
+            <div className="login-note">{t("Validando o seu link…")}</div>
+          ) : linkErr ? (
+            <div className="login-err">{linkErr}</div>
+          ) : ok ? (
             <div className="login-note">{t("Senha definida com sucesso ✓ Entrando no portal…")}</div>
           ) : (
             <form className="login-form" onSubmit={submit}>

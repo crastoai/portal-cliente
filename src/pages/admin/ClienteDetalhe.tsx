@@ -119,7 +119,11 @@ export default function ClienteDetalhe() {
     const r = await api.identity.users.create({ email: inv.email.trim(), full_name: inv.name, organization_id: id!, role: inv.role });
     setBusy(false);
     if (!r.ok) { setErr(r.error || tr("Erro.")); return; }
-    setInvite(false); setInv({ email: "", name: "", role: "client_member" }); reload(); flash(tr("Login: {e} · senha: {p}", { e: r.email, p: r.password }));
+    setInvite(false); setInv({ email: "", name: "", role: "client_member" }); reload();
+    // Não há senha para mostrar: a pessoa define a dela pelo link. É o ponto da mudança.
+    flash(r.email_sent
+      ? tr("✉️ Convite enviado para {e} — ela define a própria senha.", { e: r.email })
+      : tr("Acesso criado, mas o e-mail falhou: {err}", { err: r.email_error || "—" }));
   }
   async function addPerson() { if (!person.full_name.trim()) return; await api.crm.people.add({ organization_id: id, full_name: person.full_name.trim(), role: person.role || null, email: person.email || null, birthday: person.birthday || null }); setPerson({ full_name: "", role: "", email: "", birthday: "" }); reload(); }
   async function addPhone() { if (!phone.number.trim()) return; await api.crm.phones.add({ organization_id: id, label: phone.label, country_code: phone.country_code, number: phone.number.trim(), person_id: phone.person_id || null }); setPhone({ label: "mobile", country_code: "+55", number: "", person_id: "" }); reload(); }
@@ -226,12 +230,12 @@ export default function ClienteDetalhe() {
   async function downloadDoc(path: string) { const url = await api.storage.getUrl(path); if (url) window.open(url, "_blank"); }
   async function delDoc(d: any) { await api.storage.remove(d.storage_path); await api.crm.documents.remove(d.id); reload(); }
   async function resendAccess(u: any) {
-    if (!confirm(tr("Redefinir a senha de {e} e reenviar o e-mail de acesso da Crasto.AI?", { e: u.email }))) return;
+    if (!confirm(tr("Enviar para {e} um link para definir a senha de acesso? A senha atual continua valendo até ela usar o link.", { e: u.email }))) return;
     setBusy(true);
     const r = await api.identity.users.resendAccess({ user_id: u.id, email: u.email, full_name: u.full_name || "" });
     setBusy(false);
     if (!r.ok) { flash(tr("Falha ao reenviar:") + " " + (r.error || "erro")); return; }
-    flash(r.email_sent ? tr("✉️ Acesso reenviado para {e}.", { e: u.email }) : tr("Senha redefinida, mas e-mail não enviado: {err}", { err: r.email_error || "" }));
+    flash(r.email_sent ? tr("✉️ Link de acesso enviado para {e}.", { e: u.email }) : tr("Não foi possível enviar o e-mail: {err}", { err: r.email_error || "" }));
   }
 
   return (
@@ -598,7 +602,7 @@ export default function ClienteDetalhe() {
       <div className="tbl-wrap">
         <table className="tbl"><thead><tr><th>{tr("Usuário")}</th><th>{tr("Papel")}</th><th>{tr("E-mail")}</th><th>{tr("Acesso")}</th></tr></thead><tbody>
           {users.length === 0 ? <tr><td colSpan={4} style={{ color: "var(--crasto-text-muted)" }}>{tr("Sem logins — convide o responsável.")}</td></tr> : users.map((u) => (
-            <tr key={u.id}><td><div className="cust"><Avatar name={u.full_name || u.email} url={u.avatar_url} /><div className="nm">{u.full_name || "—"}</div></div></td><td><Pill tone={u.role === "client_owner" ? "ok" : "mute"}>{u.role === "client_owner" ? tr("Dono") : tr("Membro")}</Pill></td><td className="cust"><span className="em">{u.email}</span></td><td><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} onClick={() => resendAccess(u)} title={tr("Redefine a senha e reenvia o e-mail de acesso")}><span className="crasto-btn__label">{tr("Reenviar acesso")}</span></button></td></tr>
+            <tr key={u.id}><td><div className="cust"><Avatar name={u.full_name || u.email} url={u.avatar_url} /><div className="nm">{u.full_name || "—"}</div></div></td><td><Pill tone={u.role === "client_owner" ? "ok" : "mute"}>{u.role === "client_owner" ? tr("Dono") : tr("Membro")}</Pill></td><td className="cust"><span className="em">{u.email}</span></td><td><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} onClick={() => resendAccess(u)} title={tr("Envia um link para a pessoa definir a senha (não redefine a atual)")}><span className="crasto-btn__label">{tr("Reenviar acesso")}</span></button></td></tr>
           ))}
         </tbody></table>
       </div>
@@ -641,7 +645,7 @@ export default function ClienteDetalhe() {
       </Modal>
 
       <Modal title={tr("Convidar usuário")} open={invite} onClose={() => setInvite(false)}
-        footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setInvite(false)}><span className="crasto-btn__label">{tr("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={doInvite}><span className="crasto-btn__label">{busy ? tr("Criando…") : tr("Criar login")}</span></button></>}>
+        footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setInvite(false)}><span className="crasto-btn__label">{tr("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={doInvite}><span className="crasto-btn__label">{busy ? tr("Enviando…") : tr("Enviar convite")}</span></button></>}>
         {err && <div className="formerr">{err}</div>}
         <Field label="E-mail *"><input type="email" value={inv.email} onChange={(e) => setInv({ ...inv, email: e.target.value })} /></Field>
         <Field label="Nome"><input value={inv.name} onChange={(e) => setInv({ ...inv, name: e.target.value })} /></Field>

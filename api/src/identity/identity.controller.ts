@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { JwtOrgGuard } from '../common/jwt-org.guard';
+import { AdminGuard } from '../common/admin.guard';
 import { RlsDbService } from '../common/rls-db.service';
+import { UsersService } from './users.service';
 
 // Bounded context IDENTITY (schema public + RPCs). TUDO roda em asUser → a RLS do Portal
 // decide exatamente o que decidia via PostgREST; a diferença é que o cliente fala com ESTA API,
@@ -8,8 +10,25 @@ import { RlsDbService } from '../common/rls-db.service';
 @Controller('identity')
 @UseGuards(JwtOrgGuard)
 export class IdentityController {
-  constructor(private readonly db: RlsDbService) {}
+  constructor(private readonly db: RlsDbService, private readonly users: UsersService) {}
   private uid(req: any): string { return req.user.id; }
+
+  // ── acesso de pessoas ao Portal (substitui as Edge Functions de convite) ──
+  // Nenhuma senha é gerada/enviada/exibida: vai um link e a pessoa escolhe a dela.
+
+  /** Admin cria o login de um cliente. */
+  @Post('users')
+  @UseGuards(AdminGuard)
+  createUser(@Body() b: any) { return this.users.createByAdmin(b); }
+
+  /** Cliente-dono convida alguém da própria empresa (o serviço confere o papel). */
+  @Post('users/invite')
+  inviteUser(@Req() req: any, @Body() b: any) { return this.users.inviteByOwner(this.uid(req), b); }
+
+  /** Admin reenvia o acesso — manda link novo, NÃO redefine a senha da pessoa. */
+  @Post('users/:id/resend')
+  @UseGuards(AdminGuard)
+  resendUser(@Param('id') id: string) { return this.users.resend(id); }
 
   // UPDATE dinâmico seguro: colunas validadas (só [a-z0-9_]) + valores parametrizados.
   private setClause(patch: Record<string, any>, startAt: number) {

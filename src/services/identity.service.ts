@@ -87,22 +87,23 @@ export const profiles = {
   },
 };
 
+// Acesso de pessoas ao Portal — Portal API (as Edge Functions foram aposentadas em 14/07).
+// NÃO existe mais `password` em nenhum retorno: ninguém gera, transporta ou vê senha
+// alheia. A pessoa recebe um link de uso único e define a senha dela no navegador.
+const failed = (e: unknown) => ({ ok: false as const, error: errorMessage(e) });
+
 export const users = {
-  /** Cria o login do responsável via Edge Function (server-side; + e-mail de boas-vindas). */
-  create: async (body: { email: string; full_name: string; organization_id: string; role: string; password?: string }): Promise<{ ok: boolean; email?: string; password?: string; error?: string; email_sent?: boolean; email_error?: string }> => {
-    const { data, error } = await invokeRetry("admin-create-user", body);
-    if (error) return { ok: false, error: error.message };
-    return (data as any) ?? { ok: false, error: "sem resposta do servidor" };
+  /** Admin cria o login do responsável de um cliente (+ e-mail com link de senha). */
+  create: async (body: { email: string; full_name: string; organization_id: string; role: string }): Promise<{ ok: boolean; email?: string; error?: string; email_sent?: boolean; email_error?: string }> => {
+    try { return await api.post(`/api/identity/users`, body); } catch (e) { return failed(e); }
   },
+  /** Cliente-dono convida alguém da própria empresa (o servidor confere o papel). */
   invite: async (body: { email: string; full_name?: string; role?: string }): Promise<{ ok: boolean; email_sent?: boolean; email_error?: string; error?: string }> => {
-    const { data, error } = await invokeRetry("client-invite-user", body);
-    if (error) return { ok: false, error: error.message };
-    return (data as any) ?? { ok: false, error: "sem resposta do servidor" };
+    try { return await api.post(`/api/identity/users/invite`, body); } catch (e) { return failed(e); }
   },
-  resendAccess: async (body: { user_id: string; email: string; full_name?: string; password?: string }): Promise<{ ok: boolean; email?: string; password?: string; email_sent?: boolean; email_error?: string; error?: string }> => {
-    const { data, error } = await invokeRetry("admin-resend-access", body);
-    if (error) return { ok: false, error: error.message };
-    return (data as any) ?? { ok: false, error: "sem resposta do servidor" };
+  /** Reenvia o acesso: link novo para a pessoa definir a senha. NÃO redefine a atual. */
+  resendAccess: async (body: { user_id: string; email?: string; full_name?: string }): Promise<{ ok: boolean; email?: string; email_sent?: boolean; email_error?: string; error?: string }> => {
+    try { return await api.post(`/api/identity/users/${body.user_id}/resend`); } catch (e) { return failed(e); }
   },
 };
 
