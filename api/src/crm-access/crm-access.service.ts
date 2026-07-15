@@ -162,7 +162,7 @@ export class CrmAccessService {
   private notify(email: string, name: string | null | undefined, org: string, link: string | null) {
     const tpl = link
       ? crmInviteNewUser({ name, org, url: link, hours: this.idp.linkHours })
-      : crmInviteExistingUser({ name, org, url: this.crmWeb });
+      : crmInviteExistingUser({ name, org, url: `${this.crmWeb}/?para=${encodeURIComponent(email)}` });
     return this.email.send(email, tpl.subject, tpl.html);
   }
 
