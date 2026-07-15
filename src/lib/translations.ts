@@ -588,14 +588,12 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "E-mail do responsável": { en: "Contact's email", es: "Correo del responsable" },
   "cria login se preenchido": { en: "creates a login if filled", es: "crea acceso si se completa" },
   "Nome do responsável": { en: "Contact's name", es: "Nombre del responsable" },
-  "Senha (deixe em branco para gerar automática)": { en: "Password (leave blank to auto-generate)", es: "Contraseña (deja en blanco para generar automática)" },
   "Ao cadastrar com e-mail, o cliente recebe automaticamente um e-mail de boas-vindas da Crasto.AI com o link do portal e os dados de acesso.": { en: "When registered with an email, the client automatically receives a Crasto.AI welcome email with the portal link and access details.", es: "Al registrarse con un correo, el cliente recibe automáticamente un correo de bienvenida de Crasto.AI con el enlace del portal y los datos de acceso." },
   "Informe o nome da empresa.": { en: "Enter the company name.", es: "Indica el nombre de la empresa." },
   "Erro ao criar:": { en: "Error creating:", es: "Error al crear:" },
   "\"{n}\" cadastrado como {s}.": { en: "\"{n}\" registered as {s}.", es: "\"{n}\" registrado como {s}." },
   "(login não criado: {e})": { en: "(login not created: {e})", es: "(acceso no creado: {e})" },
   "✉️ E-mail de acesso enviado para {e}.": { en: "✉️ Access email sent to {e}.", es: "✉️ Correo de acceso enviado a {e}." },
-  "Login: {e} · senha: {p}": { en: "Login: {e} · password: {p}", es: "Usuario: {e} · contraseña: {p}" },
   "(e-mail não enviado: {err})": { en: "(email not sent: {err})", es: "(correo no enviado: {err})" },
 
   // ---- Admin · Agentes indicadores ----
@@ -709,7 +707,6 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Erro.": { en: "Error.", es: "Error." },
   "Documento enviado ✓ (Cloudflare R2)": { en: "Document uploaded ✓ (Cloudflare R2)", es: "Documento subido ✓ (Cloudflare R2)" },
   "Erro no upload:": { en: "Upload error:", es: "Error al subir:" },
-  "Redefinir a senha de {e} e reenviar o e-mail de acesso da Crasto.AI?": { en: "Reset {e}'s password and resend the Crasto.AI access email?", es: "¿Restablecer la contraseña de {e} y reenviar el correo de acceso de Crasto.AI?" },
   "Falha ao reenviar:": { en: "Failed to resend:", es: "Error al reenviar:" },
   "✉️ Acesso reenviado para {e}.": { en: "✉️ Access resent to {e}.", es: "✉️ Acceso reenviado a {e}." },
   "Senha redefinida, mas e-mail não enviado: {err}": { en: "Password reset, but email not sent: {err}", es: "Contraseña restablecida, pero correo no enviado: {err}" },
