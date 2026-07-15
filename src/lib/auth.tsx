@@ -18,7 +18,7 @@ type AuthCtx = {
   profile: Profile | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
-  signOut: () => Promise<void>;
+  signOut: (motivo?: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
 };
 
@@ -60,9 +60,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!error) api.post("/api/audit/event", { action: "login", system: "portal" }).catch(() => {});
     return error ? { error: error.message } : {};
   }
-  async function signOut() {
+  /** `motivo` distingue sair no botão de cair por inatividade — a trilha precisa saber. */
+  async function signOut(motivo?: string) {
     // Auditar ANTES: depois do signOut não há mais token para autenticar o registro.
-    await api.post("/api/audit/event", { action: "logout", system: "portal" }).catch(() => {});
+    await api.post("/api/audit/event", { action: "logout", system: "portal", via: motivo || "botao" }).catch(() => {});
     await supabase.auth.signOut();
   }
   async function refreshProfile() {

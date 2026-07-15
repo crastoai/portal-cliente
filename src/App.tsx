@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./lib/auth";
+import { useIdleGuard } from "./lib/idle";
+import IdleModal from "./ui/IdleModal";
 import { preview } from "./lib/preview";
 import Login from "./pages/Login";
 import ResetRequest from "./pages/ResetRequest";
@@ -54,13 +56,18 @@ function homeFor(role?: string) {
 }
 
 export default function App() {
-  const { session, profile, loading } = useAuth();
+  const { session, profile, loading, signOut } = useAuth();
   const isAdmin = !!session && profile?.role === "crasto_admin";
   // Segurança: "Ver como cliente" é só para admin — qualquer outro papel (ou sem sessão) limpa o preview.
   useEffect(() => { if (!isAdmin) preview.clear(); }, [isAdmin]);
+  // Sessão não fica aberta para sempre: 10 min parado → pergunta; 30s sem resposta → sai.
+  const idle = useIdleGuard(!!session, (motivo) => { void signOut(motivo); });
   if (loading || (session && !profile)) {
     return <div style={{ padding: 40, color: "var(--crasto-text-muted)" }}>Carregando…</div>;
   }
+  const aviso = idle.avisando && !!session ? (
+    <IdleModal restante={idle.restante} onContinuar={idle.continuar} onSair={() => void signOut("escolha")} />
+  ) : null;
   const home = homeFor(profile?.role);
   const mustChange = (session?.user?.user_metadata as any)?.must_change_password === true;
 
@@ -75,7 +82,9 @@ export default function App() {
   }
 
   return (
-    <Routes>
+    <>
+      {aviso}
+      <Routes>
       <Route path="/login" element={session ? <Navigate to={home} replace /> : <Login />} />
       {/* Fluxo de senha — sempre acessível (a sessão de recuperação cai em /nova-senha) */}
       <Route path="/redefinir" element={<ResetRequest />} />
@@ -131,6 +140,7 @@ export default function App() {
       )}
 
       <Route path="*" element={<Navigate to={session ? home : "/login"} replace />} />
-    </Routes>
+      </Routes>
+    </>
   );
 }
