@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Eye, Settings, KeyRound, ShieldCheck, Lock } from "lucide-react";
 import { services } from "../../services";
 import { PageHead, Pill, Empty, useAsync } from "../../ui/ui";
+import { useStream } from "../../lib/stream";
 import { useT } from "../../lib/i18n";
 
 // Auditoria & Logs — trilha UNICA e append-only (audit.events) do sistema inteiro:
@@ -52,13 +53,17 @@ export default function ConsoleAuditoria() {
   const [org, setOrg] = useState("");
   const [sys, setSys] = useState("");
   const [acao, setAcao] = useState("");
-  const { data, loading } = useAsync(async () => {
-    const [events, orgs] = await Promise.all([
-      services.analytics.admin.auditLog(from || undefined, to || undefined, org || undefined),
-      services.identity.organizations.listBrief().catch(() => [] as any[]),
-    ]);
-    return { events: (events as any[]) ?? [], orgs: (orgs as any[]) ?? [] };
-  }, [from, to, org]);
+  // Eventos AO VIVO (SSE): a trilha se atualiza sozinha, sem recarregar a tela.
+  // Os filtros vão na URL do stream — quem filtra é o servidor, não a tela.
+  const qs = new URLSearchParams();
+  if (from) qs.set("from", from);
+  if (to) qs.set("to", to);
+  if (org) qs.set("org", org);
+  const stream = useStream<{ eventos: any[] }>(`/api/audit/stream${qs.toString() ? `?${qs}` : ""}`, [from, to, org]);
+  // A lista de clientes não muda a cada segundo: uma busca só, à parte.
+  const { data: orgsData } = useAsync(async () => services.identity.organizations.listBrief().catch(() => [] as any[]), []);
+  const data = { events: stream.data?.eventos ?? [], orgs: (orgsData as any[]) ?? [] };
+  const loading = !stream.data && stream.live === false;
   const todos = data?.events ?? [];
   const orgs = data?.orgs ?? [];
   const events = todos.filter((e) =>
@@ -81,7 +86,16 @@ export default function ConsoleAuditoria() {
         <div className="kpi"><div className="lab"><Lock size={13} style={{ verticalAlign: -2, marginRight: 5 }} />{t("Impersonações")}</div><div className="val tnum" style={{ fontSize: 22 }}>{loading ? "—" : kImp}</div><div className="delta">{t("acessos a clientes")}</div></div>
         <div className="kpi"><div className="lab"><KeyRound size={13} style={{ verticalAlign: -2, marginRight: 5 }} />{t("Senhas")}</div><div className="val tnum" style={{ fontSize: 22 }}>{loading ? "—" : kSenha}</div><div className="delta">{t("definições · pedidos de troca")}</div></div>
         <div className="kpi"><div className="lab"><Settings size={13} style={{ verticalAlign: -2, marginRight: 5 }} />{t("Mudanças sensíveis")}</div><div className="val tnum" style={{ fontSize: 22 }}>{loading ? "—" : kCfg}</div><div className="delta">{t("config · segredo · papel · acesso")}</div></div>
-        <div className="kpi g"><div className="lab"><ShieldCheck size={13} style={{ verticalAlign: -2, marginRight: 5 }} />{t("Imutável")}</div><div className="val" style={{ fontSize: 20 }}>{t("append-only")}</div><div className="delta">{t("não editável")}</div></div>
+        <div className="kpi g">
+          <div className="lab"><ShieldCheck size={13} style={{ verticalAlign: -2, marginRight: 5 }} />{t("Imutável")}</div>
+          <div className="val" style={{ fontSize: 20 }}>{t("append-only")}</div>
+          {/* Estado do stream: a tela precisa dizer se o que está na sua frente é agora
+              ou dado velho de uma conexão que caiu. */}
+          <div className="delta" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span className={"live-dot" + (stream.live ? " on" : "")} />
+            {stream.live ? (stream.data ? `${t("ao vivo")} · ${stream.ago}s` : t("conectando…")) : t("reconectando…")}
+          </div>
+        </div>
       </div>
 
       <div className="filt-bar" style={{ marginBottom: 14 }}>
@@ -133,7 +147,7 @@ export default function ConsoleAuditoria() {
 
       <div className="note" style={{ marginTop: 14 }}>
         <Lock size={15} />
-        <div>{t("Como funciona: uma trilha única para o Portal e o WhatsApp CRM. Entradas e definições de senha são reportadas pela própria tela (acontecem entre o navegador e o Auth — o servidor não as vê), e o ator sai sempre do token verificado, nunca do que a tela diz ser. O resto é gravado pela API. Append-only: nada é editável nem apagável, nem por nós.")}</div>
+        <div>{t("Como funciona: uma trilha única para o Portal e o WhatsApp CRM, que se atualiza sozinha (a cada 5s, sem recarregar). Entradas e definições de senha são reportadas pela própria tela (acontecem entre o navegador e o Auth — o servidor não as vê), e o ator sai sempre do token verificado, nunca do que a tela diz ser. O resto é gravado pela API. Append-only: nada é editável nem apagável, nem por nós.")}</div>
       </div>
     </div>
   );

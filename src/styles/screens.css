@@ -600,3 +600,12 @@
   .rollrow { gap: 8px; padding: 10px 12px; }
   .rollname { flex: 1 1 100%; }
 }
+
+/* selo "ao vivo" — a tela precisa dizer se o dado é de agora ou de uma conexão caída */
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--crasto-text-muted); display: inline-block; flex: none; }
+.live-dot.on { background: var(--crasto-success); animation: livepulse 1.8s infinite; }
+@keyframes livepulse {
+  0%   { box-shadow: 0 0 0 0 rgba(31,138,91,.5); }
+  70%  { box-shadow: 0 0 0 6px rgba(31,138,91,0); }
+  100% { box-shadow: 0 0 0 0 rgba(31,138,91,0); }
+}
