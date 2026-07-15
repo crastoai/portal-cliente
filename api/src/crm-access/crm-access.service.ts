@@ -33,10 +33,11 @@ export class CrmAccessService {
   /** Chama a API do CRM repassando o Bearer do admin. Nunca manda nossa service key pra lá. */
   private async crm(path: string, auth: string, init: RequestInit = {}): Promise<any> {
     if (!this.crmApi) throw new BadRequestException('CRM_API_URL não configurada na API do Portal.');
+    // A API do CRM tem prefixo global /api (main.ts setGlobalPrefix).
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 15000);
     try {
-      const r = await fetch(this.crmApi + path, {
+      const r = await fetch(`${this.crmApi.replace(/\/$/, '')}/api${path}`, {
         ...init,
         signal: ctrl.signal,
         headers: { Authorization: auth, 'Content-Type': 'application/json', ...(init.headers || {}) },
@@ -107,12 +108,14 @@ export class CrmAccessService {
 
   // ---- identidade ----------------------------------------------------------
 
-  /** Identidade no IdP: existe? já tem senha? (a senha é a mesma do Portal — conta única) */
+  /**
+   * Identidade no IdP: existe? já tem senha? (a senha é a mesma do Portal — conta única)
+   * Via RPC security-definer: `service_role` NÃO lê auth.users (de propósito — lá mora o
+   * hash de senha). A função devolve só estes dois fatos e nada mais.
+   */
   private async identity(email: string): Promise<{ id: string; hasPassword: boolean } | null> {
     return this.db.asService(async (c) => {
-      const u = (await c.query(
-        `select id, coalesce(encrypted_password,'') <> '' as has_password from auth.users where lower(email)=lower($1) limit 1`,
-        [email])).rows[0];
+      const u = (await c.query(`select * from public.crm_identity_lookup($1)`, [email])).rows[0];
       return u ? { id: u.id, hasPassword: u.has_password } : null;
     });
   }

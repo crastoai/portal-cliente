@@ -8,6 +8,7 @@ import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 import { COUNTRIES, countryOf, STAGES, stageOf, DIAL_CODES } from "../../lib/countries";
 import { reg as regInfo, regTypeFor, COUNTRIES as REG_COUNTRIES, countryName as regCountryName } from "../../lib/registrations";
+import { CrmAccessSection } from "./CrmAccessSection";
 
 type Org = any;
 const icon = (cat?: string | null) => { const c = (cat || "").toLowerCase(); return c.includes("atend") ? <MessageCircle size={16} /> : c.includes("market") ? <Send size={16} /> : c.includes("vend") ? <Search size={16} /> : <Grid3x3 size={16} />; };
@@ -601,6 +602,9 @@ export default function ClienteDetalhe() {
           ))}
         </tbody></table>
       </div>
+
+      {/* Acesso ao WhatsApp CRM — só aparece se o módulo estiver ativo (a API decide) */}
+      {id && <CrmAccessSection orgId={id} onToast={setToast} />}
 
       {/* Histórico */}
       <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Histórico & atividades")}</h2></div>

@@ -1,0 +1,31 @@
+// ============================================================================
+// Ponte Portal ↔ WhatsApp CRM — acesso do cliente ao CRM (admin-only).
+// Não é um bounded context: é integração. O dado (agentes, usuários do CRM) vive
+// no CRM; a Portal API é quem conversa com ele — a tela nunca fala com o CRM direto.
+// ============================================================================
+import { api } from "../lib/api";
+
+export type CrmAgent = { id: string; name: string; status?: string | null; plan?: string | null };
+export type CrmUser = {
+  id: string; email: string; full_name: string | null;
+  role: "client_owner" | "client_member" | "crasto_admin";
+  created_at?: string; last_seen_at?: string | null; online?: boolean;
+};
+export type CrmAccessOverview = {
+  enabled: boolean;
+  module: { id: string; name: string } | null;
+  agent_id: string | null;
+  agents: CrmAgent[];
+  users: CrmUser[];
+  crm_url: string;
+  crm_error?: string | null;
+};
+
+export const crmAccess = {
+  overview: (orgId: string) => api.get<CrmAccessOverview>(`/api/crm-access/${orgId}`),
+  linkAgent: (orgId: string, agentId: string | null) => api.put(`/api/crm-access/${orgId}/agent`, { agent_id: agentId }),
+  invite: (orgId: string, b: { email: string; full_name?: string; role?: string }) =>
+    api.post<{ user: CrmUser; email_sent: boolean; email_error?: string; password_link_sent: boolean }>(`/api/crm-access/${orgId}/users`, b),
+  resend: (orgId: string, userId: string) => api.post<{ ok: boolean; password_link_sent: boolean }>(`/api/crm-access/${orgId}/users/${userId}/resend`),
+  revoke: (orgId: string, userId: string) => api.del(`/api/crm-access/${orgId}/users/${userId}`),
+};
