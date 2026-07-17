@@ -45,7 +45,9 @@ export class JulieLlmService {
     const model = process.env.JULIE_MODEL || (rt.model && rt.model !== 'gemini' ? rt.model : 'gemini-2.5-pro');
     const contents = messages.map((m: any) => {
       if (m.role === 'assistant_call') return { role: 'model', parts: m.calls.map((c: any) => ({ functionCall: { name: c.name, args: c.args || {} } })) };
-      if (m.role === 'tool_result') return { role: 'user', parts: m.results.map((r: any) => ({ functionResponse: { name: r.name, response: r.result ?? {} } })) };
+      // Gemini exige que `response` seja um OBJETO. Ferramentas que devolvem array/escalar
+      // (listar_contas, buscar_cliente…) davam 400 → 500. Embrulhamos em {resultado:...}.
+      if (m.role === 'tool_result') return { role: 'user', parts: m.results.map((r: any) => ({ functionResponse: { name: r.name, response: (r.result && typeof r.result === 'object' && !Array.isArray(r.result)) ? r.result : { resultado: r.result ?? null } } })) };
       const parts: any[] = [];
       if (m.text) parts.push({ text: m.text });
       for (const a of (m.attachments || [])) parts.push({ inline_data: { mime_type: a.mime, data: a.data } });
