@@ -93,21 +93,21 @@ export default function JulieWidget() {
   return (
     <>
       {!open && (
-        <button className="julie-fab" onClick={() => setOpen(true)} aria-label="Abrir a Julie (assistente financeira)">
+        <button className="julie-fab" onClick={() => setOpen(true)} aria-label="Abrir a Julie (assistente virtual)">
           <Sparkles size={22} />
         </button>
       )}
       {open && (
-        <div className="julie-panel" role="dialog" aria-label="Julie — assistente financeira">
+        <div className="julie-panel" role="dialog" aria-label="Julie — assistente virtual">
           <div className="julie-head">
-            <div className="julie-id"><span className="julie-av"><Sparkles size={15} /></span><div className="julie-idt"><b>Julie</b><span>CFO · assistente financeira</span></div></div>
+            <div className="julie-id"><span className="julie-av"><Sparkles size={15} /></span><div className="julie-idt"><b>Julie</b><span>Assistente virtual</span></div></div>
             <button className="julie-x" onClick={() => setOpen(false)} aria-label="Fechar"><X size={18} /></button>
           </div>
           <div className="julie-body" ref={bodyRef}>
             {msgs.length === 0 && (
               <div className="julie-hi">
-                Oi! Sou a <b>Julie</b>, sua CFO de IA. Posso te dar o panorama do financeiro, ou ler uma <b>nota fiscal</b>/<b>contrato</b> que você anexar e organizar os dados.<br /><br />
-                Nesta fase eu <b>ainda não gravo nada</b> — preparo e te mostro para conferir. É só perguntar, anexar ou mandar um áudio.
+                Oi! Sou a <b>Julie</b>, sua assistente virtual. Cuido do <b>financeiro</b> (contas, custos, caixa) e do <b>cadastro de clientes</b>, e leio <b>nota fiscal</b>/<b>contrato</b> que você anexar.<br /><br />
+                Qualquer coisa que eu vá gravar, mostro antes e você <b>confirma</b>. É só perguntar, anexar ou mandar um áudio.
               </div>
             )}
             {msgs.map((m, i) => (
