@@ -1,21 +1,27 @@
 import { useState } from "react";
-import { Check, Search } from "lucide-react";
+import { Search, ArrowRight, Clock, Sparkles, Check } from "lucide-react";
 import { services, errorMessage } from "../../services";
 import { PageHead, Empty, useAsync } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import { useAuth } from "../../lib/auth";
+import Modal from "../../ui/Modal";
 
-type V = { id: string; name: string; description: string | null; category: string | null };
+// Catálogo de soluções (visão do cliente): o que ele pode CONTRATAR — não o que já tem.
+// Cartões → tela de detalhe com a descrição → botão "Solicitar implementação".
+// A descrição vem do catálogo (importada e REBRANDIZADA para Crasto.AI; nada de Viver de IA).
+type V = { id: string; name: string; description: string | null; category: string | null; client_deadline_days?: number | null; setup_workdays?: number | null; customization?: string | null };
+
+const customLabel = (c?: string | null) => (c === "standard" ? "Pronta para usar" : c === "light" ? "Ajuste leve" : c === "heavy" ? "Sob medida" : "");
 
 export default function Catalogo() {
   const t = useT();
   const { profile } = useAuth();
   const { data, loading } = useAsync(async () => {
-    const mods = (await services.catalog.vdiModules.listActive()) as unknown as V[];
+    const mods = (await services.catalog.vdiModules.listActive("id,name,description,category,client_deadline_days,setup_workdays,customization")) as unknown as V[];
     const org = profile?.organization_id ? await services.identity.organizations.getById(profile.organization_id).catch(() => null) : null;
     return { mods: mods ?? [], org: org as any };
   }, [profile?.organization_id]);
-  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [detail, setDetail] = useState<V | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
   const [query, setQuery] = useState("");
@@ -24,32 +30,25 @@ export default function Catalogo() {
   const org = data?.org;
   const catOf = (i: V) => i.category || t("Outros");
   const cats = Array.from(new Set(items.map(catOf))).sort((a, b) => a.localeCompare(b, "pt"));
+  const prazo = (i: V) => i.client_deadline_days || 30;
 
-  function toggle(id: string) {
-    const n = new Set(sel);
-    n.has(id) ? n.delete(id) : n.add(id);
-    setSel(n);
-  }
-
-  async function solicitar() {
-    const escolhidos = items.filter((i) => sel.has(i.id)).map((i) => i.name);
-    if (escolhidos.length === 0) return;
+  async function solicitar(i: V) {
     setBusy(true);
     const who = profile?.full_name || profile?.email || t("Cliente");
     const empresa = org?.name || "";
     const description =
-      `${t("O cliente solicitou a implementação de:")}\n- ${escolhidos.join("\n- ")}\n\n` +
+      `${t("O cliente solicitou a implementação de:")}\n- ${i.name}\n\n` +
       `${t("Solicitante")}: ${who}${profile?.email ? ` (${profile.email})` : ""}\n` +
       (empresa ? `${t("Empresa")}: ${empresa}${org?.owner_name ? ` — ${t("responsável")}: ${org.owner_name}` : ""}\n` : "") +
       `\n${t("→ Chamar o cliente no WhatsApp para dar sequência à implantação.")}`;
     try {
       const r = await services.support.tickets.open({
-        subject: t("Solicitação de implementação") + (empresa ? ` — ${empresa}` : ""),
+        subject: t("Solicitação de implementação") + `: ${i.name}` + (empresa ? ` — ${empresa}` : ""),
         description,
         kind: "implementation_request",
       });
       if (!r.ok) { setToast(t("Não foi possível enviar. Tente de novo.")); }
-      else { setSel(new Set()); setToast(t("Solicitação enviada ✓ A Crasto.AI vai avaliar e retornar.")); }
+      else { setDetail(null); setToast(t("Solicitação enviada ✓ A Crasto.AI vai avaliar e retornar.")); }
     } catch (e) { setToast(errorMessage(e)); }
     setBusy(false);
     setTimeout(() => setToast(""), 8000);
@@ -59,22 +58,24 @@ export default function Catalogo() {
   const filtered = items.filter((i) => (!activeCat || catOf(i) === activeCat) && (!q || `${i.name} ${i.category || ""} ${i.description || ""}`.toLowerCase().includes(q)));
   const shownCats = activeCat ? [activeCat] : cats;
 
-  function Row({ i }: { i: V }) {
+  function Card({ i }: { i: V }) {
     return (
-      <div className={"catrow" + (sel.has(i.id) ? " sel" : "")} onClick={() => toggle(i.id)}>
-        <span className="cb"><Check size={13} style={{ opacity: sel.has(i.id) ? 1 : 0 }} /></span>
-        <div><div className="cn">{i.name}</div><div className="cc">{i.description || catOf(i)}</div></div>
-        <span className="pill info" style={{ marginLeft: "auto" }}><span className="d" />{t("30 dias")}</span>
-      </div>
+      <button className="solcard" onClick={() => setDetail(i)}>
+        <span className="solcard-cat">{catOf(i)}</span>
+        <span className="solcard-title">{i.name}</span>
+        {i.description && <span className="solcard-desc">{i.description}</span>}
+        <span className="solcard-foot">
+          <span className="pill info"><span className="d" />{t("{n} dias", { n: prazo(i) })}</span>
+          {customLabel(i.customization) && <span className="solcard-tag">{t(customLabel(i.customization))}</span>}
+          <span className="solcard-open">{t("Ver detalhes")} <ArrowRight size={13} /></span>
+        </span>
+      </button>
     );
   }
 
   return (
     <div>
-      <PageHead eyebrow="Portal do Cliente" title="Soluções disponíveis" sub="Escolha o que você quer que a Crasto.AI implemente. Padrão: 30 dias por módulo." />
-      <div className="note">
-        <span>{t("Selecione os módulos e clique em Solicitar implementação. Precisa de algo sob medida? Pedimos um projeto à parte.")}</span>
-      </div>
+      <PageHead eyebrow="Portal do Cliente" title="Catálogo de soluções" sub="Explore o que a Crasto.AI pode implementar para você. Abra uma solução para ver os detalhes e solicitar a implementação." />
       {loading ? <Empty>Carregando…</Empty> : (
         <>
           <div className="catsearch">
@@ -93,19 +94,35 @@ export default function Catalogo() {
             const rows = filtered.filter((i) => catOf(i) === c);
             if (rows.length === 0) return null;
             return (
-              <div key={c}>
+              <div key={c} style={{ marginBottom: 8 }}>
                 {!activeCat && <div className="catcat">{c}</div>}
-                {rows.map((i) => <Row key={i.id} i={i} />)}
+                <div className="solgrid">{rows.map((i) => <Card key={i.id} i={i} />)}</div>
               </div>
             );
           })}
-
-          <div style={{ position: "sticky", bottom: 0, display: "flex", justifyContent: "flex-end", gap: 12, alignItems: "center", padding: "16px 0", marginTop: 10 }}>
-            <span style={{ fontSize: 13, color: "var(--crasto-text-muted)", fontWeight: 600 }}>{sel.size === 1 ? t("{n} selecionado", { n: sel.size }) : t("{n} selecionados", { n: sel.size })}</span>
-            <button className="crasto-btn crasto-btn--primary crasto-btn--md" disabled={sel.size === 0 || busy} onClick={solicitar}><span className="crasto-btn__label">{busy ? t("Enviando…") : t("Solicitar implementação")}</span></button>
-          </div>
         </>
       )}
+
+      {/* Tela de detalhe da solução: descrição + solicitar implementação */}
+      <Modal open={!!detail} onClose={() => setDetail(null)} title={detail?.name || ""}
+        footer={detail && <>
+          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setDetail(null)}><span className="crasto-btn__label">{t("Fechar")}</span></button>
+          <button className="crasto-btn crasto-btn--primary crasto-btn--md" disabled={busy} onClick={() => solicitar(detail)}><span className="crasto-btn__icon"><Sparkles size={15} /></span><span className="crasto-btn__label">{busy ? t("Enviando…") : t("Solicitar implementação")}</span></button>
+        </>}>
+        {detail && (
+          <div className="soldetail">
+            <div className="soldetail-meta">
+              <span className="pill info"><span className="d" />{detail.category || t("Outros")}</span>
+              <span className="soldetail-chip"><Clock size={13} /> {t("{n} dias", { n: prazo(detail) })}</span>
+              {customLabel(detail.customization) && <span className="soldetail-chip"><Check size={13} /> {t(customLabel(detail.customization))}</span>}
+            </div>
+            {detail.description
+              ? <div className="soldetail-desc">{detail.description}</div>
+              : <div className="soldetail-desc muted">{t("Descrição detalhada em breve. Você já pode solicitar a implementação — a Crasto.AI retorna com todos os detalhes.")}</div>}
+          </div>
+        )}
+      </Modal>
+
       {toast && <div className="toast">{toast}</div>}
     </div>
   );

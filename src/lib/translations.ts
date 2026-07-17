@@ -51,6 +51,7 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Minhas Soluções": { en: "My Solutions", es: "Mis Soluciones" },
   "Minha Implementação": { en: "My Implementation", es: "Mi Implementación" },
   "Soluções disponíveis": { en: "Available solutions", es: "Soluciones disponibles" },
+  "Catálogo de soluções": { en: "Solutions catalog", es: "Catálogo de soluciones" },
   "Financeiro": { en: "Billing", es: "Finanzas" },
   "Usuários & Equipe": { en: "Users & Team", es: "Usuarios y Equipo" },
   "Suporte & Ajuda": { en: "Support & Help", es: "Soporte y Ayuda" },
