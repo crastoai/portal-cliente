@@ -23,6 +23,9 @@ export type CrmAccessOverview = {
 
 export const crmAccess = {
   overview: (orgId: string) => api.get<CrmAccessOverview>(`/api/crm-access/${orgId}`),
+  // "Entrar no CRM": OTP de uso único (magiclink) para o próprio admin. O CRM troca por
+  // sessão na origem dele. Nunca devolve/transporta o bearer.
+  enter: () => api.post<{ token: string; type: string }>(`/api/crm-access/enter`),
   linkAgent: (orgId: string, agentId: string | null) => api.put(`/api/crm-access/${orgId}/agent`, { agent_id: agentId }),
   invite: (orgId: string, b: { email: string; full_name?: string; role?: string }) =>
     api.post<{ user: CrmUser; email_sent: boolean; email_error?: string; password_link_sent: boolean }>(`/api/crm-access/${orgId}/users`, b),

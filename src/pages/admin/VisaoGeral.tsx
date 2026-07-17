@@ -53,19 +53,29 @@ export default function VisaoGeral() {
     } catch (e) { setEscErr(errorMessage(e)); setAgentes([]); }
   }
 
-  // Entra no CRM daquele agente (ou na org inteira). Handoff SEM token na URL — só o
-  // escopo (org/agente, que não são segredos); quem autoriza é o is_admin do JWT + o
-  // AdminGuard da API. Respeita a decisão de 15/07 (nada de access_token na URL).
+  // Entra no CRM daquele agente (ou na org inteira). Somos admin do Portal → entramos na
+  // VISUALIZAÇÃO do cliente, não na tela de login. Como o CRM é outra origem (sessão por
+  // origem), pedimos ao Portal um OTP de uso único (magiclink do próprio admin) e mandamos
+  // na URL SÓ o OTP + o escopo (org/agente). Nunca o bearer — respeita a decisão de 15/07;
+  // o CRM troca o OTP por sessão na origem dele (/entrar). Quem autoriza é o is_admin do JWT.
+  const [entrando, setEntrando] = useState(false);
   async function abrirCrm(agent?: CrmAgent) {
-    if (!escolher) return;
-    try { await services.analytics.admin.auditRecord({ action: "impersonate_attempt", target_type: agent ? "agent" : "org", target_id: agent?.id || escolher.org, organization_id: escolher.org, context: { via: "portal_dashboard", agent: agent?.name ?? null } }); } catch { /* best-effort */ }
+    if (!escolher || entrando) return;
     const base = crmUrl || "";
     if (!base) { setEscErr(t("CRM ainda não configurado (CRM_WEB_URL).")); return; }
-    const u = new URL(base);
-    u.searchParams.set("imp_org", escolher.org);
-    u.searchParams.set("imp_org_nome", escolher.nome);
-    if (agent) { u.searchParams.set("imp_agent", agent.id); u.searchParams.set("imp_agent_nome", agent.name); }
-    window.location.href = u.toString();
+    setEntrando(true); setEscErr("");
+    try { await services.analytics.admin.auditRecord({ action: "impersonate_attempt", target_type: agent ? "agent" : "org", target_id: agent?.id || escolher.org, organization_id: escolher.org, context: { via: "portal_dashboard", agent: agent?.name ?? null } }); } catch { /* best-effort */ }
+    try {
+      const { token, type } = await services.crmAccess.enter();
+      const u = new URL(base);
+      u.pathname = "/entrar";
+      u.searchParams.set("token", token);
+      u.searchParams.set("type", type || "magiclink");
+      u.searchParams.set("imp_org", escolher.org);
+      u.searchParams.set("imp_org_nome", escolher.nome);
+      if (agent) { u.searchParams.set("imp_agent", agent.id); u.searchParams.set("imp_agent_nome", agent.name); }
+      window.location.href = u.toString();
+    } catch (e) { setEscErr(errorMessage(e)); setEntrando(false); }
   }
 
   const [open, setOpen] = useState(false);
@@ -153,7 +163,7 @@ export default function VisaoGeral() {
         {agentes && agentes.length === 0 && !escErr && <div style={{ padding: "10px 0", color: "var(--crasto-text-muted)" }}>{t("Este cliente ainda não tem agente no WhatsApp CRM.")}</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {(agentes || []).map((a) => (
-            <button key={a.id} className="rowbtn" onClick={() => abrirCrm(a)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "10px 12px", border: "1px solid var(--crasto-border)", borderRadius: 10, background: "var(--crasto-surface)", cursor: "pointer" }}>
+            <button key={a.id} className="rowbtn" disabled={entrando} onClick={() => abrirCrm(a)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "10px 12px", border: "1px solid var(--crasto-border)", borderRadius: 10, background: "var(--crasto-surface)", cursor: entrando ? "wait" : "pointer", opacity: entrando ? 0.6 : 1 }}>
               <span className="logo" style={{ width: 30, height: 30, fontSize: 12 }}>{initials(a.name)}</span>
               <span style={{ flex: 1 }}><b>{a.name}</b>{a.plan ? <span style={{ color: "var(--crasto-text-muted)" }}> · {a.plan}</span> : null}</span>
               <ArrowRight size={14} style={{ opacity: .5 }} />
@@ -161,8 +171,8 @@ export default function VisaoGeral() {
           ))}
         </div>
         {agentes && agentes.length > 0 && (
-          <button onClick={() => abrirCrm()} style={{ marginTop: 12, width: "100%", padding: "9px 12px", border: "1px dashed var(--crasto-border)", borderRadius: 10, background: "transparent", color: "var(--crasto-text-muted)", cursor: "pointer", fontSize: 13 }}>
-            {t("Ver a empresa inteira")} ({agentes.length} {agentes.length === 1 ? t("agente") : t("agentes")})
+          <button onClick={() => abrirCrm()} disabled={entrando} style={{ marginTop: 12, width: "100%", padding: "9px 12px", border: "1px dashed var(--crasto-border)", borderRadius: 10, background: "transparent", color: "var(--crasto-text-muted)", cursor: entrando ? "wait" : "pointer", fontSize: 13, opacity: entrando ? 0.6 : 1 }}>
+            {entrando ? t("Entrando…") : `${t("Ver a empresa inteira")} (${agentes.length} ${agentes.length === 1 ? t("agente") : t("agentes")})`}
           </button>
         )}
       </Modal>

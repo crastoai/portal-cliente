@@ -41,7 +41,7 @@ export class IdpService {
    * `recovery` NÃO redefine a senha: só permite que a pessoa defina uma nova. A senha
    * atual continua valendo até ela usar o link.
    */
-  async token(email: string, type: 'invite' | 'recovery', data?: Record<string, unknown>): Promise<{ token: string; userId?: string }> {
+  async token(email: string, type: 'invite' | 'recovery' | 'magiclink', data?: Record<string, unknown>): Promise<{ token: string; userId?: string }> {
     if (!this.svcKey) throw new BadRequestException('PORTAL_SERVICE_KEY ausente na API — não é possível gerar o convite.');
     const r = await fetch(`${this.gotrue}/admin/generate_link`, {
       method: 'POST',

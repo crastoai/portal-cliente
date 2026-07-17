@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./lib/auth";
 import { useIdleGuard } from "./lib/idle";
 import IdleModal from "./ui/IdleModal";
+import Splash from "./ui/Splash";
 import { preview } from "./lib/preview";
 import Login from "./pages/Login";
 import ResetRequest from "./pages/ResetRequest";
@@ -63,7 +64,7 @@ export default function App() {
   // Sessão não fica aberta para sempre: 10 min parado → pergunta; 30s sem resposta → sai.
   const idle = useIdleGuard(!!session, (motivo) => { void signOut(motivo); });
   if (loading || (session && !profile)) {
-    return <div style={{ padding: 40, color: "var(--crasto-text-muted)" }}>Carregando…</div>;
+    return <Splash />;
   }
   const aviso = idle.avisando && !!session ? (
     <IdleModal restante={idle.restante} onContinuar={idle.continuar} onSair={() => void signOut("escolha")} />

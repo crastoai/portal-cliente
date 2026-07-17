@@ -12,6 +12,11 @@ export class CrmAccessController {
   constructor(private readonly svc: CrmAccessService) {}
   private auth(req: any): string { return req.headers.authorization; }
 
+  // "Entrar no CRM": mint de um magiclink de USO ÚNICO para o próprio admin (e-mail do JWT).
+  // A tela redireciona com esse OTP + escopo — nunca com o bearer. (rota literal antes de :orgId)
+  @Post('enter')
+  enter(@Req() req: any) { return this.svc.enterLink(req); }
+
   @Get(':orgId')
   overview(@Req() req: any, @Param('orgId') orgId: string) { return this.svc.overview(orgId, this.auth(req)); }
 

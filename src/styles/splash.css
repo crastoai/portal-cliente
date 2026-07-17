@@ -1,0 +1,86 @@
+/* Splash de carregamento — logo Crasto ao CENTRO, animada.
+   Substitui o "Carregando…" solto no canto (feio) por um estado de marca.
+   Tema: a cor vem de --crasto-text-primary (navy no claro, quase-branco no escuro),
+   e o traço da logo usa currentColor — theme-aware sem duplicar SVG. */
+.brand-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  background: var(--crasto-bg-2);
+  color: var(--crasto-text-primary);
+  /* entra suave — nada de "pisca e some" */
+  animation: splash-in .28s ease both;
+}
+
+/* o disco de fundo dá o toque liquid-glass e ancora a logo no centro óptico */
+.brand-splash__stage {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  display: grid;
+  place-items: center;
+}
+
+/* anel que respira/gira por trás da logo (assinatura de movimento) */
+.brand-splash__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg,
+    transparent 0deg,
+    var(--crasto-navy-14) 90deg,
+    var(--crasto-navy-30) 180deg,
+    var(--crasto-navy-14) 270deg,
+    transparent 360deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  animation: splash-spin 2.4s linear infinite;
+  opacity: .9;
+}
+:root[data-theme="dark"] .brand-splash__ring,
+html[data-theme="dark"] .brand-splash__ring {
+  background: conic-gradient(from 0deg,
+    transparent 0deg,
+    rgba(255,255,255,.10) 90deg,
+    rgba(255,255,255,.28) 180deg,
+    rgba(255,255,255,.10) 270deg,
+    transparent 360deg);
+}
+
+.brand-splash__mark {
+  width: 78px;
+  height: 78px;
+  display: block;
+  /* respira: opacidade + escala num pulso calmo e caro */
+  animation: splash-breathe 1.9s ease-in-out infinite;
+  transform-origin: center;
+}
+.brand-splash__mark path,
+.brand-splash__mark rect { stroke: currentColor; }
+
+.brand-splash__word {
+  font-family: var(--crasto-font);
+  font-size: 12px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--crasto-text-muted);
+  animation: splash-breathe 1.9s ease-in-out infinite;
+}
+
+@keyframes splash-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes splash-spin { to { transform: rotate(360deg) } }
+@keyframes splash-breathe {
+  0%, 100% { opacity: .55; transform: scale(.975); }
+  50%      { opacity: 1;   transform: scale(1.02); }
+}
+
+/* acessibilidade: quem pediu menos movimento vê a logo estática */
+@media (prefers-reduced-motion: reduce) {
+  .brand-splash__ring, .brand-splash__mark, .brand-splash__word { animation: none; }
+  .brand-splash__mark { opacity: 1; }
+}

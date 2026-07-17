@@ -70,6 +70,29 @@ export class CrmAccessService {
       (await c.query(`select name from public.organizations where id=$1`, [orgId])).rows[0]?.name || 'sua empresa');
   }
 
+  // ---- entrada do admin no CRM --------------------------------------------
+
+  /**
+   * "Entrar no CRM" (admin do Portal → CRM do cliente). O problema: o CRM é OUTRA origem,
+   * e a sessão vive no localStorage POR ORIGEM — o admin está logado no Portal, não no CRM,
+   * então cai na tela de login. A ponte não pode levar o access_token na URL (decisão de
+   * 15/07: bearer vaza em log/histórico/Referer).
+   *
+   * Solução: geramos para o PRÓPRIO admin (e-mail do JWT) um `magiclink` — o mesmo primitivo
+   * já usado no convite. O que atravessa a URL é o `hashed_token`: OTP de USO ÚNICO e curto,
+   * NÃO um bearer. O CRM troca por sessão no /auth/v1/verify (igual ao /definir-senha) e
+   * estabelece a sessão do admin na origem dele. O escopo de impersonação (org/agente) vai
+   * à parte na URL — não é segredo, e quem autoriza continua sendo o is_admin do JWT.
+   * Respeita "nunca senha de terceiro": é a conta do próprio admin e magiclink não toca senha.
+   */
+  async enterLink(req: any): Promise<{ token: string; type: 'magiclink' }> {
+    const email = String(req?.user?.email || '').trim().toLowerCase();
+    if (!email) throw new BadRequestException('Sessão sem e-mail — não é possível gerar a entrada no CRM.');
+    const { token } = await this.idp.token(email, 'magiclink');
+    await this.audit.log(req, 'crm_enter_link', { targetType: 'user', targetId: req?.user?.id, system: 'crm', ctx: { email } });
+    return { token, type: 'magiclink' };
+  }
+
   // ---- leitura -------------------------------------------------------------
 
   /** Estado da aba: módulo ativo, agentes do CRM, agente vinculado e usuários com acesso. */
