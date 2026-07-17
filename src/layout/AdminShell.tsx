@@ -1,5 +1,6 @@
 import { LayoutDashboard, Users, Grid3x3, FileText, Tag, Share2, Coins, TrendingUp, Plug, LifeBuoy, Rocket, DollarSign, Cpu, Activity, BookOpen, ScrollText, Lock, ClipboardList, KeyRound, Blocks } from "lucide-react";
 import Shell, { type NavItem } from "./Shell";
+import JulieWidget from "../ui/JulieWidget";
 
 const CONSOLE = "Console · IA 🔒";
 const NAV: NavItem[] = [
@@ -27,5 +28,11 @@ const NAV: NavItem[] = [
 ];
 
 export default function AdminShell() {
-  return <Shell nav={NAV} who="Crasto.AI · Admin" sub="Super-admin (RLS)" logoTone="linear-gradient(145deg,#010E26,#0a2350)" />;
+  return (
+    <>
+      <Shell nav={NAV} who="Crasto.AI · Admin" sub="Super-admin (RLS)" logoTone="linear-gradient(145deg,#010E26,#0a2350)" />
+      {/* Julie — CFO de IA, flutuante em todo o admin */}
+      <JulieWidget />
+    </>
+  );
 }

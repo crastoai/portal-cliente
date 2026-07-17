@@ -1,0 +1,67 @@
+/* Julie — assistente flutuante (canto inferior direito), em todo o admin. Usa tokens do DS. */
+.julie-fab {
+  position: fixed; right: 22px; bottom: 22px; z-index: 200;
+  width: 58px; height: 58px; border-radius: 50%; border: none; cursor: pointer;
+  display: grid; place-items: center; color: #fff;
+  background: linear-gradient(145deg, var(--crasto-navy), #0a2350);
+  box-shadow: 0 14px 34px -12px var(--crasto-navy-40, rgba(1,14,38,.4)), 0 2px 0 rgba(255,255,255,.15) inset;
+  transition: transform .18s, box-shadow .18s;
+}
+.julie-fab:hover { transform: translateY(-3px) scale(1.03); }
+
+.julie-panel {
+  position: fixed; right: 22px; bottom: 22px; z-index: 200;
+  width: 380px; max-width: calc(100vw - 24px); height: 560px; max-height: calc(100dvh - 40px);
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft);
+  border-radius: 18px; box-shadow: 0 30px 70px -24px rgba(1,14,38,.45);
+  animation: julie-up .2s ease-out;
+}
+@keyframes julie-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+
+.julie-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 14px;
+  color: #fff; background: linear-gradient(140deg, var(--crasto-navy), var(--crasto-navy-deep, #000714)); }
+.julie-id { display: flex; align-items: center; gap: 10px; }
+.julie-av { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: rgba(255,255,255,.16); color: #fff; }
+.julie-idt { display: flex; flex-direction: column; line-height: 1.2; }
+.julie-idt b { font-size: 14px; font-weight: 700; }
+.julie-idt span { font-size: 11px; opacity: .7; }
+.julie-x { width: 32px; height: 32px; border-radius: 9px; border: none; background: transparent; color: #fff; cursor: pointer; display: grid; place-items: center; }
+.julie-x:hover { background: rgba(255,255,255,.14); }
+
+.julie-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 14px; display: flex; flex-direction: column; gap: 10px; background: var(--crasto-bg-2); }
+.julie-hi { font-size: 13px; line-height: 1.6; color: var(--crasto-text-body); background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: 12px; padding: 13px 14px; }
+.julie-msg { display: flex; flex-direction: column; gap: 4px; max-width: 88%; }
+.julie-msg.user { align-self: flex-end; align-items: flex-end; }
+.julie-msg.assistant { align-self: flex-start; align-items: flex-start; }
+.julie-bubble { font-size: 13.5px; line-height: 1.55; padding: 9px 13px; border-radius: 14px; white-space: pre-wrap; word-break: break-word; }
+.julie-msg.assistant .julie-bubble { background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); color: var(--crasto-text-primary); border-bottom-left-radius: 4px; }
+.julie-msg.user .julie-bubble { background: linear-gradient(180deg, #0b2a4a, var(--crasto-navy-deep, #000714)); color: #fff; border-bottom-right-radius: 4px; }
+.julie-anexo { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--crasto-text-muted); background: var(--crasto-bg-3); border: 1px solid var(--crasto-border-soft); border-radius: 8px; padding: 4px 9px; }
+.julie-typing { display: inline-flex; gap: 4px; }
+.julie-typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--crasto-text-muted); animation: julie-blink 1.2s infinite; }
+.julie-typing span:nth-child(2) { animation-delay: .2s; }
+.julie-typing span:nth-child(3) { animation-delay: .4s; }
+@keyframes julie-blink { 0%, 60%, 100% { opacity: .3; } 30% { opacity: 1; } }
+
+.julie-err { font-size: 12px; color: var(--crasto-danger); background: #F6E7E7; border-top: 1px solid #eecccc; padding: 8px 14px; }
+[data-theme="dark"] .julie-err { background: rgba(184,58,58,.14); border-color: rgba(184,58,58,.3); }
+.julie-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px 0; }
+.julie-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--crasto-text-body); background: var(--crasto-bg-3); border: 1px solid var(--crasto-border-soft); border-radius: 999px; padding: 3px 6px 3px 9px; }
+.julie-chip button { border: none; background: transparent; color: var(--crasto-text-muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 2px; }
+
+.julie-composer { display: flex; align-items: flex-end; gap: 6px; padding: 10px 10px 12px; border-top: 1px solid var(--crasto-border-soft); background: var(--crasto-surface); }
+.julie-ic { width: 38px; height: 38px; flex: none; border-radius: 10px; border: none; background: transparent; color: var(--crasto-text-muted); cursor: pointer; display: grid; place-items: center; }
+.julie-ic:hover { background: var(--crasto-bg-3); color: var(--crasto-text-primary); }
+.julie-ic.is-rec { color: #fff; background: var(--crasto-danger, #B83A3A); animation: julie-pulse 1s infinite; }
+@keyframes julie-pulse { 50% { opacity: .6; } }
+.julie-input { flex: 1; min-width: 0; resize: none; max-height: 110px; border: 1px solid var(--crasto-border); border-radius: 12px; padding: 9px 12px; font: inherit; font-size: 14px; line-height: 1.4; color: var(--crasto-text-primary); background: var(--crasto-surface); outline: none; }
+.julie-input:focus { border-color: var(--crasto-navy); }
+.julie-send { width: 40px; height: 40px; flex: none; border-radius: 12px; border: none; cursor: pointer; display: grid; place-items: center; color: #fff; background: linear-gradient(180deg, var(--crasto-navy), var(--crasto-navy-deep, #000714)); }
+.julie-send:disabled { opacity: .45; cursor: default; }
+
+@media (max-width: 480px) {
+  .julie-panel { right: 8px; bottom: 8px; width: calc(100vw - 16px); height: calc(100dvh - 16px); }
+  .julie-fab { right: 16px; bottom: 16px; }
+}
