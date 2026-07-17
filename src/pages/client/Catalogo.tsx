@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Search, ArrowRight, Clock, Sparkles, Check } from "lucide-react";
+import { Search, ArrowRight, Clock, Sparkles, Check, MessageSquare, DollarSign, Scale, Megaphone, Cpu, Users, TrendingUp, Grid3x3 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { services, errorMessage } from "../../services";
 import { PageHead, Empty, useAsync } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
@@ -12,6 +13,20 @@ import Modal from "../../ui/Modal";
 type V = { id: string; name: string; description: string | null; category: string | null; client_deadline_days?: number | null; setup_workdays?: number | null; customization?: string | null };
 
 const customLabel = (c?: string | null) => (c === "standard" ? "Pronta para usar" : c === "light" ? "Ajuste leve" : c === "heavy" ? "Sob medida" : "");
+
+// Capa ilustrativa por categoria: ícone + cor de destaque (o brilho da capa). Dá identidade
+// visual a cada cartão sem precisar de 153 imagens — e a base navy mantém a marca.
+const CAT: Record<string, { icon: LucideIcon; glow: string }> = {
+  "Atendimento e CS": { icon: MessageSquare, glow: "rgba(110,156,232,.5)" },
+  "Financeiro":       { icon: DollarSign,   glow: "rgba(52,211,153,.46)" },
+  "Jurídico":         { icon: Scale,        glow: "rgba(196,181,253,.46)" },
+  "Marketing":        { icon: Megaphone,    glow: "rgba(251,146,120,.46)" },
+  "Modelos de IA":    { icon: Cpu,          glow: "rgba(94,234,212,.46)" },
+  "RH":               { icon: Users,        glow: "rgba(250,204,120,.46)" },
+  "Vendas":           { icon: TrendingUp,   glow: "rgba(129,178,255,.55)" },
+  "Outros":           { icon: Grid3x3,      glow: "rgba(148,163,184,.42)" },
+};
+const capaDe = (cat: string) => CAT[cat] || CAT["Outros"];
 
 export default function Catalogo() {
   const t = useT();
@@ -59,16 +74,25 @@ export default function Catalogo() {
   const shownCats = activeCat ? [activeCat] : cats;
 
   function Card({ i }: { i: V }) {
+    const capa = capaDe(catOf(i));
+    const Ico = capa.icon;
+    // posição do brilho varia por solução (determinística pelo nome) → cada capa fica única
+    const seed = [...i.name].reduce((a, c) => a + c.charCodeAt(0), 0);
+    const gx = (seed % 66) + 8 + "%";
     return (
       <button className="solcard" onClick={() => setDetail(i)}>
-        <span className="solcard-cat">{catOf(i)}</span>
-        <span className="solcard-title">{i.name}</span>
-        {i.description && <span className="solcard-desc">{i.description}</span>}
-        <span className="solcard-foot">
-          <span className="pill info"><span className="d" />{t("{n} dias", { n: prazo(i) })}</span>
-          {customLabel(i.customization) && <span className="solcard-tag">{t(customLabel(i.customization))}</span>}
-          <span className="solcard-open">{t("Ver detalhes")} <ArrowRight size={13} /></span>
-        </span>
+        <div className="solcard-cover" style={{ ["--glow" as any]: capa.glow, ["--gx" as any]: gx }}>
+          <span className="solcard-glow" />
+          <Ico size={30} />
+        </div>
+        <div className="solcard-body">
+          <span className="solcard-cat">{catOf(i)}</span>
+          <span className="solcard-title">{i.name}</span>
+          <span className="solcard-foot">
+            <span className="pill info"><span className="d" />{t("{n} dias", { n: prazo(i) })}</span>
+            <span className="solcard-open">{t("Ver detalhes")} <ArrowRight size={13} /></span>
+          </span>
+        </div>
       </button>
     );
   }
