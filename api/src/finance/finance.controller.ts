@@ -16,6 +16,24 @@ export class FinanceController {
   // Puxa o custo REAL de IA das APIs de billing (Anthropic + OpenAI) para o mês (ou período).
   @Post('ai-cost/sync')
   aiCostSync(@Req() req: any, @Body() b: any) { return this.aiSync.sync(this.uid(req), { from: b?.from, to: b?.to }); }
+
+  // Guarda no cofre a ADMIN key de billing (só anthropic_admin/openai_admin). A chave nunca
+  // volta ao front; set_provider_secret cria a integração + o segredo no Vault.
+  @Post('ai-cost/billing-key')
+  billingKey(@Body() b: any) {
+    const p = String(b?.provider || ''); const secret = String(b?.secret || '');
+    if (!['anthropic_admin', 'openai_admin'].includes(p)) return { ok: false, error: 'provedor inválido' };
+    if (!secret) return { ok: false, error: 'chave vazia' };
+    return this.db.asService(async (c) => { await c.query(`select automation.set_provider_secret($1,$2)`, [p, secret]); return { ok: true }; });
+  }
+  // Só diz SE cada admin key está salva (nunca o valor).
+  @Get('ai-cost/billing-status')
+  billingStatus() {
+    return this.db.asService(async (c) => {
+      const has = async (p: string) => !!(await c.query(`select public.reveal_provider_key($1) as k`, [p])).rows[0]?.k;
+      return { anthropic_admin: await has('anthropic_admin'), openai_admin: await has('openai_admin') };
+    });
+  }
   private bool(v: any): boolean | null { return v === 'true' ? true : v === 'false' ? false : null; }
 
   // ── contas (payable/receivable) ──
