@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } fro
 import { JwtOrgGuard } from '../common/jwt-org.guard';
 import { AdminGuard } from '../common/admin.guard';
 import { RlsDbService } from '../common/rls-db.service';
+import { AiCostSyncService } from './ai-cost-sync.service';
 
 // Bounded context FINANCE (schema finance — NÃO exposto ao PostgREST) — Contas a Pagar/Receber,
 // custos, tesouraria, custo de IA. 🔒 ADMIN-ONLY: AdminGuard barra não-admin (403); todo acesso via
@@ -9,8 +10,12 @@ import { RlsDbService } from '../common/rls-db.service';
 @Controller('finance')
 @UseGuards(JwtOrgGuard, AdminGuard)
 export class FinanceController {
-  constructor(private readonly db: RlsDbService) {}
+  constructor(private readonly db: RlsDbService, private readonly aiSync: AiCostSyncService) {}
   private uid(req: any): string { return req.user.id; }
+
+  // Puxa o custo REAL de IA das APIs de billing (Anthropic + OpenAI) para o mês (ou período).
+  @Post('ai-cost/sync')
+  aiCostSync(@Req() req: any, @Body() b: any) { return this.aiSync.sync(this.uid(req), { from: b?.from, to: b?.to }); }
   private bool(v: any): boolean | null { return v === 'true' ? true : v === 'false' ? false : null; }
 
   // ── contas (payable/receivable) ──

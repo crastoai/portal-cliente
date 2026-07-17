@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { services, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, money, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
@@ -74,6 +74,21 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
     catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
   }
   async function del(r: any) { if (!confirm(t("Excluir este registro de custo?"))) return; await services.finance.aiCost.remove(r.id); reload(); }
+  const [syncing, setSyncing] = useState(false);
+  async function sincronizar() {
+    setSyncing(true);
+    try {
+      const r = await services.finance.aiCost.sync(from, to);
+      const ok = r.resultados.filter((x) => x.ok);
+      const falhas = r.resultados.filter((x) => !x.ok);
+      const partes = [
+        ...ok.map((x) => `${x.provider}: US$ ${Number(x.cost || 0).toFixed(2)}`),
+        ...falhas.map((x) => `${x.provider}: ${x.erro}`),
+      ];
+      flash(partes.join(" · ") || t("Nada para sincronizar."));
+      reload();
+    } catch (e) { flash(errorMessage(e)); } finally { setSyncing(false); }
+  }
   const kindPill = (k: string) => (k === "interno" ? <Pill tone="mute">{t("Interno")}</Pill> : <Pill tone="info">{t("Cliente")}</Pill>);
   const statusPill = (st: string) => (st === "waiting_key" ? <Pill tone="warn">{t("Aguardando chave")}</Pill> : st === "internal" ? <Pill tone="mute">{t("Interno")}</Pill> : <Pill tone="ok">{t("Ativo")}</Pill>);
 
@@ -81,7 +96,10 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
     <div>
       {!embedded && <PageHead eyebrow="Painel Admin · Financeiro 🔒" title="Gestão Financeira — Custo de IA"
         sub="Todos os custos de IA da Crasto.AI, por plataforma e por cliente. Clique num indicador para ir ao detalhe."
-        right={<button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={newRow}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Registrar custo")}</span></button>} />}
+        right={<>
+          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={sincronizar} disabled={syncing} title={t("Puxa o custo real das APIs de billing (Anthropic + OpenAI)")}><span className="crasto-btn__icon"><RefreshCw size={14} className={syncing ? "spin" : ""} /></span><span className="crasto-btn__label">{syncing ? t("Sincronizando…") : t("Sincronizar custos")}</span></button>
+          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={newRow}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Registrar custo")}</span></button>
+        </>} />}
       {embedded && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}><button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={newRow}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Registrar custo")}</span></button></div>}
 
       {/* seletor de período */}

@@ -34,6 +34,8 @@ export const aiCost = {
   panel: async (from?: string, to?: string): Promise<any> => api.get<any>(`/api/finance/ai-cost${qs({ from, to })}`),
   save: async (p: Record<string, any>) => api.post(`/api/finance/ai-cost`, p),
   remove: async (id: string) => api.del(`/api/finance/ai-cost/${id}`),
+  /** Puxa o custo REAL das APIs de billing (Anthropic + OpenAI). 🔒 admin. */
+  sync: async (from?: string, to?: string) => api.post<{ periodo: { start: string; end: string }; resultados: { provider: string; ok: boolean; cost?: number; erro?: string }[] }>(`/api/finance/ai-cost/sync`, { from, to }),
 };
 
 export const finance = { accounts, costs, transactions, aiCost };
