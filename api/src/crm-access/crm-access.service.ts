@@ -167,6 +167,13 @@ export class CrmAccessService {
   }
 
   /** Tira o acesso ao CRM. A conta no Portal continua — só some o CRM para essa pessoa. */
+  getCrmScreens(orgId: string, id: string, auth: string) {
+    return this.crm(`/admin/client/${orgId}/users/${id}/crm-screens`, auth).catch((e: any) => ({ error: e?.message || 'falha ao ler as telas do CRM' }));
+  }
+  setCrmScreens(orgId: string, id: string, auth: string, screens: string[]) {
+    return this.crm(`/admin/client/${orgId}/users/${id}/crm-screens`, auth, { method: 'POST', body: JSON.stringify({ screens }) });
+  }
+
   async revoke(req: any, orgId: string, auth: string, userId: string) {
     await this.requireModule(orgId);
     const r = await this.crm(`/admin/client/${orgId}/users/${userId}`, auth, { method: 'DELETE' });

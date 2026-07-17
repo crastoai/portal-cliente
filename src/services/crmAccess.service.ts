@@ -26,6 +26,11 @@ export const crmAccess = {
   linkAgent: (orgId: string, agentId: string | null) => api.put(`/api/crm-access/${orgId}/agent`, { agent_id: agentId }),
   invite: (orgId: string, b: { email: string; full_name?: string; role?: string }) =>
     api.post<{ user: CrmUser; email_sent: boolean; email_error?: string; password_link_sent: boolean }>(`/api/crm-access/${orgId}/users`, b),
+  // Telas do WhatsApp CRM de um usuário (o dono vê tudo e não é configurável).
+  crmScreens: (orgId: string, userId: string) =>
+    api.get<{ catalog: { key: string; label: string }[]; has_access: boolean; owner: boolean; screens: string[] | null; error?: string }>(`/api/crm-access/${orgId}/users/${userId}/crm-screens`),
+  setCrmScreens: (orgId: string, userId: string, screens: string[]) =>
+    api.post<{ ok?: boolean; screens?: string[]; error?: string }>(`/api/crm-access/${orgId}/users/${userId}/crm-screens`, { screens }),
   resend: (orgId: string, userId: string) => api.post<{ ok: boolean; password_link_sent: boolean }>(`/api/crm-access/${orgId}/users/${userId}/resend`),
   revoke: (orgId: string, userId: string) => api.del(`/api/crm-access/${orgId}/users/${userId}`),
 };

@@ -28,4 +28,14 @@ export class CrmAccessController {
 
   @Delete(':orgId/users/:id')
   revoke(@Req() req: any, @Param('orgId') orgId: string, @Param('id') id: string) { return this.svc.revoke(req, orgId, this.auth(req), id); }
+
+  // Telas do WhatsApp CRM daquele usuário — repassadas ao CRM (dono das próprias telas).
+  @Get(':orgId/users/:id/crm-screens')
+  getCrmScreens(@Req() req: any, @Param('orgId') orgId: string, @Param('id') id: string) {
+    return this.svc.getCrmScreens(orgId, id, this.auth(req));
+  }
+  @Post(':orgId/users/:id/crm-screens')
+  setCrmScreens(@Req() req: any, @Param('orgId') orgId: string, @Param('id') id: string, @Body() b: any) {
+    return this.svc.setCrmScreens(orgId, id, this.auth(req), b?.screens ?? []);
+  }
 }

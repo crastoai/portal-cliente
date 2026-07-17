@@ -30,7 +30,9 @@ export default function ConsolePermissoes() {
   const toast = useToast();
 
   // popup de configuração de acesso
-  const [cfg, setCfg] = useState<{ user: U; orgName: string } | null>(null);
+  const [cfg, setCfg] = useState<{ user: U; orgName: string; orgId: string } | null>(null);
+  type CrmState = { loading: boolean; hasAccess: boolean; owner: boolean; catalog: { key: string; label: string }[]; screens: Set<string> } | null;
+  const [crm, setCrm] = useState<CrmState>(null);
   const [pf, setPf] = useState<{ owner: boolean; screens: Set<string> }>({ owner: false, screens: new Set() });
   const [busy, setBusy] = useState(false);
 
@@ -48,10 +50,22 @@ export default function ConsolePermissoes() {
     .filter((c) => !query || c.name.toLowerCase().includes(query) || c.users.length > 0), [clients, query]);
   const isOpen = (id: string) => open[id] ?? !!query; // busca abre automaticamente
 
-  function configure(u: U, orgName: string) {
+  function configure(u: U, orgName: string, orgId: string) {
     const owner = u.role === "client_owner";
     setPf({ owner, screens: new Set(owner ? ALL_SCREEN_KEYS : (u.screens && u.screens.length ? u.screens : [BASE_SCREEN])) });
-    setCfg({ user: u, orgName });
+    setCfg({ user: u, orgName, orgId });
+    // Telas do CRM: vive no CRM, então perguntamos à ponte. Só aparece se o usuário tiver
+    // acesso ao WhatsApp CRM daquele cliente (decisão do Crasto).
+    setCrm({ loading: true, hasAccess: false, owner: false, catalog: [], screens: new Set() });
+    services.crmAccess.crmScreens(orgId, u.id).then((r) => {
+      if (r.error && !r.catalog) { setCrm({ loading: false, hasAccess: false, owner: false, catalog: [], screens: new Set() }); return; }
+      setCrm({ loading: false, hasAccess: !!r.has_access, owner: !!r.owner, catalog: r.catalog || [],
+               screens: new Set(r.screens && r.screens.length ? r.screens : (r.catalog || []).map((x) => x.key)) });
+    }).catch(() => setCrm({ loading: false, hasAccess: false, owner: false, catalog: [], screens: new Set() }));
+  }
+  function toggleCrmScreen(k: string) {
+    if (k === "dashboard") return; // base do CRM
+    setCrm((c) => { if (!c) return c; const s = new Set(c.screens); s.has(k) ? s.delete(k) : s.add(k); return { ...c, screens: s }; });
   }
   function toggleScreen(k: string) {
     if (k === BASE_SCREEN) return; // Início é base, sempre visível
@@ -64,6 +78,12 @@ export default function ConsolePermissoes() {
       const role = pf.owner ? "client_owner" : "client_member";
       const screens = pf.owner ? [] : Array.from(new Set([BASE_SCREEN, ...pf.screens]));
       await services.analytics.admin.setUserAccess(cfg.user.id, role, screens);
+      // Telas do CRM (só se o usuário tiver acesso e não for o dono do CRM, que vê tudo):
+      // sistema à parte, chamada à parte — mas UM Salvar.
+      if (crm?.hasAccess && !crm.owner) {
+        const r = await services.crmAccess.setCrmScreens(cfg.orgId, cfg.user.id, Array.from(crm.screens));
+        if (r?.error) throw new Error(t("Telas do Portal salvas, mas as do CRM falharam: ") + r.error);
+      }
       setCfg(null); await reload(); toast.ok(t("Acesso atualizado ✓"));
     } catch (e) { toast.err(errorMessage(e)); } finally { setBusy(false); }
   }
@@ -114,7 +134,7 @@ export default function ConsolePermissoes() {
                   <div className="logo" style={{ width: 32, height: 32, fontSize: 12 }}>{initials(u.full_name || u.email || "?")}</div>
                   <div style={{ flex: 1, minWidth: 0 }}><div className="nm">{u.full_name || "—"}</div><div className="mt">{u.email} · {lastLogin(u.last_login, t)}</div></div>
                   <Pill tone={u.role === "client_owner" ? "ok" : "mute"}>{accessSummary(u, t)}</Pill>
-                  <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => configure(u, c.name)}><span className="crasto-btn__icon"><SlidersHorizontal size={14} /></span><span className="crasto-btn__label">{t("Configurar acesso")}</span></button>
+                  <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => configure(u, c.name, c.organization_id)}><span className="crasto-btn__icon"><SlidersHorizontal size={14} /></span><span className="crasto-btn__label">{t("Configurar acesso")}</span></button>
                 </div>
               )))}
           </div>
@@ -159,6 +179,30 @@ export default function ConsolePermissoes() {
             </div>
           )}
           {pf.owner && <div className="note"><Check size={15} /><div>{t("Este usuário verá todas as telas do portal e poderá gerenciar a empresa.")}</div></div>}
+
+          <div style={{ borderTop: "1px solid var(--crasto-border)", margin: "18px 0 14px" }} />
+          <div className="nm" style={{ marginBottom: 8 }}>{t("Telas do WhatsApp CRM")}</div>
+          {crm?.loading && <div className="mt">{t("Carregando…")}</div>}
+          {crm && !crm.loading && !crm.hasAccess && (
+            <div className="mt" style={{ color: "var(--crasto-text-muted)" }}>{t("Este usuário não tem acesso ao WhatsApp CRM. Conceda o acesso em Clientes → Acesso ao CRM para escolher as telas.")}</div>
+          )}
+          {crm && !crm.loading && crm.hasAccess && crm.owner && (
+            <div className="note"><Check size={15} /><div>{t("Dono do CRM: vê todas as telas do WhatsApp CRM (não é restringível).")}</div></div>
+          )}
+          {crm && !crm.loading && crm.hasAccess && !crm.owner && (
+            <div className="screengrid">
+              {crm.catalog.map((sc) => {
+                const on = sc.key === "dashboard" || crm.screens.has(sc.key);
+                const base = sc.key === "dashboard";
+                return (
+                  <button key={sc.key} className={"screenpick" + (on ? " on" : "") + (base ? " base" : "")} onClick={() => toggleCrmScreen(sc.key)} disabled={base} title={base ? t("Dashboard é sempre visível") : ""}>
+                    <span className="box">{on && <Check size={13} />}</span>
+                    <span className="lb">{t(sc.label)}{base && <em> · {t("base")}</em>}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </>)}
       </Modal>
       {toast.node}
