@@ -10,6 +10,7 @@ export type CrmUser = {
   id: string; email: string; full_name: string | null;
   role: "client_owner" | "client_member" | "crasto_admin";
   created_at?: string; last_seen_at?: string | null; online?: boolean;
+  crm_screens?: string[] | null;
 };
 export type CrmAccessOverview = {
   enabled: boolean;

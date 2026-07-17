@@ -236,6 +236,16 @@
 .acchead { width: 100%; display: flex; align-items: center; gap: 10px; padding: 14px 16px; background: none; border: none; cursor: pointer; font: inherit; }
 .acchead:hover { background: var(--crasto-bg-2); }
 .acccard .accrow { margin: 0; padding: 12px 16px 12px 40px; border-top: 1px solid var(--crasto-border-soft); gap: 12px; flex-wrap: wrap; }
+/* Duas seções separadas dentro do cliente: Portal x CRM (pedido do Crasto). */
+.permsub { border-top: 1px solid var(--crasto-border-soft); }
+.permsub:first-of-type { border-top: 1px solid var(--crasto-border); }
+.permsub-h { display: flex; align-items: center; gap: 8px; padding: 11px 16px 6px 40px; color: var(--crasto-text-primary); font-weight: 700; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+.permsub-h svg { opacity: .7; }
+.permsub-h .permsub-hint { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 11.5px; color: var(--crasto-text-muted); }
+.permsub-empty { padding: 4px 16px 12px 40px; color: var(--crasto-text-muted); }
+.permsub .accrow:last-child { padding-bottom: 14px; }
+.dot-online { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #1F8A5B; margin-left: 7px; vertical-align: middle; }
+@media (max-width: 640px) { .permsub-h .permsub-hint { display: none; } }
 .accseg { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
 @media (max-width: 520px) { .accseg { grid-template-columns: 1fr; } .screengrid { grid-template-columns: 1fr !important; } }
 .accseg-b { text-align: left; padding: 12px 14px; border: 1px solid var(--crasto-border-soft); border-radius: 12px; background: var(--crasto-surface); cursor: pointer; font: inherit; }
