@@ -62,6 +62,7 @@ export default function ClienteDetalhe() {
   function editReg(c: any) { setRegF({ id: c.id, organization_id: id, country: c.country || "BR", reg_type: c.reg_type || "cnpj", cnpj: c.cnpj || "", legal_name: c.legal_name || "", trade_name: c.trade_name || "", is_headquarters: !!c.is_headquarters, is_active: c.is_active !== false }); setRegOpen(true); }
   async function saveReg() { if (regF.cnpj && !regInfo(regF.reg_type).validate(regF.cnpj)) { alert(tr("Número do registro inválido para o país selecionado.")); return; } try { await api.identity.cnpjs.adminSave(regF); setRegOpen(false); reload(); } catch (e) { alert(errorMessage(e)); } }
   async function delReg(c: any) { if (!confirm(tr("Excluir este registro?"))) return; await api.identity.cnpjs.adminRemove(c.id); reload(); }
+  async function delPartner(p: any) { if (!confirm(tr("Excluir o sócio \"{n}\"?", { n: p.full_name || "sócio" }))) return; try { await api.identity.partners.remove(p.id); reload(); } catch (e) { alert(errorMessage(e)); } }
   // F-D: implantação, saúde, tarefas, credenciais
   const [rolloutForm, setRolloutForm] = useState<Record<string, { label: string; progress: string; due: string; status: string }>>({});
   const [healthForm, setHealthForm] = useState({ status: "green", message: "" });
@@ -322,6 +323,7 @@ export default function ClienteDetalhe() {
           <div className="crmrow" key={p.id}>
             <Pill tone={p.is_ceo ? "ok" : "info"}>{p.is_ceo ? tr("Administrador") : tr("Sócio")}</Pill>
             <div style={{ flex: 1, minWidth: 0 }}><div className="nm">{p.full_name || "—"} {!p.is_active && <span className="chip" style={{ marginLeft: 6 }}>{tr("Inativo")}</span>}</div><div className="mt">{[p.role_title, p.cpf, p.ownership_percentage != null ? `${p.ownership_percentage}%` : null].filter(Boolean).join(" · ")}</div></div>
+            <button className="icobtn" title={tr("Excluir sócio")} onClick={() => delPartner(p)}><Trash2 size={14} /></button>
           </div>
         ))}
       </>)}

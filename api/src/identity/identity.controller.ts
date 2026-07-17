@@ -121,8 +121,17 @@ export class IdentityController {
   partnersMine(@Req() req: any) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select * from public.my_partners()')).rows); }
   @Post('partners')
   partnerSave(@Req() req: any, @Body() b: any) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select public.save_my_partner($1) as r', [b])).rows[0]?.r); }
+  // Excluir sócio: o DONO usa o RPC (owner-only); o ADMIN apaga direto (a política RLS
+  // `partners_admin_all = is_crasto_admin()` permite) — antes o admin não conseguia excluir
+  // sócio nenhum na ficha do cliente, nem os cadastrados pelo próprio cliente.
   @Delete('partners/:id')
-  partnerRemove(@Req() req: any, @Param('id') id: string) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select public.delete_my_partner($1) as r', [id])).rows[0]?.r); }
+  partnerRemove(@Req() req: any, @Param('id') id: string) {
+    return this.db.asUser(this.uid(req), async (c) => {
+      const admin = (await c.query('select public.is_crasto_admin() as a')).rows[0]?.a === true;
+      if (admin) { await c.query('delete from crm.company_partners where id=$1', [id]); return { ok: true }; }
+      return (await c.query('select public.delete_my_partner($1) as r', [id])).rows[0]?.r;
+    });
+  }
   @Get('partners/org/:org')
   partnersByOrg(@Req() req: any, @Param('org') org: string) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select * from crm.company_partners where organization_id=$1 order by is_ceo desc', [org])).rows); }
 
