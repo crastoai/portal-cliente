@@ -6,8 +6,11 @@
 export type IntegField = { key: string; label: string; kind: "text" | "from" | "secret"; primary?: boolean; placeholder?: string };
 
 export const INTEGRATION_FIELDS: Record<string, IntegField[]> = {
-  anthropic: [{ key: "api_key", label: "API Key (Anthropic)", kind: "secret", primary: true, placeholder: "sk-ant-..." }],
-  openai: [{ key: "api_key", label: "API Key (OpenAI)", kind: "secret", primary: true, placeholder: "sk-..." }],
+  anthropic: [{ key: "api_key", label: "API Key de INFERÊNCIA (Anthropic)", kind: "secret", primary: true, placeholder: "sk-ant-api..." }],
+  openai: [{ key: "api_key", label: "API Key de INFERÊNCIA (OpenAI)", kind: "secret", primary: true, placeholder: "sk-... / sk-proj-..." }],
+  // Chaves de ADMIN/billing (custo de IA) — DIFERENTES das de inferência acima.
+  anthropic_admin: [{ key: "api_key", label: "Admin API Key (custo/billing) — Anthropic", kind: "secret", primary: true, placeholder: "sk-ant-admin01-..." }],
+  openai_admin: [{ key: "api_key", label: "Admin API Key (custo/billing) — OpenAI", kind: "secret", primary: true, placeholder: "sk-admin-... (escopo api.usage.read)" }],
   google: [{ key: "api_key", label: "API Key (Google AI Studio)", kind: "secret", primary: true, placeholder: "AIza..." }],
   elevenlabs: [{ key: "api_key", label: "API Key (ElevenLabs)", kind: "secret", primary: true }],
   autentique: [{ key: "api_token", label: "API Token (Autentique)", kind: "secret", primary: true }],
@@ -45,6 +48,8 @@ export const INTEGRATION_FIELDS: Record<string, IntegField[]> = {
 };
 
 export const HINTS: Record<string, string> = {
+  anthropic_admin: "Chave de ADMIN da Anthropic (sk-ant-admin01-…) — DIFERENTE da de inferência (sk-ant-api…). Só o dono da organização cria: Console → Settings → Organization → Admin keys. Serve para puxar o CUSTO REAL de IA (aba Custo de IA → Sincronizar custos).",
+  openai_admin: "Chave de ADMIN da OpenAI com escopo api.usage.read — DIFERENTE da de inferência/projeto (sk-proj-…). Criada pelo dono: Settings → Organization → Admin keys. Serve para puxar o CUSTO REAL de IA (aba Custo de IA → Sincronizar custos).",
   resend_email: "Chave do Resend (re_...). Para enviar de no-reply@crasto.ai, verifique o domínio no Resend.",
   ai_bridge: "Liga o chat/voz da proposta ao Claude Max. Rode a ponte e cole a URL + o mesmo PONTE_SECRET. Ver PONTE_CLAUDE_MAX_Setup.md.",
   banco_inter: "Faturamento Pix/boleto. O Inter exige certificado mTLS — o cert/chave ficam no cofre e o serviço roda na VPS.",

@@ -74,20 +74,9 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
     catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
   }
   async function del(r: any) { if (!confirm(t("Excluir este registro de custo?"))) return; await services.finance.aiCost.remove(r.id); reload(); }
+  // As Admin keys de billing são cadastradas em Console → APIs & Chaves. Aqui só mostramos o status.
   const [bkStatus, setBkStatus] = useState<{ anthropic_admin: boolean; openai_admin: boolean } | null>(null);
-  const [bk, setBk] = useState({ anthropic_admin: "", openai_admin: "" });
-  const [savingBk, setSavingBk] = useState(false);
-  const [bkOpen, setBkOpen] = useState(false);
   useEffect(() => { services.finance.aiCost.billingStatus().then(setBkStatus).catch(() => {}); }, []);
-  async function saveBilling() {
-    setSavingBk(true);
-    try {
-      for (const p of ["anthropic_admin", "openai_admin"] as const) if (bk[p].trim()) await services.finance.aiCost.setBillingKey(p, bk[p].trim());
-      setBk({ anthropic_admin: "", openai_admin: "" });
-      setBkStatus(await services.finance.aiCost.billingStatus());
-      flash(t("Chaves de billing salvas ✓"));
-    } catch (e) { flash(errorMessage(e)); } finally { setSavingBk(false); }
-  }
   const [syncing, setSyncing] = useState(false);
   async function sincronizar() {
     setSyncing(true);
@@ -114,28 +103,15 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
           <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={sincronizar} disabled={syncing} title={t("Puxa o custo real das APIs de billing (Anthropic + OpenAI)")}><span className="crasto-btn__icon"><RefreshCw size={14} className={syncing ? "spin" : ""} /></span><span className="crasto-btn__label">{syncing ? t("Sincronizando…") : t("Sincronizar custos")}</span></button>
           <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={newRow}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Registrar custo")}</span></button>
         </>} />}
-      {embedded && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}><button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={newRow}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Registrar custo")}</span></button></div>}
+      {embedded && <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 10 }}>
+        <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={sincronizar} disabled={syncing} title={t("Puxa o custo real das APIs de billing (Anthropic + OpenAI)")}><span className="crasto-btn__icon"><RefreshCw size={14} className={syncing ? "spin" : ""} /></span><span className="crasto-btn__label">{syncing ? t("Sincronizando…") : t("Sincronizar custos")}</span></button>
+        <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={newRow}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Registrar custo")}</span></button>
+      </div>}
 
-      {/* Chaves de billing (para o custo REAL automático) */}
-      {!embedded && (
-        <div className="card" style={{ padding: 14, marginBottom: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, cursor: "pointer" }} onClick={() => setBkOpen((o) => !o)}>
-            <div>
-              <strong style={{ fontSize: 13 }}>{t("Custo real automático — chaves de billing")}</strong>
-              <div className="mt" style={{ fontSize: 12 }}>Anthropic {bkStatus?.anthropic_admin ? "✓ salva" : t("— falta Admin key")} · OpenAI {bkStatus?.openai_admin ? "✓ salva" : t("— falta Admin key")}</div>
-            </div>
-            <span className="linkbtn">{bkOpen ? t("Fechar") : t("Configurar")}</span>
-          </div>
-          {bkOpen && (
-            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-              <div className="note"><span>{t("Precisa da ADMIN key (diferente da de inferência). Anthropic: sk-ant-admin… (Console → Settings → Organization → Admin keys). OpenAI: chave admin com escopo api.usage.read (Settings → Organization → Admin keys). Só o dono da organização cria. A chave fica no cofre e nunca volta à tela.")}</span></div>
-              <Field label="Anthropic Admin key (sk-ant-admin…)"><input type="password" value={bk.anthropic_admin} onChange={(e) => setBk((x) => ({ ...x, anthropic_admin: e.target.value }))} placeholder={bkStatus?.anthropic_admin ? t("•••• salva (deixe em branco p/ manter)") : "sk-ant-admin01-…"} /></Field>
-              <Field label="OpenAI Admin key (api.usage.read)"><input type="password" value={bk.openai_admin} onChange={(e) => setBk((x) => ({ ...x, openai_admin: e.target.value }))} placeholder={bkStatus?.openai_admin ? t("•••• salva (deixe em branco p/ manter)") : "sk-…"} /></Field>
-              <div style={{ display: "flex", justifyContent: "flex-end" }}><button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={saveBilling} disabled={savingBk}><span className="crasto-btn__label">{savingBk ? t("Salvando…") : t("Salvar chaves")}</span></button></div>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Status das Admin keys de billing — cadastradas em Console → APIs & Chaves */}
+      <div className="note" style={{ marginBottom: 14 }}>
+        <span><b>{t("Custo real automático:")}</b> Anthropic {bkStatus?.anthropic_admin ? "✓" : t("— falta a Admin key")} · OpenAI {bkStatus?.openai_admin ? "✓" : t("— falta a Admin key")}. {t("Cadastre as Admin keys (billing) em Console → APIs & Chaves e clique em \"Sincronizar custos\".")}</span>
+      </div>
 
       {/* seletor de período */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
