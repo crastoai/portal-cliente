@@ -70,7 +70,11 @@ export default function JulieWidget() {
         i === next.length - 1
           ? { role: "user", text: texto, attachments: enviados.map((a) => ({ mime: a.mime, data: a.data })) }
           : { role: m.role, text: m.text });
-      const r = await api.post<{ reply: string; pending?: Pending }>("/api/assistant/chat", { messages: payload });
+      // Se o admin está na ficha de um cliente (/admin/cliente/:id), a Julie recebe esse
+      // contexto — aí um contrato social anexado já preenche ESSE cliente.
+      const mCli = window.location.pathname.match(/\/admin\/cliente\/([0-9a-f-]{36})/i);
+      const contexto = mCli ? { organization_id: mCli[1] } : undefined;
+      const r = await api.post<{ reply: string; pending?: Pending }>("/api/assistant/chat", { messages: payload, contexto });
       setMsgs((m) => [...m, { role: "assistant", text: r.reply, pending: r.pending || undefined, card: r.pending ? "pending" : undefined }]);
     } catch (e: any) { setErr(e?.message || "Falha ao falar com a Julie."); }
     finally { setBusy(false); }

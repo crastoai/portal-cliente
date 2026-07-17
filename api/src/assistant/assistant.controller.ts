@@ -18,7 +18,8 @@ export class AssistantController {
     for (const m of messages) {
       if (m?.attachments) m.attachments = (m.attachments as any[]).slice(0, 6).map((a) => ({ mime: String(a.mime || 'application/octet-stream'), data: String(a.data || '') }));
     }
-    return this.svc.chat(req.user.id, messages);
+    const contexto = b?.contexto && b.contexto.organization_id ? { organization_id: String(b.contexto.organization_id) } : undefined;
+    return this.svc.chat(req.user.id, messages, contexto);
   }
 
   // Executa a ação SÓ depois do Crasto confirmar no cartão. Admin-only (guard) + a RPC

@@ -20,11 +20,24 @@ CONFIRMAR ANTES DE EXECUTAR (regra de ouro, dinheiro é sério):
 - NUNCA diga que já lançou/registrou/salvou — só depois que ele confirmar no cartão. Se faltar um dado essencial (valor, descrição, tipo), PERGUNTE antes de propor.
 - Uma ação por vez: proponha uma, deixe confirmar, depois a próxima.
 
-NUNCA invente número. Se não tem o dado, chame uma ferramenta; se ainda assim não tiver, diga que não tem. Ao ler uma nota fiscal, extraia: emitente/fornecedor, CNPJ, número da NF, emissão, vencimento, valor total, itens; classifique como a pagar ou a receber e já proponha a conta. Seja concisa; use tópicos ao listar dados.`;
+DOCUMENTOS:
+- NOTA FISCAL anexada → extraia emitente/fornecedor, CNPJ, número da NF, emissão, vencimento, valor total e itens; classifique como a pagar ou a receber e JÁ PROPONHA a conta (criar_conta) preenchida (incluindo invoice_number = número da NF e due_date = vencimento).
+- CONTRATO SOCIAL anexado → extraia razão social, CNPJ, data de abertura, sócios (nome/CPF/%), endereço. Para PREENCHER a ficha do cliente use atualizar_cliente (dados da empresa) e adicionar_cnpj (o CNPJ). Você precisa saber QUAL cliente: se o contexto já disser o cliente aberto, use o organization_id dele; senão pergunte ou use buscar_cliente pelo nome. NUNCA invente dados do cliente — só o que está no documento.
+
+NUNCA invente número nem dado. Se não tem, use uma ferramenta ou diga que não tem. Seja concisa; use tópicos ao listar dados.`;
+
+// Contexto opcional: o Crasto pode estar na ficha de um cliente. A tela manda o id; nós
+// resolvemos o nome e dizemos à Julie qual é o cliente "aberto agora".
+function linhaContexto(nome?: string | null, id?: string | null): string {
+  if (!id) return '';
+  return `\n\nCONTEXTO: o Crasto está agora na ficha do cliente ${nome ? `"${nome}" ` : ''}(organization_id = ${id}). Se ele anexar um contrato social ou pedir para atualizar dados deste cliente, use ESSE organization_id.`;
+}
 
 // Ferramentas de LEITURA (executam na hora) e de ESCRITA (só PROPÕEM → confirmação).
-const READ = new Set(['resumo_financeiro', 'listar_contas', 'listar_custos', 'listar_transacoes']);
-const WRITE = new Set(['criar_conta', 'criar_custo', 'criar_transacao', 'dar_baixa_conta']);
+const READ = new Set(['resumo_financeiro', 'listar_contas', 'listar_custos', 'listar_transacoes', 'buscar_cliente']);
+const WRITE = new Set(['criar_conta', 'criar_custo', 'criar_transacao', 'dar_baixa_conta', 'atualizar_cliente', 'adicionar_cnpj']);
+// campos do cliente que a Julie pode preencher (whitelist — o resto é ignorado por segurança)
+const CLIENTE_CAMPOS = ['name', 'tax_id', 'tax_id_type', 'founded_on', 'website', 'owner_name', 'notes', 'country', 'stage', 'status'];
 
 const TOOLS: JulieTool[] = [
   { name: 'resumo_financeiro', description: 'Panorama do caixa: total a pagar, a receber e saldo em caixa.', parameters: { type: 'object', properties: {} } },
@@ -53,6 +66,16 @@ const TOOLS: JulieTool[] = [
   { name: 'dar_baixa_conta', description: 'PROPÕE marcar uma conta como PAGA (dar baixa). Use o id da conta (obtenha com listar_contas).', parameters: { type: 'object', properties: {
     id: { type: 'string', description: 'id da conta' }, amount_paid: { type: 'number', description: 'valor pago (padrão: total)' }, payment_date: { type: 'string', description: 'AAAA-MM-DD (padrão: hoje)' },
   }, required: ['id'] } },
+  { name: 'buscar_cliente', description: 'Busca clientes (empresas) pelo nome para descobrir o organization_id.', parameters: { type: 'object', properties: { nome: { type: 'string' } }, required: ['nome'] } },
+  { name: 'atualizar_cliente', description: 'PROPÕE preencher/atualizar dados da ficha de um cliente (não grava; o Crasto confirma). Use os dados extraídos de um contrato social.', parameters: { type: 'object', properties: {
+    organization_id: { type: 'string', description: 'id do cliente (do contexto ou de buscar_cliente)' },
+    name: { type: 'string', description: 'razão social / nome' }, tax_id: { type: 'string', description: 'CNPJ (ou CPF)' }, tax_id_type: { type: 'string', enum: ['CNPJ', 'CPF'] },
+    founded_on: { type: 'string', description: 'data de abertura AAAA-MM-DD' }, website: { type: 'string' }, owner_name: { type: 'string', description: 'responsável / sócio principal' },
+    country: { type: 'string' }, notes: { type: 'string' },
+  }, required: ['organization_id'] } },
+  { name: 'adicionar_cnpj', description: 'PROPÕE cadastrar um CNPJ (matriz/filial) para um cliente (não grava; o Crasto confirma).', parameters: { type: 'object', properties: {
+    organization_id: { type: 'string' }, cnpj: { type: 'string' }, legal_name: { type: 'string', description: 'razão social' }, trade_name: { type: 'string', description: 'nome fantasia' }, is_headquarters: { type: 'boolean', description: 'é a matriz?' }, country: { type: 'string' },
+  }, required: ['organization_id', 'cnpj'] } },
 ];
 
 type Pending = { kind: string; payload: any; resumo: string };
@@ -109,6 +132,24 @@ export class AssistantService {
       if (a?.payment_date) payload.payment_date = a.payment_date;
       return { kind: name, payload, resumo: `Dar baixa (marcar PAGA) na conta ${id}` };
     }
+    if (name === 'atualizar_cliente') {
+      const org = String(a?.organization_id || '').trim();
+      if (!org) return { erro: 'não sei qual cliente — use buscar_cliente ou abra a ficha do cliente' };
+      const campos: any = {};
+      for (const k of CLIENTE_CAMPOS) if (a?.[k] != null && a[k] !== '') campos[k] = a[k];
+      if (!Object.keys(campos).length) return { erro: 'nenhum dado do cliente para preencher' };
+      const resumo = `Atualizar cliente · ${Object.entries(campos).map(([k, v]) => `${k}: ${v}`).join(' · ')}`;
+      return { kind: name, payload: { organization_id: org, campos }, resumo };
+    }
+    if (name === 'adicionar_cnpj') {
+      const org = String(a?.organization_id || '').trim();
+      const cnpj = String(a?.cnpj || '').trim();
+      if (!org) return { erro: 'não sei qual cliente para o CNPJ' };
+      if (!cnpj) return { erro: 'faltou o número do CNPJ' };
+      const payload: any = { organization_id: org, country: a?.country || 'BR', reg_type: 'cnpj', cnpj, is_headquarters: a?.is_headquarters === true, is_active: true };
+      for (const k of ['legal_name', 'trade_name']) if (a?.[k]) payload[k] = a[k];
+      return { kind: name, payload, resumo: `Cadastrar CNPJ ${cnpj}${a?.legal_name ? ` · ${a.legal_name}` : ''}${a?.is_headquarters ? ' · matriz' : ''}` };
+    }
     return { erro: 'ferramenta de escrita desconhecida' };
   }
 
@@ -129,16 +170,27 @@ export class AssistantService {
       if (name === 'listar_contas') return (await c.query(`select * from public.fin_accounts($1,$2)`, [args?.tipo || null, args?.status || null])).rows.slice(0, 50);
       if (name === 'listar_custos') return (await c.query(`select * from public.fin_costs($1)`, [args?.apenas_ativos === true ? true : null])).rows.slice(0, 80);
       if (name === 'listar_transacoes') return (await c.query(`select * from public.fin_transactions($1,$2)`, [args?.tipo || null, args?.status || null])).rows.slice(0, 50);
+      if (name === 'buscar_cliente') {
+        const q = `%${String(args?.nome || '').trim()}%`;
+        return (await c.query(`select id, name, tax_id, stage from public.organizations where name ilike $1 order by name limit 12`, [q])).rows;
+      }
       return { erro: 'ferramenta desconhecida: ' + name };
     });
   }
 
-  async chat(uid: string, messages: JulieMsg[]): Promise<{ reply: string; pending?: Pending | null; uso?: any }> {
+  async chat(uid: string, messages: JulieMsg[], contexto?: { organization_id?: string | null }): Promise<{ reply: string; pending?: Pending | null; uso?: any }> {
     const hist: JulieMsg[] = [...messages];
     let pending: Pending | null = null;
     let uso: any;
+    // Se o Crasto está na ficha de um cliente, resolve o nome e diz à Julie qual é.
+    let system = SYSTEM;
+    const orgCtx = contexto?.organization_id ? String(contexto.organization_id) : '';
+    if (orgCtx) {
+      const nome = await this.db.asUser(uid, async (c) => (await c.query(`select name from public.organizations where id=$1`, [orgCtx])).rows[0]?.name).catch(() => null);
+      system += linhaContexto(nome, orgCtx);
+    }
     for (let volta = 0; volta < 4; volta++) {
-      const turn = await this.llm.completeTools(SYSTEM, hist, TOOLS);
+      const turn = await this.llm.completeTools(system, hist, TOOLS);
       uso = turn.uso;
       if (!turn.calls.length) return { reply: turn.text || '(sem resposta)', pending, uso };
       hist.push({ role: 'assistant_call', calls: turn.calls });
@@ -176,6 +228,16 @@ export class AssistantService {
         const pay = { id: conta.id, account_type: conta.account_type, status: 'paid', amount_paid: payload.amount_paid ?? conta.amount, payment_date: payload.payment_date ?? hoje };
         return (await c.query(`select public.fin_account_upsert($1) as r`, [pay])).rows[0]?.r;
       }
+      if (kind === 'atualizar_cliente') {
+        // UPDATE dinâmico só com colunas da whitelist (mesmo padrão do identity.controller).
+        const campos = payload?.campos || {};
+        const cols = Object.keys(campos).filter((k) => CLIENTE_CAMPOS.includes(k));
+        if (!cols.length) throw new Error('nenhum campo válido');
+        const sets = cols.map((k, i) => `"${k}" = $${i + 2}`).join(', ');
+        await c.query(`update public.organizations set ${sets} where id = $1`, [payload.organization_id, ...cols.map((k) => campos[k])]);
+        return { atualizado: cols };
+      }
+      if (kind === 'adicionar_cnpj') return (await c.query(`select public.admin_registration_upsert($1) as r`, [payload])).rows[0]?.r;
       throw new Error('ação desconhecida');
     });
     await this.audit.log(req, 'julie_' + kind, { system: 'portal', ctx: { payload } });
