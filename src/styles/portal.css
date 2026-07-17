@@ -452,3 +452,16 @@
   .modal-body { padding: 14px 16px; }
   .modal-foot { padding: 12px 16px; }
 }
+
+/* ===== POLIMENTO MOBILE (Fase 4): toque ≥40px, grids e strings longas ===== */
+@media (max-width: 900px) {
+  .su-out, .side-close { width: 40px; height: 40px; }
+  .theme-toggle { width: 40px; height: 40px; }
+  .mb-burger { width: 42px; height: 42px; }
+  .langdd-btn { padding: 9px 12px; }
+  .icobtn { min-width: 40px; min-height: 40px; }
+}
+/* segredos / chaves PIX longos não estouram a célula (empurravam scroll horizontal) */
+.secret, .secret .mask { min-width: 0; word-break: break-all; overflow-wrap: anywhere; }
+/* tiles de finanças em 1 coluna no celular estreito (paravam apertados em 2) */
+@media (max-width: 480px) { .fh-tiles { grid-template-columns: 1fr; } }
