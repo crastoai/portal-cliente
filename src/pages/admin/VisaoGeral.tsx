@@ -6,6 +6,7 @@ import { PageHead, Pill, useAsync, money, initials, Field } from "../../ui/ui";
 import { fetchClients, healthScore, timeAgo, modShort } from "../../lib/adminData";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
+import type { CrmAgent } from "../../services/crmAccess.service";
 
 // farol operacional do agente (SPEC 3.1 — coluna "Agente (IA)")
 const AGENT_FAROL: Record<string, { label: string; tone: "ok" | "warn" | "crit" | "mute" }> = {
@@ -34,9 +35,37 @@ export default function VisaoGeral() {
   const modules = clients.reduce((s, c) => s + (c.modules?.length ?? 0), 0);
   const risk = clients.filter((c) => healthScore(c).tone === "crit").length;
 
+  // ESCOLHER O CRM: cada agente do cliente tem o SEU CRM. Abrimos a popup com os agentes
+  // (mesma lógica do Console do wacrm) — o admin escolhe qual visualizar. Sem escolher um
+  // agente = "empresa inteira" (vê todos os agentes da org).
+  const [escolher, setEscolher] = useState<{ org: string; nome: string } | null>(null);
+  const [agentes, setAgentes] = useState<CrmAgent[] | null>(null);
+  const [crmUrl, setCrmUrl] = useState("");
+  const [escErr, setEscErr] = useState("");
+
   async function enterCrm(c: any) {
-    try { await services.analytics.admin.auditRecord({ action: "impersonate_attempt", target_type: "org", target_id: c.id, organization_id: c.id, context: { via: "console_dashboard" } }); } catch { /* auditoria é best-effort aqui */ }
-    setToast(t("Acesso registrado na auditoria. O WhatsApp CRM abre aqui quando estiver no ar.")); setTimeout(() => setToast(""), 6000);
+    setEscolher({ org: c.id, nome: c.name }); setAgentes(null); setEscErr("");
+    try {
+      const ov = await services.crmAccess.overview(c.id);
+      setAgentes(ov.agents || []);
+      setCrmUrl(ov.crm_url || "");
+      if (ov.crm_error) setEscErr(ov.crm_error);
+    } catch (e) { setEscErr(errorMessage(e)); setAgentes([]); }
+  }
+
+  // Entra no CRM daquele agente (ou na org inteira). Handoff SEM token na URL — só o
+  // escopo (org/agente, que não são segredos); quem autoriza é o is_admin do JWT + o
+  // AdminGuard da API. Respeita a decisão de 15/07 (nada de access_token na URL).
+  async function abrirCrm(agent?: CrmAgent) {
+    if (!escolher) return;
+    try { await services.analytics.admin.auditRecord({ action: "impersonate_attempt", target_type: agent ? "agent" : "org", target_id: agent?.id || escolher.org, organization_id: escolher.org, context: { via: "portal_dashboard", agent: agent?.name ?? null } }); } catch { /* best-effort */ }
+    const base = crmUrl || "";
+    if (!base) { setEscErr(t("CRM ainda não configurado (CRM_WEB_URL).")); return; }
+    const u = new URL(base);
+    u.searchParams.set("imp_org", escolher.org);
+    u.searchParams.set("imp_org_nome", escolher.nome);
+    if (agent) { u.searchParams.set("imp_agent", agent.id); u.searchParams.set("imp_agent_nome", agent.name); }
+    window.location.href = u.toString();
   }
 
   const [open, setOpen] = useState(false);
@@ -116,6 +145,27 @@ export default function VisaoGeral() {
           </tbody>
         </table>
       </div>
+
+      <Modal title={t("Entrar no CRM de") + " " + (escolher?.nome || "")} open={!!escolher} onClose={() => setEscolher(null)}>
+        <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--crasto-text-muted)" }}>{t("Escolha o agente — cada um tem o seu próprio CRM.")}</p>
+        {escErr && <div className="alert alert--warn" style={{ marginBottom: 10 }}>{escErr}</div>}
+        {!agentes && <div style={{ padding: "10px 0", color: "var(--crasto-text-muted)" }}>{t("Carregando agentes…")}</div>}
+        {agentes && agentes.length === 0 && !escErr && <div style={{ padding: "10px 0", color: "var(--crasto-text-muted)" }}>{t("Este cliente ainda não tem agente no WhatsApp CRM.")}</div>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {(agentes || []).map((a) => (
+            <button key={a.id} className="rowbtn" onClick={() => abrirCrm(a)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "10px 12px", border: "1px solid var(--crasto-border)", borderRadius: 10, background: "var(--crasto-surface)", cursor: "pointer" }}>
+              <span className="logo" style={{ width: 30, height: 30, fontSize: 12 }}>{initials(a.name)}</span>
+              <span style={{ flex: 1 }}><b>{a.name}</b>{a.plan ? <span style={{ color: "var(--crasto-text-muted)" }}> · {a.plan}</span> : null}</span>
+              <ArrowRight size={14} style={{ opacity: .5 }} />
+            </button>
+          ))}
+        </div>
+        {agentes && agentes.length > 0 && (
+          <button onClick={() => abrirCrm()} style={{ marginTop: 12, width: "100%", padding: "9px 12px", border: "1px dashed var(--crasto-border)", borderRadius: 10, background: "transparent", color: "var(--crasto-text-muted)", cursor: "pointer", fontSize: 13 }}>
+            {t("Ver a empresa inteira")} ({agentes.length} {agentes.length === 1 ? t("agente") : t("agentes")})
+          </button>
+        )}
+      </Modal>
 
       <Modal title={t("Régua de saúde do cliente")} open={open} onClose={() => setOpen(false)}
         footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy || !cfg} onClick={saveCfg}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar")}</span></button></>}>
