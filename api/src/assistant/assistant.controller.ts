@@ -21,6 +21,13 @@ export class AssistantController {
     return this.svc.chat(req.user.id, messages);
   }
 
+  // Executa a ação SÓ depois do Crasto confirmar no cartão. Admin-only (guard) + a RPC
+  // revalida admin no banco; grava com Auditoria. Whitelist de `kind` no service.
+  @Post('execute')
+  execute(@Req() req: any, @Body() b: any) {
+    return this.svc.executar(req, req.user.id, String(b?.kind || ''), b?.payload || {});
+  }
+
   // Diagnóstico (sem segredo): provedor/modelo/tem-chave.
   @Get('health')
   health() { return this.llm.describe(); }

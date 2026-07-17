@@ -45,6 +45,18 @@
 .julie-typing span:nth-child(3) { animation-delay: .4s; }
 @keyframes julie-blink { 0%, 60%, 100% { opacity: .3; } 30% { opacity: 1; } }
 
+/* Cartão de confirmação (Julie propõe → Crasto confirma → executa) */
+.julie-card { margin-top: 6px; width: 100%; border: 1px solid var(--crasto-border); border-radius: 12px; overflow: hidden; background: var(--crasto-surface); box-shadow: var(--crasto-shadow-sm); }
+.julie-card-h { display: flex; align-items: center; gap: 7px; padding: 8px 12px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #fff; background: linear-gradient(140deg, var(--crasto-navy), var(--crasto-navy-deep, #000714)); }
+.julie-card-b { padding: 11px 12px; font-size: 13px; line-height: 1.5; color: var(--crasto-text-primary); }
+.julie-card-f { display: flex; gap: 8px; padding: 0 12px 12px; }
+.jc-no { flex: none; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--crasto-border); background: transparent; color: var(--crasto-text-body); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.jc-no:hover { background: var(--crasto-bg-3); }
+.jc-yes { flex: 1; padding: 8px 14px; border-radius: 10px; border: none; color: #fff; background: linear-gradient(180deg, var(--crasto-navy), var(--crasto-navy-deep, #000714)); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.julie-card-s { padding: 0 12px 11px; font-size: 12.5px; font-weight: 600; color: var(--crasto-text-muted); }
+.julie-card-s.ok { color: var(--crasto-success, #1F8A5B); }
+.julie-card-s.err { color: var(--crasto-danger, #B83A3A); }
+
 .julie-err { font-size: 12px; color: var(--crasto-danger); background: #F6E7E7; border-top: 1px solid #eecccc; padding: 8px 14px; }
 [data-theme="dark"] .julie-err { background: rgba(184,58,58,.14); border-color: rgba(184,58,58,.3); }
 .julie-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px 0; }
