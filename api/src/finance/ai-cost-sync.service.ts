@@ -39,7 +39,11 @@ export class AiCostSyncService {
   // Grava/atualiza UMA linha por provedor+mês (marca purpose='auto-sync' p/ não duplicar no re-sync).
   private async gravar(uid: string, provider: string, platform: string, cost: number, start: string, end: string): Promise<number> {
     return this.db.asUser(uid, async (c) => {
-      const ex = (await c.query(`select id from finance.ai_costs where provider=$1 and purpose='auto-sync' and period_start=$2`, [provider, start])).rows[0];
+      // O schema `finance` não é acessível direto pelo authenticated → dedup pela RPC do painel
+      // (admin_ai_cost) e escrita pela RPC (fin_ai_cost_upsert, que revalida admin). Nada de
+      // SELECT direto em finance.* (era o "permission denied for schema finance").
+      const panel = (await c.query(`select public.admin_ai_cost($1,$2) as r`, [start, end])).rows[0]?.r || {};
+      const ex = (panel.rows || []).find((x: any) => x.provider === provider && x.purpose === 'auto-sync');
       const row: any = { provider, platform, purpose: 'auto-sync', kind: 'interno', status: 'active', cost: +cost.toFixed(2), period_start: start, period_end: end };
       if (ex?.id) row.id = ex.id;
       await c.query(`select public.fin_ai_cost_upsert($1)`, [row]);

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { services, errorMessage } from "../../services";
-import { PageHead, Pill, Empty, useAsync, money, Field } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, money, Field, useToast } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 
@@ -53,8 +53,8 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
   const avgClient = Number(s.clients || 0) > 0 ? Number(s.client_cost || 0) / Number(s.clients) : 0;
 
   const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState("");
-  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 5000); };
+  // Feedback com cor semântica: erro=vermelho, alerta=laranja, sucesso=verde (toast--err/warn/ok).
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const [f, setF] = useState<any>({ ...E_EMPTY });
 
@@ -68,10 +68,10 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
   }
   function pickPlatform(v: string) { const m = platMeta(v); setF((x: any) => ({ ...x, platform: v, provider: m?.provider ?? x.provider, purpose: x.purpose || m?.purpose || "", kind: m?.kind ?? x.kind })); }
   async function save() {
-    if (!f.platform || !f.cost) { flash(t("Informe a plataforma e o custo.")); return; }
+    if (!f.platform || !f.cost) { toast.warn(t("Informe a plataforma e o custo.")); return; }
     setBusy(true);
-    try { await services.finance.aiCost.save({ ...f, cost: f.cost || 0, tokens_in: f.tokens_in || 0, tokens_out: f.tokens_out || 0 }); setOpen(false); reload(); flash(t("Custo registrado ✓")); }
-    catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
+    try { await services.finance.aiCost.save({ ...f, cost: f.cost || 0, tokens_in: f.tokens_in || 0, tokens_out: f.tokens_out || 0 }); setOpen(false); reload(); toast.ok(t("Custo registrado ✓")); }
+    catch (e) { toast.err(errorMessage(e)); } finally { setBusy(false); }
   }
   async function del(r: any) { if (!confirm(t("Excluir este registro de custo?"))) return; await services.finance.aiCost.remove(r.id); reload(); }
   // As Admin keys de billing são cadastradas em Console → APIs & Chaves. Aqui só mostramos o status.
@@ -84,13 +84,11 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
       const r = await services.finance.aiCost.sync(from, to);
       const ok = r.resultados.filter((x) => x.ok);
       const falhas = r.resultados.filter((x) => !x.ok);
-      const partes = [
-        ...ok.map((x) => `${x.provider}: US$ ${Number(x.cost || 0).toFixed(2)}`),
-        ...falhas.map((x) => `${x.provider}: ${x.erro}`),
-      ];
-      flash(partes.join(" · ") || t("Nada para sincronizar."));
+      const oks = ok.map((x) => `${x.provider}: US$ ${Number(x.cost || 0).toFixed(2)}`);
       reload();
-    } catch (e) { flash(errorMessage(e)); } finally { setSyncing(false); }
+      if (falhas.length) toast.err([...falhas.map((x) => `${x.provider}: ${x.erro}`), ...oks].join(" · "));
+      else toast.ok(oks.length ? oks.join(" · ") : t("Nada para sincronizar."));
+    } catch (e) { toast.err(errorMessage(e)); } finally { setSyncing(false); }
   }
   const kindPill = (k: string) => (k === "interno" ? <Pill tone="mute">{t("Interno")}</Pill> : <Pill tone="info">{t("Cliente")}</Pill>);
   const statusPill = (st: string) => (st === "waiting_key" ? <Pill tone="warn">{t("Aguardando chave")}</Pill> : st === "internal" ? <Pill tone="mute">{t("Interno")}</Pill> : <Pill tone="ok">{t("Ativo")}</Pill>);
@@ -222,7 +220,7 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
         </div>
       </Modal>
 
-      {toast && <div className="toast">{toast}</div>}
+      {toast.node}
     </div>
   );
 }
