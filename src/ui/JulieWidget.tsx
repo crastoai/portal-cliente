@@ -146,7 +146,7 @@ export default function JulieWidget() {
             {rec
               ? <button className="julie-ic is-rec" title="Parar gravação" onClick={stopRec}><Square size={15} /></button>
               : <button className="julie-ic" title="Gravar áudio" onClick={startRec}><Mic size={18} /></button>}
-            <textarea ref={taRef} className="julie-input" value={input} rows={1} placeholder={rec ? "Gravando áudio…" : "Pergunte ou peça algo do financeiro…"} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); } }} />
+            <textarea ref={taRef} className="julie-input" value={input} rows={1} placeholder={rec ? "Gravando áudio…" : "Digite aqui"} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); } }} />
             <button className="julie-send" disabled={busy || (!input.trim() && !anexos.length)} onClick={enviar} aria-label="Enviar"><Send size={16} /></button>
           </div>
         </div>
