@@ -225,6 +225,10 @@ export default function JulieWidget() {
           {err && <div className="julie-err">{err}</div>}
           {anexos.length > 0 && (
             <div className="julie-chips">
+              <div className="julie-chips-top">
+                <span>{anexos.length} anexo{anexos.length > 1 ? "s" : ""}</span>
+                <button type="button" className="julie-clear" onClick={() => { setAnexos([]); setErr(""); }}>Limpar tudo</button>
+              </div>
               {anexos.map((a, i) => <span key={i} className="julie-chip"><FileText size={12} /> {a.name}<button onClick={() => setAnexos((x) => x.filter((_, j) => j !== i))} aria-label="Remover">×</button></span>)}
             </div>
           )}
