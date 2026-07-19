@@ -55,12 +55,16 @@ export class JulieLlmService {
       if (m.role === 'tool_result') { contents.push({ role: 'user', parts: m.results.map((r: any) => ({ functionResponse: { name: r.name, response: (r.result && typeof r.result === 'object' && !Array.isArray(r.result)) ? r.result : { resultado: r.result ?? null } } })) }); continue; }
       const parts: any[] = [];
       if (m.text) parts.push({ text: m.text });
-      const anexos = await Promise.all((m.attachments || []).map(async (a: any) => {
-        const bytes = Buffer.from(a.data || '', 'base64');
-        const f = await uploadGeminiFile(rt.api_key, bytes, a.mime, 'anexo');
-        return { file_data: { mime_type: f.mimeType, file_uri: f.uri } };
-      }));
-      parts.push(...anexos);
+      // sobe em LOTES de 6 (rápido, sem disparar 100 uploads de uma vez e levar 429 da File API)
+      const atts = (m.attachments || []) as any[];
+      for (let i = 0; i < atts.length; i += 6) {
+        const lote = await Promise.all(atts.slice(i, i + 6).map(async (a: any) => {
+          const bytes = Buffer.from(a.data || '', 'base64');
+          const f = await uploadGeminiFile(rt.api_key, bytes, a.mime, 'anexo');
+          return { file_data: { mime_type: f.mimeType, file_uri: f.uri } };
+        }));
+        parts.push(...lote);
+      }
       if (!parts.length) parts.push({ text: '' });
       contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts });
     }
