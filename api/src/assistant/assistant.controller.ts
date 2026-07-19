@@ -14,9 +14,10 @@ export class AssistantController {
   @Post('chat')
   chat(@Req() req: any, @Body() b: any) {
     const messages = Array.isArray(b?.messages) ? b.messages.slice(-16) : [];
-    // sanea anexos: só {mime, data(base64)}; corta o histórico para caber no request.
+    // sanea anexos: só {mime, data(base64)}. Até 20/mensagem (uma PASTA cabe); o front já
+    // limita o TOTAL (~14MB) p/ o request inline do Gemini (~20MB) não estourar.
     for (const m of messages) {
-      if (m?.attachments) m.attachments = (m.attachments as any[]).slice(0, 6).map((a) => ({ mime: String(a.mime || 'application/octet-stream'), data: String(a.data || '') }));
+      if (m?.attachments) m.attachments = (m.attachments as any[]).slice(0, 20).map((a) => ({ mime: String(a.mime || 'application/octet-stream'), data: String(a.data || '') }));
     }
     const contexto = b?.contexto && b.contexto.organization_id ? { organization_id: String(b.contexto.organization_id) } : undefined;
     return this.svc.chat(req.user.id, messages, contexto);

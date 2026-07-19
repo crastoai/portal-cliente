@@ -1,18 +1,50 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
-import { Sparkles, X, Paperclip, Mic, Send, Square, FileText } from "lucide-react";
+import { Sparkles, X, Paperclip, Mic, Send, Square, FileText, FolderPlus, UploadCloud } from "lucide-react";
 import "../styles/julie.css";
 
 // Julie — a CFO de IA da Crasto.AI. Botão-círculo no canto inferior direito de TODO o admin.
 // 3 entradas: texto, anexo (PDF/imagem — NF, contrato) e áudio. Fala com /api/assistant/chat.
-type Anexo = { mime: string; data: string; name: string };
+// Anexar: clicar no clipe, ARRASTAR arquivos/uma PASTA para o painel, ou escolher uma pasta
+// (lê todos os arquivos dela, recursivamente) — para o caso de a Julie precisar ler vários.
+type Anexo = { mime: string; data: string; name: string; size: number };
 type Pending = { kind: string; payload: any; resumo: string };
 type CardState = "pending" | "busy" | "done" | "error" | "cancelled";
 type Msg = { role: "user" | "assistant"; text: string; anexos?: { name: string }[]; pending?: Pending; card?: CardState; cardMsg?: string };
-const MAX_MB = 15; // request inline do Gemini ~20MB; deixamos folga p/ histórico
+const MAX_MB = 15;        // por arquivo (request inline do Gemini ~20MB)
+const MAX_FILES = 20;     // por envio (o backend também corta em 20)
+const MAX_TOTAL_MB = 14;  // soma dos anexos — base64 infla ~33%, então ~18,6MB < teto do Gemini
 
 async function paraB64(blob: Blob): Promise<string> {
   return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1] || ""); r.onerror = () => rej(new Error("falha ao ler arquivo")); r.readAsDataURL(blob); });
+}
+
+// Arrastou uma PASTA? O navegador entrega "entries" (FileSystem API). Andamos a árvore
+// recursivamente e devolvemos TODOS os arquivos. Os entries precisam ser lidos de forma
+// SÍNCRONA no drop (a lista morre depois) — por isso coletamos as raízes antes de await.
+async function entriesParaArquivos(items: DataTransferItemList): Promise<File[]> {
+  const out: File[] = [];
+  const raizes: any[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    if (it.kind !== "file") continue;
+    const entry = (it as any).webkitGetAsEntry?.();
+    if (entry) raizes.push(entry);
+    else { const f = it.getAsFile(); if (f) out.push(f); }
+  }
+  const anda = async (entry: any): Promise<void> => {
+    if (!entry) return;
+    if (entry.isFile) {
+      await new Promise<void>((res) => entry.file((f: File) => { out.push(f); res(); }, () => res()));
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      const lote = (): Promise<any[]> => new Promise((res) => reader.readEntries((e: any[]) => res(e), () => res([])));
+      let b = await lote();
+      while (b.length) { for (const e of b) await anda(e); b = await lote(); } // readEntries vem em lotes
+    }
+  };
+  for (const r of raizes) await anda(r);
+  return out;
 }
 
 export default function JulieWidget() {
@@ -23,22 +55,59 @@ export default function JulieWidget() {
   const [busy, setBusy] = useState(false);
   const [rec, setRec] = useState(false);
   const [err, setErr] = useState("");
+  const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const folderRef = useRef<HTMLInputElement>(null);
   const recRef = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const bodyRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const anexosRef = useRef<Anexo[]>([]);
+  const dragDepth = useRef(0); // conta enter/leave p/ o overlay não piscar sobre os filhos
 
+  useEffect(() => { anexosRef.current = anexos; }, [anexos]);
   useEffect(() => { bodyRef.current?.scrollTo(0, bodyRef.current.scrollHeight); }, [msgs, busy]);
   useEffect(() => { const el = taRef.current; if (el) { el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 110) + "px"; } }, [input]);
+  // <input webkitdirectory> escolhe uma PASTA (atributo não-padrão → setado via DOM).
+  useEffect(() => { const el = folderRef.current; if (el) { el.setAttribute("webkitdirectory", ""); el.setAttribute("directory", ""); } }, []);
+
+  // Coração do anexo (clipe, pasta e arrastar caem todos aqui): checa por-arquivo, total e
+  // quantidade, converte p/ base64 e junta. Ler uma pasta é só "muitos arquivos" passando aqui.
+  async function addFiles(files: File[]) {
+    if (!files.length) return;
+    setErr("");
+    let count = anexosRef.current.length;
+    let total = anexosRef.current.reduce((s, a) => s + a.size, 0);
+    const novos: Anexo[] = [];
+    for (const f of files) {
+      if (f.size === 0) continue; // pastas/atalhos vazios que às vezes chegam no drop
+      if (count >= MAX_FILES) { setErr(`Máximo de ${MAX_FILES} arquivos por envio — mande a pasta em partes.`); break; }
+      if (f.size > MAX_MB * 1024 * 1024) { setErr(`"${f.name}" passa de ${MAX_MB}MB — envie um arquivo menor.`); continue; }
+      if (total + f.size > MAX_TOTAL_MB * 1024 * 1024) { setErr(`Passou do limite total (~${MAX_TOTAL_MB}MB) — envie a pasta em partes.`); break; }
+      try { const data = await paraB64(f); novos.push({ mime: f.type || "application/octet-stream", data, name: f.name, size: f.size }); count++; total += f.size; }
+      catch { setErr("Não consegui ler " + f.name); }
+    }
+    if (novos.length) setAnexos((a) => [...a, ...novos]);
+  }
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const fs = Array.from(e.target.files || []); e.target.value = "";
-    for (const f of fs) {
-      if (f.size > MAX_MB * 1024 * 1024) { setErr(`"${f.name}" passa de ${MAX_MB}MB — envie um arquivo menor.`); continue; }
-      try { const data = await paraB64(f); setAnexos((a) => [...a, { mime: f.type || "application/octet-stream", data, name: f.name }]); }
-      catch { setErr("Não consegui ler " + f.name); }
-    }
+    await addFiles(fs);
+  }
+
+  // ── Arrastar-e-soltar (arquivos OU uma pasta inteira) ──────────────────────────────────
+  function onDragEnter(e: React.DragEvent) { if (![...e.dataTransfer.types].includes("Files")) return; e.preventDefault(); dragDepth.current++; setDragging(true); }
+  function onDragOver(e: React.DragEvent) { if (![...e.dataTransfer.types].includes("Files")) return; e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }
+  function onDragLeave(e: React.DragEvent) { e.preventDefault(); dragDepth.current = Math.max(0, dragDepth.current - 1); if (dragDepth.current === 0) setDragging(false); }
+  async function onDrop(e: React.DragEvent) {
+    e.preventDefault(); dragDepth.current = 0; setDragging(false);
+    const items = e.dataTransfer.items;
+    // webkitGetAsEntry precisa ser lido AGORA (síncrono) — entriesParaArquivos coleta as
+    // raízes antes de qualquer await. Sem a FileSystem API, cai nos files planos (sem pasta).
+    const arquivos = items && items.length && (items[0] as any).webkitGetAsEntry
+      ? await entriesParaArquivos(items)
+      : Array.from(e.dataTransfer.files || []);
+    await addFiles(arquivos);
   }
   async function startRec() {
     setErr("");
@@ -50,7 +119,7 @@ export default function JulieWidget() {
       mr.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunks.current, { type: mr.mimeType || "audio/webm" });
-        try { const data = await paraB64(blob); setAnexos((a) => [...a, { mime: blob.type, data, name: "áudio" }]); } catch { setErr("Falha ao processar o áudio."); }
+        try { const data = await paraB64(blob); setAnexos((a) => [...a, { mime: blob.type, data, name: "áudio", size: blob.size }]); } catch { setErr("Falha ao processar o áudio."); }
       };
       mr.start(); setRec(true);
     } catch { setErr("Não consegui acessar o microfone."); }
@@ -98,7 +167,15 @@ export default function JulieWidget() {
         </button>
       )}
       {open && (
-        <div className="julie-panel" role="dialog" aria-label="Julie — assistente virtual">
+        <div className={"julie-panel" + (dragging ? " is-drag" : "")} role="dialog" aria-label="Julie — assistente virtual"
+             onDragEnter={onDragEnter} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+          {dragging && (
+            <div className="julie-drop">
+              <UploadCloud size={30} />
+              <b>Solte aqui</b>
+              <span>arquivos ou uma pasta — leio todos</span>
+            </div>
+          )}
           <div className="julie-head">
             <div className="julie-id"><span className="julie-av"><Sparkles size={15} /></span><div className="julie-idt"><b>Julie</b><span>Assistente virtual</span></div></div>
             <button className="julie-x" onClick={() => setOpen(false)} aria-label="Fechar"><X size={18} /></button>
@@ -142,7 +219,9 @@ export default function JulieWidget() {
           )}
           <div className="julie-composer">
             <input ref={fileRef} type="file" hidden multiple onChange={onFile} accept="image/*,application/pdf,audio/*" />
+            <input ref={folderRef} type="file" hidden multiple onChange={onFile} />
             <button className="julie-ic" title="Anexar documento" onClick={() => fileRef.current?.click()}><Paperclip size={18} /></button>
+            <button className="julie-ic" title="Anexar uma pasta inteira (leio todos os arquivos)" onClick={() => folderRef.current?.click()}><FolderPlus size={18} /></button>
             {rec
               ? <button className="julie-ic is-rec" title="Parar gravação" onClick={stopRec}><Square size={15} /></button>
               : <button className="julie-ic" title="Gravar áudio" onClick={startRec}><Mic size={18} /></button>}

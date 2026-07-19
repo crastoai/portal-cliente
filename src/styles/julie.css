@@ -59,7 +59,18 @@
 
 .julie-err { font-size: 12px; color: var(--crasto-danger); background: #F6E7E7; border-top: 1px solid #eecccc; padding: 8px 14px; }
 [data-theme="dark"] .julie-err { background: rgba(184,58,58,.14); border-color: rgba(184,58,58,.3); }
-.julie-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px 0; }
+/* arrastar-e-soltar: moldura + overlay "solte aqui" cobrindo o painel */
+.julie-panel.is-drag { border-color: var(--crasto-navy); }
+.julie-drop { position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  background: rgba(1,14,38,.055); backdrop-filter: blur(2px); border: 2px dashed var(--crasto-navy); border-radius: 18px; pointer-events: none; }
+[data-theme="dark"] .julie-drop { background: rgba(110,156,232,.10); }
+.julie-drop b { font-size: 15px; color: var(--crasto-text-primary); }
+.julie-drop span { font-size: 12.5px; color: var(--crasto-text-muted); }
+.julie-drop svg { color: var(--crasto-navy); }
+[data-theme="dark"] .julie-drop svg { color: var(--crasto-blue, #6E9CE8); }
+
+/* muitos arquivos (pasta) → a faixa de chips rola em vez de empurrar o composer p/ fora */
+.julie-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px 0; max-height: 108px; overflow-y: auto; }
 .julie-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--crasto-text-body); background: var(--crasto-bg-3); border: 1px solid var(--crasto-border-soft); border-radius: 999px; padding: 3px 6px 3px 9px; }
 .julie-chip button { border: none; background: transparent; color: var(--crasto-text-muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 2px; }
 
