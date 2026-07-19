@@ -31,7 +31,7 @@ export default function ResetRequest() {
           <img src="/crasto-wordmark-white.png" alt="Crasto.AI" style={{ height: 30, display: "block" }} />
         </div>
         <div>
-          <h2>{t("O seu hub de Inteligência Artificial, num só lugar.")}</h2>
+          <h2>{t("O seu Portal de Inteligência Artificial, num só lugar.")}</h2>
           <p>{t("Acompanhe seus módulos, resultados e a implantação da sua IA — em tempo real, com total transparência.")}</p>
         </div>
         <div className="foot">{t("Portal do Cliente · acesso seguro")}</div>

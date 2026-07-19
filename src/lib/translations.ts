@@ -28,7 +28,7 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Esqueci minha senha": { en: "Forgot my password", es: "Olvidé mi contraseña" },
   "Use as credenciais que a Crasto.AI enviou para você.": { en: "Use the credentials Crasto.AI sent you.", es: "Usa las credenciales que Crasto.AI te envió." },
   "E-mail ou senha inválidos. Verifique e tente novamente.": { en: "Invalid email or password. Please check and try again.", es: "Correo o contraseña inválidos. Verifica e inténtalo de nuevo." },
-  "O seu hub de Inteligência Artificial, num só lugar.": { en: "Your Artificial Intelligence hub, all in one place.", es: "Tu hub de Inteligencia Artificial, todo en un solo lugar." },
+  "O seu Portal de Inteligência Artificial, num só lugar.": { en: "Your Artificial Intelligence Portal, all in one place.", es: "Tu Portal de Inteligencia Artificial, todo en un solo lugar." },
   "Acompanhe seus módulos, resultados e a implantação da sua IA — em tempo real, com total transparência.": { en: "Track your modules, results and your AI rollout — in real time, with full transparency.", es: "Sigue tus módulos, resultados y la implementación de tu IA — en tiempo real, con total transparencia." },
   "Portal do Cliente · acesso seguro": { en: "Client Portal · secure access", es: "Portal del Cliente · acceso seguro" },
 

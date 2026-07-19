@@ -74,7 +74,7 @@ export default function NewPassword() {
           <img src="/crasto-wordmark-white.png" alt="Crasto.AI" style={{ height: 30, display: "block" }} />
         </div>
         <div>
-          <h2>{t("O seu hub de Inteligência Artificial, num só lugar.")}</h2>
+          <h2>{t("O seu Portal de Inteligência Artificial, num só lugar.")}</h2>
           <p>{t("Crie uma nova senha para acessar o portal com segurança.")}</p>
         </div>
         <div className="foot">{t("Portal do Cliente · acesso seguro")}</div>
