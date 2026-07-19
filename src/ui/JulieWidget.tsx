@@ -11,9 +11,9 @@ type Anexo = { mime: string; data: string; name: string; size: number };
 type Pending = { kind: string; payload: any; resumo: string };
 type CardState = "pending" | "busy" | "done" | "error" | "cancelled";
 type Msg = { role: "user" | "assistant"; text: string; anexos?: { name: string }[]; pending?: Pending; card?: CardState; cardMsg?: string };
-const MAX_MB = 15;        // por arquivo (request inline do Gemini ~20MB)
+const MAX_MB = 25;        // por arquivo (o Gemini não tem mais teto — sobe pela File API)
 const MAX_FILES = 20;     // por envio (o backend também corta em 20)
-const MAX_TOTAL_MB = 14;  // soma dos anexos — base64 infla ~33%, então ~18,6MB < teto do Gemini
+const MAX_TOTAL_MB = 35;  // soma dos anexos — o gargalo agora é só o body da nossa API (50MB)
 
 async function paraB64(blob: Blob): Promise<string> {
   return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1] || ""); r.onerror = () => rej(new Error("falha ao ler arquivo")); r.readAsDataURL(blob); });

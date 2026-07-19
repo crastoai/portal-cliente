@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { RlsDbService } from '../common/rls-db.service';
+import { uploadGeminiFile } from '../common/gemini-files';
 
 // Motor de IA da Julie (a CFO). Portado do PortalLlmService do CRM, mas NATIVO do Portal:
 // a chave/modelo vêm do COFRE via RPC `llm_runtime()` lida como service_role — nunca em env
@@ -43,17 +44,26 @@ export class JulieLlmService {
   private async gemini(rt: any, system: string, messages: JulieMsg[], tools: JulieTool[]): Promise<JulieTurn> {
     // Model configurável (JULIE_MODEL) → padrão do cofre → gemini-2.5-pro (GA, estável).
     const model = process.env.JULIE_MODEL || (rt.model && rt.model !== 'gemini' ? rt.model : 'gemini-2.5-pro');
-    const contents = messages.map((m: any) => {
-      if (m.role === 'assistant_call') return { role: 'model', parts: m.calls.map((c: any) => ({ functionCall: { name: c.name, args: c.args || {} } })) };
+    // Onde há ANEXO, sobe o arquivo pela File API e referencia por `file_data` (em vez de
+    // `inline_data` base64) — assim o teto de ~20MB por request some. Só há upload quando
+    // existe anexo; texto puro não passa por aqui.
+    const contents: any[] = [];
+    for (const m of messages as any[]) {
+      if (m.role === 'assistant_call') { contents.push({ role: 'model', parts: m.calls.map((c: any) => ({ functionCall: { name: c.name, args: c.args || {} } })) }); continue; }
       // Gemini exige que `response` seja um OBJETO. Ferramentas que devolvem array/escalar
       // (listar_contas, buscar_cliente…) davam 400 → 500. Embrulhamos em {resultado:...}.
-      if (m.role === 'tool_result') return { role: 'user', parts: m.results.map((r: any) => ({ functionResponse: { name: r.name, response: (r.result && typeof r.result === 'object' && !Array.isArray(r.result)) ? r.result : { resultado: r.result ?? null } } })) };
+      if (m.role === 'tool_result') { contents.push({ role: 'user', parts: m.results.map((r: any) => ({ functionResponse: { name: r.name, response: (r.result && typeof r.result === 'object' && !Array.isArray(r.result)) ? r.result : { resultado: r.result ?? null } } })) }); continue; }
       const parts: any[] = [];
       if (m.text) parts.push({ text: m.text });
-      for (const a of (m.attachments || [])) parts.push({ inline_data: { mime_type: a.mime, data: a.data } });
+      const anexos = await Promise.all((m.attachments || []).map(async (a: any) => {
+        const bytes = Buffer.from(a.data || '', 'base64');
+        const f = await uploadGeminiFile(rt.api_key, bytes, a.mime, 'anexo');
+        return { file_data: { mime_type: f.mimeType, file_uri: f.uri } };
+      }));
+      parts.push(...anexos);
       if (!parts.length) parts.push({ text: '' });
-      return { role: m.role === 'assistant' ? 'model' : 'user', parts };
-    });
+      contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts });
+    }
     const body: any = {
       system_instruction: { parts: [{ text: system }] },
       contents,
