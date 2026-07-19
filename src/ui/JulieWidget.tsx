@@ -57,19 +57,25 @@ export default function JulieWidget() {
   const [err, setErr] = useState("");
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const folderRef = useRef<HTMLInputElement>(null);
+  const folderRef = useRef<HTMLInputElement | null>(null);
   const recRef = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const bodyRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const anexosRef = useRef<Anexo[]>([]);
-  const dragDepth = useRef(0); // conta enter/leave p/ o overlay não piscar sobre os filhos
 
   useEffect(() => { anexosRef.current = anexos; }, [anexos]);
   useEffect(() => { bodyRef.current?.scrollTo(0, bodyRef.current.scrollHeight); }, [msgs, busy]);
   useEffect(() => { const el = taRef.current; if (el) { el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 110) + "px"; } }, [input]);
-  // <input webkitdirectory> escolhe uma PASTA (atributo não-padrão → setado via DOM).
-  useEffect(() => { const el = folderRef.current; if (el) { el.setAttribute("webkitdirectory", ""); el.setAttribute("directory", ""); } }, []);
+
+  // <input webkitdirectory> escolhe uma PASTA (atributo não-padrão). Setado no CALLBACK do
+  // ref — e não num useEffect de montagem: o painel só existe quando aberto, então na
+  // montagem o input ainda é null e o efeito não pegava (era o bug: abria como seletor de
+  // arquivo comum e não deixava escolher pasta).
+  const folderInput = (el: HTMLInputElement | null) => {
+    folderRef.current = el;
+    if (el) { el.setAttribute("webkitdirectory", ""); el.setAttribute("directory", ""); el.setAttribute("mozdirectory", ""); }
+  };
 
   // Coração do anexo (clipe, pasta e arrastar caem todos aqui): checa por-arquivo, total e
   // quantidade, converte p/ base64 e junta. Ler uma pasta é só "muitos arquivos" passando aqui.
@@ -96,11 +102,16 @@ export default function JulieWidget() {
   }
 
   // ── Arrastar-e-soltar (arquivos OU uma pasta inteira) ──────────────────────────────────
-  function onDragEnter(e: React.DragEvent) { if (![...e.dataTransfer.types].includes("Files")) return; e.preventDefault(); dragDepth.current++; setDragging(true); }
-  function onDragOver(e: React.DragEvent) { if (![...e.dataTransfer.types].includes("Files")) return; e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }
-  function onDragLeave(e: React.DragEvent) { e.preventDefault(); dragDepth.current = Math.max(0, dragDepth.current - 1); if (dragDepth.current === 0) setDragging(false); }
+  // O preventDefault no dragOVER é OBRIGATÓRIO: sem ele o navegador não dispara o drop (era
+  // o bug — arrastar não fazia nada). Por isso NUNCA condicionamos o preventDefault.
+  function onDragOver(e: React.DragEvent) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; if (!dragging) setDragging(true); }
+  function onDragLeave(e: React.DragEvent) {
+    // só esconde ao sair DE VERDADE do painel (não ao passar sobre os filhos dele)
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setDragging(false);
+  }
   async function onDrop(e: React.DragEvent) {
-    e.preventDefault(); dragDepth.current = 0; setDragging(false);
+    e.preventDefault(); setDragging(false);
     const items = e.dataTransfer.items;
     // webkitGetAsEntry precisa ser lido AGORA (síncrono) — entriesParaArquivos coleta as
     // raízes antes de qualquer await. Sem a FileSystem API, cai nos files planos (sem pasta).
@@ -168,7 +179,7 @@ export default function JulieWidget() {
       )}
       {open && (
         <div className={"julie-panel" + (dragging ? " is-drag" : "")} role="dialog" aria-label="Julie — assistente virtual"
-             onDragEnter={onDragEnter} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+             onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
           {dragging && (
             <div className="julie-drop">
               <UploadCloud size={30} />
@@ -219,7 +230,7 @@ export default function JulieWidget() {
           )}
           <div className="julie-composer">
             <input ref={fileRef} type="file" hidden multiple onChange={onFile} accept="image/*,application/pdf,audio/*" />
-            <input ref={folderRef} type="file" hidden multiple onChange={onFile} />
+            <input ref={folderInput} type="file" hidden multiple onChange={onFile} />
             <button className="julie-ic" title="Anexar documento" onClick={() => fileRef.current?.click()}><Paperclip size={18} /></button>
             <button className="julie-ic" title="Anexar uma pasta inteira (leio todos os arquivos)" onClick={() => folderRef.current?.click()}><FolderPlus size={18} /></button>
             {rec
