@@ -168,32 +168,35 @@ export class CrmAccessService {
   }
 
   /**
-   * Edita NOME e/ou E-MAIL de um usuário do CRM. O nome e o e-mail de LOGIN vivem no Auth
-   * do Portal (identidade única) — atualizamos lá; depois espelhamos a cópia no CRM
-   * (profiles) pela mesma porta de grant (idempotente, sem mexer no papel). Trocar o e-mail
-   * muda o LOGIN da pessoa; se ela ainda não definiu senha, reenvie o acesso ao novo e-mail.
+   * Edita NOME, E-MAIL e/ou PAPEL (Dono ↔ Membro) de um usuário do CRM. Nome e e-mail de
+   * LOGIN vivem no Auth do Portal (identidade única) — atualizamos lá; depois espelhamos a
+   * cópia + o papel no CRM (profiles) pela mesma porta de grant (idempotente). Trocar o
+   * e-mail muda o LOGIN; se a pessoa ainda não definiu senha, reenvie o acesso ao novo e-mail.
    */
-  async updateUser(req: any, orgId: string, auth: string, userId: string, b: { full_name?: string; email?: string }) {
+  async updateUser(req: any, orgId: string, auth: string, userId: string, b: { full_name?: string; email?: string; role?: string }) {
     await this.requireModule(orgId);
     const { users } = await this.crm(`/admin/client/${orgId}/users`, auth);
     const u = (users || []).find((x: any) => x.id === userId);
     if (!u) throw new BadRequestException('Usuário não tem acesso ao CRM deste cliente.');
     const novoNome = b.full_name != null ? String(b.full_name).trim() : undefined;
     const novoEmail = b.email != null ? String(b.email).trim().toLowerCase() : undefined;
+    // Papel: só os de cliente (nunca crasto_admin por esta porta).
+    const novoPapel = b.role === 'client_owner' || b.role === 'client_member' ? b.role : undefined;
     if (novoEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(novoEmail)) throw new BadRequestException('E-mail inválido.');
     const emailMudou = !!novoEmail && novoEmail !== String(u.email || '').toLowerCase();
-    if (!novoNome && !emailMudou) return { ok: true, email_changed: false };
+    const papelMudou = !!novoPapel && novoPapel !== u.role;
+    if (!novoNome && !emailMudou && !papelMudou) return { ok: true, email_changed: false };
 
     // 1) identidade no Portal (nome sempre que veio; e-mail só se mudou de fato)
     await this.idp.updateUser(userId, { full_name: novoNome, email: emailMudou ? novoEmail : undefined });
-    // 2) espelha a cópia no CRM (profiles) — reusa o grant upsert com o papel ATUAL (não muda)
+    // 2) espelha no CRM (profiles): nome, e-mail e PAPEL (o grant upsert cuida do papel).
     await this.crm(`/admin/client/${orgId}/users`, auth, {
       method: 'POST',
-      body: JSON.stringify({ id: userId, email: emailMudou ? novoEmail : u.email, full_name: novoNome ?? u.full_name, role: u.role }),
+      body: JSON.stringify({ id: userId, email: emailMudou ? novoEmail : u.email, full_name: novoNome ?? u.full_name, role: novoPapel ?? u.role }),
     });
     await this.audit.log(req, 'crm_access_updated', {
       targetType: 'user', targetId: userId, org: orgId, system: 'crm',
-      ctx: { nome: novoNome ?? null, email_novo: emailMudou ? novoEmail : null },
+      ctx: { nome: novoNome ?? null, email_novo: emailMudou ? novoEmail : null, papel_novo: papelMudou ? novoPapel : null },
     });
     return { ok: true, email_changed: emailMudou };
   }

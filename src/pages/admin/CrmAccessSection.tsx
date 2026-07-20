@@ -19,7 +19,7 @@ export function CrmAccessSection({ orgId, onToast }: { orgId: string; onToast: (
   const [open, setOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [f, setF] = useState({ email: "", full_name: "", role: "client_member" });
-  const [edit, setEdit] = useState<{ id: string; full_name: string; email: string; email0: string } | null>(null);
+  const [edit, setEdit] = useState<{ id: string; full_name: string; email: string; email0: string; role: string } | null>(null);
 
   async function load() {
     try { setD(await services.crmAccess.overview(orgId)); } catch (e) { onToast(errorMessage(e)); }
@@ -59,7 +59,7 @@ export function CrmAccessSection({ orgId, onToast }: { orgId: string; onToast: (
     if (em && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { setErr(tr("E-mail inválido.")); return; }
     setBusy(true); setErr(null);
     try {
-      const r = await services.crmAccess.update(orgId, edit.id, { full_name: edit.full_name.trim(), email: em });
+      const r = await services.crmAccess.update(orgId, edit.id, { full_name: edit.full_name.trim(), email: em, role: edit.role });
       setEdit(null);
       onToast(r.email_changed ? tr("Atualizado. O e-mail de login mudou — use “Reenviar” para enviar o acesso ao novo e-mail.") : tr("Usuário atualizado."));
       await load();
@@ -119,7 +119,7 @@ export function CrmAccessSection({ orgId, onToast }: { orgId: string; onToast: (
                     <span className="crasto-btn__icon"><RefreshCw size={13} /></span><span className="crasto-btn__label">{tr("Reenviar")}</span>
                   </button>
                   <button className="icobtn" disabled={busy} title={tr("Editar nome e e-mail")}
-                    onClick={() => { setErr(null); setEdit({ id: u.id, full_name: u.full_name || "", email: u.email || "", email0: u.email || "" }); }}>
+                    onClick={() => { setErr(null); setEdit({ id: u.id, full_name: u.full_name || "", email: u.email || "", email0: u.email || "", role: u.role || "client_member" }); }}>
                     <Pencil size={14} />
                   </button>
                   <button className="icobtn rm" disabled={busy} title={tr("Tira o acesso ao CRM (a conta no portal continua)")}
@@ -155,6 +155,17 @@ export function CrmAccessSection({ orgId, onToast }: { orgId: string; onToast: (
         {err && <div className="formerr">{err}</div>}
         <Field label="Nome"><input value={edit?.full_name ?? ""} onChange={(e) => setEdit((s) => s && { ...s, full_name: e.target.value })} /></Field>
         <Field label="E-mail (login) *"><input type="email" value={edit?.email ?? ""} onChange={(e) => setEdit((s) => s && { ...s, email: e.target.value })} /></Field>
+        <Field label={tr("Papel")}>
+          <select value={edit?.role ?? "client_member"} onChange={(e) => setEdit((s) => s && { ...s, role: e.target.value })}>
+            <option value="client_member">{tr("Membro")}</option>
+            <option value="client_owner">{tr("Dono")}</option>
+          </select>
+        </Field>
+        {edit?.role === "client_owner" && (
+          <p className="mt" style={{ margin: "8px 2px 0", lineHeight: 1.6 }}>
+            {tr("Dono vê TODAS as conversas e leads do cliente (não é escopado). Membro vê só o que for atribuído a ele.")}
+          </p>
+        )}
         {edit && edit.email.trim().toLowerCase() !== edit.email0.trim().toLowerCase() && (
           <p className="mt" style={{ margin: "10px 2px 0", lineHeight: 1.6 }}>
             {tr("Você está mudando o e-mail de LOGIN desta pessoa. Ela passará a entrar com o novo e-mail (a senha continua a mesma). Se ela ainda não definiu senha, use “Reenviar” depois para mandar o link ao novo e-mail.")}

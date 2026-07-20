@@ -30,7 +30,7 @@ export class CrmAccessController {
 
   @Patch(':orgId/users/:id')
   updateUser(@Req() req: any, @Param('orgId') orgId: string, @Param('id') id: string, @Body() b: any) {
-    return this.svc.updateUser(req, orgId, this.auth(req), id, { full_name: b?.full_name, email: b?.email });
+    return this.svc.updateUser(req, orgId, this.auth(req), id, { full_name: b?.full_name, email: b?.email, role: b?.role });
   }
 
   @Post(':orgId/users/:id/resend')

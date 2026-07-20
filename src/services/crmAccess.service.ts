@@ -35,7 +35,7 @@ export const crmAccess = {
     api.get<{ catalog: { key: string; label: string }[]; has_access: boolean; owner: boolean; screens: string[] | null; error?: string }>(`/api/crm-access/${orgId}/users/${userId}/crm-screens`),
   setCrmScreens: (orgId: string, userId: string, screens: string[]) =>
     api.post<{ ok?: boolean; screens?: string[]; error?: string }>(`/api/crm-access/${orgId}/users/${userId}/crm-screens`, { screens }),
-  update: (orgId: string, userId: string, b: { full_name?: string; email?: string }) =>
+  update: (orgId: string, userId: string, b: { full_name?: string; email?: string; role?: string }) =>
     api.patch<{ ok: boolean; email_changed: boolean }>(`/api/crm-access/${orgId}/users/${userId}`, b),
   resend: (orgId: string, userId: string) => api.post<{ ok: boolean; password_link_sent: boolean }>(`/api/crm-access/${orgId}/users/${userId}/resend`),
   revoke: (orgId: string, userId: string) => api.del(`/api/crm-access/${orgId}/users/${userId}`),
