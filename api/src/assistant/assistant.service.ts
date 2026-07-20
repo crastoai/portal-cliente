@@ -16,17 +16,35 @@ COMO VOCÊ PENSA (skills):
 
 FERRAMENTAS — LEITURA (respondem na hora): resumo_financeiro, listar_contas, listar_custos, listar_transacoes, contas_vencendo, buscar_cliente, detalhe_cliente.
 
-FERRAMENTAS — ESCRITA (só PREPARAM; o Crasto confirma num cartão): criar_conta, atualizar_conta, dar_baixa_conta, criar_custo, criar_transacao, atualizar_cliente, adicionar_cnpj, adicionar_socio.
-CONFIRMAR ANTES DE EXECUTAR (regra de ouro): ao pedir para criar/alterar/lançar/dar baixa/cadastrar, chame a ferramenta de escrita com dados COMPLETOS e corretos. Ela NÃO grava: prepara e o Crasto vê um cartão de confirmação. No seu texto, mostre em tópicos o que preparou e peça para conferir e confirmar no cartão. NUNCA diga que já lançou/salvou antes da confirmação. Se faltar um dado essencial, PERGUNTE. Uma ação por vez.
+FERRAMENTAS — ESCRITA (só PREPARAM; o Crasto confirma num cartão): criar_conta, atualizar_conta, dar_baixa_conta, criar_custo, criar_transacao, atualizar_cliente, adicionar_cnpj, adicionar_socio, adicionar_pessoa, adicionar_telefone.
+CONFIRMAR ANTES DE EXECUTAR (regra de ouro): ao pedir para criar/alterar/lançar/dar baixa/cadastrar, chame a ferramenta de escrita com dados COMPLETOS e corretos. Ela NÃO grava: prepara e o Crasto vê um cartão de confirmação. No seu texto, mostre em tópicos o que preparou e peça para conferir e confirmar no cartão. NUNCA diga que já lançou/salvou antes da confirmação. Se faltar um dado essencial, PERGUNTE.
+VÁRIAS AÇÕES DE UMA VEZ: quando um documento pede vários cadastros (ex.: preencher a ficha inteira de um cliente, ou lançar várias contas), CHAME TODAS as ferramentas de escrita necessárias no MESMO turno — elas entram todas num único cartão e o Crasto confirma tudo junto. Não peça para confirmar uma de cada vez.
+
+CONTAS PARCELADAS: se o cliente/contrato paga em N vezes, use criar_conta com amount = VALOR TOTAL do contrato, payment_installments = número de parcelas e due_date = data da 1ª parcela (opcional payment_day_of_month = dia fixo de vencimento). O sistema gera as N parcelas automaticamente. Não crie N contas separadas.
 
 DOCUMENTOS (multimodal):
 - NOTA FISCAL → extraia emitente/fornecedor, CNPJ, número da NF, emissão, vencimento, valor total, itens; classifique a pagar/receber e proponha criar_conta preenchida (invoice_number = número da NF; due_date = vencimento).
-- CONTRATO SOCIAL → extraia razão social, CNPJ, abertura, endereço e SÓCIOS (nome, CPF, %). Para preencher a ficha do cliente: atualizar_cliente (dados da empresa), adicionar_cnpj (o CNPJ) e adicionar_socio (cada sócio). Descubra o cliente pelo contexto (cliente aberto) ou buscar_cliente. Só grave o que está no documento.`;
+- CONTRATO (social ou de prestação de serviço) → extraia razão social, CNPJ, abertura, endereço, SÓCIOS (nome, CPF, %), PESSOAS de contato e TELEFONES. Para preencher a ficha do cliente, proponha DE UMA VEZ: atualizar_cliente (dados da empresa + plano), adicionar_cnpj (o CNPJ), adicionar_socio (cada sócio), adicionar_pessoa (cada contato) e adicionar_telefone (cada telefone). Se o contrato tem valor e parcelas, proponha também criar_conta a receber (parcelada). Descubra o cliente pelo contexto (cliente aberto) ou buscar_cliente. Só grave o que está no documento.`;
 
 const READ = new Set(['resumo_financeiro', 'listar_contas', 'listar_custos', 'listar_transacoes', 'contas_vencendo', 'buscar_cliente', 'detalhe_cliente']);
-const WRITE = new Set(['criar_conta', 'atualizar_conta', 'dar_baixa_conta', 'criar_custo', 'criar_transacao', 'atualizar_cliente', 'adicionar_cnpj', 'adicionar_socio']);
-const CLIENTE_CAMPOS = ['name', 'tax_id', 'tax_id_type', 'founded_on', 'website', 'owner_name', 'notes', 'country', 'stage', 'status'];
+const WRITE = new Set(['criar_conta', 'atualizar_conta', 'dar_baixa_conta', 'criar_custo', 'criar_transacao', 'atualizar_cliente', 'adicionar_cnpj', 'adicionar_socio', 'adicionar_pessoa', 'adicionar_telefone']);
+const CLIENTE_CAMPOS = ['name', 'tax_id', 'tax_id_type', 'founded_on', 'website', 'owner_name', 'notes', 'country', 'stage', 'status', 'plan'];
 const CONTA_CAMPOS = ['description', 'amount', 'due_date', 'status', 'contact_name', 'category', 'payment_method', 'invoice_number', 'expense_type', 'notes'];
+
+// Gera as parcelas (payment_schedule) — mesma regra da tela Financeiro (buildSchedule):
+// N parcelas mensais a partir da 1ª data, no dia fixo (ou no dia da 1ª data). Datas montadas
+// pelos componentes locais (sem toISOString/UTC) para não escorregar o dia.
+function gerarParcelas(n: number, first: string, day: any, val: number): any[] {
+  const out: any[] = [];
+  if (!n || n < 1 || !first) return out;
+  const base = new Date(first + 'T00:00:00');
+  for (let i = 0; i < n; i++) {
+    const d = new Date(base.getFullYear(), base.getMonth() + i, day ? Number(day) : base.getDate());
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    out.push({ installment: i + 1, date: iso, amount: Number(val || 0), status: 'pending' });
+  }
+  return out;
+}
 
 function dataHoje(): string {
   const d = new Date();
@@ -49,9 +67,10 @@ const TOOLS: JulieTool[] = [
   { name: 'buscar_cliente', description: 'Busca clientes (empresas) pelo nome para achar o organization_id.', parameters: P({ nome: { type: 'string' } }, ['nome']) },
   { name: 'detalhe_cliente', description: 'Ficha 360 de um cliente: dados da empresa, CNPJs e sócios.', parameters: P({ organization_id: { type: 'string' } }, ['organization_id']) },
 
-  { name: 'criar_conta', description: 'PROPÕE criar uma conta a pagar ou a receber.', parameters: P({
-    account_type: { type: 'string', enum: ['payable', 'receivable'] }, description: { type: 'string' }, amount: { type: 'number' },
-    contact_name: { type: 'string' }, category: { type: 'string' }, due_date: { type: 'string', description: 'AAAA-MM-DD' },
+  { name: 'criar_conta', description: 'PROPÕE criar uma conta a pagar ou a receber. Para PARCELADO: amount = valor TOTAL, payment_installments = nº de parcelas, due_date = 1ª parcela (o sistema gera as parcelas).', parameters: P({
+    account_type: { type: 'string', enum: ['payable', 'receivable'] }, description: { type: 'string' }, amount: { type: 'number', description: 'valor total (do contrato, se parcelado)' },
+    contact_name: { type: 'string' }, category: { type: 'string' }, due_date: { type: 'string', description: 'AAAA-MM-DD (1ª parcela)' },
+    payment_installments: { type: 'number', description: 'nº de parcelas (1 = à vista)' }, payment_day_of_month: { type: 'number', description: 'dia fixo de vencimento (opcional)' },
     payment_method: { type: 'string' }, invoice_number: { type: 'string' }, expense_type: { type: 'string', enum: ['consumo', 'revenda'] }, notes: { type: 'string' },
   }, ['account_type', 'description', 'amount']) },
   { name: 'atualizar_conta', description: 'PROPÕE alterar uma conta existente (use o id de listar_contas).', parameters: P({
@@ -66,11 +85,13 @@ const TOOLS: JulieTool[] = [
   { name: 'criar_transacao', description: 'PROPÕE um movimento de caixa (entrada/saída).', parameters: P({
     type: { type: 'string', enum: ['income', 'expense'] }, description: { type: 'string' }, amount: { type: 'number' }, category: { type: 'string' }, transaction_date: { type: 'string' }, contact_name: { type: 'string' }, payment_method: { type: 'string' }, status: { type: 'string', enum: ['completed', 'pending', 'cancelled'] }, notes: { type: 'string' },
   }, ['type', 'description', 'amount']) },
-  { name: 'atualizar_cliente', description: 'PROPÕE preencher/atualizar dados de um cliente (do contrato social).', parameters: P({
-    organization_id: { type: 'string' }, name: { type: 'string' }, tax_id: { type: 'string' }, tax_id_type: { type: 'string', enum: ['CNPJ', 'CPF'] }, founded_on: { type: 'string' }, website: { type: 'string' }, owner_name: { type: 'string' }, country: { type: 'string' }, notes: { type: 'string' },
+  { name: 'atualizar_cliente', description: 'PROPÕE preencher/atualizar dados da empresa de um cliente (do contrato).', parameters: P({
+    organization_id: { type: 'string' }, name: { type: 'string' }, tax_id: { type: 'string' }, tax_id_type: { type: 'string', enum: ['CNPJ', 'CPF'] }, founded_on: { type: 'string', description: 'AAAA-MM-DD' }, website: { type: 'string' }, owner_name: { type: 'string', description: 'dono / presidente' }, plan: { type: 'string', description: 'plano contratado' }, country: { type: 'string' }, notes: { type: 'string' },
   }, ['organization_id']) },
   { name: 'adicionar_cnpj', description: 'PROPÕE cadastrar um CNPJ (matriz/filial) de um cliente.', parameters: P({ organization_id: { type: 'string' }, cnpj: { type: 'string' }, legal_name: { type: 'string' }, trade_name: { type: 'string' }, is_headquarters: { type: 'boolean' }, country: { type: 'string' } }, ['organization_id', 'cnpj']) },
-  { name: 'adicionar_socio', description: 'PROPÕE cadastrar um sócio de um cliente (do contrato social).', parameters: P({ organization_id: { type: 'string' }, full_name: { type: 'string' }, cpf: { type: 'string' }, role_title: { type: 'string' }, ownership_percentage: { type: 'number', description: 'participação em %' }, is_ceo: { type: 'boolean' } }, ['organization_id', 'full_name']) },
+  { name: 'adicionar_socio', description: 'PROPÕE cadastrar um sócio (do contrato social).', parameters: P({ organization_id: { type: 'string' }, full_name: { type: 'string' }, cpf: { type: 'string' }, role_title: { type: 'string' }, ownership_percentage: { type: 'number', description: 'participação em %' }, is_ceo: { type: 'boolean' } }, ['organization_id', 'full_name']) },
+  { name: 'adicionar_pessoa', description: 'PROPÕE cadastrar uma PESSOA de contato do cliente (Pessoas da empresa).', parameters: P({ organization_id: { type: 'string' }, full_name: { type: 'string' }, role: { type: 'string', description: 'cargo (dono, diretor…)' }, email: { type: 'string' }, birthday: { type: 'string', description: 'AAAA-MM-DD' }, is_primary: { type: 'boolean' } }, ['organization_id', 'full_name']) },
+  { name: 'adicionar_telefone', description: 'PROPÕE cadastrar um TELEFONE do cliente.', parameters: P({ organization_id: { type: 'string' }, number: { type: 'string' }, label: { type: 'string', description: 'Celular, Fixo, WhatsApp…' }, country_code: { type: 'string', description: 'ex.: +55' }, is_primary: { type: 'boolean' } }, ['organization_id', 'number']) },
 ];
 
 type Pending = { kind: string; payload: any; resumo: string };
@@ -90,7 +111,22 @@ export class AssistantService {
       const tipo = a?.account_type === 'receivable' ? 'receivable' : 'payable';
       const payload: any = { account_type: tipo, description: desc, amount, status: 'pending' };
       for (const k of ['contact_name', 'category', 'due_date', 'payment_method', 'invoice_number', 'expense_type', 'notes']) if (a?.[k]) payload[k] = a[k];
-      return { kind: name, payload, resumo: `Conta a ${tipo === 'payable' ? 'PAGAR' : 'RECEBER'} · ${desc} · ${this.brl(amount)}${a?.due_date ? ` · vence ${a.due_date}` : ''}${a?.contact_name ? ` · ${a.contact_name}` : ''}` };
+      // PARCELADO: gera o payment_schedule (o total é `amount`; cada parcela = total/n).
+      const inst = Number(a?.payment_installments || 0);
+      let resumoParc = '';
+      if (inst > 1) {
+        const first = String(a?.due_date || '').slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(first)) return { erro: 'para parcelar, informe a data da 1ª parcela (due_date, AAAA-MM-DD)' };
+        const val = +(amount / inst).toFixed(2);
+        const schedule = gerarParcelas(inst, first, a?.payment_day_of_month, val);
+        payload.contract_total = amount;
+        payload.payment_installments = inst;
+        if (a?.payment_day_of_month) payload.payment_day_of_month = Number(a.payment_day_of_month);
+        payload.payment_schedule = schedule;
+        payload.due_date = schedule[0]?.date || first;
+        resumoParc = ` · ${inst}x de ${this.brl(val)} (1º venc ${schedule[0]?.date})`;
+      }
+      return { kind: name, payload, resumo: `Conta a ${tipo === 'payable' ? 'PAGAR' : 'RECEBER'} · ${desc} · ${this.brl(amount)}${resumoParc || (a?.due_date ? ` · vence ${a.due_date}` : '')}${a?.contact_name ? ` · ${a.contact_name}` : ''}` };
     }
     if (name === 'atualizar_conta') {
       const id = String(a?.id || '').trim(); if (!id) return { erro: 'faltou o id da conta (use listar_contas)' };
@@ -146,6 +182,21 @@ export class AssistantService {
       if (a?.ownership_percentage != null && a.ownership_percentage !== '') payload.ownership_percentage = Number(a.ownership_percentage);
       return { kind: name, payload, resumo: `Sócio · ${nome}${a?.cpf ? ` · CPF ${a.cpf}` : ''}${payload.ownership_percentage != null ? ` · ${payload.ownership_percentage}%` : ''}${a?.is_ceo ? ' · CEO' : ''}` };
     }
+    if (name === 'adicionar_pessoa') {
+      const org = String(a?.organization_id || '').trim(); const nome = String(a?.full_name || '').trim();
+      if (!org) return { erro: 'não sei qual cliente para a pessoa' };
+      if (!nome) return { erro: 'faltou o nome da pessoa' };
+      const payload: any = { organization_id: org, full_name: nome, is_primary: a?.is_primary === true };
+      for (const k of ['role', 'email', 'birthday', 'notes']) if (a?.[k]) payload[k] = a[k];
+      return { kind: name, payload, resumo: `Pessoa · ${nome}${a?.role ? ` · ${a.role}` : ''}${a?.email ? ` · ${a.email}` : ''}` };
+    }
+    if (name === 'adicionar_telefone') {
+      const org = String(a?.organization_id || '').trim(); const num = String(a?.number || '').trim();
+      if (!org) return { erro: 'não sei qual cliente para o telefone' };
+      if (!num) return { erro: 'faltou o número do telefone' };
+      const payload: any = { organization_id: org, number: num, label: a?.label || 'Celular', country_code: a?.country_code || '+55', is_primary: a?.is_primary === true };
+      return { kind: name, payload, resumo: `Telefone · ${payload.country_code} ${num}${a?.label ? ` · ${a.label}` : ''}` };
+    }
     return { erro: 'ferramenta de escrita desconhecida' };
   }
 
@@ -191,9 +242,11 @@ export class AssistantService {
     });
   }
 
-  async chat(uid: string, messages: JulieMsg[], contexto?: { organization_id?: string | null }): Promise<{ reply: string; pending?: Pending | null; uso?: any }> {
+  async chat(uid: string, messages: JulieMsg[], contexto?: { organization_id?: string | null }): Promise<{ reply: string; pending?: Pending[] | null; uso?: any }> {
     const hist: JulieMsg[] = [...messages];
-    let pending: Pending | null = null;
+    // VÁRIAS ações podem ser propostas num turno só (ex.: preencher a ficha inteira de um
+    // contrato) — todas entram no MESMO cartão e o Crasto confirma tudo junto.
+    const pendings: Pending[] = [];
     let uso: any;
     let system = SYSTEM + `\n\nHOJE é ${dataHoje()}.`;
     const orgCtx = contexto?.organization_id ? String(contexto.organization_id) : '';
@@ -204,15 +257,15 @@ export class AssistantService {
     for (let volta = 0; volta < 5; volta++) {
       const turn = await this.llm.completeTools(system, hist, TOOLS);
       uso = turn.uso;
-      if (!turn.calls.length) return { reply: turn.text || '(sem resposta)', pending, uso };
+      if (!turn.calls.length) return { reply: turn.text || '(sem resposta)', pending: pendings.length ? pendings : null, uso };
       hist.push({ role: 'assistant_call', calls: turn.calls });
       const results: { name: string; result: any }[] = [];
       for (const call of turn.calls) {
         if (WRITE.has(call.name)) {
-          if (pending) { results.push({ name: call.name, result: { erro: 'uma ação por vez — peça para confirmar a anterior primeiro' } }); continue; }
+          if (pendings.length >= 25) { results.push({ name: call.name, result: { erro: 'muitas ações de uma vez — peça para confirmar estas antes de propor mais' } }); continue; }
           const prep = this.preparar(call.name, call.args);
           if ('erro' in prep) { results.push({ name: call.name, result: { erro: prep.erro } }); continue; }
-          pending = prep;
+          pendings.push(prep);
           results.push({ name: call.name, result: { proposto: true, aguardando_confirmacao_do_crasto: true, resumo: prep.resumo } });
         } else if (READ.has(call.name)) {
           results.push({ name: call.name, result: await this.ler(uid, call.name, call.args).catch((e) => ({ erro: e.message })) });
@@ -222,7 +275,7 @@ export class AssistantService {
       }
       hist.push({ role: 'tool_result', results });
     }
-    return { reply: 'Precisei de muitos passos e parei por segurança. Pode reformular?', pending, uso };
+    return { reply: 'Precisei de muitos passos e parei por segurança. Pode reformular?', pending: pendings.length ? pendings : null, uso };
   }
 
   // /execute — SÓ aqui grava, depois do Crasto confirmar. Roda no RLS do admin + Auditoria.
@@ -257,6 +310,23 @@ export class AssistantService {
           `insert into crm.company_partners (organization_id, full_name, cpf, role_title, ownership_percentage, is_ceo, is_active)
            values ($1,$2,$3,$4,$5,$6,true) returning id`,
           [payload.organization_id, payload.full_name, payload.cpf ?? null, payload.role_title ?? null, payload.ownership_percentage ?? null, payload.is_ceo === true],
+        )).rows[0];
+      }
+      if (kind === 'adicionar_pessoa') {
+        // RLS `people_admin` = is_crasto_admin() → grava direto (mesma tabela da tela).
+        return (await c.query(
+          `insert into crm.people (organization_id, full_name, role, email, birthday, is_primary, notes)
+           values ($1,$2,$3,$4,$5,$6,$7) returning id`,
+          [payload.organization_id, payload.full_name, payload.role ?? null, payload.email ?? null,
+           payload.birthday ? String(payload.birthday).slice(0, 10) : null, payload.is_primary === true, payload.notes ?? null],
+        )).rows[0];
+      }
+      if (kind === 'adicionar_telefone') {
+        // RLS `phones_admin` = is_crasto_admin() → grava direto.
+        return (await c.query(
+          `insert into crm.phones (organization_id, label, country_code, number, is_primary)
+           values ($1,$2,$3,$4,$5) returning id`,
+          [payload.organization_id, payload.label ?? null, payload.country_code ?? null, payload.number, payload.is_primary === true],
         )).rows[0];
       }
       throw new Error('ação desconhecida');

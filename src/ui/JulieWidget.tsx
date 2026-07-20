@@ -10,7 +10,9 @@ import "../styles/julie.css";
 type Anexo = { mime: string; data: string; name: string; size: number };
 type Pending = { kind: string; payload: any; resumo: string };
 type CardState = "pending" | "busy" | "done" | "error" | "cancelled";
-type Msg = { role: "user" | "assistant"; text: string; anexos?: { name: string }[]; pending?: Pending; card?: CardState; cardMsg?: string };
+// pending é uma LISTA: a Julie pode propor várias ações de uma vez (ex.: a ficha inteira de
+// um contrato) — todas num cartão só, confirmadas juntas.
+type Msg = { role: "user" | "assistant"; text: string; anexos?: { name: string }[]; pending?: Pending[]; card?: CardState; cardMsg?: string };
 const MAX_MB = 25;        // por arquivo (o Gemini não tem mais teto — sobe pela File API)
 const MAX_FILES = 100;    // guarda anti-acidente; o limite REAL é o tamanho total abaixo
 const MAX_TOTAL_MB = 35;  // soma dos anexos — o gargalo agora é só o body da nossa API (50MB)
@@ -154,8 +156,9 @@ export default function JulieWidget() {
       // contexto — aí um contrato social anexado já preenche ESSE cliente.
       const mCli = window.location.pathname.match(/\/admin\/cliente\/([0-9a-f-]{36})/i);
       const contexto = mCli ? { organization_id: mCli[1] } : undefined;
-      const r = await api.post<{ reply: string; pending?: Pending }>("/api/assistant/chat", { messages: payload, contexto });
-      setMsgs((m) => [...m, { role: "assistant", text: r.reply, pending: r.pending || undefined, card: r.pending ? "pending" : undefined }]);
+      const r = await api.post<{ reply: string; pending?: Pending[] }>("/api/assistant/chat", { messages: payload, contexto });
+      const pend = Array.isArray(r.pending) && r.pending.length ? r.pending : undefined;
+      setMsgs((m) => [...m, { role: "assistant", text: r.reply, pending: pend, card: pend ? "pending" : undefined }]);
     } catch (e: any) { setErr(e?.message || "Falha ao falar com a Julie."); }
     finally { setBusy(false); }
   }
@@ -163,10 +166,13 @@ export default function JulieWidget() {
   // Confirmar/Cancelar a ação PROPOSTA pela Julie — só aqui grava (via /execute + Auditoria).
   const setCard = (idx: number, card: CardState, cardMsg?: string) => setMsgs((x) => x.map((m, i) => (i === idx ? { ...m, card, cardMsg } : m)));
   async function confirmar(idx: number) {
-    const m = msgs[idx]; if (!m?.pending || m.card !== "pending") return;
+    const m = msgs[idx]; if (!m?.pending || !m.pending.length || m.card !== "pending") return;
     setCard(idx, "busy");
-    try { await api.post("/api/assistant/execute", { kind: m.pending.kind, payload: m.pending.payload }); setCard(idx, "done", "Lançado no financeiro"); }
-    catch (e: any) { setCard(idx, "error", e?.message || "Não consegui lançar."); }
+    try {
+      // Executa cada ação proposta, em ordem (uma pode depender da outra — ex.: cliente antes do CNPJ).
+      for (const p of m.pending) await api.post("/api/assistant/execute", { kind: p.kind, payload: p.payload });
+      setCard(idx, "done", m.pending.length > 1 ? `${m.pending.length} ações executadas` : "Executado ✓");
+    } catch (e: any) { setCard(idx, "error", e?.message || "Não consegui executar."); }
   }
   function cancelar(idx: number) { setCard(idx, "cancelled"); }
 
@@ -204,15 +210,15 @@ export default function JulieWidget() {
                 {m.text && <div className="julie-bubble">{m.text}</div>}
                 {m.pending && m.card && (
                   <div className={"julie-card is-" + m.card}>
-                    <div className="julie-card-h"><Sparkles size={13} /> Confirmar ação no financeiro</div>
-                    <div className="julie-card-b">{m.pending.resumo}</div>
+                    <div className="julie-card-h"><Sparkles size={13} /> {m.pending.length > 1 ? `Confirmar ${m.pending.length} ações` : "Confirmar ação"}</div>
+                    <div className="julie-card-b">{m.pending.map((p, k) => <div key={k} className="jc-item">• {p.resumo}</div>)}</div>
                     {m.card === "pending" && (
                       <div className="julie-card-f">
                         <button className="jc-no" onClick={() => cancelar(i)}>Cancelar</button>
-                        <button className="jc-yes" onClick={() => confirmar(i)}>Confirmar e lançar</button>
+                        <button className="jc-yes" onClick={() => confirmar(i)}>{m.pending.length > 1 ? "Confirmar tudo" : "Confirmar"}</button>
                       </div>
                     )}
-                    {m.card === "busy" && <div className="julie-card-s">Lançando…</div>}
+                    {m.card === "busy" && <div className="julie-card-s">Executando…</div>}
                     {m.card === "done" && <div className="julie-card-s ok">✓ {m.cardMsg}</div>}
                     {m.card === "error" && <div className="julie-card-s err">{m.cardMsg}</div>}
                     {m.card === "cancelled" && <div className="julie-card-s">Cancelado — nada foi gravado.</div>}

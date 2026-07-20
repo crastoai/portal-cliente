@@ -49,6 +49,8 @@
 .julie-card { margin-top: 6px; width: 100%; border: 1px solid var(--crasto-border); border-radius: 12px; overflow: hidden; background: var(--crasto-surface); box-shadow: var(--crasto-shadow-sm); }
 .julie-card-h { display: flex; align-items: center; gap: 7px; padding: 8px 12px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #fff; background: linear-gradient(140deg, var(--crasto-navy), var(--crasto-navy-deep, #000714)); }
 .julie-card-b { padding: 11px 12px; font-size: 13px; line-height: 1.5; color: var(--crasto-text-primary); }
+.julie-card-b .jc-item { padding: 2px 0; }
+.julie-card-b .jc-item + .jc-item { border-top: 1px solid var(--crasto-border-soft); margin-top: 4px; padding-top: 6px; }
 .julie-card-f { display: flex; gap: 8px; padding: 0 12px 12px; }
 .jc-no { flex: none; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--crasto-border); background: transparent; color: var(--crasto-text-body); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 .jc-no:hover { background: var(--crasto-bg-3); }
