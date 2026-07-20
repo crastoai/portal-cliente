@@ -6,7 +6,9 @@ import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 import CustoIA from "./CustoIA";
 
-const today = () => new Date().toISOString().slice(0, 10);
+// Data de HOJE no fuso do Brasil (America/Sao_Paulo) em "YYYY-MM-DD". Usar toISOString()
+// (UTC) fazia o dia "virar" 3h antes à noite — e as parcelas são datas de calendário BR.
+const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
 const A_EMPTY = {
   id: "", account_type: "payable",
   contact_name: "", contact_reference: "", organization_id: "",
@@ -62,11 +64,38 @@ export default function Financeiro() {
   const [tOpen, setTOpen] = useState(false); const [tf, setTf] = useState<any>({ ...T_EMPTY });
 
   const rem = (r: any) => Number(r.amount || 0) - Number(r.amount_paid || 0);
-  const isOverdue = (r: any) => (r.status === "pending" || r.status === "partial") && r.due_date && r.due_date < today();
+  // Normaliza qualquer data para "YYYY-MM-DD". O Postgres devolve `date` como timestamp ISO
+  // no JSON; sem cortar, `x + "T00:00:00"` virava "Invalid Date" na tela.
+  const ymd = (x: any) => (x ? String(x).slice(0, 10) : "");
+  // Parcelas de uma conta (payment_schedule). Custo/conta sem parcelas → [].
+  const parcelas = (i: any): any[] => (Array.isArray(i?.payment_schedule) ? i.payment_schedule : []);
+  const parcRem = (p: any) => Number(p.amount || 0) - Number(p.amount_paid || 0);
+  // Valor de um item que casa com um teste de data — SEMPRE por parcela. Uma conta parcelada
+  // só está "vencida" nas parcelas NÃO pagas com data no passado, nunca no total do contrato
+  // (era o bug: pagava a parcela em atraso e a conta seguia "Vencido" com o valor cheio).
+  // Sem parcelas (custo/conta simples), cai na data/valor da própria conta.
+  const valorPorData = (i: any, casa: (d: string, hoje: string) => boolean): number => {
+    const hoje = today(), ps = parcelas(i);
+    if (ps.length) return ps.filter((p) => p.status !== "paid" && ymd(p.date) && casa(ymd(p.date), hoje)).reduce((a, p) => a + parcRem(p), 0);
+    return (i.status === "pending" || i.status === "partial") && ymd(i.due_date) && casa(ymd(i.due_date), hoje) ? rem(i) : 0;
+  };
+  const vencidoDe = (i: any) => valorPorData(i, (d, h) => d < h);
+  const hojeDe = (i: any) => valorPorData(i, (d, h) => d === h);
+  const avencerDe = (i: any) => valorPorData(i, (d, h) => d > h);
+  const isOverdue = (i: any) => vencidoDe(i) > 0;
+  // Próximo vencimento REAL: a parcela não paga mais próxima (ou a data da conta simples).
+  // É o que a coluna Vencimento deve mostrar — não a 1ª parcela (que pode já ter sido paga).
+  const proxVenc = (i: any): string | null => {
+    const ps = parcelas(i);
+    const ds = ps.length
+      ? ps.filter((p) => p.status !== "paid" && ymd(p.date)).map((p) => ymd(p.date))
+      : (i.status !== "paid" && i.status !== "cancelled" && ymd(i.due_date) ? [ymd(i.due_date)] : []);
+    return ds.sort()[0] || null;
+  };
   // KPIs topo
   const aPagar = pay.filter((r) => r.status !== "paid" && r.status !== "cancelled").reduce((a, r) => a + rem(r), 0);
   const aReceber = rec.filter((r) => r.status !== "paid" && r.status !== "cancelled").reduce((a, r) => a + rem(r), 0);
-  const inadimplencia = rec.filter(isOverdue).reduce((a, r) => a + rem(r), 0);
+  const inadimplencia = rec.reduce((a, r) => a + vencidoDe(r), 0);
   // Tesouraria (fluxo de caixa)
   const txSum = (type: string, status?: string) => tx.filter((r) => r.type === type && (!status || r.status === status)).reduce((a, r) => a + Number(r.amount || 0), 0);
   const entradasReal = txSum("income", "completed"), saidasReal = txSum("expense", "completed");
@@ -89,7 +118,7 @@ export default function Financeiro() {
       const kinds = new Set(list.map((i) => i._kind));
       const tipo = kinds.size > 1 ? t("Misto") : kinds.has("cost") ? t("Custo") : t("Conta");
       const status = pago >= total ? "paid" : list.some(isOverdue) ? "overdue" : "pending";
-      const due = list.map((i) => i.due_date).filter(Boolean).sort()[0] || null;
+      const due = list.map(proxVenc).filter(Boolean).sort()[0] || null; // próximo venc. real (parcela não paga)
       const payd = list.map((i) => i.payment_date).filter(Boolean).sort().slice(-1)[0] || null;
       return { name, list, total, pago, restante: total - pago, tipo, status, due, payd };
     }).sort((a, b) => b.total - a.total);
@@ -105,9 +134,9 @@ export default function Financeiro() {
   const revenda = pay.filter((r) => r.expense_type === "revenda");
   // status cards (do lado ativo)
   const curItems = tab === "pagar" ? payItems : rec.map(acctToItem);
-  const stVencidos = curItems.filter(isOverdue).reduce((a, i) => a + rem(i), 0);
-  const stHoje = curItems.filter((i) => (i.status === "pending" || i.status === "partial") && i.due_date === today()).reduce((a, i) => a + rem(i), 0);
-  const stAvencer = curItems.filter((i) => (i.status === "pending" || i.status === "partial") && i.due_date && i.due_date > today()).reduce((a, i) => a + rem(i), 0);
+  const stVencidos = curItems.reduce((a, i) => a + vencidoDe(i), 0);   // só as parcelas realmente vencidas
+  const stHoje = curItems.reduce((a, i) => a + hojeDe(i), 0);
+  const stAvencer = curItems.reduce((a, i) => a + avencerDe(i), 0);
   const stPagos = curItems.reduce((a, i) => a + Number(i.amount_paid || 0), 0);
   const stTotal = curItems.reduce((a, i) => a + Number(i.amount || 0), 0);
 
@@ -253,7 +282,7 @@ export default function Financeiro() {
             <tbody>
               {txFiltered.length === 0 ? <tr><td colSpan={7} style={{ color: "var(--crasto-text-muted)", padding: 14 }}>{t("Nada por aqui ainda.")}</td></tr> : txFiltered.map((r) => (
                 <tr key={r.id}>
-                  <td className="tnum">{r.transaction_date ? new Date(r.transaction_date + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</td>
+                  <td className="tnum">{r.transaction_date ? new Date(ymd(r.transaction_date) + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</td>
                   <td><div className="nm">{r.description}</div>{r.contact_name && <div className="mt">{r.contact_name}</div>}</td>
                   <td>{r.category || "—"}</td>
                   <td><Pill tone={r.type === "income" ? "ok" : "warn"}>{r.type === "income" ? t("Entrada") : t("Saída")}</Pill></td>
@@ -322,12 +351,13 @@ export default function Financeiro() {
                   </tr>
                   {expanded[g.name] && g.list.map((i: any) => {
                     const parc = i._kind === "account" && Array.isArray(i.payment_schedule) ? i.payment_schedule : [];
+                    const venc = proxVenc(i);
                     return (
                     <Fragment key={i.id}>
                     <tr className="finrow">
                       <td></td>
                       <td colSpan={2}><div className="nm" style={{ fontSize: 13 }}>{i.description || i.contact_name}</div><div className="mt">{[i.category, i._kind === "cost" ? t("Custo") : t("Conta"), parc.length ? t("{n} parcelas", { n: parc.length }) : ""].filter(Boolean).join(" · ")}</div></td>
-                      <td className="tnum">{i.due_date ? new Date(i.due_date + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</td>
+                      <td className="tnum">{venc ? new Date(venc + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</td>
                       <td className="tnum" style={{ textAlign: "right" }}>{money(Number(i.amount || 0))}</td>
                       <td className="tnum" style={{ textAlign: "right", color: "#1F8A5B" }}>{money(Number(i.amount_paid || 0))}</td>
                       <td className="tnum" style={{ textAlign: "right" }}>{money(rem(i))}</td>
@@ -343,7 +373,7 @@ export default function Financeiro() {
                       <tr key={i.id + "-p" + p.installment} className="finrow finparc">
                         <td></td>
                         <td colSpan={2}><div className="mt" style={{ paddingLeft: 12 }}>{t("Parcela {k}/{n}", { k: p.installment, n: parc.length })}</div></td>
-                        <td className="tnum">{p.date ? new Date(p.date + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</td>
+                        <td className="tnum">{p.date ? new Date(ymd(p.date) + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</td>
                         <td className="tnum" style={{ textAlign: "right" }}>{money(Number(p.amount || 0))}</td>
                         <td className="tnum" style={{ textAlign: "right", color: "#1F8A5B" }}>{money(p.status === "paid" ? Number(p.amount || 0) : 0)}</td>
                         <td className="tnum" style={{ textAlign: "right" }}>{money(p.status === "paid" ? 0 : Number(p.amount || 0))}</td>

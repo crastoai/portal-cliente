@@ -13,7 +13,9 @@ export type FaturaSummary = {
 };
 
 const isSettled = (s: string) => s === "paid" || s === "canceled";
-const todayISO = () => new Date().toISOString().slice(0, 10);
+// Hoje no fuso do Brasil (as faturas são datas de calendário BR). toISOString() (UTC) fazia
+// o dia "virar" à noite e uma parcela do dia podia contar como vencida cedo demais.
+const todayISO = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
 
 export function isOverdue(i: Fatura, today = todayISO()): boolean {
   return !isSettled(i.status) && !!i.due_date && i.due_date < today;
