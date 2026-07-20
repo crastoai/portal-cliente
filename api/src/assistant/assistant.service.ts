@@ -16,7 +16,10 @@ COMO VOCÊ PENSA (skills):
 
 FERRAMENTAS — LEITURA (respondem na hora): resumo_financeiro, listar_contas, listar_custos, listar_transacoes, contas_vencendo, buscar_cliente, detalhe_cliente.
 
-FERRAMENTAS — ESCRITA (só PREPARAM; o Crasto confirma num cartão): criar_conta, atualizar_conta, dar_baixa_conta, criar_custo, criar_transacao, atualizar_cliente, adicionar_cnpj, adicionar_socio, adicionar_pessoa, adicionar_telefone.
+FERRAMENTAS — ESCRITA (só PREPARAM; o Crasto confirma num cartão). Você CRIA, ATUALIZA e EXCLUI:
+- Financeiro: criar_conta, atualizar_conta, dar_baixa_conta, excluir_conta, criar_custo, atualizar_custo, criar_transacao, atualizar_transacao.
+- Cadastro do cliente: atualizar_cliente, adicionar_cnpj, adicionar_socio/atualizar_socio/remover_socio, adicionar_pessoa/atualizar_pessoa/remover_pessoa, adicionar_telefone/atualizar_telefone/remover_telefone.
+Para ATUALIZAR ou EXCLUIR algo que já existe (uma conta, pessoa, telefone, sócio, custo, transação), primeiro descubra o ID: use listar_contas/listar_custos/listar_transacoes (financeiro) ou detalhe_cliente (pessoas, telefones, sócios — ele devolve o id de cada um). Nunca invente id.
 CONFIRMAR ANTES DE EXECUTAR (regra de ouro): ao pedir para criar/alterar/lançar/dar baixa/cadastrar, chame a ferramenta de escrita com dados COMPLETOS e corretos. Ela NÃO grava: prepara e o Crasto vê um cartão de confirmação. No seu texto, mostre em tópicos o que preparou e peça para conferir e confirmar no cartão. NUNCA diga que já lançou/salvou antes da confirmação. Se faltar um dado essencial, PERGUNTE.
 VÁRIAS AÇÕES DE UMA VEZ: quando um documento pede vários cadastros (ex.: preencher a ficha inteira de um cliente, ou lançar várias contas), CHAME TODAS as ferramentas de escrita necessárias no MESMO turno — elas entram todas num único cartão e o Crasto confirma tudo junto. Não peça para confirmar uma de cada vez.
 
@@ -27,9 +30,21 @@ DOCUMENTOS (multimodal):
 - CONTRATO (social ou de prestação de serviço) → extraia razão social, CNPJ, abertura, endereço, SÓCIOS (nome, CPF, %), PESSOAS de contato e TELEFONES. Para preencher a ficha do cliente, proponha DE UMA VEZ: atualizar_cliente (dados da empresa + plano), adicionar_cnpj (o CNPJ), adicionar_socio (cada sócio), adicionar_pessoa (cada contato) e adicionar_telefone (cada telefone). Se o contrato tem valor e parcelas, proponha também criar_conta a receber (parcelada). Descubra o cliente pelo contexto (cliente aberto) ou buscar_cliente. Só grave o que está no documento.`;
 
 const READ = new Set(['resumo_financeiro', 'listar_contas', 'listar_custos', 'listar_transacoes', 'contas_vencendo', 'buscar_cliente', 'detalhe_cliente']);
-const WRITE = new Set(['criar_conta', 'atualizar_conta', 'dar_baixa_conta', 'criar_custo', 'criar_transacao', 'atualizar_cliente', 'adicionar_cnpj', 'adicionar_socio', 'adicionar_pessoa', 'adicionar_telefone']);
+const WRITE = new Set([
+  'criar_conta', 'atualizar_conta', 'dar_baixa_conta', 'excluir_conta',
+  'criar_custo', 'atualizar_custo', 'criar_transacao', 'atualizar_transacao',
+  'atualizar_cliente', 'adicionar_cnpj',
+  'adicionar_socio', 'atualizar_socio', 'remover_socio',
+  'adicionar_pessoa', 'atualizar_pessoa', 'remover_pessoa',
+  'adicionar_telefone', 'atualizar_telefone', 'remover_telefone',
+]);
 const CLIENTE_CAMPOS = ['name', 'tax_id', 'tax_id_type', 'founded_on', 'website', 'owner_name', 'notes', 'country', 'stage', 'status', 'plan'];
 const CONTA_CAMPOS = ['description', 'amount', 'due_date', 'status', 'contact_name', 'category', 'payment_method', 'invoice_number', 'expense_type', 'notes'];
+const CUSTO_CAMPOS = ['description', 'vendor_name', 'category', 'currency', 'amount_original', 'exchange_rate', 'amount_brl', 'recurrence', 'cost_type', 'next_payment_date', 'is_active', 'notes'];
+const TX_CAMPOS = ['type', 'category', 'amount', 'description', 'status', 'transaction_date', 'contact_name', 'payment_method', 'notes'];
+const PESSOA_CAMPOS = ['full_name', 'role', 'email', 'birthday', 'is_primary', 'notes'];
+const TEL_CAMPOS = ['number', 'label', 'country_code', 'is_primary'];
+const SOCIO_CAMPOS = ['full_name', 'cpf', 'role_title', 'ownership_percentage', 'is_ceo'];
 
 // Gera as parcelas (payment_schedule) — mesma regra da tela Financeiro (buildSchedule):
 // N parcelas mensais a partir da 1ª data, no dia fixo (ou no dia da 1ª data). Datas montadas
@@ -92,6 +107,17 @@ const TOOLS: JulieTool[] = [
   { name: 'adicionar_socio', description: 'PROPÕE cadastrar um sócio (do contrato social).', parameters: P({ organization_id: { type: 'string' }, full_name: { type: 'string' }, cpf: { type: 'string' }, role_title: { type: 'string' }, ownership_percentage: { type: 'number', description: 'participação em %' }, is_ceo: { type: 'boolean' } }, ['organization_id', 'full_name']) },
   { name: 'adicionar_pessoa', description: 'PROPÕE cadastrar uma PESSOA de contato do cliente (Pessoas da empresa).', parameters: P({ organization_id: { type: 'string' }, full_name: { type: 'string' }, role: { type: 'string', description: 'cargo (dono, diretor…)' }, email: { type: 'string' }, birthday: { type: 'string', description: 'AAAA-MM-DD' }, is_primary: { type: 'boolean' } }, ['organization_id', 'full_name']) },
   { name: 'adicionar_telefone', description: 'PROPÕE cadastrar um TELEFONE do cliente.', parameters: P({ organization_id: { type: 'string' }, number: { type: 'string' }, label: { type: 'string', description: 'Celular, Fixo, WhatsApp…' }, country_code: { type: 'string', description: 'ex.: +55' }, is_primary: { type: 'boolean' } }, ['organization_id', 'number']) },
+
+  // ATUALIZAR / EXCLUIR (use o id de detalhe_cliente ou listar_*)
+  { name: 'excluir_conta', description: 'PROPÕE EXCLUIR uma conta financeira (id de listar_contas).', parameters: P({ id: { type: 'string' } }, ['id']) },
+  { name: 'atualizar_custo', description: 'PROPÕE alterar um custo (id de listar_custos).', parameters: P({ id: { type: 'string' }, description: { type: 'string' }, vendor_name: { type: 'string' }, category: { type: 'string' }, currency: { type: 'string', enum: ['BRL', 'USD', 'EUR'] }, amount_original: { type: 'number' }, exchange_rate: { type: 'number' }, recurrence: { type: 'string', enum: ['mensal', 'anual', 'pontual'] }, next_payment_date: { type: 'string' }, is_active: { type: 'boolean' }, notes: { type: 'string' } }, ['id']) },
+  { name: 'atualizar_transacao', description: 'PROPÕE alterar uma transação (id de listar_transacoes).', parameters: P({ id: { type: 'string' }, type: { type: 'string', enum: ['income', 'expense'] }, description: { type: 'string' }, amount: { type: 'number' }, category: { type: 'string' }, transaction_date: { type: 'string' }, contact_name: { type: 'string' }, payment_method: { type: 'string' }, status: { type: 'string', enum: ['completed', 'pending', 'cancelled'] }, notes: { type: 'string' } }, ['id']) },
+  { name: 'atualizar_socio', description: 'PROPÕE alterar um sócio (id de detalhe_cliente).', parameters: P({ id: { type: 'string' }, full_name: { type: 'string' }, cpf: { type: 'string' }, role_title: { type: 'string' }, ownership_percentage: { type: 'number' }, is_ceo: { type: 'boolean' } }, ['id']) },
+  { name: 'remover_socio', description: 'PROPÕE remover um sócio (id de detalhe_cliente).', parameters: P({ id: { type: 'string' } }, ['id']) },
+  { name: 'atualizar_pessoa', description: 'PROPÕE alterar uma pessoa de contato (id de detalhe_cliente).', parameters: P({ id: { type: 'string' }, full_name: { type: 'string' }, role: { type: 'string' }, email: { type: 'string' }, birthday: { type: 'string', description: 'AAAA-MM-DD' }, is_primary: { type: 'boolean' }, notes: { type: 'string' } }, ['id']) },
+  { name: 'remover_pessoa', description: 'PROPÕE remover uma pessoa de contato (id de detalhe_cliente).', parameters: P({ id: { type: 'string' } }, ['id']) },
+  { name: 'atualizar_telefone', description: 'PROPÕE alterar um telefone (id de detalhe_cliente).', parameters: P({ id: { type: 'string' }, number: { type: 'string' }, label: { type: 'string' }, country_code: { type: 'string' }, is_primary: { type: 'boolean' } }, ['id']) },
+  { name: 'remover_telefone', description: 'PROPÕE remover um telefone (id de detalhe_cliente).', parameters: P({ id: { type: 'string' } }, ['id']) },
 ];
 
 type Pending = { kind: string; payload: any; resumo: string };
@@ -197,6 +223,44 @@ export class AssistantService {
       const payload: any = { organization_id: org, number: num, label: a?.label || 'Celular', country_code: a?.country_code || '+55', is_primary: a?.is_primary === true };
       return { kind: name, payload, resumo: `Telefone · ${payload.country_code} ${num}${a?.label ? ` · ${a.label}` : ''}` };
     }
+
+    // ---- ATUALIZAR / EXCLUIR (por id) ----
+    const idDe = () => { const id = String(a?.id || '').trim(); return id || null; };
+    if (name === 'excluir_conta') {
+      const id = idDe(); if (!id) return { erro: 'faltou o id da conta (use listar_contas)' };
+      return { kind: name, payload: { id }, resumo: `EXCLUIR conta ${id}` };
+    }
+    if (name === 'atualizar_custo') {
+      const id = idDe(); if (!id) return { erro: 'faltou o id do custo (use listar_custos)' };
+      const campos: any = {}; for (const k of CUSTO_CAMPOS) if (a?.[k] != null && a[k] !== '') campos[k] = a[k];
+      if (!Object.keys(campos).length) return { erro: 'nada para alterar no custo' };
+      if (campos.amount_original != null) { // recalcula o valor em R$
+        const cur = campos.currency || 'BRL'; const rate = cur === 'BRL' ? 1 : (Number(campos.exchange_rate) || 1);
+        campos.amount_brl = +(Number(campos.amount_original) * rate).toFixed(2);
+      }
+      return { kind: name, payload: { id, campos }, resumo: `Alterar custo · ${Object.entries(campos).map(([k, v]) => `${k}: ${v}`).join(' · ')}` };
+    }
+    if (name === 'atualizar_transacao') {
+      const id = idDe(); if (!id) return { erro: 'faltou o id da transação (use listar_transacoes)' };
+      const campos: any = {}; for (const k of TX_CAMPOS) if (a?.[k] != null && a[k] !== '') campos[k] = a[k];
+      if (campos.amount != null) campos.amount = Number(campos.amount);
+      if (!Object.keys(campos).length) return { erro: 'nada para alterar na transação' };
+      return { kind: name, payload: { id, campos }, resumo: `Alterar transação · ${Object.entries(campos).map(([k, v]) => `${k}: ${v}`).join(' · ')}` };
+    }
+    if (name === 'atualizar_socio' || name === 'atualizar_pessoa' || name === 'atualizar_telefone') {
+      const campoSet = name === 'atualizar_socio' ? SOCIO_CAMPOS : name === 'atualizar_pessoa' ? PESSOA_CAMPOS : TEL_CAMPOS;
+      const rot = name === 'atualizar_socio' ? 'sócio' : name === 'atualizar_pessoa' ? 'pessoa' : 'telefone';
+      const id = idDe(); if (!id) return { erro: `faltou o id (use detalhe_cliente para ver o id do ${rot})` };
+      const campos: any = {}; for (const k of campoSet) if (a?.[k] != null && a[k] !== '') campos[k] = a[k];
+      if (name === 'atualizar_socio' && campos.ownership_percentage != null) campos.ownership_percentage = Number(campos.ownership_percentage);
+      if (!Object.keys(campos).length) return { erro: `nada para alterar no ${rot}` };
+      return { kind: name, payload: { id, campos }, resumo: `Alterar ${rot} · ${Object.entries(campos).map(([k, v]) => `${k}: ${v}`).join(' · ')}` };
+    }
+    if (name === 'remover_socio' || name === 'remover_pessoa' || name === 'remover_telefone') {
+      const rot = name === 'remover_socio' ? 'sócio' : name === 'remover_pessoa' ? 'pessoa' : 'telefone';
+      const id = idDe(); if (!id) return { erro: `faltou o id (use detalhe_cliente para ver o id do ${rot})` };
+      return { kind: name, payload: { id }, resumo: `Remover ${rot} ${id}` };
+    }
     return { erro: 'ferramenta de escrita desconhecida' };
   }
 
@@ -233,10 +297,13 @@ export class AssistantService {
       if (name === 'buscar_cliente') return (await c.query(`select id, name, tax_id, stage from public.organizations where name ilike $1 order by name limit 12`, [`%${String(args?.nome || '').trim()}%`])).rows;
       if (name === 'detalhe_cliente') {
         const org = String(args?.organization_id || '').trim(); if (!org) return { erro: 'faltou o organization_id' };
-        const cliente = (await c.query(`select id,name,tax_id,tax_id_type,founded_on,website,owner_name,country,stage,status,notes from public.organizations where id=$1`, [org])).rows[0] || null;
+        const cliente = (await c.query(`select id,name,tax_id,tax_id_type,founded_on,website,owner_name,plan,country,stage,status,notes from public.organizations where id=$1`, [org])).rows[0] || null;
         const cnpjs = (await c.query(`select cnpj, legal_name, trade_name, is_headquarters, is_active from crm.company_cnpjs where organization_id=$1 order by is_headquarters desc`, [org])).rows;
-        const socios = (await c.query(`select full_name, cpf, role_title, ownership_percentage, is_ceo from crm.company_partners where organization_id=$1 and is_active order by is_ceo desc`, [org])).rows;
-        return { cliente, cnpjs, socios };
+        // ids incluídos: a Julie usa para atualizar/remover sócio, pessoa e telefone.
+        const socios = (await c.query(`select id, full_name, cpf, role_title, ownership_percentage, is_ceo from crm.company_partners where organization_id=$1 and is_active order by is_ceo desc`, [org])).rows;
+        const pessoas = (await c.query(`select id, full_name, role, email, birthday, is_primary from crm.people where organization_id=$1 order by is_primary desc, full_name`, [org])).rows;
+        const telefones = (await c.query(`select id, label, country_code, number, is_primary from crm.phones where organization_id=$1 order by is_primary desc`, [org])).rows;
+        return { cliente, cnpjs, socios, pessoas, telefones };
       }
       return { erro: 'ferramenta desconhecida: ' + name };
     });
@@ -329,6 +396,35 @@ export class AssistantService {
           [payload.organization_id, payload.label ?? null, payload.country_code ?? null, payload.number, payload.is_primary === true],
         )).rows[0];
       }
+
+      // ---- ATUALIZAR / EXCLUIR ----
+      if (kind === 'excluir_conta') { await c.query(`select public.fin_account_delete($1)`, [payload.id]); return { excluido: payload.id }; }
+      if (kind === 'atualizar_custo') return (await c.query(`select public.fin_cost_upsert($1) as r`, [{ id: payload.id, ...(payload.campos || {}) }])).rows[0]?.r;
+      if (kind === 'atualizar_transacao') return (await c.query(`select public.fin_transaction_upsert($1) as r`, [{ id: payload.id, ...(payload.campos || {}) }])).rows[0]?.r;
+      if (kind === 'atualizar_socio') {
+        const s = payload.campos || {};
+        return (await c.query(
+          `update crm.company_partners set full_name=coalesce($2,full_name), cpf=coalesce($3,cpf), role_title=coalesce($4,role_title),
+             ownership_percentage=coalesce($5,ownership_percentage), is_ceo=coalesce($6,is_ceo) where id=$1 returning id`,
+          [payload.id, s.full_name ?? null, s.cpf ?? null, s.role_title ?? null, s.ownership_percentage ?? null, s.is_ceo ?? null])).rows[0];
+      }
+      if (kind === 'remover_socio') { await c.query(`update crm.company_partners set is_active=false where id=$1`, [payload.id]); return { removido: payload.id }; }
+      if (kind === 'atualizar_pessoa') {
+        const s = payload.campos || {};
+        return (await c.query(
+          `update crm.people set full_name=coalesce($2,full_name), role=coalesce($3,role), email=coalesce($4,email),
+             birthday=coalesce($5::date,birthday), is_primary=coalesce($6,is_primary), notes=coalesce($7,notes), updated_at=now() where id=$1 returning id`,
+          [payload.id, s.full_name ?? null, s.role ?? null, s.email ?? null, s.birthday ? String(s.birthday).slice(0, 10) : null, s.is_primary ?? null, s.notes ?? null])).rows[0];
+      }
+      if (kind === 'remover_pessoa') { await c.query(`delete from crm.people where id=$1`, [payload.id]); return { removido: payload.id }; }
+      if (kind === 'atualizar_telefone') {
+        const s = payload.campos || {};
+        return (await c.query(
+          `update crm.phones set number=coalesce($2,number), label=coalesce($3,label), country_code=coalesce($4,country_code), is_primary=coalesce($5,is_primary) where id=$1 returning id`,
+          [payload.id, s.number ?? null, s.label ?? null, s.country_code ?? null, s.is_primary ?? null])).rows[0];
+      }
+      if (kind === 'remover_telefone') { await c.query(`delete from crm.phones where id=$1`, [payload.id]); return { removido: payload.id }; }
+
       throw new Error('ação desconhecida');
     });
     await this.audit.log(req, 'julie_' + kind, { system: 'portal', ctx: { payload } });
