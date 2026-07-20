@@ -5,7 +5,7 @@
 //   1) vincular QUAL agente do CRM atende este cliente;
 //   2) dizer QUEM da empresa dele pode entrar no CRM (cada um com a própria senha).
 import { useEffect, useState } from "react";
-import { Plus, RefreshCw, Trash2, ExternalLink } from "lucide-react";
+import { Plus, RefreshCw, Trash2, ExternalLink, Pencil } from "lucide-react";
 import { services, errorMessage } from "../../services";
 import type { CrmAccessOverview, CrmUser } from "../../services/crmAccess.service";
 import { useT } from "../../lib/i18n";
@@ -19,6 +19,7 @@ export function CrmAccessSection({ orgId, onToast }: { orgId: string; onToast: (
   const [open, setOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [f, setF] = useState({ email: "", full_name: "", role: "client_member" });
+  const [edit, setEdit] = useState<{ id: string; full_name: string; email: string; email0: string } | null>(null);
 
   async function load() {
     try { setD(await services.crmAccess.overview(orgId)); } catch (e) { onToast(errorMessage(e)); }
@@ -47,6 +48,20 @@ export function CrmAccessSection({ orgId, onToast }: { orgId: string; onToast: (
           ? r.password_link_sent ? tr("Acesso liberado — e-mail com o link de senha enviado.") : tr("Acesso liberado — a pessoa já tem senha Crasto.AI; e-mail de aviso enviado.")
           : `${tr("Acesso liberado, mas o e-mail falhou")}: ${r.email_error || "—"}`,
       );
+      await load();
+    } catch (e) { setErr(errorMessage(e)); }
+    finally { setBusy(false); }
+  }
+
+  async function saveEdit() {
+    if (!edit) return;
+    const em = edit.email.trim();
+    if (em && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { setErr(tr("E-mail inválido.")); return; }
+    setBusy(true); setErr(null);
+    try {
+      const r = await services.crmAccess.update(orgId, edit.id, { full_name: edit.full_name.trim(), email: em });
+      setEdit(null);
+      onToast(r.email_changed ? tr("Atualizado. O e-mail de login mudou — use “Reenviar” para enviar o acesso ao novo e-mail.") : tr("Usuário atualizado."));
       await load();
     } catch (e) { setErr(errorMessage(e)); }
     finally { setBusy(false); }
@@ -103,6 +118,10 @@ export function CrmAccessSection({ orgId, onToast }: { orgId: string; onToast: (
                     onClick={() => run(() => services.crmAccess.resend(orgId, u.id), "E-mail reenviado.")}>
                     <span className="crasto-btn__icon"><RefreshCw size={13} /></span><span className="crasto-btn__label">{tr("Reenviar")}</span>
                   </button>
+                  <button className="icobtn" disabled={busy} title={tr("Editar nome e e-mail")}
+                    onClick={() => { setErr(null); setEdit({ id: u.id, full_name: u.full_name || "", email: u.email || "", email0: u.email || "" }); }}>
+                    <Pencil size={14} />
+                  </button>
                   <button className="icobtn rm" disabled={busy} title={tr("Tira o acesso ao CRM (a conta no portal continua)")}
                     onClick={() => { if (confirm(tr("Tirar o acesso desta pessoa ao WhatsApp CRM?"))) run(() => services.crmAccess.revoke(orgId, u.id), "Acesso removido."); }}>
                     <Trash2 size={14} />
@@ -126,6 +145,21 @@ export function CrmAccessSection({ orgId, onToast }: { orgId: string; onToast: (
         <p className="mt" style={{ margin: "10px 2px 0", lineHeight: 1.6 }}>
           {tr("A pessoa recebe um e-mail para definir a própria senha. É a mesma conta Crasto.AI do Portal — quem já tem senha entra com ela.")}
         </p>
+      </Modal>
+
+      <Modal title={tr("Editar usuário do WhatsApp CRM")} open={!!edit} onClose={() => setEdit(null)}
+        footer={<>
+          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setEdit(null)}><span className="crasto-btn__label">{tr("Cancelar")}</span></button>
+          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={saveEdit}><span className="crasto-btn__label">{busy ? tr("Salvando…") : tr("Salvar")}</span></button>
+        </>}>
+        {err && <div className="formerr">{err}</div>}
+        <Field label="Nome"><input value={edit?.full_name ?? ""} onChange={(e) => setEdit((s) => s && { ...s, full_name: e.target.value })} /></Field>
+        <Field label="E-mail (login) *"><input type="email" value={edit?.email ?? ""} onChange={(e) => setEdit((s) => s && { ...s, email: e.target.value })} /></Field>
+        {edit && edit.email.trim().toLowerCase() !== edit.email0.trim().toLowerCase() && (
+          <p className="mt" style={{ margin: "10px 2px 0", lineHeight: 1.6 }}>
+            {tr("Você está mudando o e-mail de LOGIN desta pessoa. Ela passará a entrar com o novo e-mail (a senha continua a mesma). Se ela ainda não definiu senha, use “Reenviar” depois para mandar o link ao novo e-mail.")}
+          </p>
+        )}
       </Modal>
     </>
   );

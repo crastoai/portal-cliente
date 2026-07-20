@@ -64,6 +64,29 @@ export class IdpService {
    * - existe      → recovery (não mexe na senha atual)
    * `base` é a URL da página que recebe o token (Portal: /nova-senha; CRM: /definir-senha).
    */
+  /**
+   * Atualiza a IDENTIDADE (nome e/ou e-mail de login) no GoTrue — via admin API. O e-mail
+   * é confirmado direto (email_confirm) porque é ato de admin/provisionamento, não
+   * auto-serviço. NÃO toca na senha. GoTrue recusa e-mail já usado por outra conta.
+   */
+  async updateUser(id: string, patch: { email?: string; full_name?: string }): Promise<void> {
+    if (!this.svcKey) throw new BadRequestException('PORTAL_SERVICE_KEY ausente na API.');
+    const body: any = {};
+    if (patch.email) { body.email = patch.email; body.email_confirm = true; }
+    if (patch.full_name != null) body.user_metadata = { full_name: patch.full_name };
+    if (!Object.keys(body).length) return;
+    const r = await fetch(`${this.gotrue}/admin/users/${id}`, {
+      method: 'PUT',
+      headers: { apikey: this.svcKey, Authorization: 'Bearer ' + this.svcKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const j: any = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      this.log.warn(`admin update user ${r.status}: ${j?.msg || j?.message || ''}`);
+      throw new BadRequestException(j?.msg || j?.message || `Falha ao atualizar a identidade (${r.status}). O e-mail pode já estar em uso.`);
+    }
+  }
+
   async accessLink(email: string, base: string, fullName?: string | null): Promise<{ id: string; url: string; isNew: boolean }> {
     const found = await this.lookup(email);
     const type = found ? 'recovery' : 'invite';

@@ -167,6 +167,37 @@ export class CrmAccessService {
     return { user, email_sent: sent.ok, email_error: sent.error, password_link_sent: !!link };
   }
 
+  /**
+   * Edita NOME e/ou E-MAIL de um usuário do CRM. O nome e o e-mail de LOGIN vivem no Auth
+   * do Portal (identidade única) — atualizamos lá; depois espelhamos a cópia no CRM
+   * (profiles) pela mesma porta de grant (idempotente, sem mexer no papel). Trocar o e-mail
+   * muda o LOGIN da pessoa; se ela ainda não definiu senha, reenvie o acesso ao novo e-mail.
+   */
+  async updateUser(req: any, orgId: string, auth: string, userId: string, b: { full_name?: string; email?: string }) {
+    await this.requireModule(orgId);
+    const { users } = await this.crm(`/admin/client/${orgId}/users`, auth);
+    const u = (users || []).find((x: any) => x.id === userId);
+    if (!u) throw new BadRequestException('Usuário não tem acesso ao CRM deste cliente.');
+    const novoNome = b.full_name != null ? String(b.full_name).trim() : undefined;
+    const novoEmail = b.email != null ? String(b.email).trim().toLowerCase() : undefined;
+    if (novoEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(novoEmail)) throw new BadRequestException('E-mail inválido.');
+    const emailMudou = !!novoEmail && novoEmail !== String(u.email || '').toLowerCase();
+    if (!novoNome && !emailMudou) return { ok: true, email_changed: false };
+
+    // 1) identidade no Portal (nome sempre que veio; e-mail só se mudou de fato)
+    await this.idp.updateUser(userId, { full_name: novoNome, email: emailMudou ? novoEmail : undefined });
+    // 2) espelha a cópia no CRM (profiles) — reusa o grant upsert com o papel ATUAL (não muda)
+    await this.crm(`/admin/client/${orgId}/users`, auth, {
+      method: 'POST',
+      body: JSON.stringify({ id: userId, email: emailMudou ? novoEmail : u.email, full_name: novoNome ?? u.full_name, role: u.role }),
+    });
+    await this.audit.log(req, 'crm_access_updated', {
+      targetType: 'user', targetId: userId, org: orgId, system: 'crm',
+      ctx: { nome: novoNome ?? null, email_novo: emailMudou ? novoEmail : null },
+    });
+    return { ok: true, email_changed: emailMudou };
+  }
+
   /** Reenvia o convite (link novo — o anterior morre). Não mexe no acesso já concedido. */
   async resend(req: any, orgId: string, auth: string, userId: string) {
     await this.requireModule(orgId);

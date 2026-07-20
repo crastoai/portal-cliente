@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Req, UseGuards } from '@nestjs/common';
 import { JwtOrgGuard } from '../common/jwt-org.guard';
 import { AdminGuard } from '../common/admin.guard';
 import { CrmAccessService } from './crm-access.service';
@@ -27,6 +27,11 @@ export class CrmAccessController {
 
   @Post(':orgId/users')
   invite(@Req() req: any, @Param('orgId') orgId: string, @Body() b: any) { return this.svc.invite(req, orgId, this.auth(req), b); }
+
+  @Patch(':orgId/users/:id')
+  updateUser(@Req() req: any, @Param('orgId') orgId: string, @Param('id') id: string, @Body() b: any) {
+    return this.svc.updateUser(req, orgId, this.auth(req), id, { full_name: b?.full_name, email: b?.email });
+  }
 
   @Post(':orgId/users/:id/resend')
   resend(@Req() req: any, @Param('orgId') orgId: string, @Param('id') id: string) { return this.svc.resend(req, orgId, this.auth(req), id); }
