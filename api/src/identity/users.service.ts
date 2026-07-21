@@ -81,6 +81,44 @@ export class UsersService {
     return this.grant(req, b.organization_id, b);
   }
 
+  /** Admin edita nome / e-mail / papel de um usuário do Portal (tela ClienteDetalhe).
+   *  E-mail muda no Auth (GoTrue) E no perfil — nunca só num lado (dessincroniza o login). */
+  async updateByAdmin(req: any, userId: string, b: { email?: string; full_name?: string; role?: string }) {
+    const cur = await this.db.asService(async (c) =>
+      (await c.query(`select email, full_name, role, organization_id from public.profiles where id=$1`, [userId])).rows[0]);
+    if (!cur) throw new BadRequestException('Usuário não encontrado.');
+    if (cur.role === 'crasto_admin') throw new BadRequestException('Não se edita um administrador da Crasto.AI por aqui.');
+
+    const authPatch: { email?: string; full_name?: string } = {};
+    const email = b.email != null ? String(b.email).trim().toLowerCase() : undefined;
+    if (email && email !== cur.email) {
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new BadRequestException('E-mail inválido.');
+      const other = await this.idp.lookup(email); // trava anti-vazamento: não roubar login de outro
+      if (other && other.id !== userId) throw new BadRequestException('Este e-mail já está em uso.');
+      authPatch.email = email;
+    }
+    const fullName = b.full_name != null ? String(b.full_name).trim() : undefined;
+    if (fullName != null && fullName !== (cur.full_name || '')) authPatch.full_name = fullName;
+    const role = b.role === 'client_owner' ? 'client_owner' : b.role === 'client_member' ? 'client_member' : undefined;
+
+    // 1) Auth primeiro (pode falhar por e-mail em uso) → só então mexe no perfil.
+    if (authPatch.email || authPatch.full_name != null) await this.idp.updateUser(userId, authPatch);
+
+    // 2) Perfil — e-mail (espelho), nome, papel.
+    const sets: string[] = []; const vals: any[] = [userId];
+    const add = (col: string, v: any, cast = '') => { vals.push(v); sets.push(`${col}=$${vals.length}${cast}`); };
+    if (authPatch.email) add('email', authPatch.email);
+    if (authPatch.full_name != null) add('full_name', authPatch.full_name);
+    if (role && role !== cur.role) add('role', role, '::public.app_role');
+    if (sets.length) await this.db.asService((c) => c.query(`update public.profiles set ${sets.join(', ')} where id=$1`, vals));
+
+    await this.audit.log(req, 'portal_access_updated', {
+      targetType: 'user', targetId: userId, org: cur.organization_id,
+      ctx: { email: authPatch.email, nome: authPatch.full_name, papel: role },
+    });
+    return { ok: true };
+  }
+
   /** Cliente-dono convida alguém da PRÓPRIA empresa (tela Usuários do cliente). */
   async inviteByOwner(req: any, uid: string, b: { email?: string; full_name?: string; role?: string }) {
     const me = await this.db.asService(async (c) =>

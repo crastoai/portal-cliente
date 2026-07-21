@@ -25,6 +25,13 @@ export class IdentityController {
   @Post('users/invite')
   inviteUser(@Req() req: any, @Body() b: any) { return this.users.inviteByOwner(req, this.uid(req), b); }
 
+  /** Admin edita nome / e-mail / papel de um usuário do Portal. */
+  @Patch('users/:id')
+  @UseGuards(AdminGuard)
+  updateUser(@Req() req: any, @Param('id') id: string, @Body() b: any) {
+    return this.users.updateByAdmin(req, id, { email: b?.email, full_name: b?.full_name, role: b?.role });
+  }
+
   /** Admin reenvia o acesso — manda link novo, NÃO redefine a senha da pessoa. */
   @Post('users/:id/resend')
   @UseGuards(AdminGuard)

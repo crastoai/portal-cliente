@@ -105,6 +105,10 @@ export const users = {
   resendAccess: async (body: { user_id: string; email?: string; full_name?: string }): Promise<{ ok: boolean; email?: string; email_sent?: boolean; email_error?: string; error?: string }> => {
     try { return await api.post(`/api/identity/users/${body.user_id}/resend`); } catch (e) { return failed(e); }
   },
+  /** Admin edita nome / e-mail / papel de um usuário do Portal. */
+  update: async (id: string, body: { email?: string; full_name?: string; role?: string }): Promise<{ ok: boolean; error?: string }> => {
+    try { return await api.patch(`/api/identity/users/${id}`, body); } catch (e) { return failed(e); }
+  },
 };
 
 export const clients = {

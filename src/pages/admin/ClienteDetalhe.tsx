@@ -48,6 +48,9 @@ export default function ClienteDetalhe() {
   const [ef, setEf] = useState<Org>(null);
   const [invite, setInvite] = useState(false);
   const [inv, setInv] = useState({ email: "", name: "", role: "client_member" });
+  // Edição de usuário do Portal (nome/e-mail/papel).
+  const [euOpen, setEuOpen] = useState(false);
+  const [eu, setEu] = useState<{ id: string; name: string; email: string; role: string }>({ id: "", name: "", email: "", role: "client_member" });
   const [person, setPerson] = useState({ full_name: "", role: "", email: "", birthday: "" });
   const [phone, setPhone] = useState({ label: "mobile", country_code: "+55", number: "", person_id: "" });
   const [epId, setEpId] = useState("");
@@ -125,6 +128,15 @@ export default function ClienteDetalhe() {
     flash(r.email_sent
       ? tr("✉️ Convite enviado para {e} — ela define a própria senha.", { e: r.email ?? inv.email.trim() })
       : tr("Acesso criado, mas o e-mail falhou: {err}", { err: r.email_error || "—" }));
+  }
+  function startEditUser(u: any) { setEu({ id: u.id, name: u.full_name || "", email: u.email || "", role: u.role || "client_member" }); setErr(""); setEuOpen(true); }
+  async function saveUser() {
+    if (!eu.email.trim()) { setErr(tr("Informe o e-mail.")); return; }
+    setBusy(true); setErr("");
+    const r = await api.identity.users.update(eu.id, { full_name: eu.name.trim(), email: eu.email.trim(), role: eu.role });
+    setBusy(false);
+    if (!r.ok) { setErr(r.error || tr("Erro.")); return; }
+    setEuOpen(false); reload(); flash(tr("Usuário atualizado."));
   }
   async function addPerson() { if (!person.full_name.trim()) return; await api.crm.people.add({ organization_id: id, full_name: person.full_name.trim(), role: person.role || null, email: person.email || null, birthday: person.birthday || null }); setPerson({ full_name: "", role: "", email: "", birthday: "" }); reload(); }
   async function addPhone() { if (!phone.number.trim()) return; await api.crm.phones.add({ organization_id: id, label: phone.label, country_code: phone.country_code, number: phone.number.trim(), person_id: phone.person_id || null }); setPhone({ label: "mobile", country_code: "+55", number: "", person_id: "" }); reload(); }
@@ -604,7 +616,7 @@ export default function ClienteDetalhe() {
       <div className="tbl-wrap">
         <table className="tbl"><thead><tr><th>{tr("Usuário")}</th><th>{tr("Papel")}</th><th>{tr("E-mail")}</th><th>{tr("Acesso")}</th></tr></thead><tbody>
           {users.length === 0 ? <tr><td colSpan={4} style={{ color: "var(--crasto-text-muted)" }}>{tr("Sem logins — convide o responsável.")}</td></tr> : users.map((u) => (
-            <tr key={u.id}><td><div className="cust"><Avatar name={u.full_name || u.email} url={u.avatar_url} /><div className="nm">{u.full_name || "—"}</div></div></td><td><Pill tone={u.role === "client_owner" ? "ok" : "mute"}>{u.role === "client_owner" ? tr("Dono") : tr("Membro")}</Pill></td><td className="cust"><span className="em">{u.email}</span></td><td><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} onClick={() => resendAccess(u)} title={tr("Envia um link para a pessoa definir a senha (não redefine a atual)")}><span className="crasto-btn__label">{tr("Reenviar acesso")}</span></button></td></tr>
+            <tr key={u.id}><td><div className="cust"><Avatar name={u.full_name || u.email} url={u.avatar_url} /><div className="nm">{u.full_name || "—"}</div></div></td><td><Pill tone={u.role === "client_owner" ? "ok" : "mute"}>{u.role === "client_owner" ? tr("Dono") : tr("Membro")}</Pill></td><td className="cust"><span className="em">{u.email}</span></td><td><div style={{ display: "flex", alignItems: "center", gap: 6 }}><button className="icobtn" title={tr("Editar nome, e-mail e papel")} onClick={() => startEditUser(u)}><Pencil size={14} /></button><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} onClick={() => resendAccess(u)} title={tr("Envia um link para a pessoa definir a senha (não redefine a atual)")}><span className="crasto-btn__label">{tr("Reenviar acesso")}</span></button></div></td></tr>
           ))}
         </tbody></table>
       </div>
@@ -652,6 +664,16 @@ export default function ClienteDetalhe() {
         <Field label="E-mail *"><input type="email" value={inv.email} onChange={(e) => setInv({ ...inv, email: e.target.value })} /></Field>
         <Field label="Nome"><input value={inv.name} onChange={(e) => setInv({ ...inv, name: e.target.value })} /></Field>
         <Field label="Papel"><select value={inv.role} onChange={(e) => setInv({ ...inv, role: e.target.value })}><option value="client_owner">{tr("Dono")}</option><option value="client_member">{tr("Membro")}</option></select></Field>
+      </Modal>
+
+      {/* Editar usuário do Portal — nome, e-mail (muda o login) e papel */}
+      <Modal title={tr("Editar usuário")} open={euOpen} onClose={() => setEuOpen(false)}
+        footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setEuOpen(false)}><span className="crasto-btn__label">{tr("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={saveUser}><span className="crasto-btn__label">{busy ? tr("Salvando…") : tr("Salvar")}</span></button></>}>
+        {err && <div className="formerr">{err}</div>}
+        <Field label="Nome"><input value={eu.name} onChange={(e) => setEu({ ...eu, name: e.target.value })} /></Field>
+        <Field label="E-mail *"><input type="email" value={eu.email} onChange={(e) => setEu({ ...eu, email: e.target.value })} /></Field>
+        <Field label="Papel"><select value={eu.role} onChange={(e) => setEu({ ...eu, role: e.target.value })}><option value="client_owner">{tr("Dono")}</option><option value="client_member">{tr("Membro")}</option></select></Field>
+        <div className="mt" style={{ marginTop: 8, color: "var(--crasto-text-muted)", fontSize: 12 }}>{tr("Mudar o e-mail altera o login desta pessoa. A senha atual continua valendo.")}</div>
       </Modal>
 
       {toast && <div className="toast">{toast}</div>}
