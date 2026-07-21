@@ -9,13 +9,14 @@ import Modal from "../../ui/Modal";
 import { COUNTRIES, countryOf, STAGES, stageOf, DIAL_CODES } from "../../lib/countries";
 import { reg as regInfo, regTypeFor, COUNTRIES as REG_COUNTRIES, countryName as regCountryName } from "../../lib/registrations";
 import { CrmAccessSection } from "./CrmAccessSection";
+import DiagnosticoCard from "./DiagnosticoCard";
 
 type Org = any;
 const icon = (cat?: string | null) => { const c = (cat || "").toLowerCase(); return c.includes("atend") ? <MessageCircle size={16} /> : c.includes("market") ? <Send size={16} /> : c.includes("vend") ? <Search size={16} /> : <Grid3x3 size={16} />; };
 const DOC_KINDS = [{ v: "cnpj_card", l: "Cartão CNPJ" }, { v: "contrato_social", l: "Contrato Social" }, { v: "plano_diretor", l: "Plano Diretor" }, { v: "socios", l: "Sócios" }, { v: "outro", l: "Outro" }];
 const fmtDate = (s?: string | null) => (s ? new Date(s + (s.length === 10 ? "T00:00:00" : "")).toLocaleDateString("pt-BR") : "—");
 
-export default function ClienteDetalhe() {
+export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: string) => void } = {}) {
   const { id } = useParams();
   const nav = useNavigate();
   const tr = useT();
@@ -103,7 +104,7 @@ export default function ClienteDetalhe() {
     } catch (e) { flash(tr("Erro ao salvar:") + " " + errorMessage(e)); }
     finally { setBusy(false); }
   }
-  async function setStage(stage: string) { await api.identity.organizations.setStage(id!, stage); reload(); }
+  async function setStage(stage: string) { await api.identity.organizations.setStage(id!, stage); onStageChange?.(stage); if (stage === "cliente") reload(); }
   async function toggleModule(mid: string, on: boolean) {
     if (on) await api.delivery.clientModules.detach(id!, mid);
     else await api.delivery.clientModules.attach(id!, mid);
@@ -265,6 +266,9 @@ export default function ClienteDetalhe() {
         {STAGES.map((s) => <button key={s.key} className={"stagetab" + (org.stage === s.key ? " on" : "")} onClick={() => setStage(s.key)}>{tr(s.label)}</button>)}
         <span style={{ marginLeft: "auto", alignSelf: "center", fontSize: 12, color: "var(--crasto-text-muted)" }}>{tr("Status atual:")} <b style={{ color: "var(--crasto-text-primary)" }}>{tr(st.label)}</b></span>
       </div>
+
+      {/* Diagnóstico do site (Mapa de IA) — card + popup; some se o cliente não veio do /mapa */}
+      <DiagnosticoCard orgId={id!} />
 
       {/* Dados da empresa (cadastro) */}
       <div className="card" style={{ marginBottom: 18 }}>

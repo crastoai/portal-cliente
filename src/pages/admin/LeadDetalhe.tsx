@@ -1,47 +1,19 @@
 // ============================================================================
 // LeadDetalhe — ficha de PROSPECTO / LEAD / OPORTUNIDADE (stages != cliente).
-// Renderiza o "Mapa de IA" que a pessoa preencheu no diagnóstico do site
-// (crasto.ai/mapa → Edge Function mapa-submit → crm.mapa_submissions) + contato,
-// perfil e histórico. A tela CRESCE conforme o stage avança:
-//   prospecto   → diagnóstico + contato + perfil + histórico
-//   lead        → idem + qualificação (histórico/notas)
-//   oportunidade→ idem + atalho para gerar proposta (vira cliente ao ganhar)
-// Ao virar cliente, o router manda para ClienteDetalhe (ficha completa).
+// Mostra INLINE o "Mapa de IA" do diagnóstico do site (componente DiagnosticoMapa,
+// reutilizado no popup da ficha de cliente) + contato, perfil e histórico.
+// Ao avançar o status para "cliente", avisa o wrapper (onStageChange) que troca
+// para a ficha completa de cliente (ClienteDetalhe).
 // ============================================================================
 import { useParams, useNavigate } from "react-router-dom";
-import { Trash2, MapPin, MessageSquare, Phone, Clock, FileText, ArrowRight } from "lucide-react";
+import { Trash2, MapPin, Phone, Clock, FileText, ArrowRight } from "lucide-react";
 import { services as api } from "../../services";
 import { PageHead, Empty, Pill, useAsync, useToast } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import { STAGES, stageOf, countryOf } from "../../lib/countries";
+import DiagnosticoMapa, { fmtDate } from "./DiagnosticoMapa";
 
-// nomes das 8 dimensões + Passo 1 (espelha o REC do site /mapa)
-const DIM_NAMES: Record<string, string> = {
-  estrategia: "Estratégia & Direção", gestao: "Gestão & Processos", marca: "Marca & Posicionamento",
-  comercial: "Comercial & Vendas", marketing: "Marketing & Aquisição", atendimento: "Atendimento & Relacionamento",
-  tech: "Tecnologia & IA", financas: "Finanças & Indicadores",
-};
-const STEP1: Record<string, string> = {
-  gestao: "Escolher o processo que mais trava e transformá-lo no primeiro fluxo assistido por IA.",
-  comercial: "Ligar um assistente de IA no funil pra qualificar e responder todo lead na hora.",
-  marketing: "Montar uma máquina de conteúdo com IA pra atrair cliente sem depender de indicação.",
-  atendimento: "Colocar o atendimento no WhatsApp com IA pra ninguém ficar sem resposta.",
-  tech: "Revisar o que você já testou de IA e reancorar num caso que se paga rápido.",
-  financas: "Montar um painel simples dos seus números pra decidir com dado, não no achismo.",
-};
-const dimName = (k: string) => DIM_NAMES[k] || k;
-const band = (s: number) => (s < 40 ? "crit" : s < 70 ? "warn" : "ok");
-const BAND_COLOR: Record<string, { fg: string; bg: string; label: string }> = {
-  crit: { fg: "#B42318", bg: "#FCE9E7", label: "Crítico" },
-  warn: { fg: "#B54708", bg: "#FEF0E6", label: "Atenção" },
-  ok: { fg: "#067647", bg: "#E7F6EE", label: "Saudável" },
-};
-function fmtDate(s?: string | null) {
-  if (!s) return "—";
-  try { return new Date(s).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }); } catch { return "—"; }
-}
-
-export default function LeadDetalhe() {
+export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: string) => void }) {
   const { id } = useParams();
   const t = useT();
   const nav = useNavigate();
@@ -65,16 +37,14 @@ export default function LeadDetalhe() {
   const diag = data.diag as any | null;
   const st = stageOf(org.stage);
   const co = countryOf(org.country);
-  const scores: any[] = Array.isArray(diag?.scores) ? diag.scores : [];
-  const overall: number | null = diag?.maturidade ?? null;
-  const ondePaga: string[] = Array.isArray(diag?.onde_paga) ? diag.onde_paga : [];
-  const dores: string[] = Array.isArray(diag?.dores) ? diag.dores : [];
-  const humanDims = scores.filter((s) => s.payoff === false);
-  const ovBand = overall != null ? BAND_COLOR[band(overall)] : null;
 
   async function setStage(stage: string) {
-    try { await api.identity.organizations.setStage(id!, stage); reload(); toast.ok(t("Movido para {s}", { s: t(stageOf(stage).label) })); }
-    catch { toast.err(t("Erro ao mover o stage.")); }
+    try {
+      await api.identity.organizations.setStage(id!, stage);
+      toast.ok(t("Movido para {s}", { s: t(stageOf(stage).label) }));
+      onStageChange?.(stage);          // avisa o wrapper (troca p/ ficha de cliente se virar cliente)
+      if (stage !== "cliente") reload();
+    } catch { toast.err(t("Erro ao mover o stage.")); }
   }
   async function del() {
     if (!confirm(t("Apagar \"{n}\" e todos os dados? Não dá pra desfazer.", { n: org.name }))) return;
@@ -89,7 +59,7 @@ export default function LeadDetalhe() {
       <PageHead
         eyebrow={`CRM · ${t(st.label)}`}
         title={org.name}
-        sub={[diag?.segmento, org.source === "mapa_site" ? t("origem: diagnóstico do site") : null].filter(Boolean).join("  ·  ") || (co.name)}
+        sub={[diag?.segmento, org.source === "mapa_site" ? t("origem: diagnóstico do site") : null].filter(Boolean).join("  ·  ") || co.name}
         right={<button className="crasto-btn crasto-btn--destructive crasto-btn--sm" onClick={del}><span className="crasto-btn__icon"><Trash2 size={14} /></span><span className="crasto-btn__label">{t("Excluir")}</span></button>}
       />
 
@@ -107,103 +77,8 @@ export default function LeadDetalhe() {
         </div>
       )}
 
-      {diag && (
-        <>
-          {/* Cabeçalho do Mapa: maturidade + data */}
-          <div className="card" style={{ marginBottom: 18 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-              <MapPin size={16} style={{ color: "var(--crasto-text-primary)" }} />
-              <h3 style={{ margin: 0 }}>{t("Mapa de IA — diagnóstico do site")}</h3>
-              <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--crasto-text-muted)" }}>{fmtDate(diag.created_at)}</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 12, flexWrap: "wrap" }}>
-              {overall != null && ovBand && (
-                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                  <div style={{ width: 84, height: 84, borderRadius: "50%", background: `conic-gradient(${ovBand.fg} ${overall * 3.6}deg, var(--crasto-bg-3) 0deg)`, display: "grid", placeItems: "center", flexShrink: 0 }}>
-                    <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--crasto-surface)", display: "grid", placeItems: "center" }}>
-                      <b style={{ fontSize: 22, color: "var(--crasto-text-primary)" }}>{overall}</b>
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 700, color: "var(--crasto-text-primary)" }}>{t("Maturidade de gestão")}</div>
-                    <div className="mt" style={{ maxWidth: 260 }}>{t("média das 8 dimensões — quanto maior, mais pronta pra escalar com IA")}</div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Termômetro das 8 dimensões */}
-          {scores.length > 0 && (
-            <div className="card" style={{ marginBottom: 18 }}>
-              <h3 style={{ margin: "0 0 12px" }}>{t("Onde ele está — as 8 dimensões")}</h3>
-              <div style={{ display: "grid", gap: 8 }}>
-                {scores.map((s) => {
-                  const b = BAND_COLOR[band(s.score)];
-                  return (
-                    <div key={s.key} style={{ display: "grid", gridTemplateColumns: "minmax(120px,1.4fr) 3fr auto", alignItems: "center", gap: 12 }}>
-                      <span style={{ fontSize: 13, color: "var(--crasto-text-body)" }}>{s.name || dimName(s.key)}</span>
-                      <span style={{ height: 8, borderRadius: 999, background: "var(--crasto-bg-3)", overflow: "hidden" }}>
-                        <span style={{ display: "block", height: "100%", width: `${s.score}%`, background: b.fg, borderRadius: 999 }} />
-                      </span>
-                      <span className="chip" style={{ background: b.bg, color: b.fg, minWidth: 66, textAlign: "center" }}>{t(b.label)}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 18 }}>
-            {/* Onde a IA se paga */}
-            {ondePaga.length > 0 && (
-              <div className="card">
-                <h3 style={{ margin: "0 0 4px" }}>{t("Onde a IA se paga primeiro")}</h3>
-                <div className="mt" style={{ marginBottom: 10 }}>{t("as frentes com mais a ganhar")}</div>
-                <ol style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6 }}>
-                  {ondePaga.map((k) => <li key={k} style={{ fontSize: 13.5, color: "var(--crasto-text-body)" }}><b style={{ color: "var(--crasto-text-primary)" }}>{dimName(k)}</b></li>)}
-                </ol>
-              </div>
-            )}
-            {/* Onde a IA NÃO entra */}
-            {humanDims.length > 0 && (
-              <div className="card">
-                <h3 style={{ margin: "0 0 4px" }}>{t("Onde a IA NÃO entra")}</h3>
-                <div className="mt" style={{ marginBottom: 10 }}>{t("decisão de gente e clareza primeiro")}</div>
-                <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6 }}>
-                  {humanDims.map((s) => <li key={s.key} style={{ fontSize: 13.5, color: "var(--crasto-text-body)" }}>{s.name || dimName(s.key)}</li>)}
-                </ul>
-              </div>
-            )}
-          </div>
-
-          {/* Passo 1 */}
-          {diag.passo1_key && STEP1[diag.passo1_key] && (
-            <div className="card" style={{ marginBottom: 18, borderLeft: "3px solid var(--crasto-navy)" }}>
-              <h3 style={{ margin: "0 0 6px" }}>{t("Passo 1 recomendado")}</h3>
-              <p style={{ margin: 0, fontSize: 14, color: "var(--crasto-text-body)" }}>{STEP1[diag.passo1_key]}</p>
-            </div>
-          )}
-
-          {/* Dores + gargalo */}
-          {(dores.length > 0 || diag.dor_outro || diag.gargalo) && (
-            <div className="card" style={{ marginBottom: 18 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}><MessageSquare size={16} style={{ color: "var(--crasto-text-primary)" }} /><h3 style={{ margin: 0 }}>{t("O que ele marcou")}</h3></div>
-              {(dores.length > 0 || diag.dor_outro) && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: diag.gargalo ? 12 : 0 }}>
-                  {dores.map((d, i) => <span key={i} className="chip" style={{ background: "var(--crasto-navy-05)", color: "var(--crasto-text-primary)" }}>{d}</span>)}
-                  {diag.dor_outro && <span className="chip" style={{ background: "var(--crasto-navy-05)", color: "var(--crasto-text-primary)" }}>{diag.dor_outro}</span>}
-                </div>
-              )}
-              {diag.gargalo && (
-                <blockquote style={{ margin: 0, padding: "10px 14px", background: "var(--crasto-bg-2)", borderRadius: 10, borderLeft: "3px solid var(--crasto-border-strong)", fontSize: 14, fontStyle: "italic", color: "var(--crasto-text-body)" }}>
-                  “{diag.gargalo}”
-                </blockquote>
-              )}
-            </div>
-          )}
-        </>
-      )}
+      {/* Mapa de IA (reutilizável) */}
+      {diag && <DiagnosticoMapa diag={diag} />}
 
       {/* Perfil */}
       <div className="card" style={{ marginBottom: 18 }}>
