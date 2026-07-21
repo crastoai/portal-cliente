@@ -50,10 +50,11 @@ export const DIAL_CODES: { ddi: string; flag: string; name: string }[] = [
   { ddi: "+258", flag: "🇲🇿", name: "Moçambique" },
 ];
 
+// key = valor gravado no banco (NÃO mudar — quebra dados existentes); label = o que o usuário vê.
 export const STAGES = [
-  { key: "contato", label: "Contato", tone: "mute" },
+  { key: "contato", label: "Prospecto", tone: "mute" },
   { key: "lead", label: "Lead", tone: "info" },
-  { key: "qualificado", label: "Qualificado", tone: "warn" },
+  { key: "qualificado", label: "Oportunidade", tone: "warn" },
   { key: "cliente", label: "Cliente", tone: "ok" },
 ] as const;
 

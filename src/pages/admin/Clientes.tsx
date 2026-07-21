@@ -61,7 +61,7 @@ export default function Clientes() {
 
   return (
     <div className="crmpage">
-      <PageHead eyebrow="Painel Admin · CRM" title="Contatos & Clientes" sub="Pipeline: contato → lead → qualificado → cliente."
+      <PageHead eyebrow="Painel Admin · CRM" title="Contatos & Clientes" sub="Pipeline: prospecto → lead → oportunidade → cliente."
         right={<button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => { setF({ ...EMPTY }); setErr(""); setOpen(true); }}><span className="crasto-btn__icon"><UserPlus size={15} /></span><span className="crasto-btn__label">{t("Novo contato")}</span></button>} />
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}>
