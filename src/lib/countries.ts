@@ -50,9 +50,10 @@ export const DIAL_CODES: { ddi: string; flag: string; name: string }[] = [
   { ddi: "+258", flag: "🇲🇿", name: "Moçambique" },
 ];
 
-// key = valor gravado no banco (NÃO mudar — quebra dados existentes); label = o que o usuário vê.
+// key = valor gravado no banco; label = o que o usuário vê.
+// 2026-07-21: key inicial renomeada 'contato' → 'prospecto' (migration 063/064; label já era "Prospecto").
 export const STAGES = [
-  { key: "contato", label: "Prospecto", tone: "mute" },
+  { key: "prospecto", label: "Prospecto", tone: "mute" },
   { key: "lead", label: "Lead", tone: "info" },
   { key: "qualificado", label: "Oportunidade", tone: "warn" },
   { key: "cliente", label: "Cliente", tone: "ok" },

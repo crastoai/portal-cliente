@@ -34,6 +34,8 @@ export const adminAnalytics = {
   userAccess: <T = any>(userId: string) => rpc<T>("admin_user_access", { p_user: userId }),
   setUserAccess: (userId: string, role: string, screens: string[]) => rpc<void>("admin_set_user_access", { p_user: userId, p_role: role, p_screens: screens }),
   auditLog: <T = any[]>(from?: string, to?: string, org?: string) => rpc<T>("admin_audit_log", { p_from: from ?? null, p_to: to ?? null, p_org: org ?? null }),
+  // Diagnóstico do /mapa (site) — última submissão do prospecto/lead
+  diagnostic: <T = any>(org: string) => rpc<T>("admin_mapa_by_org", { p_org: org }),
   auditRecord: (p: Record<string, any>) => rpc<string>("admin_audit_record", { p }),
   // Governança global (Console · top-down): Cérebro Global · Regras Globais · Catálogo de Skills
   brainList: <T = any[]>() => rpc<T>("admin_brain_list"),

@@ -8,7 +8,7 @@ import { useT } from "../../lib/i18n";
 import { fetchClients, timeAgo } from "../../lib/adminData";
 import { COUNTRIES, countryOf, STAGES, stageOf, DIAL_CODES } from "../../lib/countries";
 
-const EMPTY = { name: "", stage: "contato", country: "BR", tax_id: "", founded_on: "", website: "", owner_name: "", whatsapp: "", ddi: "+55", plan: "", email: "", contact_name: "" };
+const EMPTY = { name: "", stage: "prospecto", country: "BR", tax_id: "", founded_on: "", website: "", owner_name: "", whatsapp: "", ddi: "+55", plan: "", email: "", contact_name: "" };
 
 export default function Clientes() {
   const t = useT();
@@ -84,7 +84,14 @@ export default function Clientes() {
                 return (
                   <tr key={c.id} style={{ cursor: "pointer" }} onClick={() => nav(`/admin/cliente/${c.id}`)}>
                     <td><div className="cust"><div className="logo">{initials(c.name)}</div><div><div className="nm">{c.name}</div><div className="em">{c.owner_name || c.email || "—"}</div></div></div></td>
-                    <td><Pill tone={st.tone}>{t(st.label)}</Pill></td>
+                    <td>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        <Pill tone={st.tone}>{t(st.label)}</Pill>
+                        {c.source === "mapa_site" && <span className="chip" style={{ background: "var(--crasto-navy-05)", color: "var(--crasto-text-primary)" }} title={t("Veio do diagnóstico do site")}>Mapa</span>}
+                        {c.last_maturity != null && <span className="chip" title={t("Maturidade do diagnóstico")}>{c.last_maturity}/100</span>}
+                        {c.intent_signal === "alto" && <span className="chip" style={{ background: "#FCE9E7", color: "#B42318" }} title={t("Sinal de intenção")}>🔥</span>}
+                      </div>
+                    </td>
                     <td>{country.flag} {country.code}</td>
                     <td className="tnum" style={{ color: "var(--crasto-text-body)" }}>{c.tax_id || "—"}</td>
                     <td style={{ color: "var(--crasto-text-muted)" }}>{c.last_activity ? timeAgo(c.last_activity) : (c.last_access ? timeAgo(c.last_access) : "—")}</td>

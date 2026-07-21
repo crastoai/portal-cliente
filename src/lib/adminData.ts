@@ -7,6 +7,8 @@ export type Client = {
   stage: string; country: string | null; tax_id: string | null; website: string | null;
   founded_on: string | null; owner_name: string | null; last_activity: string | null;
   health_v2?: HealthV2 | null;
+  // origem/sinal do diagnóstico do site (/mapa) — migration 063
+  source?: string | null; last_maturity?: number | null; intent_signal?: string | null; last_diagnostic_at?: string | null;
 };
 
 export async function fetchClients(): Promise<Client[]> {

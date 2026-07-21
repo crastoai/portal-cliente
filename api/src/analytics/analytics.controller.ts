@@ -12,6 +12,7 @@ const ALLOWED = new Set<string>([
   'admin_console_overview', 'admin_health_check', 'admin_llm_models', 'admin_set_default_model',
   'admin_access_list', 'admin_set_user_role', 'admin_user_access', 'admin_set_user_access',
   'admin_audit_log', 'admin_audit_record', 'admin_brain_list', 'admin_brain_upsert', 'admin_brain_delete',
+  'admin_mapa_by_org',
   'admin_rules_list', 'admin_rule_upsert', 'admin_rule_delete', 'admin_skills_list', 'admin_skill_upsert', 'admin_skill_delete',
   // cliente / parceiro
   'client_support_hours', 'connector_commissions', 'reveal_module_secret',

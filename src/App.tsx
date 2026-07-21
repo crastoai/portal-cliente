@@ -24,6 +24,7 @@ import Perfil from "./pages/Perfil";
 import VisaoGeral from "./pages/admin/VisaoGeral";
 import Clientes from "./pages/admin/Clientes";
 import ClienteDetalhe from "./pages/admin/ClienteDetalhe";
+import CrmDetalhe from "./pages/admin/CrmDetalhe";
 import Propostas from "./pages/admin/Propostas";
 import Servicos from "./pages/admin/Servicos";
 import Conectores from "./pages/admin/Conectores";
@@ -107,7 +108,7 @@ export default function App() {
           <Route path="/admin" element={<AdminShell />}>
             <Route index element={<VisaoGeral />} />
             <Route path="clientes" element={<Clientes />} />
-            <Route path="cliente/:id" element={<ClienteDetalhe />} />
+            <Route path="cliente/:id" element={<CrmDetalhe />} />
             <Route path="propostas" element={<Propostas />} />
             <Route path="servicos" element={<Servicos />} />
             <Route path="conectores" element={<Conectores />} />
