@@ -58,4 +58,11 @@ export const clientServices = {
   setStatus: async (id: string, status: string) => api.patch(`/api/delivery/services/${id}/status`, { status }),
 };
 
-export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices };
+// Permissão módulo × usuário (Fase 2): o dono libera QUAIS módulos um membro vê.
+// Lista vazia = vê todos (sem restrição). Middle-end valida dono/admin.
+export const userModules = {
+  list: async (userId: string) => api.get<string[]>(`/api/delivery/user-modules?user=${encodeURIComponent(userId)}`),
+  set: async (userId: string, vdiModuleIds: string[]) => api.post(`/api/delivery/user-modules`, { user_id: userId, vdi_module_ids: vdiModuleIds }),
+};
+
+export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules };
