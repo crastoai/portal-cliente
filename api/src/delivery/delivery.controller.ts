@@ -33,7 +33,48 @@ export class DeliveryController {
               case when m.crm_solution and $1::text is not null then $1::text end as crm_url
          from delivery.client_modules cm
          join catalog.vdi_modules m on m.id = cm.vdi_module_id
+        -- Sub-acesso por USUÁRIO (Fase 2): sem linhas em user_module_access = vê todos os
+        -- módulos da org (padrão); com linhas = restrito exatamente a esses.
+        where (not exists (select 1 from delivery.user_module_access u where u.user_id = auth.uid())
+               or exists (select 1 from delivery.user_module_access u where u.user_id = auth.uid() and u.vdi_module_id = cm.vdi_module_id))
         order by cm.created_at`, [crmWeb])).rows);
+  }
+
+  // ── Permissão módulo × USUÁRIO (sub-acessos — Blueprint v1.1 Fase 2) ──────────────────────
+  // Quem gerencia: o DONO da org do usuário-alvo (client_owner) ou o crasto_admin. Validado no
+  // código + escrita via service_role (a tabela é RLS deny-default). Retorna a org do alvo se
+  // permitido, senão null.
+  private async gerenciaModulos(c: any, callerId: string, targetId: string): Promise<string | null> {
+    const caller = (await c.query(`select role, organization_id from public.profiles where id=$1`, [callerId])).rows[0];
+    const target = (await c.query(`select organization_id from public.profiles where id=$1`, [targetId])).rows[0];
+    if (!caller || !target) return null;
+    if (caller.role === 'crasto_admin') return target.organization_id;
+    if (caller.role === 'client_owner' && caller.organization_id === target.organization_id) return target.organization_id;
+    return null;
+  }
+
+  /** Módulos liberados para um usuário (lista de vdi_module_id). Vazio = vê TODOS. */
+  @Get('user-modules')
+  umaList(@Req() req: any, @Query('user') user: string) {
+    return this.db.asService(async (c) => {
+      if (!(await this.gerenciaModulos(c, this.uid(req), user))) return { error: 'sem permissão' };
+      return (await c.query('select vdi_module_id from delivery.user_module_access where user_id=$1', [user])).rows.map((r: any) => r.vdi_module_id);
+    });
+  }
+
+  /** Substitui o conjunto de módulos de um usuário. Lista vazia = limpa = usuário vê TODOS. */
+  @Post('user-modules')
+  umaSet(@Req() req: any, @Body() b: any) {
+    const user = String(b?.user_id || '');
+    const ids: string[] = Array.isArray(b?.vdi_module_ids) ? b.vdi_module_ids.filter((x: any) => /^[0-9a-f-]{36}$/i.test(x)) : [];
+    return this.db.asService(async (c) => {
+      const org = await this.gerenciaModulos(c, this.uid(req), user);
+      if (!org) return { error: 'sem permissão' };
+      await c.query('delete from delivery.user_module_access where user_id=$1', [user]);
+      for (const mid of ids)
+        await c.query('insert into delivery.user_module_access (organization_id,user_id,vdi_module_id) values ($1,$2,$3) on conflict do nothing', [org, user, mid]);
+      return { ok: true, count: ids.length };
+    });
   }
   @Get('client-modules/all')
   cmAll(@Req() req: any) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select organization_id from delivery.client_modules')).rows); }
