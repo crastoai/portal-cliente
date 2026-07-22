@@ -35,9 +35,13 @@ export default function Usuarios() {
     setModUser(u); setModErr(""); setOrgMods([]); setChecked(new Set());
     try {
       const cms = (await services.delivery.clientModules.listByOrg(profile?.organization_id ?? "")) as any[];
+      const active = (cms || []).filter((c) => c.status === "active");
+      const ids = [...new Set(active.map((c) => c.vdi_module_id as string))];
+      const vms = ids.length ? await services.catalog.vdiModules.listByIds(ids, "id,name").catch(() => [] as any[]) : [];
+      const nameOf: Record<string, string> = Object.fromEntries((vms as any[]).map((v) => [v.id, v.name]));
       const seen = new Set<string>();
-      const uniq = (cms || []).filter((c) => c.status === "active" && !seen.has(c.vdi_module_id) && seen.add(c.vdi_module_id))
-        .map((c) => ({ id: c.vdi_module_id as string, label: (c.label as string) || t("Módulo") }));
+      const uniq = active.filter((c) => !seen.has(c.vdi_module_id) && seen.add(c.vdi_module_id))
+        .map((c) => ({ id: c.vdi_module_id as string, label: (c.label || nameOf[c.vdi_module_id] || t("Módulo")) as string }));
       setOrgMods(uniq);
       const acc = await services.delivery.userModules.list(u.id).catch(() => [] as string[]);
       const arr = Array.isArray(acc) ? acc : [];
@@ -106,7 +110,7 @@ export default function Usuarios() {
         {modErr && <div className="formerr">{modErr}</div>}
         <div className="note" style={{ marginBottom: 10 }}><span>{t("Marque os módulos que este membro pode ver na sidebar. Todos marcados = vê tudo do plano.")}</span></div>
         {orgMods.length === 0 ? <Empty>{t("Nenhum módulo ativo na conta.")}</Empty> : orgMods.map((m) => (
-          <label key={m.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 2px", cursor: "pointer", borderTop: "1px solid var(--crasto-border-soft)" }}>
+          <label key={m.id} className={"modrow" + (checked.has(m.id) ? " on" : "")}>
             <input type="checkbox" checked={checked.has(m.id)} onChange={() => toggleMod(m.id)} />
             <span>{m.label}</span>
           </label>

@@ -63,6 +63,14 @@
 .navlink.on { background: var(--crasto-navy); color: #fff; box-shadow: 0 8px 18px -8px var(--crasto-navy-40); }
 .navlink.on svg { opacity: 1; }
 .navlink .tag { margin-left: auto; font-size: 11px; }
+/* Linha de módulo (modal "liberar módulos por membro") — checkbox no Design System */
+.modrow { display: flex; align-items: center; gap: 11px; padding: 11px 8px; margin: 0 -4px; border-radius: var(--crasto-radius-md); cursor: pointer; font-size: 14px; font-weight: 500; color: var(--crasto-text-body); border-top: 1px solid var(--crasto-border-soft); transition: background .15s, color .15s; }
+.modrow:first-of-type { border-top: 0; }
+.modrow:hover { background: var(--crasto-navy-05); color: var(--crasto-text-primary); }
+.modrow.on { color: var(--crasto-text-primary); }
+.modrow input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 20px; height: 20px; flex: none; border-radius: 6px; border: 1.6px solid var(--crasto-border); background: var(--crasto-bg-2, #fff); cursor: pointer; display: grid; place-items: center; transition: background .15s, border-color .15s; }
+.modrow input[type="checkbox"]:checked { background: var(--crasto-navy); border-color: var(--crasto-navy); }
+.modrow input[type="checkbox"]:checked::after { content: ""; width: 6px; height: 10px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg) translateY(-1px); }
 /* Módulo não contratado (cadeado) na sidebar — Conta Azul: visível, mas travado até liberar. */
 .navlink-lock { margin-left: auto; opacity: .5; flex-shrink: 0; }
 .navlink--locked { color: var(--crasto-text-muted); }
