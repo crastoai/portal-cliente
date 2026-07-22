@@ -16,6 +16,59 @@ export class DeliveryController {
 
   private readonly ROLLOUT = 'id,vdi_module_id,status,label,rollout_progress,rollout_due,rollout_status';
 
+  // ── Fase 4 · autoatendimento consolidado ────────────────────────────────
+  // O org_id vem do JWT + RLS, nunca do navegador. Só depois de resolvê-lo no banco
+  // consultamos o schema finance como service_role (finance não é exposto ao cliente).
+  @Get('self-service/mine')
+  async selfServiceMine(@Req() req: any) {
+    const visible = await this.db.asUser(this.uid(req), async (c) => {
+      const orgId = (await c.query('select public.current_org_id() as id')).rows[0]?.id;
+      if (!orgId) return null;
+      const contract = (await c.query(
+        `select id,title,status,url,signed_at,created_at
+           from commerce.contracts order by coalesce(signed_at,created_at) desc limit 1`,
+      )).rows[0] ?? null;
+      const implementation = (await c.query(
+        `select status,started_at,due_date,overall_progress
+           from delivery.implementations order by created_at desc limit 1`,
+      )).rows[0] ?? null;
+      const health = (await c.query(
+        `select status,message,eta from delivery.system_health order by updated_at desc limit 1`,
+      )).rows[0] ?? null;
+      const services = (await c.query(
+        `select id,service_name as name,service_description as description,service_category as category,status
+           from delivery.client_services order by created_at`,
+      )).rows;
+      const modules = (await c.query(
+        `select cm.id,coalesce(cm.label,m.name) as name,cm.status,cm.rollout_status,cm.rollout_progress
+           from delivery.client_modules cm join catalog.vdi_modules m on m.id=cm.vdi_module_id
+          order by cm.created_at`,
+      )).rows;
+      return { orgId, contract, implementation, health, services, modules };
+    });
+    if (!visible) return null;
+
+    const privateUsage = await this.db.asService(async (c) => {
+      const support = (await c.query(
+        `select period,plan_hours,used_hours,balance,status
+           from finance.support_hours where organization_id=$1 order by period desc limit 1`,
+        [visible.orgId],
+      )).rows[0] ?? null;
+      const ai = (await c.query(
+        `select min(period_start) as period_start,max(period_end) as period_end,
+                coalesce(sum(tokens_in),0)::text as tokens_in,
+                coalesce(sum(tokens_out),0)::text as tokens_out,
+                count(*)::int as records
+           from finance.ai_usage
+          where organization_id=$1 and period_start >= date_trunc('month',current_date)::date`,
+        [visible.orgId],
+      )).rows[0];
+      return { support, ai };
+    });
+    const { orgId: _orgId, ...safe } = visible;
+    return { ...safe, ...privateUsage };
+  }
+
   // ── client_modules ──
   /**
    * Soluções do cliente. Para o WhatsApp CRM devolvemos `crm_url` pronta: é a MESMA

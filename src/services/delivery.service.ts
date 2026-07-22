@@ -65,4 +65,8 @@ export const userModules = {
   set: async (userId: string, vdiModuleIds: string[]) => api.post(`/api/delivery/user-modules`, { user_id: userId, vdi_module_ids: vdiModuleIds }),
 };
 
-export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules };
+export const selfService = {
+  getMine: async () => api.get<any>(`/api/delivery/self-service/mine`),
+};
+
+export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, selfService };

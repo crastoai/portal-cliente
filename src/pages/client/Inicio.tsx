@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageCircle, Search, Send, Wallet, ArrowRight, AlertTriangle, Clock } from "lucide-react";
+import { MessageCircle, Search, Send, Wallet, ArrowRight, AlertTriangle, Clock, FileSignature, Headphones, Bot, Activity } from "lucide-react";
 import { services } from "../../services";
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
@@ -23,17 +23,20 @@ export default function Inicio() {
   const [impl, setImpl] = useState<Impl | null>(null);
   const [mods, setMods] = useState<Mod[]>([]);
   const [fin, setFin] = useState<FaturaSummary | null>(null);
+  const [self, setSelf] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const [h, i, cm, creds, inv] = await Promise.all([
+      const [h, i, cm, creds, inv, ss] = await Promise.all([
         services.delivery.systemHealth.getMine(),
         services.delivery.implementations.getMine(),
         services.delivery.clientModules.listMine(),
         services.delivery.moduleCredentials.listMine().catch(() => [] as any[]),
         services.billing.invoices.listMine().catch(() => [] as any[]),
+        services.delivery.selfService.getMine().catch(() => null),
       ]);
+      setSelf(ss);
       setFin(summarizeFaturas((inv as unknown as Fatura[]) ?? []));
       const rows = cm ?? [];
       const ids = rows.map((r) => r.vdi_module_id);
@@ -124,6 +127,51 @@ export default function Inicio() {
           </div>
         </>
       )}
+
+      {/* Fase 4 — autoatendimento: uma leitura única do contrato e da operação. */}
+      <div className="sec-h"><h2>{t("Seu atendimento")}</h2></div>
+      <div className="selfgrid">
+        <article className="selfcard">
+          <div className="selfico"><FileSignature size={18} /></div>
+          <div className="selfbody">
+            <span className="selflabel">{t("Contrato")}</span>
+            <strong>{self?.contract?.title || t("Contrato da Crasto.AI")}</strong>
+            <small>{self?.contract?.status === "signed" ? t("Assinado") : self?.contract ? t("Em andamento") : t("Ainda não disponível")}</small>
+          </div>
+          {self?.contract?.url && <a className="selflink" href={self.contract.url} target="_blank" rel="noreferrer">{t("Abrir")} <ArrowRight size={13} /></a>}
+        </article>
+        <article className="selfcard">
+          <div className="selfico"><Headphones size={18} /></div>
+          <div className="selfbody">
+            <span className="selflabel">{t("Horas de suporte")}</span>
+            <strong className="tnum">{self?.support ? `${self.support.used_hours}h / ${self.support.plan_hours}h` : "—"}</strong>
+            <small>{self?.support ? t("{n}h disponíveis", { n: self.support.balance }) : t("Sem plano de horas registrado")}</small>
+          </div>
+          <button className="selflink" onClick={() => navigate("/app/suporte")}>{t("Detalhes")} <ArrowRight size={13} /></button>
+        </article>
+        <article className="selfcard">
+          <div className="selfico"><Bot size={18} /></div>
+          <div className="selfbody">
+            <span className="selflabel">{t("Uso dos agentes de IA")}</span>
+            <strong className="tnum">{Number(self?.ai?.records || 0) > 0 ? Number(self.ai.tokens_in || 0).toLocaleString("pt-BR") : "—"}</strong>
+            <small>{Number(self?.ai?.records || 0) > 0 ? t("tokens de entrada medidos neste mês") : t("A duração em horas ainda não é medida")}</small>
+          </div>
+        </article>
+      </div>
+
+      <div className="scopebox">
+        <div className="scopehead"><div><Activity size={17} /><span>{t("Escopo e situação das soluções")}</span></div><small>{t("Dados reais do seu contrato e da implantação")}</small></div>
+        <div className="scopelist">
+          {[...(self?.modules || []), ...(self?.services || [])].length === 0 ? (
+            <div className="scopeempty">{t("Nenhuma solução vinculada ao contrato ainda.")}</div>
+          ) : [...(self?.modules || []), ...(self?.services || [])].map((item: any, idx: number) => {
+            const raw = String(item.rollout_status || item.status || "").toLowerCase();
+            const tone = raw === "active" || raw === "done" || raw === "green" ? "green" : raw === "paused" || raw === "red" ? "red" : "amber";
+            const label = tone === "green" ? t("Operando") : tone === "red" ? t("Atenção") : t("Em implantação");
+            return <div className="scoperow" key={`${item.id || idx}-${idx}`}><span className={`scopedot ${tone}`} /><div><strong>{item.name || t("Solução contratada")}</strong>{item.description && <small>{item.description}</small>}</div><span className={`scopepill ${tone}`}>{label}</span></div>;
+          })}
+        </div>
+      </div>
 
       {/* Módulos */}
       <div className="sec-h"><h2>{t("Minhas soluções")}</h2></div>
