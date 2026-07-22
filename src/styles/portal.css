@@ -71,6 +71,21 @@
 .crm-fs-title { font-size: 13px; font-weight: 700; color: var(--crasto-text-muted); letter-spacing: .01em; }
 .crm-fs-frame { flex: 1; width: 100%; border: 0; background: #fff; }
 .crm-fs-msg { flex: 1; display: grid; place-items: center; color: var(--crasto-text-muted); font-size: 14px; }
+/* seletor de agente (>1 CRM) */
+.crm-pick { flex: 1; display: grid; place-items: center; padding: 24px; }
+.crm-pick-card { width: 100%; max-width: 460px; background: var(--crasto-glass-card, #fff); border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-xl, 18px); box-shadow: 0 30px 60px -40px var(--crasto-navy-18); padding: 22px; }
+.crm-pick-h { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.crm-pick-ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none; background: var(--crasto-navy-05); color: var(--crasto-navy); }
+.crm-pick-h h3 { margin: 0; font-size: 17px; color: var(--crasto-text-primary); }
+.crm-pick-h p { margin: 2px 0 0; font-size: 13px; color: var(--crasto-text-muted); }
+.crm-pick-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 13px 14px; border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md); background: transparent; cursor: pointer; margin-top: 8px; color: var(--crasto-text-body); font-size: 14px; transition: background .15s, border-color .15s; }
+.crm-pick-item:hover { background: var(--crasto-navy-05); border-color: var(--crasto-navy); }
+.crm-pick-item b { color: var(--crasto-text-primary); font-weight: 600; }
+.crm-pick-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--crasto-text-faint); flex: none; }
+.crm-pick-dot.on { background: var(--crasto-success, #1f8a5b); }
+.crm-pick-sub { font-size: 12px; color: var(--crasto-text-muted); }
+.crm-pick-all { width: 100%; text-align: center; margin-top: 12px; padding: 10px; border: 0; background: transparent; color: var(--crasto-text-muted); font-size: 13px; cursor: pointer; border-radius: var(--crasto-radius-md); }
+.crm-pick-all:hover { background: var(--crasto-bg-3); color: var(--crasto-text-primary); }
 /* Linha de módulo (modal "liberar módulos por membro") — checkbox no Design System */
 .modrow { display: flex; align-items: center; gap: 11px; padding: 11px 8px; margin: 0 -4px; border-radius: var(--crasto-radius-md); cursor: pointer; font-size: 14px; font-weight: 500; color: var(--crasto-text-body); border-top: 1px solid var(--crasto-border-soft); transition: background .15s, color .15s; }
 .modrow:first-of-type { border-top: 0; }

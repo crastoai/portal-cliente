@@ -13,6 +13,15 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Compras": { en: "Purchasing", es: "Compras" },
   "em breve": { en: "coming soon", es: "próximamente" },
   "Módulo não contratado — fale com a Crasto.AI para liberar": { en: "Module not contracted — contact Crasto.AI to unlock", es: "Módulo no contratado — contacte a Crasto.AI para desbloquear" },
+  // ---- WhatsApp CRM embarcado (Fase 3) ----
+  "Voltar ao Portal": { en: "Back to Portal", es: "Volver al Portal" },
+  "Entrar no WhatsApp CRM": { en: "Enter WhatsApp CRM", es: "Entrar en WhatsApp CRM" },
+  "Escolha o agente — cada um tem o próprio CRM.": { en: "Pick the agent — each has its own CRM.", es: "Elige el agente — cada uno tiene su propio CRM." },
+  "Ver a empresa inteira ({n} agentes juntos)": { en: "See the whole company ({n} agents together)", es: "Ver toda la empresa ({n} agentes juntos)" },
+  "Abrindo o WhatsApp CRM…": { en: "Opening WhatsApp CRM…", es: "Abriendo WhatsApp CRM…" },
+  "O WhatsApp CRM não está liberado para o seu acesso.": { en: "WhatsApp CRM is not enabled for your access.", es: "WhatsApp CRM no está habilitado para tu acceso." },
+  "Sessão expirada — recarregue a página.": { en: "Session expired — reload the page.", es: "Sesión expirada — recarga la página." },
+  "Não foi possível abrir o WhatsApp CRM.": { en: "Could not open WhatsApp CRM.", es: "No se pudo abrir WhatsApp CRM." },
   // ---- Comuns ----
   "Carregando…": { en: "Loading…", es: "Cargando…" },
   "Sair": { en: "Sign out", es: "Salir" },
