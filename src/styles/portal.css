@@ -63,6 +63,12 @@
 .navlink.on { background: var(--crasto-navy); color: #fff; box-shadow: 0 8px 18px -8px var(--crasto-navy-40); }
 .navlink.on svg { opacity: 1; }
 .navlink .tag { margin-left: auto; font-size: 11px; }
+/* Módulo não contratado (cadeado) na sidebar — Conta Azul: visível, mas travado até liberar. */
+.navlink-lock { margin-left: auto; opacity: .5; flex-shrink: 0; }
+.navlink--locked { color: var(--crasto-text-muted); }
+.navlink--locked svg { opacity: .45; }
+.navlink--locked:hover { background: var(--crasto-navy-05); color: var(--crasto-text-body); }
+.navlink--locked:hover .navlink-lock { opacity: .8; }
 
 /* card de usuário no rodapé */
 .side-user { display: flex; align-items: center; gap: 9px; margin-top: auto; padding: 9px 10px; border-radius: var(--crasto-radius-md); border: 1px solid var(--crasto-border-soft); background: var(--crasto-glass-card); box-shadow: 0 1px 0 rgba(255,255,255,.9) inset; }

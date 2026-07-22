@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { LogOut, Menu, X, Camera, type LucideIcon } from "lucide-react";
+import { LogOut, Menu, X, Camera, Lock, type LucideIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { services } from "../services";
 import ThemeToggle from "../ui/ThemeToggle";
@@ -18,7 +18,9 @@ function Wordmark() {
   );
 }
 
-export type NavItem = { to: string; end?: boolean; icon: LucideIcon; label: string; tag?: string; section?: string };
+// `to` = rota interna (NavLink). `onClick` sem `to` = ação (abrir módulo externo/SSO).
+// `locked` = módulo não contratado (cadeado + upsell) — o clique chama `onClick`.
+export type NavItem = { to?: string; end?: boolean; icon: LucideIcon; label: string; tag?: string; section?: string; locked?: boolean; onClick?: () => void };
 
 export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who: string; sub: string; logoTone?: string }) {
   const { profile, signOut, refreshProfile } = useAuth();
@@ -72,14 +74,24 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
           {groups.map((g, gi) => (
             <div className="navgroup" key={gi}>
               {g.section && <div className="navsec">{t(g.section)}</div>}
-              {g.items.map((n) => (
-                <NavLink key={n.to} to={n.to} end={n.end} onClick={() => setOpen(false)} className={({ isActive }) => {
-                  const match = isActive || (n.to === "/admin/clientes" && pathname.startsWith("/admin/cliente/"));
-                  return "navlink" + (match ? " on" : "");
-                }}>
-                  <n.icon size={17} /> <span className="navlink-lbl">{t(n.label)}</span>{n.tag && <span className="tag">{n.tag}</span>}
-                </NavLink>
-              ))}
+              {g.items.map((n) => {
+                const inner = <><n.icon size={17} /> <span className="navlink-lbl">{t(n.label)}</span>
+                  {n.locked ? <Lock size={13} className="navlink-lock" /> : n.tag ? <span className="tag">{n.tag}</span> : null}</>;
+                // Módulo bloqueado (não contratado) → botão com cadeado + upsell.
+                if (n.locked) return (
+                  <button key={n.label} type="button" className="navlink navlink--locked" title={t("Módulo não contratado — fale com a Crasto.AI para liberar")} onClick={() => { setOpen(false); n.onClick?.(); }}>{inner}</button>
+                );
+                // Ação (abrir módulo externo/SSO) sem rota interna.
+                if (!n.to && n.onClick) return (
+                  <button key={n.label} type="button" className="navlink" onClick={() => { setOpen(false); n.onClick?.(); }}>{inner}</button>
+                );
+                return (
+                  <NavLink key={n.to} to={n.to!} end={n.end} onClick={() => setOpen(false)} className={({ isActive }) => {
+                    const match = isActive || (n.to === "/admin/clientes" && pathname.startsWith("/admin/cliente/"));
+                    return "navlink" + (match ? " on" : "");
+                  }}>{inner}</NavLink>
+                );
+              })}
             </div>
           ))}
         </nav>

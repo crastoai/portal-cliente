@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Home, LayoutGrid, Activity, Sparkles, Wallet, Users, LifeBuoy, Eye, IdCard } from "lucide-react";
+import { Home, LayoutGrid, Activity, Sparkles, Wallet, Users, LifeBuoy, Eye, IdCard,
+  MessageCircle, Megaphone, Share2, Target, ShoppingCart, type LucideIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { useAsync } from "../ui/ui";
 import { services } from "../services";
@@ -13,6 +14,18 @@ const SCREEN_ICON: Record<string, any> = {
   inicio: Home, modulos: LayoutGrid, implementacao: Activity, solucoes: Sparkles,
   financeiro: Wallet, usuarios: Users, perfil: IdCard, suporte: LifeBuoy,
 };
+
+// Catálogo canônico de módulos (a "Conta Azul" da Crasto.AI). O que o cliente contratou
+// aparece destravado (abre o módulo); o resto aparece com cadeado (upsell → Catálogo).
+// `rx` casa a categoria/nome do módulo contratado com o slot canônico.
+const MODULES: { key: string; label: string; icon: LucideIcon; rx: RegExp }[] = [
+  { key: "crm", label: "WhatsApp CRM", icon: MessageCircle, rx: /atend|crm|whats|convers/i },
+  { key: "financeiro", label: "Financeiro", icon: Wallet, rx: /financ|erp financ/i },
+  { key: "marketing", label: "Marketing", icon: Megaphone, rx: /market/i },
+  { key: "social", label: "Social Media", icon: Share2, rx: /social/i },
+  { key: "trafego", label: "Tráfego Pago", icon: Target, rx: /tr[aá]feg|ads|paga|paid/i },
+  { key: "compras", label: "Compras", icon: ShoppingCart, rx: /compra|purchas|suprim/i },
+];
 
 export default function ClientShell() {
   const { profile } = useAuth();
@@ -30,6 +43,41 @@ export default function ClientShell() {
   const { data: myScreens } = useAsync(() => services.identity.access.myScreens(), [pv.active]);
   const allowed = allowedScreens(myScreens as string[] | null);
 
+  // Módulos contratados (para a seção "Módulos" da sidebar, estilo Conta Azul).
+  const { data: contratados } = useAsync(async () => {
+    const cms = await services.delivery.clientModules.listMine().catch(() => [] as any[]);
+    const rows = (cms as any[]).filter((r) => ["active", "implementing", "pending"].includes(r.status));
+    const ids = rows.map((r) => r.vdi_module_id);
+    const [vms, creds] = await Promise.all([
+      ids.length ? services.catalog.vdiModules.listByIds(ids, "id,name,category,external_url").catch(() => [] as any[]) : Promise.resolve([] as any[]),
+      services.delivery.moduleCredentials.listMine().catch(() => [] as any[]),
+    ]);
+    const vmap = Object.fromEntries((vms as any[]).map((v) => [v.id, v]));
+    const cmap = Object.fromEntries((creds as any[]).map((c) => [c.client_module_id, c]));
+    return rows.map((r) => {
+      const v = vmap[r.vdi_module_id] || {};
+      const cred = cmap[r.id];
+      return {
+        text: `${v.category || ""} ${v.name || ""}`,
+        url: (cred?.access_url || (r as any).crm_url || v.external_url || null) as string | null,
+        active: r.status === "active",
+      };
+    });
+  }, [pv.active]);
+
+  // Monta a seção "Módulos": contratado+ativo → abre; contratado+configurando → "em breve";
+  // não contratado → cadeado (leva ao Catálogo para solicitar/liberar).
+  // ⚠️ useAsync inicia `data` como NULL (não undefined) — blindar contra .find em null.
+  const cs: any[] = Array.isArray(contratados) ? contratados : [];
+  const modItems: NavItem[] = MODULES.map((m) => {
+    const owned = cs.find((c) => m.rx.test(c.text));
+    if (owned && owned.active && owned.url)
+      return { icon: m.icon, label: m.label, section: "Módulos", onClick: () => window.open(owned.url as string, "_blank", "noopener") };
+    if (owned && !owned.active)
+      return { icon: m.icon, label: m.label, section: "Módulos", tag: t("em breve"), onClick: () => navigate("/app/modulos") };
+    return { icon: m.icon, label: m.label, section: "Módulos", locked: true, onClick: () => navigate("/app/catalogo") };
+  });
+
   // Guarda de rota: se cair numa tela sem permissão, volta ao Início.
   useEffect(() => {
     if (!myScreens) return;
@@ -37,10 +85,13 @@ export default function ClientShell() {
     if (scr && !allowed.has(scr.key)) navigate("/app", { replace: true });
   }, [location.pathname, myScreens]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const nav: NavItem[] = CLIENT_SCREENS
-    .filter((s) => allowed.has(s.key))
-    .filter((s) => s.key !== "implementacao" || !implDone)
-    .map((s) => ({ to: s.to, end: s.key === "inicio", icon: SCREEN_ICON[s.key], label: s.label }));
+  const nav: NavItem[] = [
+    ...CLIENT_SCREENS
+      .filter((s) => allowed.has(s.key))
+      .filter((s) => s.key !== "implementacao" || !implDone)
+      .map((s) => ({ to: s.to, end: s.key === "inicio", icon: SCREEN_ICON[s.key], label: s.label })),
+    ...modItems,
+  ];
 
   function exitPreview() {
     const oid = preview.orgId();
