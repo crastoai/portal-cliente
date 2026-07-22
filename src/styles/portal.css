@@ -63,6 +63,9 @@
 .navlink.on { background: var(--crasto-navy); color: #fff; box-shadow: 0 8px 18px -8px var(--crasto-navy-40); }
 .navlink.on svg { opacity: 1; }
 .navlink .tag { margin-left: auto; font-size: 11px; }
+/* Módulo embarcado (iframe do WhatsApp CRM dentro da casca — Fase 3) */
+.module-frame { display: block; width: 100%; height: calc(100dvh - 150px); min-height: 420px; border: 0; border-radius: var(--crasto-radius-lg, 14px); background: #fff; box-shadow: 0 1px 0 rgba(255,255,255,.9) inset; }
+@media (max-width: 900px) { .module-frame { height: calc(100dvh - 120px); } }
 /* Linha de módulo (modal "liberar módulos por membro") — checkbox no Design System */
 .modrow { display: flex; align-items: center; gap: 11px; padding: 11px 8px; margin: 0 -4px; border-radius: var(--crasto-radius-md); cursor: pointer; font-size: 14px; font-weight: 500; color: var(--crasto-text-body); border-top: 1px solid var(--crasto-border-soft); transition: background .15s, color .15s; }
 .modrow:first-of-type { border-top: 0; }

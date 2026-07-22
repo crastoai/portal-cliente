@@ -19,6 +19,7 @@ import Catalogo from "./pages/client/Catalogo";
 import Financeiro from "./pages/client/Financeiro";
 import Usuarios from "./pages/client/Usuarios";
 import Suporte from "./pages/client/Suporte";
+import CrmEmbed from "./pages/client/CrmEmbed";
 import Perfil from "./pages/Perfil";
 
 import VisaoGeral from "./pages/admin/VisaoGeral";
@@ -101,6 +102,7 @@ export default function App() {
             <Route path="solucoes" element={<Catalogo />} />
             <Route path="financeiro" element={<Financeiro />} />
             <Route path="usuarios" element={<Usuarios />} />
+            <Route path="crm" element={<CrmEmbed />} />
             <Route path="suporte" element={<Suporte />} />
             <Route path="perfil" element={<Perfil />} />
           </Route>

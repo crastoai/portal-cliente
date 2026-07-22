@@ -76,10 +76,13 @@ export default function ClientShell() {
   const modItems: NavItem[] = MODULES.map((m) => {
     // WhatsApp CRM: casa pelo sinal isCrm; demais slots: por categoria/nome.
     const owned = m.crm ? cs.find((c) => c.isCrm) : cs.find((c) => m.rx.test(c.text));
-    if (owned && owned.active && owned.url)
-      return { icon: m.icon, label: m.label, section: "Módulos", onClick: () => window.open(owned.url as string, "_blank", "noopener") };
-    if (owned && !owned.active)
-      return { icon: m.icon, label: m.label, section: "Módulos", tag: t("em breve"), onClick: () => navigate("/app/modulos") };
+    if (owned && owned.active) {
+      // WhatsApp CRM abre EMBARCADO (rota interna → iframe, sem nova aba); demais externos/SSO.
+      if (m.crm) return { icon: m.icon, label: m.label, section: "Módulos", to: "/app/crm" };
+      if (owned.url) return { icon: m.icon, label: m.label, section: "Módulos", onClick: () => window.open(owned.url as string, "_blank", "noopener") };
+      return { icon: m.icon, label: m.label, section: "Módulos", onClick: () => navigate("/app/modulos") };
+    }
+    if (owned) return { icon: m.icon, label: m.label, section: "Módulos", tag: t("em breve"), onClick: () => navigate("/app/modulos") };
     return { icon: m.icon, label: m.label, section: "Módulos", locked: true, onClick: () => navigate("/app/catalogo") };
   });
   // Extras: contratados que NÃO são o CRM e NÃO casam com nenhum canônico → pelo nome real.
