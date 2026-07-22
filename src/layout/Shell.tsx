@@ -50,16 +50,23 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
     else last.items.push(n);
   }
 
+  const userCluster = (
+    <>
+      <button type="button" className="tb-av su-av--btn" title={t("Trocar foto de perfil")} disabled={avBusy} onClick={() => avInput.current?.click()} style={!profile?.avatar_url && logoTone ? { background: logoTone } : undefined}>
+        {profile?.avatar_url ? <img src={profile.avatar_url} alt="" /> : ini}
+        <span className="su-av__cam"><Camera size={12} /></span>
+      </button>
+      <input ref={avInput} type="file" accept="image/*" hidden onChange={onAvatar} />
+      <button type="button" className="tb-user" title={t("Ver meus dados")} onClick={() => navigate(profile?.role === "crasto_admin" ? "/admin/perfil" : "/app/perfil")}>
+        <span className="su-nm">{who}</span>
+        <span className="su-em">{profile?.email}</span>
+      </button>
+      <button className="su-out" title={t("Sair")} onClick={() => signOut()}><LogOut size={16} /></button>
+    </>
+  );
+
   return (
     <div className="shell">
-      {/* barra mobile (só < 900px) */}
-      <div className="mobilebar">
-        <button className="mb-burger" onClick={() => setOpen(true)} aria-label={t("Abrir menu")}><Menu size={20} /></button>
-        <span className="mb-brand"><Wordmark /></span>
-        <LangSwitcher />
-        <ThemeToggle />
-      </div>
-
       {open && <div className="side-overlay" onClick={() => setOpen(false)} />}
 
       <aside className={"side" + (open ? " open" : "")}>
@@ -95,24 +102,21 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
             </div>
           ))}
         </nav>
-
-        <div className="side-lang"><LangSwitcher up /></div>
-        <div className="side-user">
-          <button type="button" className="su-av su-av--btn" title={t("Trocar foto de perfil")} disabled={avBusy} onClick={() => avInput.current?.click()} style={!profile?.avatar_url && logoTone ? { background: logoTone } : undefined}>
-            {profile?.avatar_url ? <img src={profile.avatar_url} alt="" /> : ini}
-            <span className="su-av__cam"><Camera size={12} /></span>
-          </button>
-          <input ref={avInput} type="file" accept="image/*" hidden onChange={onAvatar} />
-          <button type="button" className="su-meta su-meta--btn" title={t("Ver meus dados")} onClick={() => { setOpen(false); navigate(profile?.role === "crasto_admin" ? "/admin/perfil" : "/app/perfil"); }}>
-            <div className="su-nm">{who}</div>
-            <div className="su-em">{profile?.email}</div>
-          </button>
-          <ThemeToggle />
-          <button className="su-out" title={t("Sair")} onClick={() => signOut()}><LogOut size={16} /></button>
-        </div>
       </aside>
 
       <main className="main">
+        {/* Barra superior: navegação fica na sidebar; identidade + sistema (idioma, tema,
+            usuário) no canto SUPERIOR DIREITO — padrão internacional (Gmail/HubSpot/Salesforce).
+            No celular, o hambúrguer abre o drawer e a marca aparece à esquerda. */}
+        <header className="topbar">
+          <button className="tb-burger" onClick={() => setOpen(true)} aria-label={t("Abrir menu")}><Menu size={20} /></button>
+          <span className="tb-brand"><Wordmark /></span>
+          <div className="tb-right">
+            <LangSwitcher />
+            <ThemeToggle />
+            {userCluster}
+          </div>
+        </header>
         <div className="canvas"><Outlet /></div>
       </main>
     </div>

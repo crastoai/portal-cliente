@@ -59,6 +59,7 @@ export default function ClientShell() {
       const cred = cmap[r.id];
       return {
         text: `${v.category || ""} ${v.name || ""}`,
+        name: (v.name || (r as any).label || "Módulo") as string,
         url: (cred?.access_url || (r as any).crm_url || v.external_url || null) as string | null,
         active: r.status === "active",
       };
@@ -77,6 +78,11 @@ export default function ClientShell() {
       return { icon: m.icon, label: m.label, section: "Módulos", tag: t("em breve"), onClick: () => navigate("/app/modulos") };
     return { icon: m.icon, label: m.label, section: "Módulos", locked: true, onClick: () => navigate("/app/catalogo") };
   });
+  // Extras: módulos contratados que NÃO casam com nenhum canônico → aparecem pelo nome real.
+  for (const c of cs) {
+    if (c.active && c.url && !MODULES.some((m) => m.rx.test(c.text)))
+      modItems.push({ icon: LayoutGrid, label: c.name, section: "Módulos", onClick: () => window.open(c.url as string, "_blank", "noopener") });
+  }
 
   // Guarda de rota: se cair numa tela sem permissão, volta ao Início.
   useEffect(() => {

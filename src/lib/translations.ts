@@ -5,6 +5,14 @@
 import type { Lang } from "./i18n";
 
 export const DICT: Record<string, Partial<Record<Lang, string>>> = {
+  // ---- Módulos (sidebar Conta Azul) ----
+  "WhatsApp CRM": { en: "WhatsApp CRM", es: "WhatsApp CRM" },
+  "Marketing": { en: "Marketing", es: "Marketing" },
+  "Social Media": { en: "Social Media", es: "Redes Sociales" },
+  "Tráfego Pago": { en: "Paid Traffic", es: "Tráfico Pagado" },
+  "Compras": { en: "Purchasing", es: "Compras" },
+  "em breve": { en: "coming soon", es: "próximamente" },
+  "Módulo não contratado — fale com a Crasto.AI para liberar": { en: "Module not contracted — contact Crasto.AI to unlock", es: "Módulo no contratado — contacte a Crasto.AI para desbloquear" },
   // ---- Comuns ----
   "Carregando…": { en: "Loading…", es: "Cargando…" },
   "Sair": { en: "Sign out", es: "Salir" },
