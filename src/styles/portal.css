@@ -63,9 +63,14 @@
 .navlink.on { background: var(--crasto-navy); color: #fff; box-shadow: 0 8px 18px -8px var(--crasto-navy-40); }
 .navlink.on svg { opacity: 1; }
 .navlink .tag { margin-left: auto; font-size: 11px; }
-/* Módulo embarcado (iframe do WhatsApp CRM dentro da casca — Fase 3) */
-.module-frame { display: block; width: 100%; height: calc(100dvh - 150px); min-height: 420px; border: 0; border-radius: var(--crasto-radius-lg, 14px); background: #fff; box-shadow: 0 1px 0 rgba(255,255,255,.9) inset; }
-@media (max-width: 900px) { .module-frame { height: calc(100dvh - 120px); } }
+/* Módulo embarcado em TELA CHEIA (WhatsApp CRM dentro do Portal — Fase 3) */
+.crm-fs { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; background: var(--crasto-bg, #f6f7f9); }
+.crm-fs-top { flex: none; height: 46px; display: flex; align-items: center; gap: 12px; padding: 0 12px; border-bottom: 1px solid var(--crasto-border-soft); background: var(--crasto-glass-card, #fff); }
+.crm-back { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--crasto-border-soft); background: transparent; color: var(--crasto-text-body); border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s; }
+.crm-back:hover { background: var(--crasto-navy-05); color: var(--crasto-text-primary); }
+.crm-fs-title { font-size: 13px; font-weight: 700; color: var(--crasto-text-muted); letter-spacing: .01em; }
+.crm-fs-frame { flex: 1; width: 100%; border: 0; background: #fff; }
+.crm-fs-msg { flex: 1; display: grid; place-items: center; color: var(--crasto-text-muted); font-size: 14px; }
 /* Linha de módulo (modal "liberar módulos por membro") — checkbox no Design System */
 .modrow { display: flex; align-items: center; gap: 11px; padding: 11px 8px; margin: 0 -4px; border-radius: var(--crasto-radius-md); cursor: pointer; font-size: 14px; font-weight: 500; color: var(--crasto-text-body); border-top: 1px solid var(--crasto-border-soft); transition: background .15s, color .15s; }
 .modrow:first-of-type { border-top: 0; }

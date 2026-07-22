@@ -95,6 +95,9 @@ export default function App() {
 
       {session && (
         <>
+          {/* WhatsApp CRM embarcado = TELA CHEIA (fora da casca do Portal): a sidebar do
+              Portal some, aparece a do CRM, e no topo a faixa "Voltar ao Portal". */}
+          <Route path="/app/crm" element={<CrmEmbed />} />
           <Route path="/app" element={<ClientShell />}>
             <Route index element={<Inicio />} />
             <Route path="modulos" element={<Modulos />} />
@@ -102,7 +105,6 @@ export default function App() {
             <Route path="solucoes" element={<Catalogo />} />
             <Route path="financeiro" element={<Financeiro />} />
             <Route path="usuarios" element={<Usuarios />} />
-            <Route path="crm" element={<CrmEmbed />} />
             <Route path="suporte" element={<Suporte />} />
             <Route path="perfil" element={<Perfil />} />
           </Route>
