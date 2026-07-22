@@ -1,6 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { LogOut, Menu, X, Camera, Lock, type LucideIcon } from "lucide-react";
+import { LogOut, Menu, X, Camera, Lock, ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { services } from "../services";
 import ThemeToggle from "../ui/ThemeToggle";
@@ -28,6 +28,11 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
+  // Recolher/expandir a sidebar (seta). Auto-recolhe ao abrir um módulo embarcado (ex.: CRM),
+  // dando a tela cheia; o usuário reabre pela seta.
+  const [collapsed, setCollapsed] = useState<boolean>(() => localStorage.getItem("portal.collapsed") === "1");
+  useEffect(() => { localStorage.setItem("portal.collapsed", collapsed ? "1" : "0"); }, [collapsed]);
+  useEffect(() => { if (pathname === "/app/crm") setCollapsed(true); }, [pathname]);
   const [avBusy, setAvBusy] = useState(false);
   const avInput = useRef<HTMLInputElement>(null);
   const ini = initials(profile?.full_name || profile?.email);
@@ -66,7 +71,7 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
   );
 
   return (
-    <div className="shell">
+    <div className={"shell" + (collapsed ? " collapsed" : "")}>
       {open && <div className="side-overlay" onClick={() => setOpen(false)} />}
 
       <aside className={"side" + (open ? " open" : "")}>
@@ -110,6 +115,7 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
             No celular, o hambúrguer abre o drawer e a marca aparece à esquerda. */}
         <header className="topbar">
           <button className="tb-burger" onClick={() => setOpen(true)} aria-label={t("Abrir menu")}><Menu size={20} /></button>
+          <button className="tb-collapse" onClick={() => setCollapsed((c) => !c)} title={collapsed ? t("Expandir menu") : t("Recolher menu")} aria-label={t("Recolher menu")}>{collapsed ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}</button>
           <span className="tb-brand"><Wordmark /></span>
           <div className="tb-right">
             <LangSwitcher />

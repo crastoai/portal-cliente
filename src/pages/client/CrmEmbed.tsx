@@ -23,7 +23,8 @@ export default function CrmEmbed() {
         const { data } = await supabase.auth.getSession();
         const tk = data.session?.access_token;
         if (!tk) { setErr(t("Sessão expirada — recarregue a página.")); return; }
-        setSrc(`${String(crm.crm_url).replace(/\/$/, "")}/?access_token=${encodeURIComponent(tk)}`);
+        // embedded=1 → o wacrm esconde a própria casca e não redireciona entre portas.
+        setSrc(`${String(crm.crm_url).replace(/\/$/, "")}/?embedded=1&access_token=${encodeURIComponent(tk)}`);
       } catch (e: any) { setErr(e?.message || t("Não foi possível abrir o WhatsApp CRM.")); }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
