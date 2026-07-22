@@ -1,16 +1,20 @@
 // ============================================================================
 // DiagnosticoCard — card compacto do "Diagnóstico do site" para a ficha de CLIENTE.
 // Autocarrega a última submissão do /mapa da org; se NÃO houver, não renderiza nada
-// (clientes que nunca fizeram o diagnóstico não veem nada de novo). Ao clicar,
-// abre o Mapa completo (DiagnosticoMapa) num popup — o diagnóstico segue o contato
-// de prospecto até cliente, sempre a um clique.
+// (clientes que nunca fizeram o diagnóstico não veem nada de novo). Ao clicar, abre
+// o Mapa completo (DiagnosticoMapa) num popup.
+//
+// O popup é renderizado via createPortal no <body>: o conteúdo do admin tem ancestrais
+// com backdrop-filter (sidebar/header), o que faria um overlay position:fixed se conter
+// nesse ancestral e a página "vazar" por cima. Portando pro body, o overlay cobre a
+// viewport de verdade e nada vaza. Reusa as classes .modal-overlay/.modal do DS.
 // ============================================================================
 import { useState } from "react";
-import { MapPin, ArrowRight } from "lucide-react";
+import { createPortal } from "react-dom";
+import { MapPin, ArrowRight, X } from "lucide-react";
 import { services as api } from "../../services";
 import { useAsync } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
-import Modal from "../../ui/Modal";
 import DiagnosticoMapa, { fmtDate, band, BAND_COLOR } from "./DiagnosticoMapa";
 
 export default function DiagnosticoCard({ orgId }: { orgId: string }) {
@@ -31,9 +35,19 @@ export default function DiagnosticoCard({ orgId }: { orgId: string }) {
       <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => setOpen(true)}>
         <span className="crasto-btn__label">{t("Ver Mapa completo")}</span><span className="crasto-btn__icon"><ArrowRight size={14} /></span>
       </button>
-      <Modal title={t("Mapa de IA — diagnóstico do site")} open={open} onClose={() => setOpen(false)} wide>
-        <DiagnosticoMapa diag={diag} />
-      </Modal>
+
+      {open && createPortal(
+        <div className="modal-overlay" onClick={() => setOpen(false)}>
+          <div className="modal modal--wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="modal-h">
+              <h3>{t("Mapa de IA — diagnóstico do site")}</h3>
+              <button className="icobtn" onClick={() => setOpen(false)} aria-label={t("Fechar")}><X size={16} /></button>
+            </div>
+            <div className="modal-body"><DiagnosticoMapa diag={diag} /></div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
