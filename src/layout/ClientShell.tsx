@@ -18,8 +18,10 @@ const SCREEN_ICON: Record<string, any> = {
 // Catálogo canônico de módulos (a "Conta Azul" da Crasto.AI). O que o cliente contratou
 // aparece destravado (abre o módulo); o resto aparece com cadeado (upsell → Catálogo).
 // `rx` casa a categoria/nome do módulo contratado com o slot canônico.
-const MODULES: { key: string; label: string; icon: LucideIcon; rx: RegExp }[] = [
-  { key: "crm", label: "WhatsApp CRM", icon: MessageCircle, rx: /atend|crm|whats|convers/i },
+const MODULES: { key: string; label: string; icon: LucideIcon; rx: RegExp; crm?: boolean }[] = [
+  // WhatsApp CRM casa pelo SINAL de ser a solução CRM (crm_url presente), não pelo nome —
+  // o produto pode se chamar "Agente de SDR Autônomo", "Nina", etc. e ainda ser o CRM.
+  { key: "crm", label: "WhatsApp CRM", icon: MessageCircle, rx: /atend|crm|whats|convers|sdr|nina|openclaw/i, crm: true },
   { key: "financeiro", label: "Financeiro", icon: Wallet, rx: /financ|erp financ/i },
   { key: "marketing", label: "Marketing", icon: Megaphone, rx: /market/i },
   { key: "social", label: "Social Media", icon: Share2, rx: /social/i },
@@ -62,6 +64,7 @@ export default function ClientShell() {
         name: (v.name || (r as any).label || "Módulo") as string,
         url: (cred?.access_url || (r as any).crm_url || v.external_url || null) as string | null,
         active: r.status === "active",
+        isCrm: !!(r as any).crm_url, // sinal robusto: é a solução WhatsApp CRM
       };
     });
   }, [pv.active]);
@@ -71,16 +74,17 @@ export default function ClientShell() {
   // ⚠️ useAsync inicia `data` como NULL (não undefined) — blindar contra .find em null.
   const cs: any[] = Array.isArray(contratados) ? contratados : [];
   const modItems: NavItem[] = MODULES.map((m) => {
-    const owned = cs.find((c) => m.rx.test(c.text));
+    // WhatsApp CRM: casa pelo sinal isCrm; demais slots: por categoria/nome.
+    const owned = m.crm ? cs.find((c) => c.isCrm) : cs.find((c) => m.rx.test(c.text));
     if (owned && owned.active && owned.url)
       return { icon: m.icon, label: m.label, section: "Módulos", onClick: () => window.open(owned.url as string, "_blank", "noopener") };
     if (owned && !owned.active)
       return { icon: m.icon, label: m.label, section: "Módulos", tag: t("em breve"), onClick: () => navigate("/app/modulos") };
     return { icon: m.icon, label: m.label, section: "Módulos", locked: true, onClick: () => navigate("/app/catalogo") };
   });
-  // Extras: módulos contratados que NÃO casam com nenhum canônico → aparecem pelo nome real.
+  // Extras: contratados que NÃO são o CRM e NÃO casam com nenhum canônico → pelo nome real.
   for (const c of cs) {
-    if (c.active && c.url && !MODULES.some((m) => m.rx.test(c.text)))
+    if (c.active && c.url && !c.isCrm && !MODULES.some((m) => m.rx.test(c.text)))
       modItems.push({ icon: LayoutGrid, label: c.name, section: "Módulos", onClick: () => window.open(c.url as string, "_blank", "noopener") });
   }
 
