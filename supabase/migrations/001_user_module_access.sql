@@ -21,3 +21,12 @@ create table if not exists delivery.user_module_access (
 create index if not exists idx_uma_user on delivery.user_module_access (user_id);
 create index if not exists idx_uma_org on delivery.user_module_access (organization_id);
 alter table delivery.user_module_access enable row level security;
+
+-- O usuário lê as PRÓPRIAS linhas (o middle-end filtra client-modules/mine com isso);
+-- gravação é via service_role (o controller valida dono/admin).
+drop policy if exists uma_select_own on delivery.user_module_access;
+create policy uma_select_own on delivery.user_module_access for select using (user_id = auth.uid());
+
+-- Privilégio de tabela (RLS controla as linhas; o GRANT libera o acesso à tabela).
+grant select on delivery.user_module_access to authenticated;
+grant select, insert, delete on delivery.user_module_access to service_role;
