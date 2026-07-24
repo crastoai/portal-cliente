@@ -7,12 +7,26 @@ import Modal from "../../ui/Modal";
 import { CLIENT_SCREENS, ALL_SCREEN_KEYS, BASE_SCREEN, allowedScreens } from "../../lib/screens";
 import type { CrmUser } from "../../services/crmAccess.service";
 
-// Permissões & Acessos — por cliente, com busca; o acesso é POR TELA.
-// SEPARAÇÃO DELIBERADA (pedido do Crasto): "Usuários do Portal" e "Usuários do WhatsApp CRM"
-// são DOIS conjuntos distintos. Na maioria dos casos o CRM tem operadores que NÃO estão no
-// Portal — cada sistema é dono das suas telas e da sua lista. Por isso: duas seções, duas
-// listas (cada uma da sua fonte da verdade) e dois popups (um só de telas do Portal, outro
-// só de telas do CRM). Nunca mais um popup de Portal com "um cantinho de CRM".
+// Permissões & Acessos — UMA PESSOA, UMA LINHA (refeito em 24/07/2026).
+//
+// O modelo anterior tinha duas listas ("Usuários do Portal" e "Usuários do WhatsApp CRM"),
+// a pedido do Crasto, e estava CERTO para aquele mundo: eram dois sistemas com duas portas,
+// e o CRM tinha operadores que não existiam no Portal.
+//
+// Essa premissa caiu quando o Portal virou a ÚNICA porta (unificação de domínios, §J do
+// Blueprint v1.1). "Operador que não está no Portal" deixou de ser um caso comum e passou a
+// ser um DEFEITO: netoconnect2@gmail.com operava o CRM da Connect, não tinha empresa no
+// Portal, e ficou sem porta de entrada. Duas listas escondiam isso — a mesma pessoa aparecia
+// duas vezes e ninguém via quem estava só de um lado.
+//
+// Agora: uma pessoa por linha, e o que ela pode fazer é lido em três perguntas —
+//   papel (dono/membro) · telas do Portal · módulos (e, dentro do módulo, as telas dele).
+// "Telas do CRM" não é um terceiro eixo: é o detalhe DENTRO do módulo WhatsApp CRM. Quando
+// entrar Marketing, ele declara as telas dele e esta tela não muda de forma.
+//
+// O que a decisão antiga tinha de bom fica de pé: as telas do Portal e as do CRM NUNCA se
+// misturam numa lista só — são blocos separados, cada um da sua fonte da verdade (o Portal
+// guarda as suas; o CRM guarda as dele, lidas pela ponte /api/crm-access).
 type U = { id: string; full_name: string | null; email: string | null; role: string; last_login: string | null; screens?: string[] };
 type Client = { organization_id: string; name: string; users: U[] };
 type CrmBucket = { loading: boolean; enabled: boolean; users: CrmUser[]; error?: string };
@@ -36,6 +50,27 @@ const crmSummary = (u: CrmUser, t: (k: string, p?: any) => string) => {
   return t("{n} tela(s)", { n });
 };
 
+/** Uma pessoa pode existir no Portal, no CRM, ou nos dois — o e-mail é a identidade. */
+type Pessoa = { chave: string; nome: string; email: string; portal?: U; crm?: CrmUser; online?: boolean; ultimo?: string | null };
+
+/** Junta as duas fontes numa lista só. Quem aparece SEM `portal` é o caso do Neto: opera o
+ *  CRM mas não entra pelo Portal — hoje isso é bloqueio de acesso, e a linha precisa gritar. */
+function unirPessoas(doPortal: U[], doCrm: CrmUser[]): Pessoa[] {
+  const chave = (e?: string | null) => (e || "").trim().toLowerCase();
+  const mapa = new Map<string, Pessoa>();
+  for (const u of doPortal) {
+    const k = chave(u.email);
+    mapa.set(k, { chave: k, nome: u.full_name || u.email || "—", email: u.email || "", portal: u, ultimo: u.last_login });
+  }
+  for (const u of doCrm) {
+    const k = chave(u.email);
+    const p = mapa.get(k);
+    if (p) { p.crm = u; p.online = u.online; }
+    else mapa.set(k, { chave: k, nome: u.full_name || u.email || "—", email: u.email || "", crm: u, online: u.online });
+  }
+  return Array.from(mapa.values()).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+}
+
 export default function ConsolePermissoes() {
   const t = useT();
   const { data, loading, reload } = useAsync(async () => (await services.analytics.admin.accessList()) as any, []);
@@ -53,6 +88,8 @@ export default function ConsolePermissoes() {
   const [cfgCrm, setCfgCrm] = useState<{ user: CrmUser; orgName: string; orgId: string } | null>(null);
   type CrmState = { loading: boolean; hasAccess: boolean; owner: boolean; catalog: { key: string; label: string }[]; screens: Set<string> };
   const [crm, setCrm] = useState<CrmState | null>(null);
+  // Pessoa cujas permissões estão abertas (a janela é uma só, para Portal + módulos).
+  const [alvo, setAlvo] = useState<{ pessoa: Pessoa; orgName: string; orgId: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const totalUsers = platform.length + clients.reduce((s, c) => s + c.users.length, 0);
@@ -93,14 +130,36 @@ export default function ConsolePermissoes() {
     if (k === BASE_SCREEN) return; // Início é base, sempre visível
     setPf((p) => { const s = new Set(p.screens); s.has(k) ? s.delete(k) : s.add(k); return { ...p, screens: s }; });
   }
-  async function savePortal() {
-    if (!cfg) return;
+  // UM popup, UM salvar. Antes eram dois — e quem quisesse ajustar Portal e CRM da mesma
+  // pessoa abria duas janelas e salvava duas vezes, sem nunca ver o conjunto.
+  function abrirPermissoes(pe: Pessoa, orgName: string, orgId: string) {
+    if (pe.portal) configurePortal(pe.portal, orgName, orgId);
+    else setCfg(null);
+    if (pe.crm) configureCrm(pe.crm, orgName, orgId);
+    else { setCfgCrm(null); setCrm(null); }
+    setAlvo({ pessoa: pe, orgName, orgId });
+  }
+  function fecharPermissoes() { setAlvo(null); setCfg(null); setCfgCrm(null); setCrm(null); }
+
+  async function salvarPermissoes() {
+    if (!alvo) return;
     setBusy(true);
     try {
-      const role = pf.owner ? "client_owner" : "client_member";
-      const screens = pf.owner ? [] : Array.from(new Set([BASE_SCREEN, ...pf.screens]));
-      await services.analytics.admin.setUserAccess(cfg.user.id, role, screens);
-      setCfg(null); await reload(); toast.ok(t("Telas do Portal atualizadas ✓"));
+      if (cfg) {
+        const role = pf.owner ? "client_owner" : "client_member";
+        const screens = pf.owner ? [] : Array.from(new Set([BASE_SCREEN, ...pf.screens]));
+        await services.analytics.admin.setUserAccess(cfg.user.id, role, screens);
+      }
+      // Telas do CRM só fazem sentido para quem TEM acesso e não é dono (dono vê tudo lá).
+      if (cfgCrm && crm && !crm.loading && crm.hasAccess && !crm.owner) {
+        const r = await services.crmAccess.setCrmScreens(cfgCrm.orgId, cfgCrm.user.id, Array.from(crm.screens));
+        if (r?.error) throw new Error(r.error);
+      }
+      const orgId = alvo.orgId;
+      fecharPermissoes();
+      await reload();
+      loadCrmUsers(orgId);
+      toast.ok(t("Permissões atualizadas ✓"));
     } catch (e) { toast.err(errorMessage(e)); } finally { setBusy(false); }
   }
 
@@ -118,16 +177,7 @@ export default function ConsolePermissoes() {
     if (k === "dashboard") return; // base do CRM
     setCrm((c) => { if (!c) return c; const s = new Set(c.screens); s.has(k) ? s.delete(k) : s.add(k); return { ...c, screens: s }; });
   }
-  async function saveCrm() {
-    if (!cfgCrm || !crm) return;
-    setBusy(true);
-    try {
-      const r = await services.crmAccess.setCrmScreens(cfgCrm.orgId, cfgCrm.user.id, Array.from(crm.screens));
-      if (r?.error) throw new Error(r.error);
-      const orgId = cfgCrm.orgId;
-      setCfgCrm(null); loadCrmUsers(orgId); toast.ok(t("Telas do CRM atualizadas ✓"));
-    } catch (e) { toast.err(errorMessage(e)); } finally { setBusy(false); }
-  }
+
 
   return (
     <div>
@@ -161,7 +211,8 @@ export default function ConsolePermissoes() {
       {loading ? <Empty>{t("Carregando…")}</Empty> : filtered.length === 0 ? <Empty>{t("Nenhum cliente encontrado.")}</Empty> : filtered.map((c) => {
         const opened = isOpen(c.organization_id);
         const bucket = crmUsers[c.organization_id];
-        const crmList = (bucket?.users ?? []).filter((u) => !query || `${u.full_name || ""} ${u.email || ""}`.toLowerCase().includes(query));
+        const pessoas = unirPessoas(c.users, bucket?.enabled ? (bucket.users ?? []) : [])
+          .filter((pe) => !query || `${pe.nome} ${pe.email}`.toLowerCase().includes(query));
         return (
           <div className="card acccard" key={c.organization_id}>
             <button className="acchead" onClick={() => toggleClient(c.organization_id)}>
@@ -172,101 +223,94 @@ export default function ConsolePermissoes() {
               {bucket?.enabled && <Pill tone="info">{t("{n} no CRM", { n: bucket.users.length })}</Pill>}
             </button>
 
-            {opened && (<>
-              {/* ---- Seção 1: Usuários do PORTAL ---- */}
+            {opened && (
               <div className="permsub">
-                <div className="permsub-h"><LayoutGrid size={14} /><span>{t("Usuários do Portal")}</span><span className="permsub-hint">{t("acesso e telas do Portal do Cliente")}</span></div>
-                {c.users.length === 0
-                  ? <div className="mt permsub-empty">{t("Ninguém acessa o Portal deste cliente ainda.")}</div>
-                  : c.users.map((u) => (
-                    <div className="crmrow accrow" key={u.id}>
-                      <div className="logo" style={{ width: 32, height: 32, fontSize: 12 }}>{initials(u.full_name || u.email || "?")}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}><div className="nm">{u.full_name || "—"}</div><div className="mt">{u.email} · {lastLogin(u.last_login, t)}</div></div>
-                      <Pill tone={u.role === "client_owner" ? "ok" : "mute"}>{accessSummary(u, t)}</Pill>
-                      <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => configurePortal(u, c.name, c.organization_id)}><span className="crasto-btn__icon"><SlidersHorizontal size={14} /></span><span className="crasto-btn__label">{t("Telas do Portal")}</span></button>
+                <div className="permsub-h"><Users size={14} /><span>{t("Pessoas desta empresa")}</span>
+                  <span className="permsub-hint">{t("papel, telas do Portal e módulos — tudo num lugar só")}</span></div>
+                {bucket?.loading && <div className="mt permsub-empty">{t("Carregando…")}</div>}
+                {pessoas.length === 0 && !bucket?.loading && <div className="mt permsub-empty">{t("Ninguém com acesso ainda.")}</div>}
+                {pessoas.map((pe) => (
+                  <div className="crmrow accrow" key={pe.chave}>
+                    <div className="logo" style={{ width: 32, height: 32, fontSize: 12 }}>{initials(pe.nome)}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="nm">{pe.nome}{pe.online ? <span className="dot-online" title={t("online")} /> : null}</div>
+                      <div className="mt">{pe.email}{pe.portal ? ` · ${lastLogin(pe.ultimo ?? null, t)}` : ""}</div>
                     </div>
-                  ))}
-              </div>
-
-              {/* ---- Seção 2: Usuários do WhatsApp CRM (fonte: CRM) ---- */}
-              <div className="permsub">
-                <div className="permsub-h"><MessageSquare size={14} /><span>{t("Usuários do WhatsApp CRM")}</span><span className="permsub-hint">{t("operadores do CRM — muitos não estão no Portal")}</span></div>
-                {bucket?.loading && <div className="mt permsub-empty">{t("Carregando usuários do CRM…")}</div>}
-                {bucket && !bucket.loading && !bucket.enabled && <div className="mt permsub-empty">{bucket.error || t("Este cliente não usa o WhatsApp CRM.")}</div>}
-                {bucket && !bucket.loading && bucket.enabled && crmList.length === 0 && <div className="mt permsub-empty">{t("Nenhum usuário no WhatsApp CRM ainda. Convide em Clientes → Acesso ao CRM.")}</div>}
-                {bucket && !bucket.loading && bucket.enabled && crmList.map((u) => (
-                  <div className="crmrow accrow" key={u.id}>
-                    <div className="logo" style={{ width: 32, height: 32, fontSize: 12 }}>{initials(u.full_name || u.email || "?")}</div>
-                    <div style={{ flex: 1, minWidth: 0 }}><div className="nm">{u.full_name || "—"}{u.online ? <span className="dot-online" title={t("online")} /> : null}</div><div className="mt">{u.email}</div></div>
-                    <Pill tone={u.role === "client_owner" ? "ok" : "mute"}>{crmSummary(u, t)}</Pill>
-                    {u.role === "client_owner"
-                      ? <span className="crasto-btn crasto-btn--sm" style={{ opacity: .5, cursor: "default" }}><span className="crasto-btn__label">{t("Dono")}</span></span>
-                      : <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => configureCrm(u, c.name, c.organization_id)}><span className="crasto-btn__icon"><SlidersHorizontal size={14} /></span><span className="crasto-btn__label">{t("Telas do CRM")}</span></button>}
+                    {/* Sem Portal = sem porta de entrada. Antes ficava escondido numa lista à parte. */}
+                    {!pe.portal
+                      ? <Pill tone="warn">{t("sem acesso ao Portal")}</Pill>
+                      : <Pill tone={pe.portal.role === "client_owner" ? "ok" : "mute"}>{accessSummary(pe.portal, t)}</Pill>}
+                    <Pill tone={pe.crm ? "info" : "mute"}>{pe.crm ? crmSummary(pe.crm, t) : t("sem WhatsApp CRM")}</Pill>
+                    <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => abrirPermissoes(pe, c.name, c.organization_id)}>
+                      <span className="crasto-btn__icon"><SlidersHorizontal size={14} /></span>
+                      <span className="crasto-btn__label">{t("Permissões")}</span>
+                    </button>
                   </div>
                 ))}
               </div>
-            </>)}
+            )}
           </div>
         );
       })}
 
       <div className="note" style={{ marginTop: 8 }}>
         <Lock size={15} />
-        <div>{t("O acesso é por tela, e cada sistema tem a sua lista: telas do Portal (esquerda) e telas do CRM (direita) são independentes. A RLS por organização protege os dados; toda mudança fica em Auditoria & Logs.")}</div>
+        <div>{t("Uma pessoa, uma linha. Sem restrição gravada, ela enxerga tudo o que a empresa contratou — restringir é uma escolha, não o padrão. Telas do Portal e telas de cada módulo têm donos diferentes e nunca se misturam. A RLS por organização é que protege os dados; toda mudança fica em Auditoria & Logs.")}</div>
       </div>
 
-      {/* Popup 1 — telas do PORTAL */}
-      <Modal title={t("Telas do Portal")} open={!!cfg} onClose={() => setCfg(null)}
-        footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setCfg(null)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={savePortal}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar")}</span></button></>}>
-        {cfg && (<>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-            <div className="logo" style={{ width: 36, height: 36, fontSize: 12 }}>{initials(cfg.user.full_name || cfg.user.email || "?")}</div>
-            <div><div className="nm">{cfg.user.full_name || "—"}</div><div className="mt">{cfg.user.email} · {cfg.orgName}</div></div>
+      {/* UMA janela: papel + telas do Portal + módulos. Os blocos NUNCA se misturam — cada um
+          tem a sua fonte da verdade (o Portal guarda as telas dele; o CRM, as dele). */}
+      <Modal title={t("Permissões")} open={!!alvo} onClose={fecharPermissoes}
+        footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={fecharPermissoes}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={salvarPermissoes}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar")}</span></button></>}>
+        {alvo && (<>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+            <div className="logo" style={{ width: 36, height: 36, fontSize: 12 }}>{initials(alvo.pessoa.nome)}</div>
+            <div><div className="nm">{alvo.pessoa.nome}</div><div className="mt">{alvo.pessoa.email} · {alvo.orgName}</div></div>
           </div>
 
-          <div className="accseg">
-            <button className={"accseg-b" + (pf.owner ? " on" : "")} onClick={() => setPf((p) => ({ ...p, owner: true }))}>
-              <div className="t">{t("Dono — acesso total")}</div><div className="s">{t("vê todas as telas e gerencia a empresa")}</div>
-            </button>
-            <button className={"accseg-b" + (!pf.owner ? " on" : "")} onClick={() => setPf((p) => ({ ...p, owner: false }))}>
-              <div className="t">{t("Acesso personalizado")}</div><div className="s">{t("você escolhe as telas abaixo")}</div>
-            </button>
-          </div>
-
-          {!pf.owner && (
-            <div className="screengrid">
-              {CLIENT_SCREENS.map((s) => {
-                const on = s.key === BASE_SCREEN || pf.screens.has(s.key);
-                const base = s.key === BASE_SCREEN;
-                return (
-                  <button key={s.key} className={"screenpick" + (on ? " on" : "") + (base ? " base" : "")} onClick={() => toggleScreen(s.key)} disabled={base} title={base ? t("Início é sempre visível") : ""}>
-                    <span className="box">{on && <Check size={13} />}</span>
-                    <span className="lb">{t(s.label)}{base && <em> · {t("base")}</em>}</span>
-                  </button>
-                );
-              })}
+          {/* ---- Bloco 1: o Portal (papel + telas) ---- */}
+          <div className="permsub-h" style={{ marginBottom: 10 }}><LayoutGrid size={14} /><span>{t("No Portal")}</span></div>
+          {!cfg ? (
+            <div className="note" style={{ marginBottom: 18 }}><Lock size={15} />
+              <div>{t("Esta pessoa opera o WhatsApp CRM mas não tem acesso ao Portal — hoje isso a deixa sem porta de entrada, porque o Portal é o único endereço do cliente. Convide-a em Clientes → Usuários.")}</div>
             </div>
-          )}
-          {pf.owner && <div className="note"><Check size={15} /><div>{t("Este usuário verá todas as telas do portal e poderá gerenciar a empresa.")}</div></div>}
-        </>)}
-      </Modal>
+          ) : (<>
+            <div className="accseg">
+              <button className={"accseg-b" + (pf.owner ? " on" : "")} onClick={() => setPf((p) => ({ ...p, owner: true }))}>
+                <div className="t">{t("Dono — acesso total")}</div><div className="s">{t("vê todas as telas e gerencia a empresa")}</div>
+              </button>
+              <button className={"accseg-b" + (!pf.owner ? " on" : "")} onClick={() => setPf((p) => ({ ...p, owner: false }))}>
+                <div className="t">{t("Acesso personalizado")}</div><div className="s">{t("você escolhe as telas abaixo")}</div>
+              </button>
+            </div>
+            {!pf.owner && (
+              <div className="screengrid">
+                {CLIENT_SCREENS.map((s) => {
+                  const on = s.key === BASE_SCREEN || pf.screens.has(s.key);
+                  const base = s.key === BASE_SCREEN;
+                  return (
+                    <button key={s.key} className={"screenpick" + (on ? " on" : "") + (base ? " base" : "")} onClick={() => toggleScreen(s.key)} disabled={base} title={base ? t("Início é sempre visível") : ""}>
+                      <span className="box">{on && <Check size={13} />}</span>
+                      <span className="lb">{t(s.label)}{base && <em> · {t("base")}</em>}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {pf.owner && <div className="note"><Check size={15} /><div>{t("Este usuário verá todas as telas do portal e poderá gerenciar a empresa.")}</div></div>}
+          </>)}
 
-      {/* Popup 2 — telas do CRM */}
-      <Modal title={t("Telas do WhatsApp CRM")} open={!!cfgCrm} onClose={() => setCfgCrm(null)}
-        footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setCfgCrm(null)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy || !!crm?.loading || (crm ? !crm.hasAccess || crm.owner : true)} onClick={saveCrm}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar")}</span></button></>}>
-        {cfgCrm && (<>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-            <div className="logo" style={{ width: 36, height: 36, fontSize: 12 }}>{initials(cfgCrm.user.full_name || cfgCrm.user.email || "?")}</div>
-            <div><div className="nm">{cfgCrm.user.full_name || "—"}</div><div className="mt">{cfgCrm.user.email} · {cfgCrm.orgName}</div></div>
-          </div>
+          {/* ---- Bloco 2: o módulo WhatsApp CRM (as telas DELE) ---- */}
+          <div className="permsub-h" style={{ margin: "20px 0 10px" }}><MessageSquare size={14} /><span>{t("Módulo · WhatsApp CRM")}</span></div>
+          {!cfgCrm && <div className="mt" style={{ color: "var(--crasto-text-muted)" }}>{t("Sem acesso ao WhatsApp CRM.")}</div>}
           {crm?.loading && <div className="mt">{t("Carregando…")}</div>}
-          {crm && !crm.loading && !crm.hasAccess && (
+          {cfgCrm && crm && !crm.loading && !crm.hasAccess && (
             <div className="mt" style={{ color: "var(--crasto-text-muted)" }}>{t("Este usuário não tem acesso ao WhatsApp CRM.")}</div>
           )}
-          {crm && !crm.loading && crm.hasAccess && crm.owner && (
+          {cfgCrm && crm && !crm.loading && crm.hasAccess && crm.owner && (
             <div className="note"><Check size={15} /><div>{t("Dono do CRM: vê todas as telas do WhatsApp CRM (não é restringível).")}</div></div>
           )}
-          {crm && !crm.loading && crm.hasAccess && !crm.owner && (
+          {cfgCrm && crm && !crm.loading && crm.hasAccess && !crm.owner && (
             <div className="screengrid">
               {crm.catalog.map((sc) => {
                 const on = sc.key === "dashboard" || crm.screens.has(sc.key);
