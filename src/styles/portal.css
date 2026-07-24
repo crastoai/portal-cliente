@@ -52,9 +52,24 @@
 .side-brand-txt .sub { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--crasto-text-faint); margin-top: 3px; }
 
 /* navegação por seções */
-.side-nav { display: flex; flex-direction: column; gap: 16px; overflow-y: auto; flex: 1; padding: 4px 0; }
+.side-nav { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; flex: 1; padding: 4px 0; }
 .navgroup { display: flex; flex-direction: column; gap: 2px; }
 .navsec { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--crasto-text-faint); padding: 2px 12px 6px; }
+
+/* Cabeçalho de categoria CLICÁVEL (colapsa/expande). Herda o tipo do .navsec + a seta. */
+.navsec--btn { display: flex; align-items: center; width: 100%; border: 0; background: transparent; cursor: pointer;
+  padding: 6px 12px; border-radius: var(--crasto-radius-sm, 8px); transition: color .15s, background .15s; }
+.navsec--btn:hover { color: var(--crasto-text-muted); background: var(--crasto-bg-subtle, rgba(1,14,38,.03)); }
+.navsec--btn span { flex: 1; text-align: left; }
+.navsec-chev { flex: none; opacity: .55; transition: transform .2s ease; transform: rotate(-90deg); }
+.navgroup--sec.open .navsec-chev { transform: rotate(0deg); }
+/* Itens da seção: recolhem com transição suave (grid-rows 0fr→1fr anima sem medir altura). */
+.navsec-items { display: grid; grid-template-rows: 0fr; overflow: hidden; transition: grid-template-rows .22s ease; }
+.navgroup--sec.open .navsec-items { grid-template-rows: 1fr; }
+.navsec-items-in { min-height: 0; display: flex; flex-direction: column; gap: 2px; }
+/* Fechada: tira os links do tab do teclado (grid 0fr já os esconde visualmente). */
+.navgroup--sec:not(.open) .navsec-items-in { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { .navsec-items, .navsec-chev { transition: none; } }
 .navlink { display: flex; align-items: center; gap: 11px; padding: 9px 12px; border-radius: var(--crasto-radius-md); font-size: 13.5px; font-weight: 500; color: var(--crasto-text-body); border: 0; background: transparent; width: 100%; text-align: left; transition: background .16s ease, color .16s ease; }
 .navlink svg { opacity: .65; flex-shrink: 0; }
 .navlink-lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

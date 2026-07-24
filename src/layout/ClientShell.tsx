@@ -108,12 +108,23 @@ export default function ClientShell() {
     if (scr && !allowed.has(scr.key)) navigate("/app", { replace: true });
   }, [location.pathname, myScreens]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Categorias do sidebar do cliente (colapsáveis, com seta — igual ao admin). Início fica no
+  // topo, sem categoria (sempre visível). O resto entra numa das seções abaixo.
+  const SECAO: Record<string, string | undefined> = {
+    inicio: undefined,                      // topo, sempre visível
+    modulos: "Acompanhamento", implementacao: "Acompanhamento", solucoes: "Acompanhamento",
+    financeiro: "Conta", usuarios: "Conta", perfil: "Conta",
+    suporte: "Ajuda",
+  };
+  const telas = CLIENT_SCREENS
+    .filter((s) => allowed.has(s.key))
+    .filter((s) => s.key !== "implementacao" || !implDone)
+    .map((s) => ({ to: s.to, end: s.key === "inicio", icon: SCREEN_ICON[s.key], label: s.label, section: SECAO[s.key] }));
+  // Ordem: Início (topo) → Módulos (uso diário) → Acompanhamento → Conta → Ajuda.
   const nav: NavItem[] = [
-    ...CLIENT_SCREENS
-      .filter((s) => allowed.has(s.key))
-      .filter((s) => s.key !== "implementacao" || !implDone)
-      .map((s) => ({ to: s.to, end: s.key === "inicio", icon: SCREEN_ICON[s.key], label: s.label })),
+    ...telas.filter((s) => s.to === "/app"),
     ...modItems,
+    ...telas.filter((s) => s.to !== "/app"),
   ];
 
   function exitPreview() {

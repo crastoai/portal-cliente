@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { LogOut, Menu, X, Camera, Lock, ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
+import { LogOut, Menu, X, Camera, Lock, ChevronLeft, ChevronRight, ChevronDown, type LucideIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { services } from "../services";
 import ThemeToggle from "../ui/ThemeToggle";
@@ -55,6 +55,42 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
     else last.items.push(n);
   }
 
+  // CATEGORIAS COLAPSÁVEIS. Item SEM seção = navegação primária, sempre visível no topo
+  // (a home). Item COM seção = sob um cabeçalho clicável com seta. Preferência por seção
+  // persistida; a seção da rota ATIVA reabre sozinha ao navegar (senão o item ativo sumiria).
+  const [secOpen, setSecOpen] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem("portal.nav.open") || "{}"); } catch { return {}; }
+  });
+  const toggleSec = (s: string) => setSecOpen((o) => {
+    const next = { ...o, [s]: !(o[s] ?? true) };
+    try { localStorage.setItem("portal.nav.open", JSON.stringify(next)); } catch { /* storage cheio: só não persiste */ }
+    return next;
+  });
+  const secDaRota = (items: NavItem[]) => items.some((n) => n.to && (n.to === "/app" || n.to === "/admin" ? pathname === n.to : pathname.startsWith(n.to)));
+  // Ao NAVEGAR, garante que a seção da rota ativa esteja aberta (mas o usuário pode fechá-la depois).
+  useEffect(() => {
+    const alvo = groups.find((g) => g.section && secDaRota(g.items));
+    if (alvo?.section && secOpen[alvo.section] === false)
+      setSecOpen((o) => ({ ...o, [alvo.section!]: true }));
+  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const renderItem = (n: NavItem) => {
+    const inner = <><n.icon size={17} /> <span className="navlink-lbl">{t(n.label)}</span>
+      {n.locked ? <Lock size={13} className="navlink-lock" /> : n.tag ? <span className="tag">{n.tag}</span> : null}</>;
+    if (n.locked) return (
+      <button key={n.label} type="button" className="navlink navlink--locked" title={t("Módulo não contratado — fale com a Crasto.AI para liberar")} onClick={() => { setOpen(false); n.onClick?.(); }}>{inner}</button>
+    );
+    if (!n.to && n.onClick) return (
+      <button key={n.label} type="button" className="navlink" onClick={() => { setOpen(false); n.onClick?.(); }}>{inner}</button>
+    );
+    return (
+      <NavLink key={n.to} to={n.to!} end={n.end} onClick={() => setOpen(false)} className={({ isActive }) => {
+        const match = isActive || (n.to === "/admin/clientes" && pathname.startsWith("/admin/cliente/"));
+        return "navlink" + (match ? " on" : "");
+      }}>{inner}</NavLink>
+    );
+  };
+
   const userCluster = (
     <>
       <button type="button" className="tb-av su-av--btn" title={t("Trocar foto de perfil")} disabled={avBusy} onClick={() => avInput.current?.click()} style={!profile?.avatar_url && logoTone ? { background: logoTone } : undefined}>
@@ -83,29 +119,23 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
         </div>
 
         <nav className="side-nav">
-          {groups.map((g, gi) => (
-            <div className="navgroup" key={gi}>
-              {g.section && <div className="navsec">{t(g.section)}</div>}
-              {g.items.map((n) => {
-                const inner = <><n.icon size={17} /> <span className="navlink-lbl">{t(n.label)}</span>
-                  {n.locked ? <Lock size={13} className="navlink-lock" /> : n.tag ? <span className="tag">{n.tag}</span> : null}</>;
-                // Módulo bloqueado (não contratado) → botão com cadeado + upsell.
-                if (n.locked) return (
-                  <button key={n.label} type="button" className="navlink navlink--locked" title={t("Módulo não contratado — fale com a Crasto.AI para liberar")} onClick={() => { setOpen(false); n.onClick?.(); }}>{inner}</button>
-                );
-                // Ação (abrir módulo externo/SSO) sem rota interna.
-                if (!n.to && n.onClick) return (
-                  <button key={n.label} type="button" className="navlink" onClick={() => { setOpen(false); n.onClick?.(); }}>{inner}</button>
-                );
-                return (
-                  <NavLink key={n.to} to={n.to!} end={n.end} onClick={() => setOpen(false)} className={({ isActive }) => {
-                    const match = isActive || (n.to === "/admin/clientes" && pathname.startsWith("/admin/cliente/"));
-                    return "navlink" + (match ? " on" : "");
-                  }}>{inner}</NavLink>
-                );
-              })}
-            </div>
-          ))}
+          {groups.map((g, gi) => {
+            // Sem seção → navegação primária, direta (sem cabeçalho, sem colapso).
+            if (!g.section) return <div className="navgroup" key={gi}>{g.items.map(renderItem)}</div>;
+            // Com a sidebar recolhida (só ícones) o colapso de seção não faz sentido: mostra tudo.
+            const aberta = collapsed || (secOpen[g.section] ?? true);
+            return (
+              <div className={"navgroup navgroup--sec" + (aberta ? " open" : "")} key={gi}>
+                <button type="button" className="navsec navsec--btn" aria-expanded={aberta} onClick={() => toggleSec(g.section!)}>
+                  <span>{t(g.section)}</span>
+                  <ChevronDown size={14} className="navsec-chev" />
+                </button>
+                {/* Itens sempre no DOM (para a seta animar); o CSS colapsa a altura e o
+                    `visibility:hidden` tira os links fechados do tab do teclado. */}
+                <div className="navsec-items"><div className="navsec-items-in">{g.items.map(renderItem)}</div></div>
+              </div>
+            );
+          })}
         </nav>
       </aside>
 
