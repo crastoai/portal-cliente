@@ -12,6 +12,8 @@ type Mod = {
   external_url: string | null; cred: Cred | null;
   /** link (nova aba) | embed (dentro do Portal) | sso (embed com sessao propria) */
   access_mode?: string | null;
+  /** É a solução WhatsApp CRM → abre DENTRO do portal (/app/crm, com seletor de agente). */
+  isCrm: boolean;
 };
 type Svc = { id: string; status: string; name: string; description: string | null; category: string | null; unit: string | null };
 
@@ -30,7 +32,7 @@ async function fetchData(): Promise<{ mods: Mod[]; services: Svc[] }> {
     const cred = (cmap[r.id] as Cred) ?? null;
     // Ordem: URL desta instância → WhatsApp CRM (a API resolve; é a mesma p/ todos) → template.
     const url = cred?.access_url || ((r as any).crm_url as string) || (vmap[r.vdi_module_id]?.external_url as string) || null;
-    return { id: r.id, status: r.status, vdi_module_id: r.vdi_module_id, label: (r as any).label ?? null, access_mode: (r as any).access_mode ?? "link", vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null, external_url: url, cred };
+    return { id: r.id, status: r.status, vdi_module_id: r.vdi_module_id, label: (r as any).label ?? null, access_mode: (r as any).access_mode ?? "link", isCrm: !!(r as any).crm_url, vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null, external_url: url, cred };
   });
   // Nome/descrição vêm desnormalizados na própria client_services (catalog.services é admin-only).
   const svcList: Svc[] = (csvc as any[]).map((c) => ({
@@ -109,9 +111,12 @@ export default function Modulos() {
                             `link` mantém a nova aba de sempre, para o que não foi migrado. */}
                         <button
                           className="crasto-btn crasto-btn--primary crasto-btn--sm"
-                          disabled={!m.external_url}
-                          title={m.external_url ? t("Abrir a solução") : t("Link em configuração")}
+                          disabled={!m.isCrm && !m.external_url}
+                          title={m.isCrm || m.external_url ? t("Abrir a solução") : t("Link em configuração")}
                           onClick={() => {
+                            // WhatsApp CRM: SEMPRE dentro do portal (/app/crm → seletor de agente + embed
+                            // com o usuário logado). Nunca abrir URL externa em nova aba.
+                            if (m.isCrm) { navigate("/app/crm"); return; }
                             if (!m.external_url) return;
                             if (m.access_mode === "embed" || m.access_mode === "sso") navigate(`/app/m/${m.id}`);
                             else window.open(m.external_url, "_blank", "noopener");

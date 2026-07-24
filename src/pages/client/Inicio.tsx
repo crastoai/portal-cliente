@@ -11,7 +11,7 @@ import { allowedScreens } from "../../lib/screens";
 
 type Health = { status: "green" | "amber" | "red"; message: string | null };
 type Impl = { overall_progress: number; due_date: string | null; status: string };
-type Mod = { id: string; status: string; url: string | null; rollout_progress: number; label: string | null; monthly_cost: number | null; setup_cost: number | null; contract_date: string | null; vdi: { name: string; description: string | null; category: string | null } | null };
+type Mod = { id: string; status: string; url: string | null; rollout_progress: number; label: string | null; monthly_cost: number | null; setup_cost: number | null; contract_date: string | null; isCrm: boolean; mode: string; vdi: { name: string; description: string | null; category: string | null } | null };
 
 const ICONS: Record<string, JSX.Element> = {
   default: <Search />, whatsapp: <MessageCircle />, marketing: <Send />,
@@ -90,7 +90,7 @@ export default function Inicio() {
         const cred = cmap[r.id]; // acesso por instância
         const url = cred?.access_url || vmap[r.vdi_module_id]?.external_url || null;
         const numOrNull = (v: any) => (v == null || v === "" ? null : Number(v));
-        return { id: r.id, status: r.status, url, rollout_progress: (r as any).rollout_progress ?? 0, label: (r as any).label ?? null, monthly_cost: numOrNull((r as any).monthly_cost), setup_cost: numOrNull((r as any).setup_cost), contract_date: (r as any).contract_date ?? null, vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null };
+        return { id: r.id, status: r.status, url, rollout_progress: (r as any).rollout_progress ?? 0, label: (r as any).label ?? null, monthly_cost: numOrNull((r as any).monthly_cost), setup_cost: numOrNull((r as any).setup_cost), contract_date: (r as any).contract_date ?? null, isCrm: !!(r as any).crm_url, mode: (r as any).access_mode || "link", vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null };
       }));
       setLoading(false);
     })();
@@ -138,6 +138,14 @@ export default function Inicio() {
   const [tab, setTab] = useState<"solucoes" | "minhas" | "negocios">("solucoes");
   // Abrir o contrato de prestação de serviço (documento subido pelo admin) — URL assinada do R2.
   const [abrindoContrato, setAbrindoContrato] = useState(false);
+  // Abrir uma solução: o WhatsApp CRM abre DENTRO do portal (/app/crm → seletor de agente +
+  // embed, sessão do usuário logado), módulos embed/sso também embarcam; só link externo real
+  // abre em nova aba. Nunca mandar o CRM para uma URL externa.
+  const abrirSolucao = (m: Mod) => {
+    if (m.isCrm) { navigate("/app/crm"); return; }
+    if (m.mode === "embed" || m.mode === "sso") { navigate(`/app/m/${m.id}`); return; }
+    if (m.url) window.open(m.url, "_blank", "noopener");
+  };
   const abrirContrato = async () => {
     const path = self?.contract_doc?.storage_path; if (!path) return;
     setAbrindoContrato(true);
@@ -343,7 +351,7 @@ export default function Inicio() {
                       <span className={"pill " + st}><span className="d" />{stl}</span>
                       <div style={{ display: "flex", gap: 8 }}>
                         <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setDetMod(m)}><span className="crasto-btn__label">{t("Detalhes")}</span></button>
-                        <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={!m.url} title={m.url ? t("Abrir a solução") : t("Link em configuração")} onClick={() => m.url && window.open(m.url, "_blank", "noopener")}><span className="crasto-btn__label">{t("Acessar")}</span></button>
+                        <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={!m.isCrm && !m.url} title={m.isCrm || m.url ? t("Abrir a solução") : t("Link em configuração")} onClick={() => abrirSolucao(m)}><span className="crasto-btn__label">{t("Acessar")}</span></button>
                       </div>
                     </div>
                   </div>
