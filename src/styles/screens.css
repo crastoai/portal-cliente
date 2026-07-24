@@ -633,3 +633,37 @@
   70%  { box-shadow: 0 0 0 6px rgba(31,138,91,0); }
   100% { box-shadow: 0 0 0 0 rgba(31,138,91,0); }
 }
+
+/* ── Permissões & Acessos · master-detail (escala a 100+ clientes) ───────────── */
+.permchips { display: inline-flex; gap: 4px; margin-left: auto; background: var(--crasto-bg-subtle, rgba(1,14,38,.04)); padding: 3px; border-radius: 999px; }
+.permchip { border: 0; background: transparent; padding: 5px 13px; border-radius: 999px; font-size: 12.5px; font-weight: 500; color: var(--crasto-text-muted); cursor: pointer; transition: background .15s, color .15s; }
+.permchip:hover { color: var(--crasto-text-primary); }
+.permchip.on { background: var(--crasto-navy, #010E26); color: #fff; }
+
+.permlayout { display: grid; grid-template-columns: minmax(240px, 320px) 1fr; gap: 16px; align-items: start; }
+.permlist { display: flex; flex-direction: column; gap: 4px; max-height: 620px; overflow-y: auto; padding-right: 4px; }
+.permlist-item { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md); background: var(--crasto-surface); cursor: pointer; transition: border-color .15s, background .15s; text-align: left; }
+.permlist-item:hover { border-color: var(--crasto-border, rgba(1,14,38,.16)); }
+.permlist-item.on { border-color: var(--crasto-navy, #010E26); box-shadow: inset 2px 0 0 var(--crasto-navy, #010E26); background: var(--crasto-glass-card, #fff); }
+.permlist-item .nm { font-weight: 600; color: var(--crasto-text-primary); font-size: 13px; }
+.permlist-item .mt { font-size: 11px; color: var(--crasto-text-muted); }
+.permlist-empty { padding: 18px 12px; color: var(--crasto-text-muted); font-size: 13px; }
+
+.permdetail { border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-lg, 16px); background: var(--crasto-surface); padding: 16px 18px; min-height: 320px; }
+.permdetail-h { display: flex; align-items: center; gap: 12px; padding-bottom: 14px; margin-bottom: 12px; border-bottom: 1px solid var(--crasto-border-soft); }
+.permdetail-h h3 { font-size: 16px; color: var(--crasto-text-primary); }
+.permdetail-h .mt { font-size: 12px; color: var(--crasto-text-muted); margin-top: 2px; }
+.permdetail-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 280px; color: var(--crasto-text-muted); text-align: center; padding: 20px; }
+.permdetail-empty p { max-width: 280px; font-size: 13.5px; line-height: 1.55; }
+
+@media (prefers-color-scheme: dark) {
+  .permchips { background: rgba(255,255,255,.05); }
+  .permchip.on { background: #fff; color: var(--crasto-navy, #010E26); }
+  .permlist-item.on { background: rgba(255,255,255,.04); }
+}
+/* Empilha no mobile: lista vira faixa horizontal rolável, detalhe embaixo. */
+@media (max-width: 860px) {
+  .permlayout { grid-template-columns: 1fr; }
+  .permlist { flex-direction: row; max-height: none; overflow-x: auto; padding-bottom: 6px; }
+  .permlist-item { flex: 0 0 auto; min-width: 180px; }
+}

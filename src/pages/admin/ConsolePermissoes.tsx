@@ -96,16 +96,17 @@ export default function ConsolePermissoes() {
   const [convite, setConvite] = useState<{ orgId: string; orgName: string } | null>(null);
   const [cf, setCf] = useState({ email: "", full_name: "", role: "client_member" });
   const [cErr, setCErr] = useState<string | null>(null);
-  // Foco vindo do detalhe do cliente (?org=...): abre e rola até aquele cliente.
+  // Master-detail: um cliente selecionado por vez (escala a 100+ — a lista faz scroll e só
+  // o CRM do selecionado carrega). `fchip` = filtro rápido por situação de acesso.
+  const [sel, setSel] = useState<string | null>(null);
+  const [fchip, setFchip] = useState<"todos" | "com" | "sem">("todos");
+  function selecionar(orgId: string) { setSel(orgId); if (!crmUsers[orgId]) loadCrmUsers(orgId); }
+  // Foco vindo do detalhe do cliente (?org=...): seleciona aquele cliente.
   const [sp] = useSearchParams();
   const focoOrg = sp.get("org");
   const focoRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (!focoOrg || loading) return;
-    setOpen((o) => ({ ...o, [focoOrg]: true }));
-    if (!crmUsers[focoOrg]) loadCrmUsers(focoOrg);
-    const el = focoRef.current;
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (focoOrg && !loading) selecionar(focoOrg);
   }, [focoOrg, loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function convidar() {
@@ -242,62 +243,86 @@ export default function ConsolePermissoes() {
         </div>
       ))}
 
-      {/* Por cliente — colapsável + busca. Dentro: DUAS seções separadas (Portal / CRM). */}
-      <div className="sec-h" style={{ marginTop: 22 }}><h2>{t("Acessos por cliente")}</h2></div>
-      {loading ? <Empty>{t("Carregando…")}</Empty> : filtered.length === 0 ? <Empty>{t("Nenhum cliente encontrado.")}</Empty> : filtered.map((c) => {
-        const opened = isOpen(c.organization_id);
-        const bucket = crmUsers[c.organization_id];
-        const pessoas = unirPessoas(c.users, bucket?.enabled ? (bucket.users ?? []) : [])
-          .filter((pe) => !query || `${pe.nome} ${pe.email}`.toLowerCase().includes(query));
-        return (
-          <div className="card acccard" key={c.organization_id} ref={c.organization_id === focoOrg ? focoRef : undefined}>
-            <button className="acchead" onClick={() => toggleClient(c.organization_id)}>
-              {opened ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-              <div className="logo" style={{ width: 30, height: 30, fontSize: 11 }}>{initials(c.name)}</div>
-              <h3 style={{ margin: 0, flex: 1, textAlign: "left" }}>{c.name}</h3>
-              <Pill tone="mute">{t("{n} no Portal", { n: c.users.length })}</Pill>
-              {bucket?.enabled && <Pill tone="info">{t("{n} no CRM", { n: bucket.users.length })}</Pill>}
-            </button>
+      {/* Acessos por cliente — MASTER-DETAIL (escala a 100+): lista buscável à esquerda,
+          pessoas do cliente selecionado à direita. Só o CRM do selecionado é carregado. */}
+      <div className="sec-h" style={{ marginTop: 22 }}><h2>{t("Acessos por cliente")}</h2>
+        <div className="permchips">
+          {([["todos", t("Todos")], ["com", t("Com acesso")], ["sem", t("Sem acesso")]] as const).map(([k, lb]) => (
+            <button key={k} className={"permchip" + (fchip === k ? " on" : "")} onClick={() => setFchip(k)}>{lb}</button>
+          ))}
+        </div>
+      </div>
 
-            {opened && (
-              <div className="permsub">
-                <div className="permsub-h"><Users size={14} /><span>{t("Pessoas desta empresa")}</span>
-                  <span className="permsub-hint">{t("papel, telas do Portal e módulos — tudo num lugar só")}</span>
-                  <button className="crasto-btn crasto-btn--primary crasto-btn--sm" style={{ marginLeft: "auto" }}
-                    onClick={() => { setCErr(null); setCf({ email: "", full_name: "", role: "client_member" }); setConvite({ orgId: c.organization_id, orgName: c.name }); }}>
-                    <span className="crasto-btn__icon"><UserPlus size={14} /></span><span className="crasto-btn__label">{t("Convidar")}</span>
-                  </button></div>
-                {bucket?.loading && <div className="mt permsub-empty">{t("Carregando…")}</div>}
-                {pessoas.length === 0 && !bucket?.loading && <div className="mt permsub-empty">{t("Ninguém com acesso ainda.")}</div>}
-                {pessoas.map((pe) => (
-                  <div className="crmrow accrow" key={pe.chave}>
-                    <div className="logo" style={{ width: 32, height: 32, fontSize: 12 }}>{initials(pe.nome)}</div>
+      {loading ? <Empty>{t("Carregando…")}</Empty> : (() => {
+        const lista = filtered.filter((c) => fchip === "com" ? c.users.length > 0 : fchip === "sem" ? c.users.length === 0 : true);
+        const cliente = lista.find((c) => c.organization_id === sel) || null;
+        return (
+          <div className="permlayout">
+            {/* Esquerda: lista compacta e buscável */}
+            <div className="permlist">
+              {lista.length === 0 ? <div className="permlist-empty">{t("Nenhum cliente encontrado.")}</div> : lista.map((c) => (
+                <button key={c.organization_id} className={"permlist-item" + (c.organization_id === (cliente?.organization_id) ? " on" : "")}
+                  onClick={() => selecionar(c.organization_id)}>
+                  <div className="logo" style={{ width: 30, height: 30, fontSize: 11, flex: "none" }}>{initials(c.name)}</div>
+                  <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                    <div className="nm" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
+                    <div className="mt">{c.users.length > 0 ? t("{n} no Portal", { n: c.users.length }) : t("sem acesso")}</div>
+                  </div>
+                  <ChevronRight size={15} style={{ opacity: .4, flex: "none" }} />
+                </button>
+              ))}
+            </div>
+
+            {/* Direita: detalhe do cliente selecionado */}
+            <div className="permdetail">
+              {!cliente ? (
+                <div className="permdetail-empty"><Users size={26} style={{ opacity: .3 }} /><p>{t("Escolha um cliente à esquerda para ver e gerenciar as pessoas.")}</p></div>
+              ) : (() => {
+                const c = cliente;
+                const bucket = crmUsers[c.organization_id];
+                const pessoas = unirPessoas(c.users, bucket?.enabled ? (bucket.users ?? []) : [])
+                  .filter((pe) => !query || `${pe.nome} ${pe.email}`.toLowerCase().includes(query));
+                return (<>
+                  <div className="permdetail-h">
+                    <div className="logo" style={{ width: 34, height: 34, fontSize: 12 }}>{initials(c.name)}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="nm">{pe.nome}{pe.online ? <span className="dot-online" title={t("online")} /> : null}</div>
-                      <div className="mt">{pe.email}{pe.portal ? ` · ${lastLogin(pe.ultimo ?? null, t)}` : ""}</div>
+                      <h3 style={{ margin: 0 }}>{c.name}</h3>
+                      <div className="mt">{t("{n} no Portal", { n: c.users.length })}{bucket?.enabled ? ` · ${t("{n} no CRM", { n: bucket.users.length })}` : ""}</div>
                     </div>
-                    {/* Sem Portal = sem porta de entrada. Antes ficava escondido numa lista à parte. */}
-                    {!pe.portal
-                      ? <Pill tone="warn">{t("sem acesso ao Portal")}</Pill>
-                      : <Pill tone={pe.portal.role === "client_owner" ? "ok" : "mute"}>{accessSummary(pe.portal, t)}</Pill>}
-                    <Pill tone={pe.crm ? "info" : "mute"}>{pe.crm ? crmSummary(pe.crm, t) : t("sem WhatsApp CRM")}</Pill>
-                    {pe.portal && (
-                      <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} title={t("Reenvia o link de acesso (não redefine a senha atual)")}
-                        onClick={() => reenviar(pe)}>
-                        <span className="crasto-btn__icon"><RefreshCw size={13} /></span><span className="crasto-btn__label">{t("Reenviar")}</span>
-                      </button>
-                    )}
-                    <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => abrirPermissoes(pe, c.name, c.organization_id)}>
-                      <span className="crasto-btn__icon"><SlidersHorizontal size={14} /></span>
-                      <span className="crasto-btn__label">{t("Permissões")}</span>
+                    <button className="crasto-btn crasto-btn--primary crasto-btn--sm"
+                      onClick={() => { setCErr(null); setCf({ email: "", full_name: "", role: "client_member" }); setConvite({ orgId: c.organization_id, orgName: c.name }); }}>
+                      <span className="crasto-btn__icon"><UserPlus size={14} /></span><span className="crasto-btn__label">{t("Convidar")}</span>
                     </button>
                   </div>
-                ))}
-              </div>
-            )}
+                  {bucket?.loading && <div className="mt permsub-empty">{t("Carregando…")}</div>}
+                  {pessoas.length === 0 && !bucket?.loading && <div className="mt permsub-empty">{t("Ninguém com acesso ainda.")}</div>}
+                  {pessoas.map((pe) => (
+                    <div className="crmrow accrow" key={pe.chave}>
+                      <div className="logo" style={{ width: 32, height: 32, fontSize: 12 }}>{initials(pe.nome)}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="nm">{pe.nome}{pe.online ? <span className="dot-online" title={t("online")} /> : null}</div>
+                        <div className="mt">{pe.email}{pe.portal ? ` · ${lastLogin(pe.ultimo ?? null, t)}` : ""}</div>
+                      </div>
+                      {!pe.portal
+                        ? <Pill tone="warn">{t("sem acesso ao Portal")}</Pill>
+                        : <Pill tone={pe.portal.role === "client_owner" ? "ok" : "mute"}>{accessSummary(pe.portal, t)}</Pill>}
+                      <Pill tone={pe.crm ? "info" : "mute"}>{pe.crm ? crmSummary(pe.crm, t) : t("sem WhatsApp CRM")}</Pill>
+                      {pe.portal && (
+                        <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} title={t("Reenvia o link de acesso (não redefine a senha atual)")} onClick={() => reenviar(pe)}>
+                          <span className="crasto-btn__icon"><RefreshCw size={13} /></span><span className="crasto-btn__label">{t("Reenviar")}</span>
+                        </button>
+                      )}
+                      <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => abrirPermissoes(pe, c.name, c.organization_id)}>
+                        <span className="crasto-btn__icon"><SlidersHorizontal size={14} /></span><span className="crasto-btn__label">{t("Permissões")}</span>
+                      </button>
+                    </div>
+                  ))}
+                </>);
+              })()}
+            </div>
           </div>
         );
-      })}
+      })()}
 
       <div className="note" style={{ marginTop: 8 }}>
         <Lock size={15} />
