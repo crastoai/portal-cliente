@@ -16,6 +16,21 @@ const ICONS: Record<string, JSX.Element> = {
   default: <Search />, whatsapp: <MessageCircle />, marketing: <Send />,
 };
 
+type Tom = "green" | "amber" | "red" | "mute" | null;
+// Cabeçalho de seção unificado — título + FAROL da seção (dado real) + legenda opcional à direita.
+// mute = seção informativa (sem afirmação de saúde); green/amber/red = health check real.
+function SecHead({ title, tom = null, caption, icon }: { title: string; tom?: Tom; caption?: string; icon?: JSX.Element }) {
+  return (
+    <div className="sec-h">
+      <h2 style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {tom && <span className={"scopedot " + tom} title={tom === "green" ? "OK" : tom === "amber" ? "Atenção" : tom === "red" ? "Crítico" : ""} />}
+        {icon}{title}
+      </h2>
+      {caption && <small style={{ color: "var(--crasto-text-muted)", fontSize: 12 }}>{caption}</small>}
+    </div>
+  );
+}
+
 export default function Inicio() {
   const { profile } = useAuth();
   const t = useT();
@@ -85,6 +100,9 @@ export default function Inicio() {
   };
   const piorDe = (tons: string[]) => tons.includes("red") ? "red" : tons.includes("amber") ? "amber" : "green";
   const farolSolucoes = itensEscopo.length ? piorDe(itensEscopo.map(tomDoItem)) : null;
+  // Conta REAL de soluções operando / total no escopo (módulos + serviços) — o KPI "Soluções
+  // ativas" passa a bater com a lista de escopo logo abaixo (antes contava só client_modules).
+  const escopoAtivos = itensEscopo.filter((it) => tomDoItem(it) === "green").length;
   // Combina com o health que o admin tiver registrado (se houver); sem nada, cai no farol das
   // soluções; sem soluções, "—" honesto em vez de verde inventado.
   const lit: "green" | "amber" | "red" | null = health?.status
@@ -103,6 +121,13 @@ export default function Inicio() {
   ].filter(Boolean).join(" · ");
 
   const [slaOpen, setSlaOpen] = useState(false);
+
+  // Farol da EQUIPE (RH) — real: ninguém acessou = vermelho; alguém nunca acessou = âmbar;
+  // todos já acessaram = verde. Nada inventado (deriva de user_sessions).
+  const acessos = team?.rows?.filter((u) => u.minutos > 0).length ?? 0;
+  const equipeTom: Tom = !team?.rows?.length ? null : acessos === 0 ? "red" : acessos < team.rows.length ? "amber" : "green";
+  // Farol do CONTRATO = situação financeira real (faturas). Separado do farol das SOLUÇÕES.
+  const contratoTom: Tom = fin ? (fin.status as Tom) : null;
 
   return (
     <div>
@@ -130,18 +155,64 @@ export default function Inicio() {
         </div>
       </div>
 
-      {/* KPIs (3): implantação real, soluções ativas com SUBCATEGORIA, contrato de suporte/SLA.
-          O antigo card "Suporte · Ativo" saiu — era texto fixo (o farol já diz que está no ar). */}
+      {/* KPIs (3): implantação (abre o histórico), soluções ativas (bate com o escopo abaixo),
+          contrato de suporte/SLA. */}
       <div className="kpis kpis--3">
         <button className="kpi g ckpi" onClick={() => setImplOpen(true)}><div className="lab">{t("Implantação")}</div><div className="val">{overall}<small>%</small></div><div className="delta">{implEvents.length ? <>{t("ver histórico")} <ArrowRight size={11} /></> : overall >= 100 ? t("Entregue") : t("Em andamento")}</div></button>
-        <div className="kpi"><div className="lab">{t("Soluções ativas")}</div><div className="val">{mods.filter(m => m.status === "active").length}<small> / {mods.length}</small></div><div className="delta">{tiposAtivos || t("no seu plano")}</div></div>
+        <div className="kpi"><div className="lab">{t("Soluções ativas")}</div><div className="val">{escopoAtivos}<small> / {itensEscopo.length}</small></div><div className="delta">{tiposAtivos || t("no seu plano")}</div></div>
         <button className="kpi ckpi" onClick={() => setSlaOpen(true)}><div className="lab">{t("Contrato de suporte")}</div><div className="val" style={{ fontSize: 20 }}>{overall >= 100 ? t("SLA 48h") : daysLeft != null ? t("{n} dias", { n: daysLeft }) : t("SLA 48h")}</div><div className="delta">{overall >= 100 ? t("saber mais") : t("prazo de implantação")} <ArrowRight size={11} /></div></button>
       </div>
 
-      {/* Seu contrato — health-check financeiro */}
+      {/* ═══ SUAS SOLUÇÕES ═══ health check das soluções implementadas (farol próprio). */}
+      <div className="scopebox">
+        <div className="scopehead"><div>{farolSolucoes && <span className={"scopedot " + farolSolucoes} />}<Activity size={17} /><span>{t("Escopo e situação das soluções")}</span></div><small>{t("Health check das soluções — dado real do contrato e da implantação")}</small></div>
+        <div className="scopelist">
+          {itensEscopo.length === 0 ? (
+            <div className="scopeempty">{t("Nenhuma solução vinculada ao contrato ainda.")}</div>
+          ) : itensEscopo.map((item: any, idx: number) => {
+            const raw = String(item.rollout_status || item.status || "").toLowerCase();
+            const tone = raw === "active" || raw === "done" || raw === "green" ? "green" : raw === "paused" || raw === "red" ? "red" : "amber";
+            const label = tone === "green" ? t("Operando") : tone === "red" ? t("Atenção") : t("Em implantação");
+            return <div className="scoperow" key={`${item.id || idx}-${idx}`}><span className={`scopedot ${tone}`} /><div><strong>{item.name || t("Solução contratada")}</strong>{item.description && <small>{item.description}</small>}</div><span className={`scopepill ${tone}`}>{label}</span></div>;
+          })}
+        </div>
+      </div>
+
+      {/* Minhas soluções — os módulos que o cliente abre (agrupado com o escopo, mesmo farol). */}
+      <SecHead title={t("Minhas soluções")} tom={farolSolucoes as Tom} caption={mods.length ? t("Clique em Acessar para abrir cada solução") : undefined} />
+      {loading ? (
+        <div className="empty">{t("Carregando…")}</div>
+      ) : mods.length === 0 ? (
+        <div className="empty"><p><strong>{t("Nenhuma solução ativa ainda.")}</strong> {t("Assim que a Crasto.AI liberar suas soluções, elas aparecem aqui.")}</p></div>
+      ) : (
+        <div className="mods">
+          {mods.map((m) => {
+            const cat = (m.vdi?.category || "").toLowerCase();
+            const icon = cat.includes("atend") ? ICONS.whatsapp : cat.includes("market") ? ICONS.marketing : ICONS.default;
+            const st = m.status === "active" ? "ok" : m.status === "implementing" ? "warn" : "info";
+            const stl = m.status === "active" ? t("Ativo") : m.status === "implementing" ? t("Em implementação") : m.status;
+            return (
+              <div className="mod" key={m.id}>
+                <div className="cover"><div className="glow" />{icon}</div>
+                <div className="body">
+                  <h3>{m.label || m.vdi?.name || t("Módulo")}</h3>
+                  <p>{m.vdi?.description || t("Solução de IA da Crasto.AI.")}</p>
+                  <div className="foot">
+                    <span className={"pill " + st}><span className="d" />{stl}</span>
+                    <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={!m.url} title={m.url ? t("Abrir a solução") : t("Link em configuração")} onClick={() => m.url && window.open(m.url, "_blank", "noopener")}><span className="crasto-btn__label">{t("Acessar")}</span></button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ═══ SEU CONTRATO ═══ health check do contrato (situação financeira) — farol próprio,
+          separado do farol das soluções. Verde/âmbar/vermelho pela situação real das faturas. */}
       {fin && (
         <>
-          <div className="sec-h"><h2>{t("Seu contrato")}</h2></div>
+          <SecHead title={t("Seu contrato")} tom={contratoTom} caption={t("Health check do contrato — situação financeira")} />
           <div className={"finhealth fh-" + fin.status}>
             <div className="fh-lead">
               <span className="fh-ico">{fin.status === "red" ? <AlertTriangle size={18} /> : <Wallet size={18} />}</span>
@@ -168,8 +239,8 @@ export default function Inicio() {
         </>
       )}
 
-      {/* Fase 4 — autoatendimento: uma leitura única do contrato e da operação. */}
-      <div className="sec-h"><h2>{t("Seu atendimento")}</h2></div>
+      {/* Seu atendimento — contrato assinado, horas de suporte e uso de IA (informativo, sem farol de saúde). */}
+      <SecHead title={t("Seu atendimento")} tom="mute" caption={t("Suporte, SLA e uso — informativo")} />
       <div className="selfgrid">
         <article className="selfcard">
           <div className="selfico"><FileSignature size={18} /></div>
@@ -199,25 +270,10 @@ export default function Inicio() {
         </article>
       </div>
 
-      <div className="scopebox">
-        <div className="scopehead"><div><Activity size={17} /><span>{t("Escopo e situação das soluções")}</span></div><small>{t("Dados reais do seu contrato e da implantação")}</small></div>
-        <div className="scopelist">
-          {[...(self?.modules || []), ...(self?.services || [])].length === 0 ? (
-            <div className="scopeempty">{t("Nenhuma solução vinculada ao contrato ainda.")}</div>
-          ) : [...(self?.modules || []), ...(self?.services || [])].map((item: any, idx: number) => {
-            const raw = String(item.rollout_status || item.status || "").toLowerCase();
-            const tone = raw === "active" || raw === "done" || raw === "green" ? "green" : raw === "paused" || raw === "red" ? "red" : "amber";
-            const label = tone === "green" ? t("Operando") : tone === "red" ? t("Atenção") : t("Em implantação");
-            return <div className="scoperow" key={`${item.id || idx}-${idx}`}><span className={`scopedot ${tone}`} /><div><strong>{item.name || t("Solução contratada")}</strong>{item.description && <small>{item.description}</small>}</div><span className={`scopepill ${tone}`}>{label}</span></div>;
-          })}
-        </div>
-      </div>
-
-      {/* Módulos */}
-      {/* Sua equipe — tempo conectado REAL (user_sessions do wacrm). Só o dono vê a equipe. */}
+      {/* ═══ SUA EQUIPE ═══ tempo conectado REAL (user_sessions do wacrm). Só o dono vê. Farol: ninguém acessou = vermelho; alguém nunca acessou = âmbar; todos acessaram = verde. */}
       {team?.scope === "team" && team.rows.length > 0 && (
         <div className="scopebox">
-          <div className="scopehead"><div><Headphones size={17} /><span>{t("Sua equipe · tempo conectado")}</span></div><small>{t("Últimos 30 dias · dado real de acesso à plataforma")}</small></div>
+          <div className="scopehead"><div>{equipeTom && <span className={"scopedot " + equipeTom} />}<Headphones size={17} /><span>{t("Sua equipe · tempo conectado")}</span></div><small>{t("Últimos 30 dias · dado real de acesso à plataforma")}</small></div>
           <div className="scopelist">
             {team.rows.map((u) => {
               const h = Math.floor(u.minutos / 60), m = u.minutos % 60;
@@ -235,10 +291,10 @@ export default function Inicio() {
         </div>
       )}
 
-      {/* Reuniões & base de conhecimento — o histórico registrado pela Crasto.AI (real). */}
+      {/* Reuniões & base de conhecimento — histórico registrado pela Crasto.AI (informativo). */}
       {reunioes.length > 0 && (
         <div className="scopebox">
-          <div className="scopehead"><div><FileSignature size={17} /><span>{t("Reuniões & base de conhecimento")}</span></div><small>{t("Histórico das nossas reuniões e do que foi combinado")}</small></div>
+          <div className="scopehead"><div><span className="scopedot mute" /><FileSignature size={17} /><span>{t("Reuniões & base de conhecimento")}</span></div><small>{t("Histórico das nossas reuniões e do que foi combinado")}</small></div>
           <div className="scopelist">
             {reunioes.map((r) => (
               <button className="scoperow scoperow--btn" key={r.id} onClick={() => setReuAberta(r)}>
@@ -286,35 +342,6 @@ export default function Inicio() {
           </div>
         )}
       </Modal>
-
-      <div className="sec-h"><h2>{t("Minhas soluções")}</h2></div>
-      {loading ? (
-        <div className="empty">{t("Carregando…")}</div>
-      ) : mods.length === 0 ? (
-        <div className="empty"><p><strong>{t("Nenhuma solução ativa ainda.")}</strong> {t("Assim que a Crasto.AI liberar suas soluções, elas aparecem aqui.")}</p></div>
-      ) : (
-        <div className="mods">
-          {mods.map((m) => {
-            const cat = (m.vdi?.category || "").toLowerCase();
-            const icon = cat.includes("atend") ? ICONS.whatsapp : cat.includes("market") ? ICONS.marketing : ICONS.default;
-            const st = m.status === "active" ? "ok" : m.status === "implementing" ? "warn" : "info";
-            const stl = m.status === "active" ? t("Ativo") : m.status === "implementing" ? t("Em implementação") : m.status;
-            return (
-              <div className="mod" key={m.id}>
-                <div className="cover"><div className="glow" />{icon}</div>
-                <div className="body">
-                  <h3>{m.label || m.vdi?.name || t("Módulo")}</h3>
-                  <p>{m.vdi?.description || t("Solução de IA da Crasto.AI.")}</p>
-                  <div className="foot">
-                    <span className={"pill " + st}><span className="d" />{stl}</span>
-                    <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={!m.url} title={m.url ? t("Abrir a solução") : t("Link em configuração")} onClick={() => m.url && window.open(m.url, "_blank", "noopener")}><span className="crasto-btn__label">{t("Acessar")}</span></button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
 
       {/* Contrato de suporte — a política de SLA vigente (48h úteis / fora do horário à parte). */}
       <Modal title={t("Contrato de suporte")} open={slaOpen} onClose={() => setSlaOpen(false)}>
