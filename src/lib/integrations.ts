@@ -24,6 +24,12 @@ export const INTEGRATION_FIELDS: Record<string, IntegField[]> = {
     { key: "url", label: "URL da ponte", kind: "from", placeholder: "https://ponte.crasto.ai/assist" },
     { key: "shared_secret", label: "Segredo compartilhado (PONTE_SECRET)", kind: "secret", primary: true },
   ],
+  // Evolution API (WhatsApp por QR / não-oficial) — URL + chave GLOBAL, uma vez para toda a
+  // Crasto.AI. O console (por agente) puxa isto; lá fica só a instância.
+  evolution: [
+    { key: "url", label: "Evolution API URL", kind: "from", placeholder: "https://evolution.suavps.com" },
+    { key: "api_key", label: "API Key global (AUTHENTICATION_API_KEY)", kind: "secret", primary: true },
+  ],
   cloudflare_r2: [
     { key: "account_id", label: "Account ID", kind: "text" },
     { key: "access_key_id", label: "Access Key ID", kind: "text" },
@@ -52,6 +58,7 @@ export const HINTS: Record<string, string> = {
   openai_admin: "Chave de ADMIN da OpenAI com escopo api.usage.read — DIFERENTE da de inferência/projeto (sk-proj-…). Criada pelo dono: Settings → Organization → Admin keys. Serve para puxar o CUSTO REAL de IA (aba Custo de IA → Sincronizar custos).",
   resend_email: "Chave do Resend (re_...). Para enviar de no-reply@crasto.ai, verifique o domínio no Resend.",
   ai_bridge: "Liga o chat/voz da proposta ao Claude Max. Rode a ponte e cole a URL + o mesmo PONTE_SECRET. Ver PONTE_CLAUDE_MAX_Setup.md.",
+  evolution: "WhatsApp por QR Code (Evolution API). Cadastre aqui, uma vez, a URL da sua instância na VPS + a AUTHENTICATION_API_KEY global. No console do agente, ao escolher Evolution, a chave já vem daqui — lá fica só a instância + o QR.",
   banco_inter: "Faturamento Pix/boleto. O Inter exige certificado mTLS — o cert/chave ficam no cofre e o serviço roda na VPS.",
   cloudflare_r2: "Bucket R2 para documentos. Endpoint no formato https://<account>.r2.cloudflarestorage.com.",
   whatsapp_official: "WhatsApp Cloud API (Meta): phone_number_id, WABA ID, access token e verify token do webhook.",
