@@ -254,6 +254,55 @@ export class DeliveryController {
   @Delete('credentials/:id')
   credRemove(@Req() req: any, @Param('id') id: string) { return this.db.asUser(this.uid(req), async (c) => { await c.query('delete from delivery.module_credentials where id=$1', [id]); return { ok: true }; }); }
 
+  // ── Base de conhecimento do cliente: reuniões & minutas ───────────────────────
+  // Escrita SÓ da Crasto.AI (quem faz a reunião e registra a minuta); leitura pelo cliente.
+  private async requireAdmin(c: any, uid: string): Promise<{ id: string; name: string } | null> {
+    const r = (await c.query(`select full_name, role::text rr from public.profiles where id=$1`, [uid])).rows[0];
+    return r?.rr === 'crasto_admin' ? { id: uid, name: r.full_name || 'Crasto.AI' } : null;
+  }
+
+  @Post('meetings')
+  meetingCreate(@Req() req: any, @Body() b: any) {
+    return this.db.asService(async (c) => {
+      const adm = await this.requireAdmin(c, this.uid(req));
+      if (!adm) return { error: 'sem permissão' };
+      if (!b?.organization_id || !b?.meeting_at || !b?.title) return { error: 'org, data e título são obrigatórios' };
+      const r = await c.query(
+        `insert into delivery.client_meetings (organization_id, meeting_at, title, attendees, summary, transcript, created_by, created_by_name)
+         values ($1,$2,$3,$4,$5,$6,$7,$8) returning id`,
+        [b.organization_id, b.meeting_at, b.title, b.attendees || null, b.summary || null, b.transcript || null, adm.id, adm.name]);
+      return { ok: true, id: r.rows[0].id };
+    });
+  }
+
+  @Get('meetings')
+  meetingsByOrg(@Req() req: any, @Query('org') org: string) {
+    return this.db.asService(async (c) => {
+      if (!(await this.requireAdmin(c, this.uid(req)))) return { error: 'sem permissão' };
+      return (await c.query(
+        `select id, meeting_at, title, attendees, summary, transcript, created_by_name, created_at
+           from delivery.client_meetings where organization_id=$1 order by meeting_at desc`, [org])).rows;
+    });
+  }
+
+  @Delete('meetings/:id')
+  meetingRemove(@Req() req: any, @Param('id') id: string) {
+    return this.db.asService(async (c) => {
+      if (!(await this.requireAdmin(c, this.uid(req)))) return { error: 'sem permissão' };
+      await c.query(`delete from delivery.client_meetings where id=$1`, [id]);
+      return { ok: true };
+    });
+  }
+
+  // CLIENTE: as reuniões da PRÓPRIA empresa (RLS por org). Só leitura.
+  @Get('meetings/mine')
+  meetingsMine(@Req() req: any) {
+    return this.db.asUser(this.uid(req), async (c) =>
+      (await c.query(
+        `select id, meeting_at, title, attendees, summary, transcript, created_by_name
+           from delivery.client_meetings order by meeting_at desc`)).rows);
+  }
+
   /**
    * TEMPO CONECTADO da equipe (RH) — federado do wacrm, onde vive `user_sessions`. Repassa o
    * Bearer do próprio cliente (mesmo IdP): o wacrm decide o que devolver (dono vê a equipe,

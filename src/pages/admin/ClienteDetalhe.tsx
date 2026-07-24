@@ -23,7 +23,7 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
   const tr = useT();
   const { data, loading, reload } = useAsync(async () => {
     if (!id) return null;
-    const [org, mods, cm, users, people, phones, docs, acts, impl, health, taxids, proposals, tasks, creds, csvc, svcCat, cnpjs, partners] = await Promise.all([
+    const [org, mods, cm, users, people, phones, docs, acts, impl, health, taxids, proposals, tasks, creds, csvc, svcCat, cnpjs, partners, meetings] = await Promise.all([
       api.identity.organizations.getById(id),
       api.catalog.vdiModules.listActiveByName(),
       api.delivery.clientModules.listByOrg(id),
@@ -42,8 +42,9 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
       api.catalog.services.listClientFacing(),
       api.identity.cnpjs.listByOrg(id).catch(() => []),
       api.identity.partners.listByOrg(id).catch(() => []),
+      api.delivery.meetings.listByOrg(id).catch(() => []),
     ]);
-    return { org: org as Org, mods: (mods as any[]) ?? [], cm: (cm as any[]) ?? [], users: (users as any[]) ?? [], people: (people as any[]) ?? [], phones: (phones as any[]) ?? [], docs: (docs as any[]) ?? [], acts: (acts as any[]) ?? [], progress: (impl as any)?.overall_progress ?? 0, health: (health as any)?.status ?? null, impl: (impl as any) ?? null, healthObj: (health as any) ?? null, taxids: (taxids as any[]) ?? [], proposals: (proposals as any[]) ?? [], tasks: (tasks as any[]) ?? [], creds: (creds as any[]) ?? [], csvc: (csvc as any[]) ?? [], svcCat: (svcCat as any[]) ?? [], cnpjs: (cnpjs as any[]) ?? [], partners: (partners as any[]) ?? [] };
+    return { org: org as Org, mods: (mods as any[]) ?? [], cm: (cm as any[]) ?? [], users: (users as any[]) ?? [], people: (people as any[]) ?? [], phones: (phones as any[]) ?? [], docs: (docs as any[]) ?? [], acts: (acts as any[]) ?? [], progress: (impl as any)?.overall_progress ?? 0, health: (health as any)?.status ?? null, impl: (impl as any) ?? null, healthObj: (health as any) ?? null, taxids: (taxids as any[]) ?? [], proposals: (proposals as any[]) ?? [], tasks: (tasks as any[]) ?? [], creds: (creds as any[]) ?? [], csvc: (csvc as any[]) ?? [], svcCat: (svcCat as any[]) ?? [], cnpjs: (cnpjs as any[]) ?? [], partners: (partners as any[]) ?? [], meetings: (meetings as any[]) ?? [] };
   }, [id]);
 
   const [edit, setEdit] = useState(false);
@@ -56,6 +57,7 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
   const [ephId, setEphId] = useState("");
   const [eph, setEph] = useState({ label: "mobile", country_code: "+55", number: "", person_id: "" });
   const [act, setAct] = useState({ type: "note", title: "", description: "" });
+  const [meetf, setMeetf] = useState({ meeting_at: "", title: "", attendees: "", summary: "", transcript: "" });
   const [taxid, setTaxid] = useState({ kind: "CNPJ", value: "", address: "" });
   const [regOpen, setRegOpen] = useState(false);
   const [regF, setRegF] = useState<any>({ id: "", organization_id: id, country: "BR", reg_type: "cnpj", cnpj: "", legal_name: "", trade_name: "", is_headquarters: false, is_active: true });
@@ -87,7 +89,7 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
 
   if (loading) return <><PageHead eyebrow="CRM" title="Detalhe" /><Empty>Carregando…</Empty></>;
   if (!data?.org) return <><PageHead eyebrow="CRM" title="Detalhe" /><Empty>Não encontrado.</Empty></>;
-  const { org, mods, cm, users, people, phones, docs, acts, progress, health, taxids, proposals, tasks, creds, svcCat, cnpjs, partners } = data;
+  const { org, mods, cm, users, people, phones, docs, acts, progress, health, taxids, proposals, tasks, creds, svcCat, cnpjs, partners, meetings } = data;
   const activeSet = new Set(cm.map((c) => c.vdi_module_id));
   const rollAvg = cm.length ? Math.round(cm.reduce((s: number, c: any) => s + (c.rollout_progress || 0), 0) / cm.length) : (progress || 0);
   const co = countryOf(org.country); const st = stageOf(org.stage);
@@ -122,6 +124,16 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
   function startEditPhone(ph: any) { setEphId(ph.id); setEph({ label: ph.label || "mobile", country_code: ph.country_code || "+55", number: ph.number || "", person_id: ph.person_id || "" }); }
   async function savePhone() { if (!eph.number.trim()) return; await api.crm.phones.update(ephId, { label: eph.label, country_code: eph.country_code, number: eph.number.trim(), person_id: eph.person_id || null }); setEphId(""); reload(); }
   async function addActivity() { if (!act.title.trim()) return; await api.crm.activities.add({ organization_id: id, type: act.type, title: act.title.trim(), description: act.description || null }); setAct({ type: "note", title: "", description: "" }); reload(); }
+  async function addMeeting() {
+    if (!meetf.title.trim() || !meetf.meeting_at) { flash(tr("Informe ao menos a data/hora e o título da reunião.")); return; }
+    setBusy(true);
+    try {
+      const r = await api.delivery.meetings.create({ organization_id: id!, meeting_at: new Date(meetf.meeting_at).toISOString(), title: meetf.title.trim(), attendees: meetf.attendees.trim() || undefined, summary: meetf.summary.trim() || undefined, transcript: meetf.transcript.trim() || undefined });
+      if ((r as any)?.error) { flash(tr("Erro:") + " " + (r as any).error); return; }
+      setMeetf({ meeting_at: "", title: "", attendees: "", summary: "", transcript: "" }); reload(); flash(tr("Reunião registrada ✓"));
+    } catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); } finally { setBusy(false); }
+  }
+  async function delMeeting(mid: string) { if (!confirm(tr("Excluir esta reunião da base de conhecimento?"))) return; await api.delivery.meetings.remove(mid); reload(); }
   async function delRow(_schema: string, table: string, rid: string) { await api.crm.removeRow(table as any, rid); reload(); }
   async function addTaxid() {
     if (!taxid.value.trim()) return;
@@ -613,6 +625,24 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
 
       {/* Agente do WhatsApp CRM que atende este cliente — config do cliente (a API decide se aparece) */}
       {id && <CrmAccessSection orgId={id} onToast={setToast} />}
+
+      {/* Reuniões & base de conhecimento — minutas/transcrições que o cliente vê no portal dele */}
+      <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Reuniões & base de conhecimento")}</h2><Pill tone="mute">{tr("o cliente vê no início — data, resumo e minuta")}</Pill></div>
+      <div className="addrow" style={{ flexWrap: "wrap" }}>
+        <input type="datetime-local" value={meetf.meeting_at} onChange={(e) => setMeetf({ ...meetf, meeting_at: e.target.value })} style={{ minWidth: 200 }} />
+        <input placeholder={tr("Título (ex.: Kickoff, Alinhamento de escopo)")} value={meetf.title} onChange={(e) => setMeetf({ ...meetf, title: e.target.value })} style={{ flex: 2, minWidth: 180 }} />
+        <input placeholder={tr("Participantes (ex.: Crasto, Jhon, Daniel)")} value={meetf.attendees} onChange={(e) => setMeetf({ ...meetf, attendees: e.target.value })} style={{ flex: 2, minWidth: 180 }} />
+      </div>
+      <div className="addrow" style={{ marginTop: 8 }}>
+        <textarea placeholder={tr("Resumo — o que ficou decidido (o cliente lê isto)")} value={meetf.summary} onChange={(e) => setMeetf({ ...meetf, summary: e.target.value })} style={{ flex: 1, minWidth: 240, minHeight: 60 }} />
+      </div>
+      <div className="addrow" style={{ marginTop: 8, alignItems: "flex-start" }}>
+        <textarea placeholder={tr("Minuta / transcrição completa (opcional)")} value={meetf.transcript} onChange={(e) => setMeetf({ ...meetf, transcript: e.target.value })} style={{ flex: 1, minWidth: 240, minHeight: 90 }} />
+        <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={addMeeting}><span className="crasto-btn__label">{busy ? tr("Salvando…") : tr("Registrar reunião")}</span></button>
+      </div>
+      {(meetings as any[]).length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhuma reunião registrada — o cliente ainda não vê nada aqui.")}</div> : (meetings as any[]).map((m: any) => (
+        <div className="lead" key={m.id}><div className="av">📋</div><div style={{ flex: 1 }}><div className="nm">{m.title}</div><div className="mt">{fmtDate(m.meeting_at)}{m.attendees ? ` · ${m.attendees}` : ""}{m.created_by_name ? ` · ${tr("por")} ${m.created_by_name}` : ""}{m.transcript ? ` · ${tr("com minuta")}` : ""}</div></div><button className="icobtn rm" onClick={() => delMeeting(m.id)}><Trash2 size={13} /></button></div>
+      ))}
 
       {/* Histórico */}
       <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Histórico & atividades")}</h2></div>

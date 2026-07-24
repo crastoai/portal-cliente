@@ -26,6 +26,8 @@ export default function Inicio() {
   const [fin, setFin] = useState<FaturaSummary | null>(null);
   const [self, setSelf] = useState<any>(null);
   const [team, setTeam] = useState<{ scope: string; rows: { id: string; email: string; full_name: string | null; online: boolean; sessoes: number; minutos: number; ultimo: string | null }[] } | null>(null);
+  const [reunioes, setReunioes] = useState<import("../../services/delivery.service").Meeting[]>([]);
+  const [reuAberta, setReuAberta] = useState<import("../../services/delivery.service").Meeting | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -41,6 +43,8 @@ export default function Inicio() {
       setSelf(ss);
       // Tempo conectado da equipe (RH) — só faz sentido para o dono; membro recebe scope 'self'.
       services.delivery.teamUsage.getMine().then(setTeam).catch(() => setTeam(null));
+      // Reuniões & minutas (base de conhecimento) — o que a Crasto.AI registrou deste cliente.
+      services.delivery.meetings.listMine().then((r) => setReunioes(Array.isArray(r) ? r : [])).catch(() => setReunioes([]));
       setFin(summarizeFaturas((inv as unknown as Fatura[]) ?? []));
       const rows = cm ?? [];
       const ids = rows.map((r) => r.vdi_module_id);
@@ -226,6 +230,37 @@ export default function Inicio() {
           </div>
         </div>
       )}
+
+      {/* Reuniões & base de conhecimento — o histórico registrado pela Crasto.AI (real). */}
+      {reunioes.length > 0 && (
+        <div className="scopebox">
+          <div className="scopehead"><div><FileSignature size={17} /><span>{t("Reuniões & base de conhecimento")}</span></div><small>{t("Histórico das nossas reuniões e do que foi combinado")}</small></div>
+          <div className="scopelist">
+            {reunioes.map((r) => (
+              <button className="scoperow scoperow--btn" key={r.id} onClick={() => setReuAberta(r)}>
+                <span className="scopedot green" />
+                <div><strong>{r.title}</strong><small>{new Date(r.meeting_at).toLocaleDateString("pt-BR")} · {new Date(r.meeting_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}{r.attendees ? ` · ${r.attendees}` : ""}</small></div>
+                <span className="scopepill mute">{r.transcript ? t("ver minuta") : t("ver")} <ArrowRight size={12} style={{ verticalAlign: -2 }} /></span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <Modal title={reuAberta?.title || t("Reunião")} open={!!reuAberta} onClose={() => setReuAberta(null)}>
+        {reuAberta && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 14, lineHeight: 1.6 }}>
+            <div style={{ color: "var(--crasto-text-muted)", fontSize: 12.5 }}>
+              {new Date(reuAberta.meeting_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+              {reuAberta.created_by_name ? ` · ${t("registrado por")} ${reuAberta.created_by_name}` : ""}
+            </div>
+            {reuAberta.attendees && <div><strong>{t("Participantes")}</strong><br />{reuAberta.attendees}</div>}
+            {reuAberta.summary && <div><strong>{t("Resumo")}</strong><br />{reuAberta.summary}</div>}
+            {reuAberta.transcript && <div><strong>{t("Minuta / transcrição")}</strong><br /><span style={{ whiteSpace: "pre-wrap" }}>{reuAberta.transcript}</span></div>}
+            {!reuAberta.summary && !reuAberta.transcript && <div style={{ color: "var(--crasto-text-muted)" }}>{t("Sem resumo ou minuta registrados nesta reunião.")}</div>}
+          </div>
+        )}
+      </Modal>
 
       <div className="sec-h"><h2>{t("Minhas soluções")}</h2></div>
       {loading ? (

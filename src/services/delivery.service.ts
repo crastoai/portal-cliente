@@ -76,6 +76,17 @@ export const selfService = {
   getMine: async () => api.get<any>(`/api/delivery/self-service/mine`),
 };
 
+// Base de conhecimento do cliente — reuniões & minutas. Admin registra; cliente só lê as da
+// própria empresa (RLS). Nada fictício: nasce vazio e só mostra o que a Crasto.AI registrou.
+export type Meeting = { id: string; meeting_at: string; title: string; attendees: string | null; summary: string | null; transcript: string | null; created_by_name: string | null; created_at?: string };
+export const meetings = {
+  listMine: async () => api.get<Meeting[]>(`/api/delivery/meetings/mine`),
+  listByOrg: async (orgId: string) => api.get<Meeting[]>(`/api/delivery/meetings?org=${orgId}`),
+  create: async (b: { organization_id: string; meeting_at: string; title: string; attendees?: string; summary?: string; transcript?: string }) =>
+    api.post<{ ok?: boolean; id?: string; error?: string }>(`/api/delivery/meetings`, b),
+  remove: async (id: string) => api.del(`/api/delivery/meetings/${id}`),
+};
+
 // Tempo conectado da equipe (RH) — dado real de user_sessions (wacrm), federado. O dono vê a
 // equipe; o membro vê só o próprio. Quem nunca usou aparece com 0min (real, não some).
 export const teamUsage = {
@@ -95,4 +106,4 @@ export const moduleSessions = {
     api.get<any[]>(`/api/delivery/module-sessions/summary?dias=${dias}${orgId ? `&org=${orgId}` : ""}`),
 };
 
-export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, selfService, moduleSessions, teamUsage };
+export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, selfService, moduleSessions, teamUsage, meetings };
