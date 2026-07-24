@@ -560,3 +560,11 @@
 .secret, .secret .mask { min-width: 0; word-break: break-all; overflow-wrap: anywhere; }
 /* tiles de finanças em 1 coluna no celular estreito (paravam apertados em 2) */
 @media (max-width: 480px) { .fh-tiles { grid-template-columns: 1fr; } }
+
+/* Barra de credencial do módulo embarcado — o app ainda pede login próprio, então login e
+   senha ficam à mão, na mesma tela. Some sozinha quando o módulo passar a entrar por SSO. */
+.mod-cred { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mod-cred-item { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--crasto-text-body);
+  background: var(--crasto-bg-subtle, rgba(0,0,0,.04)); border: 1px solid var(--crasto-border-soft); border-radius: 7px; padding: 3px 6px 3px 9px; }
+.mod-cred-item b { font-weight: 600; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mod-cred-sso { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; font-size: 12.5px; color: var(--crasto-success); }

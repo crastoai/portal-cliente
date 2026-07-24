@@ -5,6 +5,7 @@ import { preview } from "../../lib/preview";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, initials, Avatar, Field, money } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
+import UsoModulos from "../../ui/UsoModulos";
 import Modal from "../../ui/Modal";
 import { COUNTRIES, countryOf, STAGES, stageOf, DIAL_CODES } from "../../lib/countries";
 import { reg as regInfo, regTypeFor, COUNTRIES as REG_COUNTRIES, countryName as regCountryName } from "../../lib/registrations";
@@ -590,6 +591,8 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
       ))}
 
       {/* Credenciais de módulo (F-D) */}
+      <UsoModulos orgId={id} titulo={tr("Uso dos módulos por usuário")} />
+
       <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Acesso por instância (URL + login do cliente)")}</h2><Pill tone="mute">{tr("o cliente vê em 'Minhas Soluções'")}</Pill></div>
       <div className="addrow" style={{ flexWrap: "wrap" }}>
         <select value={credf.cmId} onChange={(e) => pickCredInstance(e.target.value)} style={{ minWidth: 180 }}>

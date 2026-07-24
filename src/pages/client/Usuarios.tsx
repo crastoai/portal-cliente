@@ -4,6 +4,7 @@ import { services, errorMessage } from "../../services";
 import { useAuth } from "../../lib/auth";
 import { PageHead, Pill, Empty, useAsync, Avatar, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
+import UsoModulos from "../../ui/UsoModulos";
 import Modal from "../../ui/Modal";
 
 type U = { id: string; full_name: string | null; email: string | null; role: string; avatar_url?: string | null };
@@ -96,6 +97,11 @@ export default function Usuarios() {
           </table>
         </div>
       )}
+
+      {/* Uso por pessoa fica AQUI, junto da equipe: é a mesma pergunta ("quem é meu time e o
+          que cada um usa"). Só o dono vê a equipe — a RLS já garante isso no banco, então
+          esconder para o membro é coerência de tela, não a trava de segurança. */}
+      {isOwner && <UsoModulos titulo={t("Uso dos módulos pela sua equipe")} />}
 
       <Modal title={t("Convidar usuário")} open={open} onClose={() => setOpen(false)}
         footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={submit}><span className="crasto-btn__label">{busy ? t("Enviando…") : t("Enviar convite")}</span></button></>}>
