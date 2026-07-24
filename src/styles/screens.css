@@ -736,4 +736,3 @@
 
 /* Sua equipe (RH) — pill de tempo conectado, neutro com números tabulares. */
 .scopepill.mute { color: var(--crasto-text-muted); font-variant-numeric: tabular-nums; }
-.dot-online { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--crasto-success); margin-left: 6px; vertical-align: middle; }
