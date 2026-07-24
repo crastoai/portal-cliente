@@ -38,11 +38,11 @@ export class DeliveryController {
         `select status,message,eta from delivery.system_health order by updated_at desc limit 1`,
       )).rows[0] ?? null;
       const services = (await c.query(
-        `select id,service_name as name,service_description as description,service_category as category,status
+        `select id,service_name as name,service_description as description,service_category as category,status,'service' as kind
            from delivery.client_services order by created_at`,
       )).rows;
       const modules = (await c.query(
-        `select cm.id,coalesce(cm.label,m.name) as name,cm.status,cm.rollout_status,cm.rollout_progress
+        `select cm.id,coalesce(cm.label,m.name) as name,cm.status,cm.rollout_status,cm.rollout_progress,'module' as kind
            from delivery.client_modules cm join catalog.vdi_modules m on m.id=cm.vdi_module_id
           order by cm.created_at`,
       )).rows;

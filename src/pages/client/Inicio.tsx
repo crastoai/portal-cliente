@@ -106,15 +106,33 @@ export default function Inicio() {
   // `health?.status ?? "green"` → verde fixo quando não havia dado (fictício). Regra do Crasto:
   // nada inventado. Se o admin registrou um system_health pior, ele também puxa o farol.
   const itensEscopo = [...(self?.modules || []), ...(self?.services || [])];
-  const tomDoItem = (item: any): "green" | "amber" | "red" => {
-    const raw = String(item.rollout_status || item.status || "").toLowerCase();
-    return raw === "active" || raw === "done" || raw === "green" ? "green" : raw === "paused" || raw === "red" ? "red" : "amber";
+  // Status FIEL de cada item, pela fonte certa e sem rótulo fictício:
+  //  • módulo  → rollout_status (delivered=Operando · in_progress=Em implantação · on_hold=Em espera)
+  //  • serviço → client_services.status (delivered=Concluído · in_progress=Em execução ·
+  //              scheduled=Agendado · active=Ativo). "active" NÃO é verde: é só "contratado", não
+  //              entregue — reflete exatamente o que o admin definir no detalhe do cliente.
+  const statusInfo = (item: any): { tom: "green" | "amber" | "red"; label: string } => {
+    const raw = String((item.kind === "service" ? item.status : (item.rollout_status || item.status)) || "").toLowerCase();
+    if (item.kind === "service") {
+      if (raw === "delivered" || raw === "done") return { tom: "green", label: t("Concluído") };
+      if (raw === "in_progress") return { tom: "amber", label: t("Em execução") };
+      if (raw === "scheduled") return { tom: "amber", label: t("Agendado") };
+      if (raw === "cancelled" || raw === "canceled" || raw === "paused") return { tom: "red", label: t("Pausado") };
+      if (raw === "active") return { tom: "amber", label: t("Ativo") };
+      return { tom: "amber", label: raw ? item.status : "—" };
+    }
+    // módulo — a implantação real vem do rollout_status; o progresso 100% é reforço.
+    if (raw === "delivered" || raw === "done" || raw === "live" || raw === "green") return { tom: "green", label: t("Operando") };
+    if (raw === "on_hold" || raw === "paused" || raw === "red") return { tom: "red", label: t("Em espera") };
+    if (raw === "in_progress" || raw === "amber") return { tom: "amber", label: t("Em implantação") };
+    if (Number(item.rollout_progress || 0) >= 100) return { tom: "green", label: t("Operando") };
+    return { tom: "amber", label: t("Em implantação") };
   };
   const piorDe = (tons: string[]) => tons.includes("red") ? "red" : tons.includes("amber") ? "amber" : "green";
-  const farolSolucoes = itensEscopo.length ? piorDe(itensEscopo.map(tomDoItem)) : null;
+  const farolSolucoes = itensEscopo.length ? piorDe(itensEscopo.map((it) => statusInfo(it).tom)) : null;
   // Conta REAL de soluções operando / total no escopo (módulos + serviços) — o KPI "Soluções
   // ativas" passa a bater com a lista de escopo logo abaixo (antes contava só client_modules).
-  const escopoAtivos = itensEscopo.filter((it) => tomDoItem(it) === "green").length;
+  const escopoAtivos = itensEscopo.filter((it) => statusInfo(it).tom === "green").length;
   // Combina com o health que o admin tiver registrado (se houver); sem nada, cai no farol das
   // soluções; sem soluções, "—" honesto em vez de verde inventado.
   const lit: "green" | "amber" | "red" | null = health?.status
@@ -209,10 +227,8 @@ export default function Inicio() {
           {itensEscopo.length === 0 ? (
             <div className="scopeempty">{t("Nenhuma solução vinculada ao contrato ainda.")}</div>
           ) : itensEscopo.map((item: any, idx: number) => {
-            const raw = String(item.rollout_status || item.status || "").toLowerCase();
-            const tone = raw === "active" || raw === "done" || raw === "green" ? "green" : raw === "paused" || raw === "red" ? "red" : "amber";
-            const label = tone === "green" ? t("Operando") : tone === "red" ? t("Atenção") : t("Em implantação");
-            return <div className="scoperow" key={`${item.id || idx}-${idx}`}><span className={`scopedot ${tone}`} /><div><strong>{item.name || t("Solução contratada")}</strong>{item.description && <small>{item.description}</small>}</div><span className={`scopepill ${tone}`}>{label}</span></div>;
+            const { tom, label } = statusInfo(item);
+            return <div className="scoperow" key={`${item.id || idx}-${idx}`}><span className={`scopedot ${tom}`} /><div><strong>{item.name || t("Solução contratada")}</strong>{item.description && <small>{item.description}</small>}</div><span className={`scopepill ${tom}`}>{label}</span></div>;
           })}
         </div>
       </div>
