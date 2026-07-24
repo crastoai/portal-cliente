@@ -225,6 +225,27 @@
 .attchip-n { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .attchip-x { flex: none; border: 0; background: none; cursor: pointer; color: var(--crasto-text-muted); display: grid; place-items: center; padding: 2px; border-radius: 4px; }
 .attchip-x:hover { background: rgba(234,84,85,.12); color: #C0362C; }
+
+/* ============================================================================
+   GLASS PASS — os cards de superfície ganham o "vidro" (frosted) do design system,
+   sobre o canvas com gradiente (o palco). Reusa os tokens glass já existentes
+   (--crasto-glass-card / --crasto-blur-md / --crasto-shadow-glass-*). Carregado por
+   último para vencer os fundos sólidos, SEM tocar nas bordas (preserva o border-left
+   colorido do card financeiro e a barrinha lateral do KPI).
+   ============================================================================ */
+.farol, .kpi, .scopebox, .finhealth, .selfcard, .mod, .card, .empty {
+  background: var(--crasto-glass-card);
+  -webkit-backdrop-filter: var(--crasto-blur-md);
+  backdrop-filter: var(--crasto-blur-md);
+  box-shadow: var(--crasto-shadow-glass-light);
+}
+[data-theme="dark"] .farol, [data-theme="dark"] .kpi, [data-theme="dark"] .scopebox,
+[data-theme="dark"] .finhealth, [data-theme="dark"] .selfcard, [data-theme="dark"] .mod,
+[data-theme="dark"] .card, [data-theme="dark"] .empty {
+  box-shadow: var(--crasto-shadow-glass-dark);
+}
+/* O cabeçalho do KPI clicável e do scopebox continuam legíveis sobre o vidro. */
+.scopehead { background: var(--crasto-glass-card-2); -webkit-backdrop-filter: var(--crasto-blur-sm); backdrop-filter: var(--crasto-blur-sm); }
 .frow > span { font-size: 12px; font-weight: 600; color: var(--crasto-text-body); }
 .frow input, .frow select, .frow textarea { width: 100%; border: 1px solid var(--crasto-border); border-radius: var(--crasto-radius-sm); padding: 10px 12px; font-size: 13.5px; color: var(--crasto-text-primary); background: var(--crasto-surface); font-family: inherit; }
 .frow textarea { resize: vertical; min-height: 70px; }

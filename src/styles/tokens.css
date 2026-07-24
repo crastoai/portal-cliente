@@ -68,8 +68,12 @@
   --crasto-surface-elev: var(--crasto-white);
 
   /* Page CANVAS — fundo de página por tema (ver nota "HIERARQUIA DE FUNDO" no topo).
-     Light = branco sólido. Dark sobrescreve --crasto-page-bg → gradiente navy. */
-  --crasto-page-bg:      var(--crasto-bg);   /* opção 1 por tema */
+     Light = gradiente claro sutil com brilhos azul-acinzentados nos cantos: é o "palco"
+     que faz o vidro (backdrop-filter dos cards) aparecer. Dark tem o gradiente navy. */
+  --crasto-page-bg:
+    radial-gradient(ellipse 85% 55% at 8% -8%,   rgba(110, 156, 232, 0.10) 0%, transparent 55%),
+    radial-gradient(ellipse 75% 65% at 106% 108%, rgba(110, 156, 232, 0.06) 0%, transparent 55%),
+    linear-gradient(162deg, #FBFCFE 0%, #F4F7FB 52%, #EEF2F8 100%);
   --crasto-page-bg-flat: var(--crasto-bg);   /* opção 2 (chapado) */
 
   /* Semantic text */
