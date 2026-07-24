@@ -303,6 +303,60 @@ export class DeliveryController {
            from delivery.client_meetings order by meeting_at desc`)).rows);
   }
 
+  // ── HISTÓRICO DE IMPLANTAÇÃO — o quê / quando / QUEM implantou ──────────────
+  // A Crasto.AI registra cada marco; o cliente vê no card "Implantação". Só a Crasto
+  // escreve (requireAdmin). O `module_name` sai do apelido da instância ou do nome do módulo.
+  @Post('impl-events')
+  implEventCreate(@Req() req: any, @Body() b: any) {
+    return this.db.asService(async (c) => {
+      const adm = await this.requireAdmin(c, this.uid(req));
+      if (!adm) return { error: 'sem permissão' };
+      if (!b?.organization_id || !b?.happened_at || !b?.title) return { error: 'org, data e título são obrigatórios' };
+      const r = await c.query(
+        `insert into delivery.implementation_events
+           (organization_id, client_module_id, happened_at, title, detail, performed_by_name, created_by, created_by_name)
+         values ($1,$2,$3,$4,$5,$6,$7,$8) returning id`,
+        [b.organization_id, b.client_module_id || null, b.happened_at, b.title, b.detail || null, b.performed_by_name || null, adm.id, adm.name]);
+      return { ok: true, id: r.rows[0].id };
+    });
+  }
+
+  @Get('impl-events')
+  implEventsByOrg(@Req() req: any, @Query('org') org: string) {
+    return this.db.asService(async (c) => {
+      if (!(await this.requireAdmin(c, this.uid(req)))) return { error: 'sem permissão' };
+      return (await c.query(
+        `select e.id, e.happened_at, e.title, e.detail, e.performed_by_name, e.created_by_name, e.client_module_id,
+                coalesce(nullif(cm.label,''), vm.name) as module_name
+           from delivery.implementation_events e
+           left join delivery.client_modules cm on cm.id = e.client_module_id
+           left join catalog.vdi_modules vm on vm.id = cm.vdi_module_id
+          where e.organization_id=$1 order by e.happened_at desc`, [org])).rows;
+    });
+  }
+
+  @Delete('impl-events/:id')
+  implEventRemove(@Req() req: any, @Param('id') id: string) {
+    return this.db.asService(async (c) => {
+      if (!(await this.requireAdmin(c, this.uid(req)))) return { error: 'sem permissão' };
+      await c.query(`delete from delivery.implementation_events where id=$1`, [id]);
+      return { ok: true };
+    });
+  }
+
+  // CLIENTE: os marcos da implantação da PRÓPRIA empresa (RLS por org). Só leitura.
+  @Get('impl-events/mine')
+  implEventsMine(@Req() req: any) {
+    return this.db.asUser(this.uid(req), async (c) =>
+      (await c.query(
+        `select e.id, e.happened_at, e.title, e.detail, e.performed_by_name, e.created_by_name,
+                coalesce(nullif(cm.label,''), vm.name) as module_name
+           from delivery.implementation_events e
+           left join delivery.client_modules cm on cm.id = e.client_module_id
+           left join catalog.vdi_modules vm on vm.id = cm.vdi_module_id
+          order by e.happened_at desc`)).rows);
+  }
+
   /**
    * TEMPO CONECTADO da equipe (RH) — federado do wacrm, onde vive `user_sessions`. Repassa o
    * Bearer do próprio cliente (mesmo IdP): o wacrm decide o que devolver (dono vê a equipe,

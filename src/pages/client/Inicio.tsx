@@ -28,6 +28,8 @@ export default function Inicio() {
   const [team, setTeam] = useState<{ scope: string; rows: { id: string; email: string; full_name: string | null; online: boolean; sessoes: number; minutos: number; ultimo: string | null }[] } | null>(null);
   const [reunioes, setReunioes] = useState<import("../../services/delivery.service").Meeting[]>([]);
   const [reuAberta, setReuAberta] = useState<import("../../services/delivery.service").Meeting | null>(null);
+  const [implEvents, setImplEvents] = useState<import("../../services/delivery.service").ImplEvent[]>([]);
+  const [implOpen, setImplOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -45,6 +47,8 @@ export default function Inicio() {
       services.delivery.teamUsage.getMine().then(setTeam).catch(() => setTeam(null));
       // Reuniões & minutas (base de conhecimento) — o que a Crasto.AI registrou deste cliente.
       services.delivery.meetings.listMine().then((r) => setReunioes(Array.isArray(r) ? r : [])).catch(() => setReunioes([]));
+      // Histórico de implantação (o quê/quando/quem) — abre no card "Implantação".
+      services.delivery.implEvents.listMine().then((r) => setImplEvents(Array.isArray(r) ? r : [])).catch(() => setImplEvents([]));
       setFin(summarizeFaturas((inv as unknown as Fatura[]) ?? []));
       const rows = cm ?? [];
       const ids = rows.map((r) => r.vdi_module_id);
@@ -129,7 +133,7 @@ export default function Inicio() {
       {/* KPIs (3): implantação real, soluções ativas com SUBCATEGORIA, contrato de suporte/SLA.
           O antigo card "Suporte · Ativo" saiu — era texto fixo (o farol já diz que está no ar). */}
       <div className="kpis kpis--3">
-        <div className="kpi g"><div className="lab">{t("Implantação")}</div><div className="val">{overall}<small>%</small></div><div className="delta">{overall >= 100 ? t("Entregue") : t("Em andamento")}</div></div>
+        <button className="kpi g ckpi" onClick={() => setImplOpen(true)}><div className="lab">{t("Implantação")}</div><div className="val">{overall}<small>%</small></div><div className="delta">{implEvents.length ? <>{t("ver histórico")} <ArrowRight size={11} /></> : overall >= 100 ? t("Entregue") : t("Em andamento")}</div></button>
         <div className="kpi"><div className="lab">{t("Soluções ativas")}</div><div className="val">{mods.filter(m => m.status === "active").length}<small> / {mods.length}</small></div><div className="delta">{tiposAtivos || t("no seu plano")}</div></div>
         <button className="kpi ckpi" onClick={() => setSlaOpen(true)}><div className="lab">{t("Contrato de suporte")}</div><div className="val" style={{ fontSize: 20 }}>{overall >= 100 ? t("SLA 48h") : daysLeft != null ? t("{n} dias", { n: daysLeft }) : t("SLA 48h")}</div><div className="delta">{overall >= 100 ? t("saber mais") : t("prazo de implantação")} <ArrowRight size={11} /></div></button>
       </div>
@@ -246,6 +250,27 @@ export default function Inicio() {
           </div>
         </div>
       )}
+
+      <Modal title={t("Histórico de implantação")} open={implOpen} onClose={() => setImplOpen(false)}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 14 }}>
+          <div style={{ color: "var(--crasto-text-muted)", fontSize: 12.5, marginBottom: 6 }}>{t("O que foi implantado, quando e por quem — registrado pela Crasto.AI.")}</div>
+          {implEvents.length === 0 ? (
+            <div style={{ color: "var(--crasto-text-muted)", padding: "8px 0" }}>{t("Ainda não há marcos de implantação registrados.")}</div>
+          ) : implEvents.map((e) => (
+            <div key={e.id} style={{ display: "flex", gap: 10, padding: "10px 0", borderTop: "1px solid var(--crasto-border, rgba(0,0,0,.08))" }}>
+              <div style={{ fontSize: 18, lineHeight: 1.2 }}>✅</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600 }}>{e.title}{e.module_name ? <span style={{ fontWeight: 400, color: "var(--crasto-text-muted)" }}> · {e.module_name}</span> : null}</div>
+                <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)", marginTop: 2 }}>
+                  {new Date(e.happened_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  {e.performed_by_name ? ` · ${t("por")} ${e.performed_by_name}` : ""}
+                </div>
+                {e.detail && <div style={{ fontSize: 13, marginTop: 4, whiteSpace: "pre-wrap" }}>{e.detail}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Modal>
 
       <Modal title={reuAberta?.title || t("Reunião")} open={!!reuAberta} onClose={() => setReuAberta(null)}>
         {reuAberta && (

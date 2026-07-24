@@ -87,6 +87,17 @@ export const meetings = {
   remove: async (id: string) => api.del(`/api/delivery/meetings/${id}`),
 };
 
+// Histórico de implantação — o quê / quando / QUEM implantou. Admin registra; o cliente vê no
+// card "Implantação". Nada fictício: nasce vazio e só mostra os marcos que a Crasto.AI registrou.
+export type ImplEvent = { id: string; happened_at: string; title: string; detail: string | null; performed_by_name: string | null; created_by_name: string | null; module_name: string | null; client_module_id?: string | null };
+export const implEvents = {
+  listMine: async () => api.get<ImplEvent[]>(`/api/delivery/impl-events/mine`),
+  listByOrg: async (orgId: string) => api.get<ImplEvent[]>(`/api/delivery/impl-events?org=${orgId}`),
+  create: async (b: { organization_id: string; client_module_id?: string | null; happened_at: string; title: string; detail?: string; performed_by_name?: string }) =>
+    api.post<{ ok?: boolean; id?: string; error?: string }>(`/api/delivery/impl-events`, b),
+  remove: async (id: string) => api.del(`/api/delivery/impl-events/${id}`),
+};
+
 // Tempo conectado da equipe (RH) — dado real de user_sessions (wacrm), federado. O dono vê a
 // equipe; o membro vê só o próprio. Quem nunca usou aparece com 0min (real, não some).
 export const teamUsage = {
@@ -106,4 +117,4 @@ export const moduleSessions = {
     api.get<any[]>(`/api/delivery/module-sessions/summary?dias=${dias}${orgId ? `&org=${orgId}` : ""}`),
 };
 
-export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, selfService, moduleSessions, teamUsage, meetings };
+export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, selfService, moduleSessions, teamUsage, meetings, implEvents };
