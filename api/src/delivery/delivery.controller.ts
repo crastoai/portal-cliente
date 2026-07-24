@@ -65,7 +65,15 @@ export class DeliveryController {
           where organization_id=$1 and period_start >= date_trunc('month',current_date)::date`,
         [visible.orgId],
       )).rows[0];
-      return { support, ai };
+      // Contrato de prestação de serviço — o documento que o admin sobe em "Documentos"
+      // (kind=contrato_servico). O cliente abre pelo card "Contrato". asService escopado por org.
+      const contract_doc = (await c.query(
+        `select file_name, storage_path, uploaded_at
+           from crm.documents where organization_id=$1 and kind='contrato_servico'
+          order by uploaded_at desc limit 1`,
+        [visible.orgId],
+      )).rows[0] ?? null;
+      return { support, ai, contract_doc };
     });
     const { orgId: _orgId, ...safe } = visible;
     return { ...safe, ...privateUsage };

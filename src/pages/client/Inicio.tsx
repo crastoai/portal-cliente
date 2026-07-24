@@ -126,6 +126,14 @@ export default function Inicio() {
   // Abas do dashboard: "Soluções & Serviços" (fase atual) × "Negócios" (CRM+financeiro do cliente,
   // próxima fase). Separar em abas facilita a navegação do dono — pedido do Crasto.
   const [tab, setTab] = useState<"solucoes" | "negocios">("solucoes");
+  // Abrir o contrato de prestação de serviço (documento subido pelo admin) — URL assinada do R2.
+  const [abrindoContrato, setAbrindoContrato] = useState(false);
+  const abrirContrato = async () => {
+    const path = self?.contract_doc?.storage_path; if (!path) return;
+    setAbrindoContrato(true);
+    try { const u = await services.storage.getUrl(path); if (u) window.open(u, "_blank", "noopener"); }
+    finally { setAbrindoContrato(false); }
+  };
 
   // Farol da EQUIPE (RH) — real: ninguém acessou = vermelho; alguém nunca acessou = âmbar;
   // todos já acessaram = verde. Nada inventado (deriva de user_sessions).
@@ -261,10 +269,12 @@ export default function Inicio() {
           <div className="selfico"><FileSignature size={18} /></div>
           <div className="selfbody">
             <span className="selflabel">{t("Contrato")}</span>
-            <strong>{self?.contract?.title || t("Contrato da Crasto.AI")}</strong>
-            <small>{self?.contract?.status === "signed" ? t("Assinado") : self?.contract ? t("Em andamento") : t("Ainda não disponível")}</small>
+            <strong>{self?.contract_doc?.file_name || self?.contract?.title || t("Contrato da Crasto.AI")}</strong>
+            <small>{self?.contract_doc ? t("Disponível para download") : self?.contract?.status === "signed" ? t("Assinado") : self?.contract ? t("Em andamento") : t("Ainda não disponível")}</small>
           </div>
-          {self?.contract?.url && <a className="selflink" href={self.contract.url} target="_blank" rel="noreferrer">{t("Abrir")} <ArrowRight size={13} /></a>}
+          {self?.contract_doc
+            ? <button className="selflink" onClick={abrirContrato} disabled={abrindoContrato}>{abrindoContrato ? t("Abrindo…") : t("Abrir")} <ArrowRight size={13} /></button>
+            : self?.contract?.url && <a className="selflink" href={self.contract.url} target="_blank" rel="noreferrer">{t("Abrir")} <ArrowRight size={13} /></a>}
         </article>
         <article className="selfcard">
           <div className="selfico"><Headphones size={18} /></div>
@@ -357,16 +367,26 @@ export default function Inicio() {
         </div>
       </Modal>
 
-      <Modal title={reuAberta?.title || t("Reunião")} open={!!reuAberta} onClose={() => setReuAberta(null)}>
+      <Modal title={reuAberta?.title || t("Reunião")} open={!!reuAberta} onClose={() => setReuAberta(null)} wide>
         {reuAberta && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 14, lineHeight: 1.6 }}>
-            <div style={{ color: "var(--crasto-text-muted)", fontSize: 12.5 }}>
+          <div className="meetdoc">
+            <div className="meetdoc-meta">
               {new Date(reuAberta.meeting_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
               {reuAberta.created_by_name ? ` · ${t("registrado por")} ${reuAberta.created_by_name}` : ""}
             </div>
-            {reuAberta.attendees && <div><strong>{t("Participantes")}</strong><br />{reuAberta.attendees}</div>}
-            {reuAberta.summary && <div><strong>{t("Resumo")}</strong><br />{reuAberta.summary}</div>}
-            {reuAberta.transcript && <div><strong>{t("Minuta / transcrição")}</strong><br /><span style={{ whiteSpace: "pre-wrap" }}>{reuAberta.transcript}</span></div>}
+            {reuAberta.attendees && (
+              <div className="meetdoc-sec"><span className="meetdoc-lab">{t("Participantes")}</span><div className="meetdoc-attendees">{reuAberta.attendees}</div></div>
+            )}
+            {reuAberta.summary && (
+              <div className="meetdoc-sec"><span className="meetdoc-lab">{t("Resumo")}</span>
+                <div className="meetdoc-body">{reuAberta.summary.split(/\n\s*\n/).map((p, i) => <p key={i}>{p.trim()}</p>)}</div>
+              </div>
+            )}
+            {reuAberta.transcript && (
+              <div className="meetdoc-sec"><span className="meetdoc-lab">{t("Minuta / transcrição")}</span>
+                <div className="meetdoc-transcript">{reuAberta.transcript.split(/\n\s*\n/).map((p, i) => <p key={i}>{p.trim()}</p>)}</div>
+              </div>
+            )}
             {!reuAberta.summary && !reuAberta.transcript && <div style={{ color: "var(--crasto-text-muted)" }}>{t("Sem resumo ou minuta registrados nesta reunião.")}</div>}
           </div>
         )}

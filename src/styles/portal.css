@@ -261,6 +261,19 @@
 .dashtab.on { color: #fff; background: var(--crasto-navy); }
 .dashtab:focus-visible { outline: 2px solid var(--crasto-blue, #3E6FB8); outline-offset: 2px; }
 
+/* ===== leitura de reunião/minuta (modal wide) — conforto para transcrições longas ===== */
+.meetdoc { display: flex; flex-direction: column; gap: 20px; }
+.meetdoc-meta { font-size: 12.5px; color: var(--crasto-text-muted); }
+.meetdoc-sec { display: flex; flex-direction: column; gap: 8px; }
+.meetdoc-lab { font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; font-weight: 700; color: var(--crasto-text-muted); }
+.meetdoc-attendees { font-size: 14.5px; color: var(--crasto-text-primary); }
+.meetdoc-body p { font-size: 14.5px; line-height: 1.7; color: var(--crasto-text-primary); margin: 0 0 10px; white-space: pre-line; }
+.meetdoc-body p:last-child { margin-bottom: 0; }
+/* A minuta é o "documento": fundo suave, largura de leitura confortável, tipografia arejada. */
+.meetdoc-transcript { background: var(--crasto-bg-2); border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md); padding: 20px 24px; max-height: 60vh; overflow-y: auto; }
+.meetdoc-transcript p { font-size: 15px; line-height: 1.85; color: var(--crasto-text-primary); margin: 0 0 16px; white-space: pre-line; max-width: 68ch; }
+.meetdoc-transcript p:last-child { margin-bottom: 0; }
+
 /* ===== health-check financeiro (Início) ===== */
 .finhealth { background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-left: 4px solid #28C76F; border-radius: var(--crasto-radius-md); box-shadow: var(--crasto-shadow-sm); padding: 18px 20px; margin-bottom: 26px; }
 .finhealth.fh-amber { border-left-color: #FF9F43; }

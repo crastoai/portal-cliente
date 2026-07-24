@@ -14,7 +14,7 @@ import DiagnosticoCard from "./DiagnosticoCard";
 
 type Org = any;
 const icon = (cat?: string | null) => { const c = (cat || "").toLowerCase(); return c.includes("atend") ? <MessageCircle size={16} /> : c.includes("market") ? <Send size={16} /> : c.includes("vend") ? <Search size={16} /> : <Grid3x3 size={16} />; };
-const DOC_KINDS = [{ v: "cnpj_card", l: "Cartão CNPJ" }, { v: "contrato_social", l: "Contrato Social" }, { v: "plano_diretor", l: "Plano Diretor" }, { v: "socios", l: "Sócios" }, { v: "outro", l: "Outro" }];
+const DOC_KINDS = [{ v: "contrato_servico", l: "Contrato de prestação de serviço" }, { v: "cnpj_card", l: "Cartão CNPJ" }, { v: "contrato_social", l: "Contrato Social" }, { v: "plano_diretor", l: "Plano Diretor" }, { v: "socios", l: "Sócios" }, { v: "outro", l: "Outro" }];
 const fmtDate = (s?: string | null) => (s ? new Date(s + (s.length === 10 ? "T00:00:00" : "")).toLocaleDateString("pt-BR") : "—");
 
 export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: string) => void } = {}) {
@@ -432,7 +432,7 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
           <input type="file" hidden onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadDoc(file, (document.getElementById("dockind") as HTMLSelectElement)?.value || "outro"); e.target.value = ""; }} />
         </label>
         <select id="dockind">{DOC_KINDS.map((k) => <option key={k.v} value={k.v}>{tr(k.l)}</option>)}</select>
-        <span className="mt">{tr("Cartão CNPJ, contrato social, plano diretor, sócios…")}</span>
+        <span className="mt">{tr("Cartão CNPJ, contrato social, plano diretor… O \"Contrato de prestação de serviço\" aparece para o cliente no portal (card Contrato).")}</span>
       </div>
       {docs.length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhum documento.")}</div> : docs.map((d) => (
         <div className="dcard" key={d.id}>
