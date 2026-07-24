@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { MessageCircle, Search, Send, Grid3x3, Pencil, Trash2, UserPlus, Plus, Upload, Download, FileText, Building2, Globe, Cake, Eye } from "lucide-react";
+import { MessageCircle, Search, Send, Grid3x3, Pencil, Trash2, UserPlus, Plus, Upload, Download, FileText, Building2, Eye } from "lucide-react";
 import { preview } from "../../lib/preview";
 import { services as api, errorMessage } from "../../services";
-import { PageHead, Pill, Empty, useAsync, initials, Avatar, Field, money } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, initials, Field, money } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import UsoModulos from "../../ui/UsoModulos";
 import Modal from "../../ui/Modal";
@@ -48,11 +48,7 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
 
   const [edit, setEdit] = useState(false);
   const [ef, setEf] = useState<Org>(null);
-  const [invite, setInvite] = useState(false);
-  const [inv, setInv] = useState({ email: "", name: "", role: "client_member" });
   // Edição de usuário do Portal (nome/e-mail/papel).
-  const [euOpen, setEuOpen] = useState(false);
-  const [eu, setEu] = useState<{ id: string; name: string; email: string; role: string }>({ id: "", name: "", email: "", role: "client_member" });
   const [person, setPerson] = useState({ full_name: "", role: "", email: "", birthday: "" });
   const [phone, setPhone] = useState({ label: "mobile", country_code: "+55", number: "", person_id: "" });
   const [epId, setEpId] = useState("");
@@ -86,12 +82,12 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
     setRolloutForm(rf);
     setSvcRows(((data as any)?.csvc ?? []) as any[]);
   }, [data]);
-  const [busy, setBusy] = useState(false); const [toast, setToast] = useState(""); const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false); const [toast, setToast] = useState("");
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 7000); };
 
   if (loading) return <><PageHead eyebrow="CRM" title="Detalhe" /><Empty>Carregando…</Empty></>;
   if (!data?.org) return <><PageHead eyebrow="CRM" title="Detalhe" /><Empty>Não encontrado.</Empty></>;
-  const { org, mods, cm, users, people, phones, docs, acts, progress, health, taxids, proposals, impl, healthObj, tasks, creds, svcCat, cnpjs, partners } = data;
+  const { org, mods, cm, users, people, phones, docs, acts, progress, health, taxids, proposals, tasks, creds, svcCat, cnpjs, partners } = data;
   const activeSet = new Set(cm.map((c) => c.vdi_module_id));
   const rollAvg = cm.length ? Math.round(cm.reduce((s: number, c: any) => s + (c.rollout_progress || 0), 0) / cm.length) : (progress || 0);
   const co = countryOf(org.country); const st = stageOf(org.stage);
@@ -118,27 +114,6 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
     setBusy(false);
     if (r.ok) nav("/admin/clientes", { replace: true });
     else flash(tr("Erro ao apagar:") + " " + (r.error || tr("tente novamente")));
-  }
-  async function doInvite() {
-    if (!inv.email.trim()) { setErr(tr("Informe o e-mail.")); return; }
-    setBusy(true); setErr("");
-    const r = await api.identity.users.create({ email: inv.email.trim(), full_name: inv.name, organization_id: id!, role: inv.role });
-    setBusy(false);
-    if (!r.ok) { setErr(r.error || tr("Erro.")); return; }
-    setInvite(false); setInv({ email: "", name: "", role: "client_member" }); reload();
-    // Não há senha para mostrar: a pessoa define a dela pelo link. É o ponto da mudança.
-    flash(r.email_sent
-      ? tr("✉️ Convite enviado para {e} — ela define a própria senha.", { e: r.email ?? inv.email.trim() })
-      : tr("Acesso criado, mas o e-mail falhou: {err}", { err: r.email_error || "—" }));
-  }
-  function startEditUser(u: any) { setEu({ id: u.id, name: u.full_name || "", email: u.email || "", role: u.role || "client_member" }); setErr(""); setEuOpen(true); }
-  async function saveUser() {
-    if (!eu.email.trim()) { setErr(tr("Informe o e-mail.")); return; }
-    setBusy(true); setErr("");
-    const r = await api.identity.users.update(eu.id, { full_name: eu.name.trim(), email: eu.email.trim(), role: eu.role });
-    setBusy(false);
-    if (!r.ok) { setErr(r.error || tr("Erro.")); return; }
-    setEuOpen(false); reload(); flash(tr("Usuário atualizado."));
   }
   async function addPerson() { if (!person.full_name.trim()) return; await api.crm.people.add({ organization_id: id, full_name: person.full_name.trim(), role: person.role || null, email: person.email || null, birthday: person.birthday || null }); setPerson({ full_name: "", role: "", email: "", birthday: "" }); reload(); }
   async function addPhone() { if (!phone.number.trim()) return; await api.crm.phones.add({ organization_id: id, label: phone.label, country_code: phone.country_code, number: phone.number.trim(), person_id: phone.person_id || null }); setPhone({ label: "mobile", country_code: "+55", number: "", person_id: "" }); reload(); }
@@ -248,14 +223,6 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
   }
   async function downloadDoc(path: string) { const url = await api.storage.getUrl(path); if (url) window.open(url, "_blank"); }
   async function delDoc(d: any) { await api.storage.remove(d.storage_path); await api.crm.documents.remove(d.id); reload(); }
-  async function resendAccess(u: any) {
-    if (!confirm(tr("Enviar para {e} um link para definir a senha de acesso? A senha atual continua valendo até ela usar o link.", { e: u.email }))) return;
-    setBusy(true);
-    const r = await api.identity.users.resendAccess({ user_id: u.id, email: u.email, full_name: u.full_name || "" });
-    setBusy(false);
-    if (!r.ok) { flash(tr("Falha ao reenviar:") + " " + (r.error || "erro")); return; }
-    flash(r.email_sent ? tr("✉️ Link de acesso enviado para {e}.", { e: u.email }) : tr("Não foi possível enviar o e-mail: {err}", { err: r.email_error || "" }));
-  }
 
   return (
     <div>

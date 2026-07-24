@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Shield, Users, Building2, Lock, Search, ChevronDown, ChevronRight, SlidersHorizontal, Check, MessageSquare, LayoutGrid, UserPlus, RefreshCw } from "lucide-react";
+import { Shield, Users, Building2, Lock, Search, ChevronRight, SlidersHorizontal, Check, MessageSquare, LayoutGrid, UserPlus, RefreshCw } from "lucide-react";
 import { services, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, useToast, initials, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
@@ -78,7 +78,6 @@ export default function ConsolePermissoes() {
   const platform: U[] = data?.platform ?? [];
   const clients: Client[] = data?.clients ?? [];
   const [q, setQ] = useState("");
-  const [open, setOpen] = useState<Record<string, boolean>>({});
   const [crmUsers, setCrmUsers] = useState<Record<string, CrmBucket>>({});
   const toast = useToast();
 
@@ -104,7 +103,6 @@ export default function ConsolePermissoes() {
   // Foco vindo do detalhe do cliente (?org=...): seleciona aquele cliente.
   const [sp] = useSearchParams();
   const focoOrg = sp.get("org");
-  const focoRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (focoOrg && !loading) selecionar(focoOrg);
   }, [focoOrg, loading]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -141,7 +139,6 @@ export default function ConsolePermissoes() {
       return nameHit ? c : { ...c, users };
     })
     .filter((c) => !query || c.name.toLowerCase().includes(query) || c.users.length > 0), [clients, query]);
-  const isOpen = (id: string) => open[id] ?? !!query; // busca abre automaticamente
 
   // Usuários do CRM carregam sob demanda (ao abrir o cliente): é uma chamada à ponte por org,
   // e a lista vem do CRM — inclui quem NÃO está no Portal.
@@ -150,11 +147,6 @@ export default function ConsolePermissoes() {
     services.crmAccess.overview(orgId)
       .then((o) => setCrmUsers((m) => ({ ...m, [orgId]: { loading: false, enabled: !!o.enabled, users: o.users || [], error: o.crm_error || undefined } })))
       .catch((e) => setCrmUsers((m) => ({ ...m, [orgId]: { loading: false, enabled: false, users: [], error: errorMessage(e) } })));
-  }
-  function toggleClient(orgId: string) {
-    const willOpen = !isOpen(orgId);
-    setOpen((o) => ({ ...o, [orgId]: willOpen }));
-    if (willOpen && !crmUsers[orgId]) loadCrmUsers(orgId);
   }
 
   // ---- Portal ----

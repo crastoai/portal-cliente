@@ -25,7 +25,6 @@ import Perfil from "./pages/Perfil";
 
 import VisaoGeral from "./pages/admin/VisaoGeral";
 import Clientes from "./pages/admin/Clientes";
-import ClienteDetalhe from "./pages/admin/ClienteDetalhe";
 import CrmDetalhe from "./pages/admin/CrmDetalhe";
 import Propostas from "./pages/admin/Propostas";
 import Servicos from "./pages/admin/Servicos";
@@ -39,7 +38,6 @@ import ContasReceber from "./pages/admin/ContasReceber";
 import CustosOperacionais from "./pages/admin/CustosOperacionais";
 import CustoIA from "./pages/admin/CustoIA";
 import FinanceiroAdmin from "./pages/admin/Financeiro";
-import ConsoleStub from "./pages/admin/ConsoleStub";
 import ConsoleHealthCheck from "./pages/admin/ConsoleHealthCheck";
 import ConsoleAuditoria from "./pages/admin/ConsoleAuditoria";
 import ConsoleModelos from "./pages/admin/ConsoleModelos";
