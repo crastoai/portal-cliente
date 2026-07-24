@@ -254,6 +254,22 @@ export class DeliveryController {
   @Delete('credentials/:id')
   credRemove(@Req() req: any, @Param('id') id: string) { return this.db.asUser(this.uid(req), async (c) => { await c.query('delete from delivery.module_credentials where id=$1', [id]); return { ok: true }; }); }
 
+  /**
+   * TEMPO CONECTADO da equipe (RH) — federado do wacrm, onde vive `user_sessions`. Repassa o
+   * Bearer do próprio cliente (mesmo IdP): o wacrm decide o que devolver (dono vê a equipe,
+   * membro vê só o próprio). Se o CRM estiver fora, devolve vazio — a tela mostra "—", não mente.
+   */
+  @Get('team-usage')
+  async teamUsage(@Req() req: any) {
+    const url = process.env.CRM_API_URL, auth = req?.headers?.authorization;
+    if (!url || !auth) return { scope: 'none', rows: [] };
+    try {
+      const r = await fetch(`${url.replace(/\/$/, '')}/api/me/team-usage`, { headers: { Authorization: auth } });
+      const j = await r.json().catch(() => ({ scope: 'none', rows: [] }));
+      return j && Array.isArray(j.rows) ? j : { scope: 'none', rows: [] };
+    } catch { return { scope: 'none', rows: [] }; }
+  }
+
   // ── module_sessions (métrica de uso: quem abriu qual módulo, quando, por quanto tempo) ──
   //
   // Quem abre o módulo é o PORTAL, então é aqui que dá para medir — mesmo enquanto o destino

@@ -25,6 +25,7 @@ export default function Inicio() {
   const [mods, setMods] = useState<Mod[]>([]);
   const [fin, setFin] = useState<FaturaSummary | null>(null);
   const [self, setSelf] = useState<any>(null);
+  const [team, setTeam] = useState<{ scope: string; rows: { id: string; email: string; full_name: string | null; online: boolean; sessoes: number; minutos: number; ultimo: string | null }[] } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,6 +39,8 @@ export default function Inicio() {
         services.delivery.selfService.getMine().catch(() => null),
       ]);
       setSelf(ss);
+      // Tempo conectado da equipe (RH) — só faz sentido para o dono; membro recebe scope 'self'.
+      services.delivery.teamUsage.getMine().then(setTeam).catch(() => setTeam(null));
       setFin(summarizeFaturas((inv as unknown as Fatura[]) ?? []));
       const rows = cm ?? [];
       const ids = rows.map((r) => r.vdi_module_id);
@@ -203,6 +206,27 @@ export default function Inicio() {
       </div>
 
       {/* Módulos */}
+      {/* Sua equipe — tempo conectado REAL (user_sessions do wacrm). Só o dono vê a equipe. */}
+      {team?.scope === "team" && team.rows.length > 0 && (
+        <div className="scopebox">
+          <div className="scopehead"><div><Headphones size={17} /><span>{t("Sua equipe · tempo conectado")}</span></div><small>{t("Últimos 30 dias · dado real de acesso à plataforma")}</small></div>
+          <div className="scopelist">
+            {team.rows.map((u) => {
+              const h = Math.floor(u.minutos / 60), m = u.minutos % 60;
+              const tempo = u.minutos === 0 ? t("nunca acessou") : h > 0 ? `${h}h ${m}min` : `${m}min`;
+              const quando = !u.ultimo ? t("nunca") : (() => { const d = Math.floor((Date.now() - new Date(u.ultimo).getTime()) / 3600000); return d < 1 ? t("agora há pouco") : d < 24 ? t("há {n}h", { n: d }) : new Date(u.ultimo).toLocaleDateString("pt-BR"); })();
+              return (
+                <div className="scoperow" key={u.id}>
+                  <span className={"scopedot " + (u.online ? "green" : u.minutos > 0 ? "amber" : "red")} />
+                  <div><strong>{u.full_name || u.email}{u.online && <span className="dot-online" title={t("online agora")} />}</strong><small>{u.email} · {t("último acesso")} {quando}</small></div>
+                  <span className="scopepill mute">{u.online ? t("online") : tempo}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="sec-h"><h2>{t("Minhas soluções")}</h2></div>
       {loading ? (
         <div className="empty">{t("Carregando…")}</div>

@@ -76,6 +76,12 @@ export const selfService = {
   getMine: async () => api.get<any>(`/api/delivery/self-service/mine`),
 };
 
+// Tempo conectado da equipe (RH) — dado real de user_sessions (wacrm), federado. O dono vê a
+// equipe; o membro vê só o próprio. Quem nunca usou aparece com 0min (real, não some).
+export const teamUsage = {
+  getMine: async () => api.get<{ scope: "team" | "self" | "none"; rows: { id: string; email: string; full_name: string | null; online: boolean; sessoes: number; minutos: number; ultimo: string | null }[] }>(`/api/delivery/team-usage`),
+};
+
 // Métrica de uso por usuário × módulo. Quem abre o módulo é o Portal, então é o Portal que
 // mede — vale mesmo enquanto o destino (Lovable) usa credencial compartilhada da empresa e
 // não consegue distinguir as pessoas. O servidor tira usuário e org do JWT; o front só diz
@@ -89,4 +95,4 @@ export const moduleSessions = {
     api.get<any[]>(`/api/delivery/module-sessions/summary?dias=${dias}${orgId ? `&org=${orgId}` : ""}`),
 };
 
-export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, selfService, moduleSessions };
+export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, selfService, moduleSessions, teamUsage };
