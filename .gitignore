@@ -8,3 +8,4 @@ dist
 # Portal API (middle-end)
 /api/node_modules
 /api/dist
+.env.*.local
