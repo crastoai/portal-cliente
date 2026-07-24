@@ -5,8 +5,9 @@ import { supabase } from "../../lib/supabase";
 import { services } from "../../services";
 import { useT } from "../../lib/i18n";
 
-// API do wacrm (fonte de verdade dos agentes). Origem interna — o usuário nunca a vê.
-const WACRM_API = "https://wacrm-api.4hqjjr.easypanel.host";
+// API do wacrm (fonte de verdade dos agentes). Domínio PRÓPRIO, não o host cru do EasyPanel:
+// esta chamada sai do navegador do CLIENTE e aparece no inspetor dele.
+const WACRM_API = "https://api.wacrm.crasto.ai";
 type Agent = { id: string; name: string; slug?: string; status?: string };
 
 // FASE 3 — WhatsApp CRM embarcado (tela cheia). Se o usuário tem >1 agente, o Portal mostra
