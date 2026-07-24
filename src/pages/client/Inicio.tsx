@@ -128,7 +128,7 @@ export default function Inicio() {
   const [slaOpen, setSlaOpen] = useState(false);
   // Abas do dashboard: "Soluções & Serviços" (fase atual) × "Negócios" (CRM+financeiro do cliente,
   // próxima fase). Separar em abas facilita a navegação do dono — pedido do Crasto.
-  const [tab, setTab] = useState<"solucoes" | "negocios">("solucoes");
+  const [tab, setTab] = useState<"solucoes" | "minhas" | "negocios">("solucoes");
   // Abrir o contrato de prestação de serviço (documento subido pelo admin) — URL assinada do R2.
   const [abrindoContrato, setAbrindoContrato] = useState(false);
   const abrirContrato = async () => {
@@ -156,6 +156,7 @@ export default function Inicio() {
       {/* Abas do dashboard — separam o acompanhamento das SOLUÇÕES do painel de NEGÓCIOS do cliente. */}
       <div className="dashtabs" role="tablist">
         <button role="tab" aria-selected={tab === "solucoes"} className={"dashtab" + (tab === "solucoes" ? " on" : "")} onClick={() => setTab("solucoes")}>{t("Soluções & Serviços")}</button>
+        <button role="tab" aria-selected={tab === "minhas"} className={"dashtab" + (tab === "minhas" ? " on" : "")} onClick={() => setTab("minhas")}>{t("Minhas soluções")}{mods.length ? <span className="dashtab-cnt">{mods.length}</span> : null}</button>
         <button role="tab" aria-selected={tab === "negocios"} className={"dashtab" + (tab === "negocios" ? " on" : "")} onClick={() => setTab("negocios")}>{t("Negócios")}</button>
       </div>
 
@@ -200,39 +201,6 @@ export default function Inicio() {
           })}
         </div>
       </div>
-
-      {/* Minhas soluções — os módulos que o cliente abre (agrupado com o escopo, mesmo farol). */}
-      <SecHead title={t("Minhas soluções")} tom={farolSolucoes as Tom} caption={mods.length ? t("Clique em Acessar para abrir cada solução") : undefined} />
-      {loading ? (
-        <div className="empty">{t("Carregando…")}</div>
-      ) : mods.length === 0 ? (
-        <div className="empty"><p><strong>{t("Nenhuma solução ativa ainda.")}</strong> {t("Assim que a Crasto.AI liberar suas soluções, elas aparecem aqui.")}</p></div>
-      ) : (
-        <div className="mods">
-          {mods.map((m) => {
-            const cat = (m.vdi?.category || "").toLowerCase();
-            const icon = cat.includes("atend") ? ICONS.whatsapp : cat.includes("market") ? ICONS.marketing : ICONS.default;
-            const st = m.status === "active" ? "ok" : m.status === "implementing" ? "warn" : "info";
-            const stl = m.status === "active" ? t("Ativo") : m.status === "implementing" ? t("Em implementação") : m.status;
-            return (
-              <div className="mod" key={m.id}>
-                <div className="cover"><div className="glow" />{icon}</div>
-                <div className="body">
-                  <h3>{m.label || m.vdi?.name || t("Módulo")}</h3>
-                  <p>{m.vdi?.description || t("Solução de IA da Crasto.AI.")}</p>
-                  <div className="foot">
-                    <span className={"pill " + st}><span className="d" />{stl}</span>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setDetMod(m)}><span className="crasto-btn__label">{t("Detalhes")}</span></button>
-                      <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={!m.url} title={m.url ? t("Abrir a solução") : t("Link em configuração")} onClick={() => m.url && window.open(m.url, "_blank", "noopener")}><span className="crasto-btn__label">{t("Acessar")}</span></button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
 
       {/* ═══ SEU CONTRATO ═══ health check do contrato (situação financeira) — farol próprio,
           separado do farol das soluções. Verde/âmbar/vermelho pela situação real das faturas. */}
@@ -343,6 +311,41 @@ export default function Inicio() {
       )}
 
       </>)}
+
+      {/* Aba MINHAS SOLUÇÕES — só os cards de acesso do cliente. Separado do acompanhamento para
+          não virar bagunça quando o cliente tem várias soluções (pedido do Crasto). */}
+      {tab === "minhas" && (
+        loading ? (
+          <div className="empty">{t("Carregando…")}</div>
+        ) : mods.length === 0 ? (
+          <div className="empty"><p><strong>{t("Nenhuma solução ativa ainda.")}</strong> {t("Assim que a Crasto.AI liberar suas soluções, elas aparecem aqui.")}</p></div>
+        ) : (
+          <div className="mods">
+            {mods.map((m) => {
+              const cat = (m.vdi?.category || "").toLowerCase();
+              const icon = cat.includes("atend") ? ICONS.whatsapp : cat.includes("market") ? ICONS.marketing : ICONS.default;
+              const st = m.status === "active" ? "ok" : m.status === "implementing" ? "warn" : "info";
+              const stl = m.status === "active" ? t("Ativo") : m.status === "implementing" ? t("Em implementação") : m.status;
+              return (
+                <div className="mod" key={m.id}>
+                  <div className="cover"><div className="glow" />{icon}</div>
+                  <div className="body">
+                    <h3>{m.label || m.vdi?.name || t("Módulo")}</h3>
+                    <p>{m.vdi?.description || t("Solução de IA da Crasto.AI.")}</p>
+                    <div className="foot">
+                      <span className={"pill " + st}><span className="d" />{stl}</span>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setDetMod(m)}><span className="crasto-btn__label">{t("Detalhes")}</span></button>
+                        <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={!m.url} title={m.url ? t("Abrir a solução") : t("Link em configuração")} onClick={() => m.url && window.open(m.url, "_blank", "noopener")}><span className="crasto-btn__label">{t("Acessar")}</span></button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )
+      )}
 
       {/* Aba NEGÓCIOS — CRM + financeiro do PRÓPRIO negócio do cliente (resultados que as soluções
           geram). Próxima fase: nada fictício ainda, então mostra o que vem, sem números inventados. */}
