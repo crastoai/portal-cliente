@@ -65,6 +65,13 @@ export const userModules = {
   set: async (userId: string, vdiModuleIds: string[]) => api.post(`/api/delivery/user-modules`, { user_id: userId, vdi_module_ids: vdiModuleIds }),
 };
 
+// Telas do Portal por usuário — caminho do DONO (o do admin é RPC e continua existindo).
+// Lista vazia = sem restrição = vê tudo. O middle-end valida dono-da-mesma-org.
+export const userScreens = {
+  list: async (userId: string) => api.get<string[]>(`/api/delivery/user-screens?user=${encodeURIComponent(userId)}`),
+  set: async (userId: string, screens: string[]) => api.post(`/api/delivery/user-screens`, { user_id: userId, screens }),
+};
+
 export const selfService = {
   getMine: async () => api.get<any>(`/api/delivery/self-service/mine`),
 };
@@ -82,4 +89,4 @@ export const moduleSessions = {
     api.get<any[]>(`/api/delivery/module-sessions/summary?dias=${dias}${orgId ? `&org=${orgId}` : ""}`),
 };
 
-export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, selfService, moduleSessions };
+export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, selfService, moduleSessions };

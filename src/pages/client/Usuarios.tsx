@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { UserPlus, Boxes } from "lucide-react";
+import { UserPlus, Boxes, Check} from "lucide-react";
 import { services, errorMessage } from "../../services";
 import { useAuth } from "../../lib/auth";
 import { PageHead, Pill, Empty, useAsync, Avatar, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
+import { CLIENT_SCREENS, ALL_SCREEN_KEYS, BASE_SCREEN } from "../../lib/screens";
 import UsoModulos from "../../ui/UsoModulos";
 import Modal from "../../ui/Modal";
 
@@ -48,8 +49,19 @@ export default function Usuarios() {
       const arr = Array.isArray(acc) ? acc : [];
       // sem restrição (vazio no banco) = todos marcados; com restrição = só os liberados.
       setChecked(new Set(arr.length ? arr : uniq.map((m) => m.id)));
+      // Telas do Portal do mesmo jeito: vazio = sem restrição = tudo marcado. É aqui que o
+      // dono decide, por exemplo, que o vendedor não vê Financeiro.
+      const tel = await services.delivery.userScreens.list(u.id).catch(() => [] as string[]);
+      const tarr = Array.isArray(tel) ? tel : [];
+      setTelas(new Set(tarr.length ? tarr : ALL_SCREEN_KEYS));
     } catch (e) { setModErr(errorMessage(e)); }
   }
+  const [telas, setTelas] = useState<Set<string>>(new Set());
+  function toggleTela(k: string) {
+    if (k === BASE_SCREEN) return; // Início é base
+    setTelas((t0) => { const n = new Set(t0); n.has(k) ? n.delete(k) : n.add(k); return n; });
+  }
+
   async function saveMods() {
     if (!modUser) return;
     setModBusy(true); setModErr("");
@@ -58,7 +70,12 @@ export default function Usuarios() {
       const sel = all.filter((id) => checked.has(id));
       // todos marcados = sem restrição (limpa); subconjunto = restringe a esses.
       await services.delivery.userModules.set(modUser.id, sel.length === all.length ? [] : sel);
-      setModUser(null); setToast(t("Acesso a módulos atualizado ✓")); setTimeout(() => setToast(""), 6000);
+      // Telas: tudo marcado = sem restrição (limpa). O dono nunca se restringe — a API recusa.
+      if (modUser.role !== "client_owner") {
+        const tsel = ALL_SCREEN_KEYS.filter((k) => telas.has(k));
+        await services.delivery.userScreens.set(modUser.id, tsel.length === ALL_SCREEN_KEYS.length ? [] : tsel);
+      }
+      setModUser(null); setToast(t("Permissões atualizadas ✓")); setTimeout(() => setToast(""), 6000);
     } catch (e) { setModErr(errorMessage(e)); } finally { setModBusy(false); }
   }
 
@@ -89,7 +106,7 @@ export default function Usuarios() {
                   <td><Pill tone={roleTone(u.role)}>{roleLabel(u.role)}</Pill></td>
                   <td className="cust"><span className="em">{u.email}</span></td>
                   <td>{isOwner && u.role === "client_member" ? (
-                    <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => openMods(u)}><span className="crasto-btn__icon"><Boxes size={14} /></span><span className="crasto-btn__label">{t("Módulos")}</span></button>
+                    <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => openMods(u)}><span className="crasto-btn__icon"><Boxes size={14} /></span><span className="crasto-btn__label">{t("Permissões")}</span></button>
                   ) : u.role === "client_owner" ? <span className="em" style={{ opacity: .6 }}>{t("vê tudo")}</span> : null}</td>
                 </tr>
               ))}
@@ -111,10 +128,28 @@ export default function Usuarios() {
         <Field label="Papel"><select value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}><option value="client_member">{t("Membro (usa o portal)")}</option><option value="client_owner">{t("Dono (gerencia a conta)")}</option></select></Field>
         <div className="note" style={{ marginTop: 4 }}><span>{t("A pessoa recebe um e-mail de acesso da Crasto.AI e define a própria senha no primeiro login.")}</span></div>
       </Modal>
-      <Modal title={t("Módulos de {n}", { n: modUser?.full_name || modUser?.email || "" })} open={!!modUser} onClose={() => setModUser(null)}
+      <Modal title={t("Permissões de {n}", { n: modUser?.full_name || modUser?.email || "" })} open={!!modUser} onClose={() => setModUser(null)}
         footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setModUser(null)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={modBusy} onClick={saveMods}><span className="crasto-btn__label">{modBusy ? t("Salvando…") : t("Salvar")}</span></button></>}>
         {modErr && <div className="formerr">{modErr}</div>}
-        <div className="note" style={{ marginBottom: 10 }}><span>{t("Marque os módulos que este membro pode ver na sidebar. Todos marcados = vê tudo do plano.")}</span></div>
+        {modUser?.role === "client_owner" ? (
+          <div className="note" style={{ marginBottom: 10 }}><span>{t("Dono da conta: vê todas as telas e módulos. Não é restringível.")}</span></div>
+        ) : (<>
+          <div className="note" style={{ marginBottom: 10 }}><span>{t("Marque o que esta pessoa pode ver. Tudo marcado = sem restrição (vê tudo o que a empresa contratou).")}</span></div>
+          <div className="mt" style={{ fontWeight: 600, margin: "14px 0 8px" }}>{t("Telas do Portal")}</div>
+          <div className="screengrid">
+            {CLIENT_SCREENS.map((sc) => {
+              const on = sc.key === BASE_SCREEN || telas.has(sc.key);
+              const base = sc.key === BASE_SCREEN;
+              return (
+                <button key={sc.key} className={"screenpick" + (on ? " on" : "") + (base ? " base" : "")} onClick={() => toggleTela(sc.key)} disabled={base} title={base ? t("Início é sempre visível") : ""}>
+                  <span className="box">{on && <Check size={13} />}</span>
+                  <span className="lb">{t(sc.label)}{base && <em> · {t("base")}</em>}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt" style={{ fontWeight: 600, margin: "18px 0 8px" }}>{t("Módulos")}</div>
+        </>)}
         {orgMods.length === 0 ? <Empty>{t("Nenhum módulo ativo na conta.")}</Empty> : orgMods.map((m) => (
           <label key={m.id} className={"modrow" + (checked.has(m.id) ? " on" : "")}>
             <input type="checkbox" checked={checked.has(m.id)} onChange={() => toggleMod(m.id)} />

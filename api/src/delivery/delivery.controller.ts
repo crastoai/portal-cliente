@@ -117,6 +117,41 @@ export class DeliveryController {
     });
   }
 
+  /**
+   * TELAS DO PORTAL de um usuário — versão do DONO da empresa.
+   *
+   * Existe porque `admin_set_user_access` é RPC de admin: até aqui só a Crasto.AI conseguia
+   * definir telas, e o dono do cliente não tinha como dizer "meu vendedor não vê Financeiro".
+   * Reusa a MESMA guarda dos módulos (`gerenciaModulos`): dono da org do alvo ou crasto_admin,
+   * validado no banco — o papel de quem chama nunca vem do navegador.
+   *
+   * Lista vazia = sem restrição = vê tudo (é o padrão da plataforma, e a tela diz isso).
+   */
+  @Get('user-screens')
+  usList(@Req() req: any, @Query('user') user: string) {
+    return this.db.asService(async (c) => {
+      if (!(await this.gerenciaModulos(c, this.uid(req), user))) return { error: 'sem permissão' };
+      return (await c.query('select screen_key from public.member_screens where user_id=$1', [user])).rows.map((r: any) => r.screen_key);
+    });
+  }
+
+  @Post('user-screens')
+  usSet(@Req() req: any, @Body() b: any) {
+    const user = String(b?.user_id || '');
+    // Só chaves de tela plausíveis: nada que venha do navegador entra em query sem filtro.
+    const telas: string[] = Array.isArray(b?.screens) ? b.screens.filter((x: any) => typeof x === 'string' && /^[a-z_]{2,30}$/.test(x)) : [];
+    return this.db.asService(async (c) => {
+      const org = await this.gerenciaModulos(c, this.uid(req), user);
+      if (!org) return { error: 'sem permissão' };
+      // O DONO não se restringe nem restringe outro dono: acesso total é do papel, não da tela.
+      const alvo = (await c.query('select role::text r from public.profiles where id=$1', [user])).rows[0];
+      if (alvo?.r === 'client_owner') return { error: 'dono tem acesso total (não é restringível)' };
+      await c.query('delete from public.member_screens where user_id=$1', [user]);
+      for (const t of telas) await c.query('insert into public.member_screens (user_id, screen_key) values ($1,$2) on conflict do nothing', [user, t]);
+      return { ok: true, count: telas.length };
+    });
+  }
+
   /** Substitui o conjunto de módulos de um usuário. Lista vazia = limpa = usuário vê TODOS. */
   @Post('user-modules')
   umaSet(@Req() req: any, @Body() b: any) {
