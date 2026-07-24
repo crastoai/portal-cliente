@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { MessageCircle, Send } from "lucide-react";
 import { services } from "../../services";
-import { PageHead, Pill, Empty, useAsync } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 
 const STATUSES = ["open", "in_progress", "resolved", "closed"];
@@ -80,6 +80,10 @@ export default function TicketQueue({ cfg }: { cfg: QueueConfig }) {
       <PageHead eyebrow="Painel Admin" title={cfg.title} sub={cfg.sub}
         right={novas > 0 ? <Pill tone="warn">{cfg.pendingLabel(novas)}</Pill> : undefined} />
 
+      {/* Canal de suporte configurável — o número/e-mail que o cliente vê em "Suporte & Ajuda".
+          Vale para TODOS os clientes (é o suporte da Crasto.AI/Julie). Só na fila de suporte. */}
+      {cfg.kind === "support" && <SupportChannelConfig />}
+
       {loading ? <Empty>Carregando…</Empty> : items.length === 0 ? <Empty>{t(cfg.emptyText)}</Empty> : (
         <>
           <div className="catsearch">
@@ -131,6 +135,47 @@ export default function TicketQueue({ cfg }: { cfg: QueueConfig }) {
         </>
       )}
       {toast && <div className="toast">{toast}</div>}
+    </div>
+  );
+}
+
+// Editor do canal de suporte (WhatsApp + e-mail) — grava em finance.settings via RPC admin.
+// É o mesmo número que o cliente vê em "Suporte & Ajuda" (para todos os clientes).
+function SupportChannelConfig() {
+  const t = useT();
+  const { data } = useAsync(() => services.analytics.settings.business<Record<string, string>>(), []);
+  const [wa, setWa] = useState<string | null>(null);
+  const [email, setEmail] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [ok, setOk] = useState("");
+  const waVal = wa ?? data?.support_whatsapp ?? "";
+  const emailVal = email ?? data?.support_email ?? "";
+  const preview = waVal.replace(/\D/g, "");
+  async function save() {
+    setBusy(true);
+    try {
+      await services.analytics.settings.setBusiness("support_whatsapp", preview);
+      await services.analytics.settings.setBusiness("support_email", emailVal.trim());
+      setOk(t("Canal de suporte atualizado ✓")); setTimeout(() => setOk(""), 5000);
+    } catch { setOk(t("Erro ao salvar.")); setTimeout(() => setOk(""), 5000); } finally { setBusy(false); }
+  }
+  return (
+    <div className="card" style={{ padding: 16, marginBottom: 18 }}>
+      <div style={{ fontSize: 13.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+        <MessageCircle size={15} /> {t("Canal de suporte (o que o cliente vê em Suporte & Ajuda)")}
+      </div>
+      <div className="mt" style={{ fontSize: 12, marginBottom: 12 }}>{t("Vale para todos os clientes. Se um dia trocar de número, ajuste aqui.")}</div>
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 240px" }}>
+          <Field label={t("WhatsApp do suporte")}><input value={waVal} onChange={(e) => setWa(e.target.value)} placeholder="5511913685973" /></Field>
+          <div className="mt" style={{ fontSize: 11.5, marginTop: 4 }}>{t("Formato DDI+DDD+número (ex.: 5511913685973).")} {preview && <>· <a href={`https://wa.me/${preview}`} target="_blank" rel="noopener">wa.me/{preview}</a></>}</div>
+        </div>
+        <div style={{ flex: "1 1 240px" }}>
+          <Field label={t("E-mail de suporte")}><input value={emailVal} onChange={(e) => setEmail(e.target.value)} placeholder="support@crasto.ai" /></Field>
+        </div>
+        <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={save} style={{ flex: "none" }}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar canal")}</span></button>
+        {ok && <span style={{ color: "var(--crasto-success)", fontSize: 12.5, alignSelf: "center" }}>{ok}</span>}
+      </div>
     </div>
   );
 }

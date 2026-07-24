@@ -59,6 +59,8 @@ export const clientAnalytics = {
 // ---- Parâmetros de negócio (imposto, comissões) — SSOT em finance.settings ----
 export const settingsAnalytics = {
   business: <T = any>() => rpc<T>("business_settings"),
+  /** Admin: grava um parâmetro de negócio (ex.: support_whatsapp). Gate crasto_admin no banco. */
+  setBusiness: (key: string, value: string) => rpc<void>("admin_set_business_setting", { p_key: key, p_value: value }),
 };
 
 export const analytics = { admin: adminAnalytics, client: clientAnalytics, settings: settingsAnalytics };

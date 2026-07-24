@@ -17,7 +17,7 @@ const ALLOWED = new Set<string>([
   // cliente / parceiro
   'client_support_hours', 'connector_commissions', 'reveal_module_secret',
   // settings + auditoria de login
-  'business_settings', 'audit_login',
+  'business_settings', 'admin_set_business_setting', 'audit_login',
 ]);
 
 @Controller('analytics')
