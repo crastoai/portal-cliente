@@ -16,7 +16,7 @@ export class DeliveryController {
 
   // `access_mode` viaja junto: é ele que diz ao front COMO abrir a instância
   // (link = nova aba, como sempre foi · embed = dentro do Portal · sso = embed com sessão própria).
-  private readonly ROLLOUT = 'id,vdi_module_id,status,label,rollout_progress,rollout_due,rollout_status,access_mode';
+  private readonly ROLLOUT = 'id,vdi_module_id,status,label,rollout_progress,rollout_due,rollout_status,access_mode,monthly_cost,setup_cost,contract_date';
 
   // ── Fase 4 · autoatendimento consolidado ────────────────────────────────
   // O org_id vem do JWT + RLS, nunca do navegador. Só depois de resolvê-lo no banco
@@ -349,7 +349,7 @@ export class DeliveryController {
   implEventsMine(@Req() req: any) {
     return this.db.asUser(this.uid(req), async (c) =>
       (await c.query(
-        `select e.id, e.happened_at, e.title, e.detail, e.performed_by_name, e.created_by_name,
+        `select e.id, e.happened_at, e.title, e.detail, e.performed_by_name, e.created_by_name, e.client_module_id,
                 coalesce(nullif(cm.label,''), vm.name) as module_name
            from delivery.implementation_events e
            left join delivery.client_modules cm on cm.id = e.client_module_id

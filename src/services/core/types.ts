@@ -27,7 +27,7 @@ export type VdiCatalogEntry = { name: string; department: string | null; descrip
 export type CatalogService = Record<string, any> & { id: string; name: string };
 
 // ---- delivery ----
-export type ClientModule = { id: string; organization_id?: string; vdi_module_id: string; status: string; label?: string | null; rollout_progress?: number; rollout_due?: string | null; rollout_status?: string };
+export type ClientModule = { id: string; organization_id?: string; vdi_module_id: string; status: string; label?: string | null; rollout_progress?: number; rollout_due?: string | null; rollout_status?: string; monthly_cost?: number | string | null; setup_cost?: number | string | null; contract_date?: string | null };
 export type Implementation = Record<string, any> & { overall_progress: number | null; status: string | null };
 export type SystemHealth = { status: string | null; message?: string | null; organization_id?: string };
 export type ProjectTask = Record<string, any> & { id: string };

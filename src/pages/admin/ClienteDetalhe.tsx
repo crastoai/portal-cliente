@@ -69,7 +69,7 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
   async function delReg(c: any) { if (!confirm(tr("Excluir este registro?"))) return; await api.identity.cnpjs.adminRemove(c.id); reload(); }
   async function delPartner(p: any) { if (!confirm(tr("Excluir o sócio \"{n}\"?", { n: p.full_name || "sócio" }))) return; try { await api.identity.partners.remove(p.id); reload(); } catch (e) { alert(errorMessage(e)); } }
   // F-D: implantação, saúde, tarefas, credenciais
-  const [rolloutForm, setRolloutForm] = useState<Record<string, { label: string; progress: string; due: string; status: string }>>({});
+  const [rolloutForm, setRolloutForm] = useState<Record<string, { label: string; progress: string; due: string; status: string; monthly: string; setup: string; contract: string }>>({});
   const [healthForm, setHealthForm] = useState({ status: "green", message: "" });
   const [taskf, setTaskf] = useState({ name: "", start: "", end: "" });
   const [credf, setCredf] = useState({ cmId: "", label: "", url: "", login: "", secret: "", sso: false, mode: "link" });
@@ -81,8 +81,8 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
     const h = (data as any)?.healthObj;
     if (h) setHealthForm({ status: h.status ?? "green", message: h.message ?? "" });
     const cms = ((data as any)?.cm ?? []) as any[];
-    const rf: Record<string, { label: string; progress: string; due: string; status: string }> = {};
-    cms.forEach((c) => { rf[c.id] = { label: c.label ?? "", progress: String(c.rollout_progress ?? 0), due: c.rollout_due ?? "", status: c.rollout_status ?? "in_progress" }; });
+    const rf: Record<string, { label: string; progress: string; due: string; status: string; monthly: string; setup: string; contract: string }> = {};
+    cms.forEach((c) => { rf[c.id] = { label: c.label ?? "", progress: String(c.rollout_progress ?? 0), due: c.rollout_due ?? "", status: c.rollout_status ?? "in_progress", monthly: c.monthly_cost != null ? String(c.monthly_cost) : "", setup: c.setup_cost != null ? String(c.setup_cost) : "", contract: c.contract_date ?? "" }; });
     setRolloutForm(rf);
     setSvcRows(((data as any)?.csvc ?? []) as any[]);
   }, [data]);
@@ -172,11 +172,15 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
   async function saveRollout(cmId: string) {
     const rf = rolloutForm[cmId]; if (!rf) return;
     setBusy(true);
-    try { await api.delivery.clientModules.updateRollout(cmId, { label: rf.label.trim() || null, rollout_progress: Math.max(0, Math.min(100, Number(rf.progress) || 0)), rollout_due: rf.due || null, rollout_status: rf.status }); reload(); flash(tr("Instância salva ✓")); }
+    try {
+      const num = (v: string) => { const n = Number(String(v).replace(",", ".")); return v.trim() === "" || Number.isNaN(n) ? null : n; };
+      await api.delivery.clientModules.updateRollout(cmId, { label: rf.label.trim() || null, rollout_progress: Math.max(0, Math.min(100, Number(rf.progress) || 0)), rollout_due: rf.due || null, rollout_status: rf.status, monthly_cost: num(rf.monthly), setup_cost: num(rf.setup), contract_date: rf.contract || null });
+      reload(); flash(tr("Instância salva ✓"));
+    }
     catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); } finally { setBusy(false); }
   }
-  const setRf = (cmId: string, patch: Partial<{ label: string; progress: string; due: string; status: string }>) =>
-    setRolloutForm((s) => ({ ...s, [cmId]: { label: "", progress: "0", due: "", status: "in_progress", ...s[cmId], ...patch } }));
+  const setRf = (cmId: string, patch: Partial<{ label: string; progress: string; due: string; status: string; monthly: string; setup: string; contract: string }>) =>
+    setRolloutForm((s) => ({ ...s, [cmId]: { label: "", progress: "0", due: "", status: "in_progress", monthly: "", setup: "", contract: "", ...s[cmId], ...patch } }));
   async function dupInstance(c: any) { setBusy(true); try { await api.delivery.clientModules.addInstance(id!, c.vdi_module_id, ""); reload(); flash(tr("Instância duplicada ✓ Dê um apelido para diferenciar.")); } catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); } finally { setBusy(false); } }
   async function delInstance(cmId: string) { if (!confirm(tr("Excluir esta instância? O acesso e o andamento dela serão removidos."))) return; await api.delivery.clientModules.removeInstance(cmId); reload(); }
   async function saveHealth() {
@@ -550,13 +554,16 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
       <div className="sec-h"><h2>{tr("Instâncias & andamento")}</h2><Pill tone="mute">{tr("apelido, acesso e progresso por instância — o cliente vê o apelido")}</Pill></div>
       {cm.length === 0 ? <Empty>{tr("Nenhum módulo contratado — libere módulos acima para acompanhar a implantação.")}</Empty> : cm.map((c: any) => {
         const name = mods.find((m) => m.id === c.vdi_module_id)?.name || tr("Módulo");
-        const rf = rolloutForm[c.id] || { label: "", progress: "0", due: "", status: "in_progress" };
+        const rf = rolloutForm[c.id] || { label: "", progress: "0", due: "", status: "in_progress", monthly: "", setup: "", contract: "" };
         return (
           <div className="rollrow" key={c.id}>
             <label className="rollf" style={{ flex: "1 1 200px" }}><span>{name}</span><input placeholder={tr("Apelido p/ o cliente (ex.: Nina Comercial)")} value={rf.label} onChange={(e) => setRf(c.id, { label: e.target.value })} /></label>
             <label className="rollf"><span>{tr("Progresso (%)")}</span><input type="number" min={0} max={100} value={rf.progress} onChange={(e) => setRf(c.id, { progress: e.target.value })} /></label>
             <label className="rollf"><span>{tr("Prazo de entrega")}</span><input type="date" value={rf.due} onChange={(e) => setRf(c.id, { due: e.target.value })} /></label>
             <label className="rollf"><span>{tr("Status")}</span><select value={rf.status} onChange={(e) => setRf(c.id, { status: e.target.value })}><option value="in_progress">{tr("Em andamento")}</option><option value="delivered">{tr("Entregue")}</option><option value="on_hold">{tr("Em espera")}</option></select></label>
+            <label className="rollf"><span>{tr("Custo mensal (R$)")}</span><input type="number" min={0} step="0.01" placeholder="—" value={rf.monthly} onChange={(e) => setRf(c.id, { monthly: e.target.value })} /></label>
+            <label className="rollf"><span>{tr("Custo de implantação (R$)")}</span><input type="number" min={0} step="0.01" placeholder="—" value={rf.setup} onChange={(e) => setRf(c.id, { setup: e.target.value })} /></label>
+            <label className="rollf"><span>{tr("Data do contrato")}</span><input type="date" value={rf.contract} onChange={(e) => setRf(c.id, { contract: e.target.value })} /></label>
             <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={() => saveRollout(c.id)}><span className="crasto-btn__label">{tr("Salvar")}</span></button>
             <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} title={tr("Criar outra instância deste mesmo módulo")} onClick={() => dupInstance(c)}><span className="crasto-btn__label">{tr("+ Duplicar")}</span></button>
             <button className="icobtn rm" title={tr("Excluir instância")} onClick={() => delInstance(c.id)}><Trash2 size={14} /></button>

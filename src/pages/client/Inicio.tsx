@@ -10,7 +10,7 @@ import { summarizeFaturas, type Fatura, type FaturaSummary } from "../../lib/fat
 
 type Health = { status: "green" | "amber" | "red"; message: string | null };
 type Impl = { overall_progress: number; due_date: string | null; status: string };
-type Mod = { id: string; status: string; url: string | null; rollout_progress: number; label: string | null; vdi: { name: string; description: string | null; category: string | null } | null };
+type Mod = { id: string; status: string; url: string | null; rollout_progress: number; label: string | null; monthly_cost: number | null; setup_cost: number | null; contract_date: string | null; vdi: { name: string; description: string | null; category: string | null } | null };
 
 const ICONS: Record<string, JSX.Element> = {
   default: <Search />, whatsapp: <MessageCircle />, marketing: <Send />,
@@ -45,6 +45,7 @@ export default function Inicio() {
   const [reuAberta, setReuAberta] = useState<import("../../services/delivery.service").Meeting | null>(null);
   const [implEvents, setImplEvents] = useState<import("../../services/delivery.service").ImplEvent[]>([]);
   const [implOpen, setImplOpen] = useState(false);
+  const [detMod, setDetMod] = useState<Mod | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -78,7 +79,8 @@ export default function Inicio() {
       setMods(rows.map((r) => {
         const cred = cmap[r.id]; // acesso por instância
         const url = cred?.access_url || vmap[r.vdi_module_id]?.external_url || null;
-        return { id: r.id, status: r.status, url, rollout_progress: (r as any).rollout_progress ?? 0, label: (r as any).label ?? null, vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null };
+        const numOrNull = (v: any) => (v == null || v === "" ? null : Number(v));
+        return { id: r.id, status: r.status, url, rollout_progress: (r as any).rollout_progress ?? 0, label: (r as any).label ?? null, monthly_cost: numOrNull((r as any).monthly_cost), setup_cost: numOrNull((r as any).setup_cost), contract_date: (r as any).contract_date ?? null, vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null };
       }));
       setLoading(false);
     })();
@@ -199,7 +201,10 @@ export default function Inicio() {
                   <p>{m.vdi?.description || t("Solução de IA da Crasto.AI.")}</p>
                   <div className="foot">
                     <span className={"pill " + st}><span className="d" />{stl}</span>
-                    <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={!m.url} title={m.url ? t("Abrir a solução") : t("Link em configuração")} onClick={() => m.url && window.open(m.url, "_blank", "noopener")}><span className="crasto-btn__label">{t("Acessar")}</span></button>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setDetMod(m)}><span className="crasto-btn__label">{t("Detalhes")}</span></button>
+                      <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={!m.url} title={m.url ? t("Abrir a solução") : t("Link em configuração")} onClick={() => m.url && window.open(m.url, "_blank", "noopener")}><span className="crasto-btn__label">{t("Acessar")}</span></button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -341,6 +346,39 @@ export default function Inicio() {
             {!reuAberta.summary && !reuAberta.transcript && <div style={{ color: "var(--crasto-text-muted)" }}>{t("Sem resumo ou minuta registrados nesta reunião.")}</div>}
           </div>
         )}
+      </Modal>
+
+      {/* Detalhes da solução — custo por módulo, data do contrato e os marcos daquela solução.
+          Dado REAL: o que a Crasto.AI não preencheu aparece como "—", nunca inventado. */}
+      <Modal title={detMod ? (detMod.label || detMod.vdi?.name || t("Solução")) : t("Solução")} open={!!detMod} onClose={() => setDetMod(null)}>
+        {detMod && (() => {
+          const marcos = implEvents.filter((e) => e.client_module_id === detMod.id);
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, fontSize: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div><div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", textTransform: "uppercase", letterSpacing: ".05em", fontWeight: 600 }}>{t("Custo mensal")}</div><div style={{ fontSize: 18, fontWeight: 700, marginTop: 3 }}>{detMod.monthly_cost != null ? money(detMod.monthly_cost) : "—"}</div></div>
+                <div><div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", textTransform: "uppercase", letterSpacing: ".05em", fontWeight: 600 }}>{t("Custo de implantação")}</div><div style={{ fontSize: 18, fontWeight: 700, marginTop: 3 }}>{detMod.setup_cost != null ? money(detMod.setup_cost) : "—"}</div></div>
+                <div><div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", textTransform: "uppercase", letterSpacing: ".05em", fontWeight: 600 }}>{t("Data do contrato")}</div><div style={{ fontSize: 15, fontWeight: 600, marginTop: 5 }}>{detMod.contract_date ? new Date(detMod.contract_date + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</div></div>
+                <div><div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", textTransform: "uppercase", letterSpacing: ".05em", fontWeight: 600 }}>{t("Implantação")}</div><div style={{ fontSize: 15, fontWeight: 600, marginTop: 5 }}>{detMod.rollout_progress}%</div></div>
+              </div>
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>{t("Histórico de implantação desta solução")}</div>
+                {marcos.length === 0 ? (
+                  <div style={{ color: "var(--crasto-text-muted)", fontSize: 13 }}>{t("Ainda não há marcos registrados para esta solução.")}</div>
+                ) : marcos.map((e) => (
+                  <div key={e.id} style={{ display: "flex", gap: 10, padding: "8px 0", borderTop: "1px solid var(--crasto-border, rgba(0,0,0,.08))" }}>
+                    <span style={{ fontSize: 15 }}>✅</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13.5 }}>{e.title}</div>
+                      <div style={{ fontSize: 12, color: "var(--crasto-text-muted)", marginTop: 1 }}>{new Date(e.happened_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}{e.performed_by_name ? ` · ${t("por")} ${e.performed_by_name}` : ""}</div>
+                      {e.detail && <div style={{ fontSize: 12.5, marginTop: 3, whiteSpace: "pre-wrap" }}>{e.detail}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
 
       {/* Contrato de suporte — a política de SLA vigente (48h úteis / fora do horário à parte). */}
