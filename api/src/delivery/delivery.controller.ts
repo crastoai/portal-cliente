@@ -381,6 +381,22 @@ export class DeliveryController {
     } catch { return { scope: 'none', rows: [] }; }
   }
 
+  /**
+   * USO DO AGENTE DE IA — federado do wacrm (whatsapp.messages/conversations). Repassa o Bearer
+   * do próprio cliente; o wacrm escopa por org. Taxa de automação = ai/(ai+human) das respostas,
+   * 30 dias. CRM fora → hasData=false (o Portal mostra "—", nunca número inventado).
+   */
+  @Get('agent-usage')
+  async agentUsage(@Req() req: any) {
+    const url = process.env.CRM_API_URL, auth = req?.headers?.authorization;
+    if (!url || !auth) return { hasData: false };
+    try {
+      const r = await fetch(`${url.replace(/\/$/, '')}/api/me/agent-usage`, { headers: { Authorization: auth } });
+      const j = await r.json().catch(() => ({ hasData: false }));
+      return j && typeof j === 'object' ? j : { hasData: false };
+    } catch { return { hasData: false }; }
+  }
+
   // ── module_sessions (métrica de uso: quem abriu qual módulo, quando, por quanto tempo) ──
   //
   // Quem abre o módulo é o PORTAL, então é aqui que dá para medir — mesmo enquanto o destino

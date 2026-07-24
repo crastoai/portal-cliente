@@ -46,6 +46,7 @@ export default function Inicio() {
   const [implEvents, setImplEvents] = useState<import("../../services/delivery.service").ImplEvent[]>([]);
   const [implOpen, setImplOpen] = useState(false);
   const [detMod, setDetMod] = useState<Mod | null>(null);
+  const [agent, setAgent] = useState<import("../../services/delivery.service").AgentUsage | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -65,6 +66,8 @@ export default function Inicio() {
       services.delivery.meetings.listMine().then((r) => setReunioes(Array.isArray(r) ? r : [])).catch(() => setReunioes([]));
       // Histórico de implantação (o quê/quando/quem) — abre no card "Implantação".
       services.delivery.implEvents.listMine().then((r) => setImplEvents(Array.isArray(r) ? r : [])).catch(() => setImplEvents([]));
+      // Uso REAL do agente de IA (federado do wacrm) — taxa de automação das respostas.
+      services.delivery.agentUsage.getMine().then(setAgent).catch(() => setAgent(null));
       setFin(summarizeFaturas((inv as unknown as Fatura[]) ?? []));
       const rows = cm ?? [];
       const ids = rows.map((r) => r.vdi_module_id);
@@ -289,9 +292,16 @@ export default function Inicio() {
           <div className="selfico"><Bot size={18} /></div>
           <div className="selfbody">
             <span className="selflabel">{t("Uso dos agentes de IA")}</span>
-            <strong className="tnum">{Number(self?.ai?.records || 0) > 0 ? Number(self.ai.tokens_in || 0).toLocaleString("pt-BR") : "—"}</strong>
-            <small>{Number(self?.ai?.records || 0) > 0 ? t("tokens de entrada medidos neste mês") : t("A duração em horas ainda não é medida")}</small>
+            <strong className="tnum">{agent?.automationPct != null ? `${agent.automationPct}%` : "—"}</strong>
+            <small>{agent?.automationPct != null
+              ? t("das respostas foram pela IA · {a} de {tot} · 30 dias", { a: agent.aiMessages ?? 0, tot: (agent.aiMessages ?? 0) + (agent.humanMessages ?? 0) })
+              : agent?.hasData
+                ? t("sem respostas registradas nos últimos 30 dias")
+                : t("Sem atividade do agente nos últimos 30 dias")}</small>
           </div>
+          {agent?.automationPct != null && (agent.aiConversations ?? 0) + (agent.humanConversations ?? 0) > 0 && (
+            <span className="selflink" style={{ pointerEvents: "none" }} title={t("Conversas conduzidas pela IA vs humano")}>{t("{n} no piloto IA", { n: agent.aiConversations ?? 0 })}</span>
+          )}
         </article>
       </div>
 

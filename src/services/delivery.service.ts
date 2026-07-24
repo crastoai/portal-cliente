@@ -104,6 +104,13 @@ export const teamUsage = {
   getMine: async () => api.get<{ scope: "team" | "self" | "none"; rows: { id: string; email: string; full_name: string | null; online: boolean; sessoes: number; minutos: number; ultimo: string | null }[] }>(`/api/delivery/team-usage`),
 };
 
+// Uso REAL do agente de IA (federado do wacrm) — taxa de automação das respostas (ai/(ai+human))
+// nos últimos 30 dias + conversas conduzidas pela IA. Sem CRM/atividade → hasData=false → "—".
+export type AgentUsage = { hasData: boolean; days?: number; automationPct?: number | null; aiMessages?: number; humanMessages?: number; inboundMessages?: number; aiConversations?: number; humanConversations?: number };
+export const agentUsage = {
+  getMine: async () => api.get<AgentUsage>(`/api/delivery/agent-usage`),
+};
+
 // Métrica de uso por usuário × módulo. Quem abre o módulo é o Portal, então é o Portal que
 // mede — vale mesmo enquanto o destino (Lovable) usa credencial compartilhada da empresa e
 // não consegue distinguir as pessoas. O servidor tira usuário e org do JWT; o front só diz
@@ -117,4 +124,4 @@ export const moduleSessions = {
     api.get<any[]>(`/api/delivery/module-sessions/summary?dias=${dias}${orgId ? `&org=${orgId}` : ""}`),
 };
 
-export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, selfService, moduleSessions, teamUsage, meetings, implEvents };
+export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, selfService, moduleSessions, teamUsage, meetings, implEvents, agentUsage };
