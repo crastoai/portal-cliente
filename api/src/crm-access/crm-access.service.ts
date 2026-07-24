@@ -50,6 +50,27 @@ export class CrmAccessService {
     } finally { clearTimeout(t); }
   }
 
+  /**
+   * Resumo dos agentes de TODOS os clientes, federado do wacrm em UMA chamada. Devolve, por
+   * organização, quantos agentes existem e quantos estão no ar — o que a Visão Geral usa para
+   * a coluna "Agente (IA)" com dado REAL (antes lia o schema `agents` do Portal, que é vazio).
+   * Se o CRM estiver fora, devolve {} e a tela mostra "—" em vez de mentir "sem agente".
+   */
+  async agentsOverview(auth: string): Promise<Record<string, { agentes: number; no_ar: number; farol: string }>> {
+    try {
+      const r = await this.crm(`/admin/clients?limit=200`, auth);
+      const out: Record<string, { agentes: number; no_ar: number; farol: string }> = {};
+      for (const c of (r?.clients ?? [])) {
+        const ags = Array.isArray(c.agents) ? c.agents : [];
+        const noAr = ags.filter((a: any) => a.status === 'live').length;
+        // farol: sem agente → none; algum no ar → green; existe mas nenhum no ar → gray (pausado).
+        const farol = ags.length === 0 ? 'none' : noAr > 0 ? 'green' : 'gray';
+        out[c.id] = { agentes: ags.length, no_ar: noAr, farol };
+      }
+      return out;
+    } catch { return {}; }
+  }
+
   /** O módulo do WhatsApp CRM está ATIVO para esta org? É o que destrava a aba de acesso. */
   private async activeModule(orgId: string) {
     return this.db.asService(async (c) => (await c.query(

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { UserPlus, Clock, SlidersHorizontal, Bot, Activity, DollarSign, ShieldCheck, ArrowRight } from "lucide-react";
+import { UserPlus, Clock, SlidersHorizontal, Bot, Activity, DollarSign, ShieldCheck, ArrowRight, Search } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { services, errorMessage } from "../../services";
 import { PageHead, Pill, useAsync, money, initials, Field } from "../../ui/ui";
@@ -24,16 +24,48 @@ export default function VisaoGeral() {
   const t = useT();
   const navigate = useNavigate();
   const { data, loading, reload } = useAsync(async () => {
-    const [clients, ov] = await Promise.all([fetchClients(), services.analytics.admin.consoleOverview().catch(() => null)]);
-    return { clients: clients ?? [], ov: ov as any };
+    const [clients, ov, agentsOv] = await Promise.all([
+      fetchClients(),
+      services.analytics.admin.consoleOverview().catch(() => null),
+      services.crmAccess.agentsOverview().catch(() => ({})), // federado do wacrm (agente REAL)
+    ]);
+    return { clients: clients ?? [], ov: ov as any, agentsOv: agentsOv as Record<string, { agentes: number; no_ar: number; farol: string }> };
   }, []);
   const clients = data?.clients ?? [];
   const ov = data?.ov ?? null;
   const ops = ov?.ops ?? null;
-  const agentByOrg: Record<string, any> = Object.fromEntries((ov?.clients ?? []).map((c: any) => [c.organization_id, c]));
+  // Agente por org vem do wacrm (federado). Se a chamada falhou, `agByOrg` é {} → a coluna
+  // mostra "—" (dado indisponível), nunca "sem agente" mentiroso.
+  const agByOrg = data?.agentsOv ?? {};
   const mrr = clients.reduce((s, c) => s + Number(c.mrr), 0);
   const modules = clients.reduce((s, c) => s + (c.modules?.length ?? 0), 0);
   const risk = clients.filter((c) => healthScore(c).tone === "crit").length;
+
+  // ── Tabela em ESCALA (pesquisa de padrões de admin/CS): busca + filtro rápido + ordenação
+  // por risco. Sem isso, 100 clientes viram scroll cego. Filtro client-side (a lista é pequena).
+  const [q, setQ] = useState("");
+  const [fchip, setFchip] = useState<"todos" | "risco" | "sem_agente" | "dormente">("todos");
+  const [sortKey, setSortKey] = useState<"health" | "acesso" | "nome">("health");
+  const query = q.trim().toLowerCase();
+  const DORMENTE = 30 * 86400000;
+  const lista = clients
+    .filter((c) => !query || `${c.name} ${c.email || ""}`.toLowerCase().includes(query))
+    .filter((c) => {
+      if (fchip === "risco") return healthScore(c).tone === "crit";
+      if (fchip === "sem_agente") return (agByOrg[c.id]?.agentes ?? 0) === 0;
+      if (fchip === "dormente") return !c.last_access || (Date.now() - new Date(c.last_access).getTime()) > DORMENTE;
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortKey === "nome") return a.name.localeCompare(b.name, "pt-BR");
+      if (sortKey === "acesso") { const av = a.last_access ? new Date(a.last_access).getTime() : 0; const bv = b.last_access ? new Date(b.last_access).getTime() : 0; return bv - av; }
+      // health: pior primeiro (triage — o urgente sobe), como recomenda a pesquisa.
+      return healthScore(a).score - healthScore(b).score;
+    });
+  const CHIPS: { k: typeof fchip; lb: string }[] = [
+    { k: "todos", lb: t("Todos") }, { k: "risco", lb: t("Em risco") },
+    { k: "sem_agente", lb: t("Sem agente") }, { k: "dormente", lb: t("Dormente 30d+") },
+  ];
 
   // ESCOLHER O CRM: cada agente do cliente tem o SEU CRM. Abrimos a popup com os agentes
   // (mesma lógica do Console do wacrm) — o admin escolhe qual visualizar. Sem escolher um
@@ -127,27 +159,45 @@ export default function VisaoGeral() {
       </div>
 
       <div className="sec-h"><h2>{t("Clientes · saúde & uso")}</h2></div>
-      <div className="tbl-wrap">
+      {/* Toolbar: busca + filtros rápidos + contagem. Ordena-se pelo cabeçalho. */}
+      <div className="cli-toolbar">
+        <div className="catsearch cli-search"><Search size={15} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Buscar cliente…")} /></div>
+        <div className="cli-chips">{CHIPS.map((ch) => <button key={ch.k} className={"cli-chip" + (fchip === ch.k ? " on" : "")} onClick={() => setFchip(ch.k)}>{ch.lb}</button>)}</div>
+        <span className="cli-count">{loading ? "" : t("{n} de {tot}", { n: lista.length, tot: clients.length })}</span>
+      </div>
+      <div className="tbl-wrap cli-tbl">
         <table className="tbl">
-          <thead><tr><th>{t("Cliente")}</th><th>{t("Módulos")}</th><th>{t("Últ. acesso")}</th><th>{t("Health (entrega)")}</th><th>{t("Agente (IA)")}</th><th>{t("MRR")}</th><th style={{ textAlign: "right" }}>{t("ação")}</th></tr></thead>
+          <thead><tr>
+            <th className="th-sort" onClick={() => setSortKey("nome")}>{t("Cliente")}{sortKey === "nome" ? " ↓" : ""}</th>
+            <th className="th-sort" onClick={() => setSortKey("health")}>{t("Health")}{sortKey === "health" ? " ↓" : ""}</th>
+            <th>{t("Agente")}</th>
+            <th>{t("Módulos")}</th>
+            <th style={{ textAlign: "right" }}>{t("MRR")}</th>
+            <th className="th-sort" onClick={() => setSortKey("acesso")}>{t("Últ. acesso")}{sortKey === "acesso" ? " ↓" : ""}</th>
+            <th style={{ textAlign: "right" }}>{t("ação")}</th>
+          </tr></thead>
           <tbody>
             {loading ? <tr><td colSpan={7} style={{ color: "var(--crasto-text-muted)" }}>{t("Carregando…")}</td></tr> :
-              clients.map((c) => {
+             lista.length === 0 ? <tr><td colSpan={7} style={{ color: "var(--crasto-text-muted)" }}>{t("Nenhum cliente com esse filtro.")}</td></tr> :
+              lista.map((c) => {
                 const h = healthScore(c);
                 const stale = c.last_access && (Date.now() - new Date(c.last_access).getTime()) > 20 * 86400000;
                 const color = h.tone === "ok" ? "#1F8A5B" : h.tone === "warn" ? "#B8863A" : "#B83A3A";
                 const reasons = (h.reasons ?? []) as string[];
+                const mods = c.modules ?? [];
+                // Agente REAL (federado). undefined = federação indisponível → "—" (não mente).
+                const ag = agByOrg[c.id];
+                const farol = ag ? AGENT_FAROL[ag.farol] : null;
                 return (
-                  <tr key={c.id}>
-                    <td><div className="cust"><div className="logo">{initials(c.name)}</div><div><div className="nm">{c.name}</div><div className="em">{c.email || "—"}</div></div></div></td>
-                    <td><div className="modchips">{(c.modules ?? []).map((m, i) => <span className="chip" key={i}>{modShort(m)}</span>)}</div></td>
-                    <td style={{ color: stale ? "var(--crasto-danger)" : "var(--crasto-text-body)", fontWeight: 500 }}><Clock size={12} style={{ verticalAlign: -1, marginRight: 4, opacity: .6 }} />{timeAgo(c.last_access)}</td>
-                    <td>
-                      <span className="health" title={reasons.join(" · ")}><span className="d" style={{ background: color }} />{h.score} · {h.label}</span>
-                      {reasons.length > 0 && <div style={{ fontSize: 11, color: "var(--crasto-text-muted)", marginTop: 2 }}>{reasons[0]}{reasons.length > 1 ? ` +${reasons.length - 1}` : ""}</div>}
-                    </td>
-                    <td>{(() => { const a = AGENT_FAROL[agentByOrg[c.id]?.agent ?? "none"]; return <Pill tone={a.tone as any}>{t(a.label)}</Pill>; })()}</td>
-                    <td className="tnum" style={{ fontWeight: 600, color: "var(--crasto-text-primary)" }}>{money(c.mrr)}</td>
+                  <tr key={c.id} className="cli-row">
+                    <td><div className="cust"><div className="logo">{initials(c.name)}</div><div className="cli-id"><div className="nm">{c.name}</div><div className="em">{c.email || "—"}</div></div></div></td>
+                    <td><span className="health" title={reasons.join(" · ")}><span className="d" style={{ background: color }} />{h.score} · {h.label}</span></td>
+                    <td>{farol
+                      ? <span className="cli-ag"><span className="d" style={{ background: farol.tone === "ok" ? "#1F8A5B" : farol.tone === "warn" ? "#B8863A" : farol.tone === "crit" ? "#B83A3A" : "#98A2B3" }} />{t(farol.label)}{ag.agentes > 1 ? ` · ${ag.no_ar}/${ag.agentes}` : ""}</span>
+                      : <span className="cli-ag mute">—</span>}</td>
+                    <td><span className="cli-mods">{mods.slice(0, 2).map((m, i) => <span className="chip" key={i}>{modShort(m)}</span>)}{mods.length > 2 && <span className="chip chip--more" title={mods.join(", ")}>+{mods.length - 2}</span>}{mods.length === 0 && <span className="cli-ag mute">—</span>}</span></td>
+                    <td className="tnum" style={{ textAlign: "right", fontWeight: 600, color: Number(c.mrr) > 0 ? "var(--crasto-text-primary)" : "var(--crasto-text-faint)" }}>{Number(c.mrr) > 0 ? money(c.mrr) : "—"}</td>
+                    <td className="cli-acc" style={{ color: stale ? "var(--crasto-danger)" : "var(--crasto-text-muted)" }}><Clock size={12} style={{ verticalAlign: -1, marginRight: 4, opacity: .6 }} />{timeAgo(c.last_access)}</td>
                     <td style={{ textAlign: "right" }}><button className="linkbtn" onClick={() => enterCrm(c)}>{t("Entrar no CRM")} <ArrowRight size={12} /></button></td>
                   </tr>
                 );

@@ -17,6 +17,12 @@ export class CrmAccessController {
   @Post('enter')
   enter(@Req() req: any) { return this.svc.enterLink(req); }
 
+  // Status dos agentes de TODOS os clientes, de uma vez (federado do wacrm). A Visão Geral
+  // mostrava "sem agente" para todos porque lia `agents.agents` do banco do PORTAL (vazio) —
+  // os agentes vivem no wacrm. Aqui buscamos em BATCH, por org. (rota literal antes de :orgId)
+  @Get('agents-overview')
+  agentsOverview(@Req() req: any) { return this.svc.agentsOverview(this.auth(req)); }
+
   @Get(':orgId')
   overview(@Req() req: any, @Param('orgId') orgId: string) { return this.svc.overview(orgId, this.auth(req)); }
 

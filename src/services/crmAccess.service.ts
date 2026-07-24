@@ -24,6 +24,8 @@ export type CrmAccessOverview = {
 
 export const crmAccess = {
   overview: (orgId: string) => api.get<CrmAccessOverview>(`/api/crm-access/${orgId}`),
+  // Status dos agentes de todos os clientes (federado do wacrm) → coluna "Agente" da Visão Geral.
+  agentsOverview: () => api.get<Record<string, { agentes: number; no_ar: number; farol: string }>>(`/api/crm-access/agents-overview`),
   // "Entrar no CRM": OTP de uso único (magiclink) para o próprio admin. O CRM troca por
   // sessão na origem dele. Nunca devolve/transporta o bearer.
   enter: () => api.post<{ token: string; type: string }>(`/api/crm-access/enter`),
