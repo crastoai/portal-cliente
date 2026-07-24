@@ -5,6 +5,7 @@ import { services } from "../../services";
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
 import { money } from "../../ui/ui";
+import Modal from "../../ui/Modal";
 import { summarizeFaturas, type Fatura, type FaturaSummary } from "../../lib/faturas";
 
 type Health = { status: "green" | "amber" | "red"; message: string | null };
@@ -42,7 +43,7 @@ export default function Inicio() {
       const ids = rows.map((r) => r.vdi_module_id);
       let vmap: Record<string, any> = {};
       if (ids.length) {
-        const vm = await services.catalog.vdiModules.listByIds(ids, "id,name,description,category,external_url");
+        const vm = await services.catalog.vdiModules.listByIds(ids, "id,name,description,category,external_url,crm_solution");
         vmap = Object.fromEntries((vm as { id: string }[]).map((v) => [v.id, v]));
       }
       const cmap = Object.fromEntries((creds as any[]).map((c) => [c.client_module_id, c]));
@@ -57,12 +58,40 @@ export default function Inicio() {
     })();
   }, []);
 
-  const lit = health?.status ?? "green";
   const firstName = (profile?.full_name || "").split(" ")[0] || "";
   const daysLeft = impl?.due_date
     ? Math.max(0, Math.ceil((new Date(impl.due_date).getTime() - Date.now()) / 86400000))
     : null;
   const overall = mods.length ? Math.round(mods.reduce((s, m) => s + (m.rollout_progress || 0), 0) / mods.length) : (impl?.overall_progress ?? 0);
+
+  // FAROL GRANDE = agregado REAL dos faróis das soluções (o pior vence). Antes era
+  // `health?.status ?? "green"` → verde fixo quando não havia dado (fictício). Regra do Crasto:
+  // nada inventado. Se o admin registrou um system_health pior, ele também puxa o farol.
+  const itensEscopo = [...(self?.modules || []), ...(self?.services || [])];
+  const tomDoItem = (item: any): "green" | "amber" | "red" => {
+    const raw = String(item.rollout_status || item.status || "").toLowerCase();
+    return raw === "active" || raw === "done" || raw === "green" ? "green" : raw === "paused" || raw === "red" ? "red" : "amber";
+  };
+  const piorDe = (tons: string[]) => tons.includes("red") ? "red" : tons.includes("amber") ? "amber" : "green";
+  const farolSolucoes = itensEscopo.length ? piorDe(itensEscopo.map(tomDoItem)) : null;
+  // Combina com o health que o admin tiver registrado (se houver); sem nada, cai no farol das
+  // soluções; sem soluções, "—" honesto em vez de verde inventado.
+  const lit: "green" | "amber" | "red" | null = health?.status
+    ? piorDe([health.status, farolSolucoes || "green"]) as any
+    : farolSolucoes;
+
+  // Subcategoria REAL da solução: agente (crm_solution), SaaS (app com URL), ou serviço/
+  // consultoria (client_services). Deriva da natureza do item — não é rótulo inventado.
+  const tipoConta = { agente: 0, saas: 0, servico: 0 };
+  for (const m of mods) { if (m.status !== "active") continue; if ((m.vdi as any)?.crm_solution) tipoConta.agente++; else if ((m.vdi as any)?.external_url) tipoConta.saas++; else tipoConta.saas++; }
+  for (const s of (self?.services || [])) { if ((s as any).status === "active" || (s as any).status === "delivered") tipoConta.servico++; }
+  const tiposAtivos = [
+    tipoConta.agente ? t("{n} agente", { n: tipoConta.agente }) : null,
+    tipoConta.saas ? t("{n} SaaS", { n: tipoConta.saas }) : null,
+    tipoConta.servico ? t("{n} consultoria", { n: tipoConta.servico }) : null,
+  ].filter(Boolean).join(" · ");
+
+  const [slaOpen, setSlaOpen] = useState(false);
 
   return (
     <div>
@@ -72,7 +101,7 @@ export default function Inicio() {
         <div className="sub">{t("Aqui está o resumo do que a sua IA fez por você.")}</div>
       </div>
 
-      {/* Farol */}
+      {/* Farol — a luz é a MÉDIA real dos faróis das soluções (o pior vence), não mais verde fixo. */}
       <div className="farol">
         <div className="lights">
           <span className={"fl red" + (lit === "red" ? " on" : "")} />
@@ -81,21 +110,21 @@ export default function Inicio() {
         </div>
         <div className="txt">
           <div className="h">
-            {lit === "green" ? t("Sistema no ar") : lit === "amber" ? t("Ajuste em andamento") : t("Atenção necessária")}
-            <span className={"pill " + (lit === "green" ? "ok" : lit === "amber" ? "warn" : "info")}>
-              <span className="d" />{lit === "green" ? t("Operando") : lit === "amber" ? t("Corrigindo") : t("Suporte atuando")}
+            {lit === "green" ? t("Sistema no ar") : lit === "amber" ? t("Ajuste em andamento") : lit === "red" ? t("Atenção necessária") : t("Aguardando ativação")}
+            <span className={"pill " + (lit === "green" ? "ok" : lit === "amber" ? "warn" : lit === "red" ? "info" : "mute")}>
+              <span className="d" />{lit === "green" ? t("Operando") : lit === "amber" ? t("Corrigindo") : lit === "red" ? t("Suporte atuando") : t("Sem solução ativa")}
             </span>
           </div>
-          <div className="s">{health?.message || t("Tudo funcionando normalmente.")}</div>
+          <div className="s">{health?.message || (lit === "green" ? t("Tudo funcionando normalmente.") : lit ? t("A média das suas soluções indica um ponto de atenção — veja abaixo.") : t("Assim que uma solução for ativada, o farol reflete a operação dela."))}</div>
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="kpis">
+      {/* KPIs (3): implantação real, soluções ativas com SUBCATEGORIA, contrato de suporte/SLA.
+          O antigo card "Suporte · Ativo" saiu — era texto fixo (o farol já diz que está no ar). */}
+      <div className="kpis kpis--3">
         <div className="kpi g"><div className="lab">{t("Implantação")}</div><div className="val">{overall}<small>%</small></div><div className="delta">{overall >= 100 ? t("Entregue") : t("Em andamento")}</div></div>
-        <div className="kpi"><div className="lab">{t("Soluções ativas")}</div><div className="val">{mods.filter(m => m.status === "active").length}<small> / {mods.length}</small></div><div className="delta">{t("no seu plano")}</div></div>
-        <div className="kpi"><div className="lab">{t("Prazo de entrega")}</div><div className="val" style={{ fontSize: 22 }}>{daysLeft != null ? t("{n} dias", { n: daysLeft }) : "—"}</div><div className="delta">{t("SLA de 30 dias")}</div></div>
-        <div className="kpi"><div className="lab">{t("Suporte")}</div><div className="val" style={{ fontSize: 22 }}>{t("Ativo")}</div><div className="delta">{t("WhatsApp & portal")}</div></div>
+        <div className="kpi"><div className="lab">{t("Soluções ativas")}</div><div className="val">{mods.filter(m => m.status === "active").length}<small> / {mods.length}</small></div><div className="delta">{tiposAtivos || t("no seu plano")}</div></div>
+        <button className="kpi ckpi" onClick={() => setSlaOpen(true)}><div className="lab">{t("Contrato de suporte")}</div><div className="val" style={{ fontSize: 20 }}>{overall >= 100 ? t("SLA 48h") : daysLeft != null ? t("{n} dias", { n: daysLeft }) : t("SLA 48h")}</div><div className="delta">{overall >= 100 ? t("saber mais") : t("prazo de implantação")} <ArrowRight size={11} /></div></button>
       </div>
 
       {/* Seu contrato — health-check financeiro */}
@@ -202,6 +231,18 @@ export default function Inicio() {
           })}
         </div>
       )}
+
+      {/* Contrato de suporte — a política de SLA vigente (48h úteis / fora do horário à parte). */}
+      <Modal title={t("Contrato de suporte")} open={slaOpen} onClose={() => setSlaOpen(false)}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, fontSize: 14, lineHeight: 1.6 }}>
+          <div><strong>{t("Tempo de resposta (SLA)")}</strong><br />{t("Demandas abertas em horário comercial são atendidas em até 48 horas (2 dias úteis).")}</div>
+          <div><strong>{t("Horário de atendimento")}</strong><br />{t("Segunda a sexta, em horário comercial. Demandas fora desse horário não entram no SLA.")}</div>
+          <div><strong>{t("Atendimento fora do horário")}</strong><br />{t("Sob demanda e cobrado à parte: R$ 380 por hora.")}</div>
+          <div style={{ paddingTop: 8, borderTop: "1px solid var(--crasto-border-soft)", color: "var(--crasto-text-muted)", fontSize: 12.5 }}>
+            {t("Política de suporte da Crasto.AI vigente. Para abrir uma demanda, use a tela de Suporte & Ajuda.")}
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

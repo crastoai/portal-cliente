@@ -729,3 +729,7 @@
   .cli-cell-act .linkbtn { width: 100%; justify-content: center; padding: 10px; border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md, 10px); }
   .cli-mods { flex-wrap: wrap; justify-content: flex-end; }
 }
+
+/* Início do cliente — 3 KPIs (implantação · soluções ativas c/ subcategoria · contrato suporte). */
+.kpis--3 { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 760px) { .kpis--3 { grid-template-columns: 1fr; } }
