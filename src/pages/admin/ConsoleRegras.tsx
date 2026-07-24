@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Pencil, Trash2, ScrollText } from "lucide-react";
+import { Plus, Pencil, Trash2, } from "lucide-react";
 import { services, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, useToast, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";

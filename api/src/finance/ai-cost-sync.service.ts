@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { RlsDbService } from '../common/rls-db.service';
 
 // Sincroniza o CUSTO REAL de IA direto das APIs de billing dos provedores para finance.ai_costs.
@@ -22,7 +22,6 @@ function somarAmounts(obj: any): number {
 
 @Injectable()
 export class AiCostSyncService {
-  private log = new Logger('AiCostSync');
   constructor(private readonly db: RlsDbService) {}
 
   private revealKey(provider: string): Promise<string | null> {

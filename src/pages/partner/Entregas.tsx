@@ -2,7 +2,6 @@ import { services } from "../../services";
 import { PageHead, Pill, Empty, useAsync, initials } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 
-type Row = { id: string; name: string; progress: number | null; status: string | null; health: string | null; mods: number };
 
 export default function Entregas() {
   const t = useT();

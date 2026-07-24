@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { RlsDbService } from '../common/rls-db.service';
 import { AuditService } from '../common/audit.service';
 import { JulieLlmService, JulieMsg, JulieTool } from './julie-llm.service';
@@ -124,7 +124,6 @@ type Pending = { kind: string; payload: any; resumo: string };
 
 @Injectable()
 export class AssistantService {
-  private log = new Logger('Julie');
   constructor(private readonly db: RlsDbService, private readonly llm: JulieLlmService, private readonly audit: AuditService) {}
 
   private brl(v: any) { return `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`; }

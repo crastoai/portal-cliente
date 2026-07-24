@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { RlsDbService } from '../common/rls-db.service';
 import { uploadGeminiFile } from '../common/gemini-files';
 
@@ -15,7 +15,6 @@ export type JulieTurn = { text: string; calls: { name: string; args: any }[]; us
 
 @Injectable()
 export class JulieLlmService {
-  private log = new Logger('Julie-LLM');
   private cache?: { at: number; rt: any };
   constructor(private readonly db: RlsDbService) {}
 

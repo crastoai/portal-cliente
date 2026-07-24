@@ -60,7 +60,7 @@ export class IdentityController {
   }
   @Post('organizations')
   orgCreate(@Req() req: any, @Body() b: any) {
-    const { sets, vals, ok } = this.setClause(b, 1);
+    const { vals, ok } = this.setClause(b, 1);
     return this.db.asUser(this.uid(req), async (c) => {
       if (!ok) return null;
       const cols = Object.keys(b).filter((k) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k));
