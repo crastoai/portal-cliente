@@ -147,8 +147,9 @@ export function requestReceived(p: { name?: string | null; code: string; subject
 }
 
 /** Aviso INTERNO (Crasto) — o cliente não recebe. */
-export function ticketInternalAlert(p: { code: string; org: string; subject: string; description?: string | null; kind: string; who?: string | null }): Mail {
+export function ticketInternalAlert(p: { code: string; org: string; subject: string; description?: string | null; kind: string; who?: string | null; attachments?: string[] }): Mail {
   const tipo = p.kind === 'implementation_request' ? 'Implantação' : 'Suporte';
+  const anexos = (p.attachments || []).filter(Boolean);
   return {
     subject: `[${tipo}] #${p.code} — ${p.org}`,
     html: layout({
@@ -159,7 +160,8 @@ export function ticketInternalAlert(p: { code: string; org: string; subject: str
       body:
         ticketBox(p.code, p.subject) +
         para(`${strong('Cliente:')} ${esc(p.org)}${p.who ? ` · aberto por ${esc(p.who)}` : ''}`) +
-        (p.description ? para(`${strong('Detalhe:')} ${esc(p.description)}`) : ''),
+        (p.description ? para(`${strong('Detalhe:')} ${esc(p.description)}`) : '') +
+        (anexos.length ? para(`${strong(`Anexos (${anexos.length}):`)} ${anexos.map((n) => esc(n)).join(', ')} — em anexo neste e-mail.`) : ''),
     }),
   };
 }

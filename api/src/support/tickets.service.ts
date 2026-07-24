@@ -27,16 +27,22 @@ export class TicketsService {
   }
 
   /** Cliente abre um chamado (suporte) ou uma solicitação de implantação. */
-  async open(req: any, uid: string, b: { subject?: string; description?: string; kind?: string }) {
+  async open(req: any, uid: string, b: { subject?: string; description?: string; kind?: string; attachments?: any[] }) {
     const subject = String(b.subject || '').trim();
     if (!subject) throw new BadRequestException('Informe o assunto.');
     const kind = b.kind === 'implementation_request' ? 'implementation_request' : 'support';
 
+    // Anexos (prints): o cliente sobe no R2 e manda {name, key, url}. Guardamos só {name, key}
+    // no chamado (a URL assinada é efêmera; o admin regera sob demanda); a `url` só serve para o
+    // Resend baixar e anexar no e-mail interno AGORA. Limite defensivo de 8.
+    const atts = (Array.isArray(b.attachments) ? b.attachments : [])
+      .filter((a: any) => a && typeof a.name === 'string' && typeof a.key === 'string').slice(0, 8);
+
     // asUser → a org vem da RLS/current_org_id, não do cliente.
     const t = await this.db.asUser(uid, async (c) => (await c.query(
-      `insert into support.tickets (organization_id, subject, description, status, created_by, kind)
-       values (public.current_org_id(), $1, $2, 'open', $3, $4) returning id, organization_id`,
-      [subject, b.description || null, uid, kind])).rows[0]);
+      `insert into support.tickets (organization_id, subject, description, status, created_by, kind, attachments)
+       values (public.current_org_id(), $1, $2, 'open', $3, $4, $5::jsonb) returning id, organization_id`,
+      [subject, b.description || null, uid, kind, JSON.stringify(atts.map((a: any) => ({ name: a.name, key: a.key })))])).rows[0]);
     if (!t?.id) throw new BadRequestException('Não foi possível abrir o chamado.');
     const code = this.code(t.id);
 
@@ -50,9 +56,12 @@ export class TicketsService {
       : ticketReceived({ name: who?.full_name, code, subject });
     const confirmed = who?.email ? (await this.email.send(who.email, tpl.subject, tpl.html)).ok : false;
 
-    const alert = ticketInternalAlert({ code, org: who?.org || '—', subject, description: b.description, kind, who: who?.email });
+    const alert = ticketInternalAlert({ code, org: who?.org || '—', subject, description: b.description, kind, who: who?.email, attachments: atts.map((a: any) => a.name) });
+    // Anexos de verdade no e-mail do suporte: o Resend baixa da URL assinada (efêmera) que o
+    // cliente mandou. Sem URL válida → só o nome fica listado no corpo do alerta.
+    const mailAtts = atts.filter((a: any) => typeof a.url === 'string' && a.url).map((a: any) => ({ filename: a.name, path: a.url }));
     const inbox = await this.crastoInbox();
-    const notified = (await Promise.all(inbox.map((to) => this.email.send(to, alert.subject, alert.html))))
+    const notified = (await Promise.all(inbox.map((to) => this.email.send(to, alert.subject, alert.html, mailAtts))))
       .some((r) => r.ok);
 
     await this.audit.log(req, 'ticket_opened', { targetType: 'ticket', targetId: t.id, org: t.organization_id, ctx: { numero: code, tipo: kind, assunto: subject } });

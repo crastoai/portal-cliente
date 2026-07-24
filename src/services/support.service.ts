@@ -11,7 +11,7 @@ import type { Ticket, PendingAction } from "./core/types";
 export const tickets = {
   listMine: async () => api.get<Ticket[]>(`/api/support/tickets/mine`),
   /** Abre um chamado (kind='support') ou solicitação de implantação. A org vem da RLS. */
-  open: async (body: { subject: string; description?: string; kind?: string }): Promise<{ ok: boolean; number?: string; notified?: boolean; confirmed?: boolean; error?: string }> => {
+  open: async (body: { subject: string; description?: string; kind?: string; attachments?: { name: string; key: string; url?: string | null }[] }): Promise<{ ok: boolean; number?: string; notified?: boolean; confirmed?: boolean; error?: string }> => {
     try { return await api.post(`/api/support/tickets`, body); } catch (e) { return { ok: false, error: errorMessage(e) }; }
   },
   /** Admin: chamados por tipo (RLS admin = tudo). */

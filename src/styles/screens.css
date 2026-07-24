@@ -213,6 +213,18 @@
 .modal-h h3 { font-size: 16px; font-weight: 600; }
 .modal-body { padding: 20px 22px; }
 .modal-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 22px; border-top: 1px solid var(--crasto-border-soft); }
+
+/* Anexos do chamado (Suporte) — colar/escolher/arrastar prints */
+.attbox { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border: 1px dashed var(--crasto-border); border-radius: 10px; background: var(--crasto-bg-2); }
+.attbox-hint { font-size: 12px; color: var(--crasto-text-muted); }
+.attup { font-size: 12px; color: var(--crasto-blue, #3E6FB8); font-weight: 600; margin-top: 8px; }
+.attlist { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.attchip { display: flex; align-items: center; gap: 8px; max-width: 220px; padding: 5px 8px 5px 5px; border: 1px solid var(--crasto-border-soft); border-radius: 8px; background: var(--crasto-surface); }
+.attchip img { width: 30px; height: 30px; object-fit: cover; border-radius: 5px; flex: none; }
+.attchip-ic { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 5px; background: var(--crasto-bg-3); color: var(--crasto-text-muted); flex: none; }
+.attchip-n { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attchip-x { flex: none; border: 0; background: none; cursor: pointer; color: var(--crasto-text-muted); display: grid; place-items: center; padding: 2px; border-radius: 4px; }
+.attchip-x:hover { background: rgba(234,84,85,.12); color: #C0362C; }
 .frow > span { font-size: 12px; font-weight: 600; color: var(--crasto-text-body); }
 .frow input, .frow select, .frow textarea { width: 100%; border: 1px solid var(--crasto-border); border-radius: var(--crasto-radius-sm); padding: 10px 12px; font-size: 13.5px; color: var(--crasto-text-primary); background: var(--crasto-surface); font-family: inherit; }
 .frow textarea { resize: vertical; min-height: 70px; }

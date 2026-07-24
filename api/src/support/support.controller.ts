@@ -28,8 +28,8 @@ export class SupportController {
   @Get('tickets')
   ticketsAll(@Req() req: any, @Query('kind') kind: string) {
     return this.db.asUser(this.uid(req), async (c) => (kind
-      ? (await c.query('select id,subject,description,status,organization_id,created_at,kind from support.tickets where kind=$1 order by created_at desc', [kind])).rows
-      : (await c.query('select id,subject,description,status,organization_id,created_at,kind from support.tickets order by created_at desc')).rows));
+      ? (await c.query('select id,subject,description,status,organization_id,created_at,kind,attachments from support.tickets where kind=$1 order by created_at desc', [kind])).rows
+      : (await c.query('select id,subject,description,status,organization_id,created_at,kind,attachments from support.tickets order by created_at desc')).rows));
   }
   @Patch('tickets/:id/status')
   ticketStatus(@Req() req: any, @Param('id') id: string, @Body() b: any) { return this.db.asUser(this.uid(req), async (c) => { await c.query('update support.tickets set status=$2 where id=$1', [id, b.status ?? null]); return { ok: true }; }); }

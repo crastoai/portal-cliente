@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MessageCircle, Send } from "lucide-react";
+import { MessageCircle, Send, Paperclip } from "lucide-react";
 import { services } from "../../services";
 import { PageHead, Pill, Empty, useAsync, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
@@ -121,6 +121,17 @@ export default function TicketQueue({ cfg }: { cfg: QueueConfig }) {
                   </select>
                 </div>
                 {it.description && <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--crasto-border-soft)", fontSize: 13, color: "var(--crasto-text-body)", whiteSpace: "pre-wrap" }}>{it.description}</div>}
+                {Array.isArray(it.attachments) && it.attachments.length > 0 && (
+                  <div className="attlist" style={{ marginTop: 10 }}>
+                    {it.attachments.map((a: any, i: number) => (
+                      <button className="attchip" style={{ cursor: "pointer" }} key={i} type="button" title={t("Abrir anexo")}
+                        onClick={async () => { const u = await services.storage.getUrl(a.key); if (u) window.open(u, "_blank", "noopener"); }}>
+                        <span className="attchip-ic"><Paperclip size={13} /></span>
+                        <span className="attchip-n">{a.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
                   {wa
                     ? <a className="crasto-btn crasto-btn--ghost crasto-btn--sm" href={waHref} target="_blank" rel="noopener"><span className="crasto-btn__icon"><MessageCircle size={14} /></span><span className="crasto-btn__label">{t("Falar no WhatsApp")}</span></a>
