@@ -317,7 +317,7 @@
 }
 .bizdash .barmini span { border-radius: var(--crasto-radius-pill); }
 
-@media (max-width: 820px) { .bizdash .kpi .val { font-size: 28px; } }
+@media (max-width: 960px) { .bizdash .kpi .val { font-size: 28px; } }
 
 /* =============================================================
    CRM — "Contatos & Clientes" · refinamento Design System
@@ -428,7 +428,7 @@
 }
 .custospage .kpi.navy:hover, .receitapage .kpi.navy:hover { box-shadow: var(--crasto-shadow-lg); }
 .custospage .sec-h h2, .receitapage .sec-h h2 { font-family: var(--crasto-font-display); font-weight: 500; letter-spacing: var(--crasto-ls-tight); }
-@media (max-width: 820px) { .custospage .kpi .val, .receitapage .kpi .val { font-size: 28px; } }
+@media (max-width: 960px) { .custospage .kpi .val, .receitapage .kpi .val { font-size: 28px; } }
 
 /* =============================================================
    CUSTOS & DESPESAS — .custospage
@@ -490,7 +490,7 @@
   box-shadow: var(--crasto-shadow-md);
 }
 .kpi.navy:hover { box-shadow: var(--crasto-shadow-lg); }
-@media (max-width: 820px) { .kpi .val { font-size: 28px; } }
+@media (max-width: 960px) { .kpi .val { font-size: 28px; } }
 
 /* Cards / painéis — cantos 16px + sombra difusa */
 .card { border-radius: 16px; box-shadow: 0 10px 40px rgba(1,14,38,0.05); }
@@ -685,10 +685,12 @@
 .cli-row td { height: 52px; vertical-align: middle; }
 .cli-row:hover { background: var(--crasto-bg-subtle, rgba(1,14,38,.02)); }
 .cli-id .nm { font-weight: 600; }
-.cli-id .em { font-size: 11.5px; color: var(--crasto-text-muted); }
+.cli-id { min-width: 0; }
+.cli-id .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+.cli-id .em { font-size: 11.5px; color: var(--crasto-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
 /* Módulos: NUNCA quebram linha — no máx 2 chips + "+N". Fim das linhas de altura irregular. */
 .cli-mods { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-.cli-mods .chip { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.cli-mods .chip { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
 .chip--more { background: var(--crasto-navy-10, rgba(1,14,38,.06)); color: var(--crasto-text-muted); font-weight: 600; cursor: default; }
 .cli-ag { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; white-space: nowrap; }
 .cli-ag .d { width: 8px; height: 8px; border-radius: 50%; flex: none; }
@@ -697,4 +699,33 @@
 @media (prefers-color-scheme: dark) {
   .cli-chips { background: rgba(255,255,255,.05); }
   .cli-chip.on { background: #fff; color: var(--crasto-navy, #010E26); }
+}
+
+/* RESPONSIVO — tabela larga não cabe em tela estreita e vira scroll horizontal (o problema
+   do Crasto). Abaixo de 820px a tabela vira CARDS: cada cliente um bloco, os dados empilhados
+   com o rótulo da coluna (data-label). Padrão consagrado de "responsive table → cards". */
+@media (max-width: 960px) {
+  .cli-toolbar { gap: 8px; }
+  .cli-search { max-width: none; flex: 1 1 100%; order: -1; }
+  .cli-tbl { max-height: none; overflow: visible; border: 0; box-shadow: none; background: transparent; }
+  .cli-tbl table, .cli-tbl tbody, .cli-tbl tr, .cli-tbl td { display: block; width: 100%; }
+  .cli-tbl table { min-width: 0; }  /* a classe base .tbl força min-width:640 → vira scroll; some no card */
+  .cli-tbl thead { display: none; }                 /* sem cabeçalho: cada célula leva o seu rótulo */
+  .cli-row { border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-lg, 16px);
+    background: var(--crasto-surface); margin-bottom: 12px; padding: 6px 4px; }
+  .cli-row:hover { background: var(--crasto-surface); }
+  .cli-row td { height: auto; display: flex; align-items: center; justify-content: space-between;
+    gap: 14px; padding: 9px 14px; border: 0; text-align: right !important; }
+  .cli-row td::before { content: attr(data-label); font-weight: 600; font-size: 11px; letter-spacing: .04em;
+    text-transform: uppercase; color: var(--crasto-text-muted); text-align: left; flex: none; }
+  /* Cliente: cabeçalho do card (nome grande, sem rótulo, à esquerda). */
+  .cli-cell-id { border-bottom: 1px solid var(--crasto-border-soft); }
+  .cli-cell-id::before { display: none; }
+  .cli-cell-id .cust { justify-content: flex-start; text-align: left; }
+  .cli-cell-mrr::before, .cli-cell-mrr { }
+  /* Ação: botão ocupa a base do card, largura toda. */
+  .cli-cell-act { justify-content: stretch; }
+  .cli-cell-act::before { display: none; }
+  .cli-cell-act .linkbtn { width: 100%; justify-content: center; padding: 10px; border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md, 10px); }
+  .cli-mods { flex-wrap: wrap; justify-content: flex-end; }
 }

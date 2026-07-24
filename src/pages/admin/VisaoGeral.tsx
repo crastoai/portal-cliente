@@ -190,15 +190,15 @@ export default function VisaoGeral() {
                 const farol = ag ? AGENT_FAROL[ag.farol] : null;
                 return (
                   <tr key={c.id} className="cli-row">
-                    <td><div className="cust"><div className="logo">{initials(c.name)}</div><div className="cli-id"><div className="nm">{c.name}</div><div className="em">{c.email || "—"}</div></div></div></td>
-                    <td><span className="health" title={reasons.join(" · ")}><span className="d" style={{ background: color }} />{h.score} · {h.label}</span></td>
-                    <td>{farol
+                    <td className="cli-cell-id"><div className="cust"><div className="logo">{initials(c.name)}</div><div className="cli-id"><div className="nm">{c.name}</div><div className="em">{c.email || "—"}</div></div></div></td>
+                    <td data-label={t("Health")}><span className="health" title={reasons.join(" · ")}><span className="d" style={{ background: color }} />{h.score} · {h.label}</span></td>
+                    <td data-label={t("Agente")}>{farol
                       ? <span className="cli-ag"><span className="d" style={{ background: farol.tone === "ok" ? "#1F8A5B" : farol.tone === "warn" ? "#B8863A" : farol.tone === "crit" ? "#B83A3A" : "#98A2B3" }} />{t(farol.label)}{ag.agentes > 1 ? ` · ${ag.no_ar}/${ag.agentes}` : ""}</span>
                       : <span className="cli-ag mute">—</span>}</td>
-                    <td><span className="cli-mods">{mods.slice(0, 2).map((m, i) => <span className="chip" key={i}>{modShort(m)}</span>)}{mods.length > 2 && <span className="chip chip--more" title={mods.join(", ")}>+{mods.length - 2}</span>}{mods.length === 0 && <span className="cli-ag mute">—</span>}</span></td>
-                    <td className="tnum" style={{ textAlign: "right", fontWeight: 600, color: Number(c.mrr) > 0 ? "var(--crasto-text-primary)" : "var(--crasto-text-faint)" }}>{Number(c.mrr) > 0 ? money(c.mrr) : "—"}</td>
-                    <td className="cli-acc" style={{ color: stale ? "var(--crasto-danger)" : "var(--crasto-text-muted)" }}><Clock size={12} style={{ verticalAlign: -1, marginRight: 4, opacity: .6 }} />{timeAgo(c.last_access)}</td>
-                    <td style={{ textAlign: "right" }}><button className="linkbtn" onClick={() => enterCrm(c)}>{t("Entrar no CRM")} <ArrowRight size={12} /></button></td>
+                    <td data-label={t("Módulos")}><span className="cli-mods">{mods.slice(0, 2).map((m, i) => <span className="chip" key={i}>{modShort(m)}</span>)}{mods.length > 2 && <span className="chip chip--more" title={mods.join(", ")}>+{mods.length - 2}</span>}{mods.length === 0 && <span className="cli-ag mute">—</span>}</span></td>
+                    <td className="tnum cli-cell-mrr" data-label={t("MRR")} style={{ textAlign: "right", fontWeight: 600, color: Number(c.mrr) > 0 ? "var(--crasto-text-primary)" : "var(--crasto-text-faint)" }}>{Number(c.mrr) > 0 ? money(c.mrr) : "—"}</td>
+                    <td className="cli-acc" data-label={t("Últ. acesso")} style={{ color: stale ? "var(--crasto-danger)" : "var(--crasto-text-muted)" }}><Clock size={12} style={{ verticalAlign: -1, marginRight: 4, opacity: .6 }} />{timeAgo(c.last_access)}</td>
+                    <td className="cli-cell-act" style={{ textAlign: "right" }}><button className="linkbtn" onClick={() => enterCrm(c)}>{t("Entrar no CRM")} <ArrowRight size={12} /></button></td>
                   </tr>
                 );
               })}
