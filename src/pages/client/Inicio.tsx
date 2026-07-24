@@ -123,6 +123,9 @@ export default function Inicio() {
   ].filter(Boolean).join(" · ");
 
   const [slaOpen, setSlaOpen] = useState(false);
+  // Abas do dashboard: "Soluções & Serviços" (fase atual) × "Negócios" (CRM+financeiro do cliente,
+  // próxima fase). Separar em abas facilita a navegação do dono — pedido do Crasto.
+  const [tab, setTab] = useState<"solucoes" | "negocios">("solucoes");
 
   // Farol da EQUIPE (RH) — real: ninguém acessou = vermelho; alguém nunca acessou = âmbar;
   // todos já acessaram = verde. Nada inventado (deriva de user_sessions).
@@ -139,6 +142,13 @@ export default function Inicio() {
         <div className="sub">{t("Aqui está o resumo do que a sua IA fez por você.")}</div>
       </div>
 
+      {/* Abas do dashboard — separam o acompanhamento das SOLUÇÕES do painel de NEGÓCIOS do cliente. */}
+      <div className="dashtabs" role="tablist">
+        <button role="tab" aria-selected={tab === "solucoes"} className={"dashtab" + (tab === "solucoes" ? " on" : "")} onClick={() => setTab("solucoes")}>{t("Soluções & Serviços")}</button>
+        <button role="tab" aria-selected={tab === "negocios"} className={"dashtab" + (tab === "negocios" ? " on" : "")} onClick={() => setTab("negocios")}>{t("Negócios")}</button>
+      </div>
+
+      {tab === "solucoes" && (<>
       {/* Farol — a luz é a MÉDIA real dos faróis das soluções (o pior vence), não mais verde fixo. */}
       <div className="farol">
         <div className="lights">
@@ -308,6 +318,20 @@ export default function Inicio() {
                 <span className="scopepill mute">{r.transcript ? t("ver minuta") : t("ver")} <ArrowRight size={12} style={{ verticalAlign: -2 }} /></span>
               </button>
             ))}
+          </div>
+        </div>
+      )}
+
+      </>)}
+
+      {/* Aba NEGÓCIOS — CRM + financeiro do PRÓPRIO negócio do cliente (resultados que as soluções
+          geram). Próxima fase: nada fictício ainda, então mostra o que vem, sem números inventados. */}
+      {tab === "negocios" && (
+        <div className="scopebox">
+          <div className="scopehead"><div><span className="scopedot mute" /><Activity size={17} /><span>{t("Negócios do cliente")}</span></div><small>{t("Em construção · próxima fase")}</small></div>
+          <div style={{ padding: "28px 20px", textAlign: "center", color: "var(--crasto-text-muted)", fontSize: 14, lineHeight: 1.7 }}>
+            <p style={{ fontWeight: 600, color: "var(--crasto-text-primary)", marginBottom: 6 }}>{t("Painel de negócios em construção.")}</p>
+            <p style={{ maxWidth: 520, margin: "0 auto" }}>{t("Aqui você vai acompanhar os resultados que as suas soluções geram: leads e conversas do WhatsApp CRM, oportunidades e faturamento do seu negócio — em tempo real, sem dados fictícios.")}</p>
           </div>
         </div>
       )}
