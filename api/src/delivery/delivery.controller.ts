@@ -23,6 +23,21 @@ export class DeliveryController {
   // consultamos o schema finance como service_role (finance não é exposto ao cliente).
   @Get('self-service/mine')
   async selfServiceMine(@Req() req: any) {
+    // FONTE CERTA do status do AGENTE = o console (wacrm agents.status), não o portal. Federamos
+    // aqui: algum agente 'live' → o WhatsApp CRM está no ar; senão 'implanting' → em implantação.
+    // Se o CRM cair, agentStatus=null e o módulo cai no rollout_status do portal (nunca inventa).
+    let agentStatus: string | null = null;
+    try {
+      const url = process.env.CRM_API_URL, auth = req?.headers?.authorization;
+      if (url && auth) {
+        const r = await fetch(`${url.replace(/\/$/, '')}/api/me`, { headers: { Authorization: auth } });
+        const j: any = await r.json().catch(() => null);
+        const ags: any[] = Array.isArray(j?.agents) ? j.agents : [];
+        if (ags.some((a) => String(a?.status) === 'live')) agentStatus = 'live';
+        else if (ags.some((a) => ['implanting', 'implantando', 'setup', 'pending'].includes(String(a?.status)))) agentStatus = 'implanting';
+      }
+    } catch { /* CRM fora → cai no rollout_status do portal */ }
+
     const visible = await this.db.asUser(this.uid(req), async (c) => {
       const orgId = (await c.query('select public.current_org_id() as id')).rows[0]?.id;
       if (!orgId) return null;
@@ -42,10 +57,11 @@ export class DeliveryController {
            from delivery.client_services order by created_at`,
       )).rows;
       const modules = (await c.query(
-        `select cm.id,coalesce(cm.label,m.name) as name,cm.status,cm.rollout_status,cm.rollout_progress,'module' as kind
+        `select cm.id,coalesce(cm.label,m.name) as name,cm.status,cm.rollout_status,cm.rollout_progress,'module' as kind,
+                (m.crm_solution is true) as is_crm
            from delivery.client_modules cm join catalog.vdi_modules m on m.id=cm.vdi_module_id
           order by cm.created_at`,
-      )).rows;
+      )).rows.map((m: any) => ({ ...m, agent_status: m.is_crm ? agentStatus : null }));
       return { orgId, contract, implementation, health, services, modules };
     });
     if (!visible) return null;

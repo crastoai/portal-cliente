@@ -121,7 +121,11 @@ export default function Inicio() {
       if (raw === "active") return { tom: "amber", label: t("Ativo") };
       return { tom: "amber", label: raw ? item.status : "—" };
     }
-    // módulo — a implantação real vem do rollout_status; o progresso 100% é reforço.
+    // módulo AGENTE (WhatsApp CRM): a FONTE CERTA do status é o console (wacrm), federado como
+    // agent_status. Só cai no rollout_status do portal se o console não respondeu (agent_status null).
+    if (item.agent_status === "live") return { tom: "green", label: t("No ar") };
+    if (item.agent_status === "implanting") return { tom: "amber", label: t("Em implantação") };
+    // demais módulos — a implantação real vem do rollout_status; o progresso 100% é reforço.
     if (raw === "delivered" || raw === "done" || raw === "live" || raw === "green") return { tom: "green", label: t("Operando") };
     if (raw === "on_hold" || raw === "paused" || raw === "red") return { tom: "red", label: t("Em espera") };
     if (raw === "in_progress" || raw === "amber") return { tom: "amber", label: t("Em implantação") };
