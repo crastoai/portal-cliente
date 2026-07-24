@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
-import { Shield, Users, Building2, Lock, Search, ChevronDown, ChevronRight, SlidersHorizontal, Check, MessageSquare, LayoutGrid } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Shield, Users, Building2, Lock, Search, ChevronDown, ChevronRight, SlidersHorizontal, Check, MessageSquare, LayoutGrid, UserPlus, RefreshCw } from "lucide-react";
 import { services, errorMessage } from "../../services";
-import { PageHead, Pill, Empty, useAsync, useToast, initials } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, useToast, initials, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 import { CLIENT_SCREENS, ALL_SCREEN_KEYS, BASE_SCREEN, allowedScreens } from "../../lib/screens";
@@ -91,6 +92,41 @@ export default function ConsolePermissoes() {
   // Pessoa cujas permissões estão abertas (a janela é uma só, para Portal + módulos).
   const [alvo, setAlvo] = useState<{ pessoa: Pessoa; orgName: string; orgId: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  // Convite de pessoa POR CLIENTE — pessoas moram aqui agora (antes: no detalhe do cliente).
+  const [convite, setConvite] = useState<{ orgId: string; orgName: string } | null>(null);
+  const [cf, setCf] = useState({ email: "", full_name: "", role: "client_member" });
+  const [cErr, setCErr] = useState<string | null>(null);
+  // Foco vindo do detalhe do cliente (?org=...): abre e rola até aquele cliente.
+  const [sp] = useSearchParams();
+  const focoOrg = sp.get("org");
+  const focoRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!focoOrg || loading) return;
+    setOpen((o) => ({ ...o, [focoOrg]: true }));
+    if (!crmUsers[focoOrg]) loadCrmUsers(focoOrg);
+    const el = focoRef.current;
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [focoOrg, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function convidar() {
+    if (!convite) return;
+    setCErr(null);
+    if (!cf.email.trim()) { setCErr(t("Informe o e-mail.")); return; }
+    setBusy(true);
+    try {
+      const r = await services.identity.users.create({ email: cf.email.trim(), full_name: cf.full_name.trim(), organization_id: convite.orgId, role: cf.role });
+      if (!r.ok) throw new Error(r.error || t("Não foi possível convidar."));
+      setConvite(null); setCf({ email: "", full_name: "", role: "client_member" });
+      await reload(); if (crmUsers[convite.orgId]) loadCrmUsers(convite.orgId);
+      toast.ok(r.email_sent ? t("Convite enviado ✓") : t("Usuário criado (o e-mail não saiu)."));
+    } catch (e) { setCErr(errorMessage(e)); } finally { setBusy(false); }
+  }
+  async function reenviar(pe: Pessoa) {
+    if (!pe.portal) return;
+    setBusy(true);
+    try { await services.identity.users.resendAccess({ user_id: pe.portal.id }); toast.ok(t("Acesso reenviado ✓")); }
+    catch (e) { toast.err(errorMessage(e)); } finally { setBusy(false); }
+  }
 
   const totalUsers = platform.length + clients.reduce((s, c) => s + c.users.length, 0);
   const withAccess = clients.filter((c) => c.users.length > 0).length;
@@ -182,7 +218,7 @@ export default function ConsolePermissoes() {
   return (
     <div>
       <PageHead eyebrow="Console · IA 🔒 · Segurança" title="Permissões & Acessos"
-        sub="Por cliente, SEPARADO em dois: usuários do Portal e usuários do WhatsApp CRM — o CRM costuma ter gente que não está no Portal. Isolado por RLS: cada cliente só enxerga a própria empresa." />
+        sub="Toda pessoa da plataforma mora aqui: convidar, papel, telas do Portal e módulos (incluindo o WhatsApp CRM), num lugar só. Isolado por RLS: cada cliente só enxerga a própria empresa." />
 
       <div className="kpis" style={{ marginBottom: 16 }}>
         <div className="kpi"><div className="lab"><Users size={13} style={{ verticalAlign: -2, marginRight: 5 }} />{t("Usuários")}</div><div className="val tnum" style={{ fontSize: 22 }}>{loading ? "—" : totalUsers}</div><div className="delta">{t("plataforma + clientes")}</div></div>
@@ -214,7 +250,7 @@ export default function ConsolePermissoes() {
         const pessoas = unirPessoas(c.users, bucket?.enabled ? (bucket.users ?? []) : [])
           .filter((pe) => !query || `${pe.nome} ${pe.email}`.toLowerCase().includes(query));
         return (
-          <div className="card acccard" key={c.organization_id}>
+          <div className="card acccard" key={c.organization_id} ref={c.organization_id === focoOrg ? focoRef : undefined}>
             <button className="acchead" onClick={() => toggleClient(c.organization_id)}>
               {opened ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
               <div className="logo" style={{ width: 30, height: 30, fontSize: 11 }}>{initials(c.name)}</div>
@@ -226,7 +262,11 @@ export default function ConsolePermissoes() {
             {opened && (
               <div className="permsub">
                 <div className="permsub-h"><Users size={14} /><span>{t("Pessoas desta empresa")}</span>
-                  <span className="permsub-hint">{t("papel, telas do Portal e módulos — tudo num lugar só")}</span></div>
+                  <span className="permsub-hint">{t("papel, telas do Portal e módulos — tudo num lugar só")}</span>
+                  <button className="crasto-btn crasto-btn--primary crasto-btn--sm" style={{ marginLeft: "auto" }}
+                    onClick={() => { setCErr(null); setCf({ email: "", full_name: "", role: "client_member" }); setConvite({ orgId: c.organization_id, orgName: c.name }); }}>
+                    <span className="crasto-btn__icon"><UserPlus size={14} /></span><span className="crasto-btn__label">{t("Convidar")}</span>
+                  </button></div>
                 {bucket?.loading && <div className="mt permsub-empty">{t("Carregando…")}</div>}
                 {pessoas.length === 0 && !bucket?.loading && <div className="mt permsub-empty">{t("Ninguém com acesso ainda.")}</div>}
                 {pessoas.map((pe) => (
@@ -241,6 +281,12 @@ export default function ConsolePermissoes() {
                       ? <Pill tone="warn">{t("sem acesso ao Portal")}</Pill>
                       : <Pill tone={pe.portal.role === "client_owner" ? "ok" : "mute"}>{accessSummary(pe.portal, t)}</Pill>}
                     <Pill tone={pe.crm ? "info" : "mute"}>{pe.crm ? crmSummary(pe.crm, t) : t("sem WhatsApp CRM")}</Pill>
+                    {pe.portal && (
+                      <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} title={t("Reenvia o link de acesso (não redefine a senha atual)")}
+                        onClick={() => reenviar(pe)}>
+                        <span className="crasto-btn__icon"><RefreshCw size={13} /></span><span className="crasto-btn__label">{t("Reenviar")}</span>
+                      </button>
+                    )}
                     <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => abrirPermissoes(pe, c.name, c.organization_id)}>
                       <span className="crasto-btn__icon"><SlidersHorizontal size={14} /></span>
                       <span className="crasto-btn__label">{t("Permissões")}</span>
@@ -326,6 +372,17 @@ export default function ConsolePermissoes() {
           )}
         </>)}
       </Modal>
+      <Modal title={convite ? t("Convidar para {n}", { n: convite.orgName }) : t("Convidar")} open={!!convite} onClose={() => setConvite(null)}
+        footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setConvite(null)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={convidar}><span className="crasto-btn__label">{busy ? t("Enviando…") : t("Enviar convite")}</span></button></>}>
+        {cErr && <div className="formerr">{cErr}</div>}
+        <Field label="E-mail *"><input type="email" value={cf.email} onChange={(e) => setCf({ ...cf, email: e.target.value })} placeholder="pessoa@empresa.com" /></Field>
+        <Field label={t("Nome")}><input value={cf.full_name} onChange={(e) => setCf({ ...cf, full_name: e.target.value })} /></Field>
+        <Field label={t("Papel")}><select value={cf.role} onChange={(e) => setCf({ ...cf, role: e.target.value })}><option value="client_member">{t("Membro")}</option><option value="client_owner">{t("Dono — acesso total")}</option></select></Field>
+        <p className="mt" style={{ margin: "10px 2px 0", lineHeight: 1.6 }}>
+          {t("A pessoa entra pelo Portal com a própria senha. O acesso ao WhatsApp CRM é liberado nas Permissões dela (módulo + telas).")}
+        </p>
+      </Modal>
+
       {toast.node}
     </div>
   );

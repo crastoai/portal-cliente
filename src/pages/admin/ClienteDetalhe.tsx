@@ -628,17 +628,23 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
         );
       })}
 
-      {/* Usuários */}
-      <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Usuários (acesso ao portal)")}</h2><button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => setInvite(true)}><span className="crasto-btn__icon"><UserPlus size={14} /></span><span className="crasto-btn__label">{tr("Convidar")}</span></button></div>
-      <div className="tbl-wrap">
-        <table className="tbl"><thead><tr><th>{tr("Usuário")}</th><th>{tr("Papel")}</th><th>{tr("E-mail")}</th><th>{tr("Acesso")}</th></tr></thead><tbody>
-          {users.length === 0 ? <tr><td colSpan={4} style={{ color: "var(--crasto-text-muted)" }}>{tr("Sem logins — convide o responsável.")}</td></tr> : users.map((u) => (
-            <tr key={u.id}><td><div className="cust"><Avatar name={u.full_name || u.email} url={u.avatar_url} /><div className="nm">{u.full_name || "—"}</div></div></td><td><Pill tone={u.role === "client_owner" ? "ok" : "mute"}>{u.role === "client_owner" ? tr("Dono") : tr("Membro")}</Pill></td><td className="cust"><span className="em">{u.email}</span></td><td><div style={{ display: "flex", alignItems: "center", gap: 6 }}><button className="icobtn" title={tr("Editar nome, e-mail e papel")} onClick={() => startEditUser(u)}><Pencil size={14} /></button><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} onClick={() => resendAccess(u)} title={tr("Envia um link para a pessoa definir a senha (não redefine a atual)")}><span className="crasto-btn__label">{tr("Reenviar acesso")}</span></button></div></td></tr>
-          ))}
-        </tbody></table>
+      {/* PESSOAS moram em Permissões & Acessos (unificação 24/07/2026). Aqui fica só um resumo
+          e o atalho — o Detalhe do cliente cuida do CLIENTE (dados, agentes, módulos), não das
+          pessoas. Uma fonte da verdade para "quem acessa o quê". */}
+      <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Pessoas com acesso")}</h2></div>
+      <div className="note">
+        <UserPlus size={15} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span>{users.length > 0
+            ? tr("{n} pessoa(s) com acesso ao Portal. Convidar, papel, telas e módulos ficam em Permissões & Acessos.", { n: users.length })
+            : tr("Ninguém com acesso ainda. Convide e defina permissões em Permissões & Acessos.")}</span>
+          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => nav(`/admin/console/permissoes?org=${id}`)}>
+            <span className="crasto-btn__icon"><UserPlus size={14} /></span><span className="crasto-btn__label">{tr("Gerenciar pessoas")}</span>
+          </button>
+        </div>
       </div>
 
-      {/* Acesso ao WhatsApp CRM — só aparece se o módulo estiver ativo (a API decide) */}
+      {/* Agente do WhatsApp CRM que atende este cliente — config do cliente (a API decide se aparece) */}
       {id && <CrmAccessSection orgId={id} onToast={setToast} />}
 
       {/* Histórico */}
@@ -673,24 +679,6 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
           <Field label="Website"><input value={ef.website ?? ""} onChange={(e) => setEf({ ...ef, website: e.target.value })} /></Field>
           <Field label="Observações"><textarea value={ef.notes ?? ""} onChange={(e) => setEf({ ...ef, notes: e.target.value })} /></Field>
         </>}
-      </Modal>
-
-      <Modal title={tr("Convidar usuário")} open={invite} onClose={() => setInvite(false)}
-        footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setInvite(false)}><span className="crasto-btn__label">{tr("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={doInvite}><span className="crasto-btn__label">{busy ? tr("Enviando…") : tr("Enviar convite")}</span></button></>}>
-        {err && <div className="formerr">{err}</div>}
-        <Field label="E-mail *"><input type="email" value={inv.email} onChange={(e) => setInv({ ...inv, email: e.target.value })} /></Field>
-        <Field label="Nome"><input value={inv.name} onChange={(e) => setInv({ ...inv, name: e.target.value })} /></Field>
-        <Field label="Papel"><select value={inv.role} onChange={(e) => setInv({ ...inv, role: e.target.value })}><option value="client_owner">{tr("Dono")}</option><option value="client_member">{tr("Membro")}</option></select></Field>
-      </Modal>
-
-      {/* Editar usuário do Portal — nome, e-mail (muda o login) e papel */}
-      <Modal title={tr("Editar usuário")} open={euOpen} onClose={() => setEuOpen(false)}
-        footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setEuOpen(false)}><span className="crasto-btn__label">{tr("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={saveUser}><span className="crasto-btn__label">{busy ? tr("Salvando…") : tr("Salvar")}</span></button></>}>
-        {err && <div className="formerr">{err}</div>}
-        <Field label="Nome"><input value={eu.name} onChange={(e) => setEu({ ...eu, name: e.target.value })} /></Field>
-        <Field label="E-mail *"><input type="email" value={eu.email} onChange={(e) => setEu({ ...eu, email: e.target.value })} /></Field>
-        <Field label="Papel"><select value={eu.role} onChange={(e) => setEu({ ...eu, role: e.target.value })}><option value="client_owner">{tr("Dono")}</option><option value="client_member">{tr("Membro")}</option></select></Field>
-        <div className="mt" style={{ marginTop: 8, color: "var(--crasto-text-muted)", fontSize: 12 }}>{tr("Mudar o e-mail altera o login desta pessoa. A senha atual continua valendo.")}</div>
       </Modal>
 
       {toast && <div className="toast">{toast}</div>}
