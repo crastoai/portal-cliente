@@ -352,7 +352,7 @@ export default function ConsolePermissoes() {
                   const on = s.key === BASE_SCREEN || pf.screens.has(s.key);
                   const base = s.key === BASE_SCREEN;
                   return (
-                    <button key={s.key} className={"screenpick" + (on ? " on" : "") + (base ? " base" : "")} onClick={() => toggleScreen(s.key)} disabled={base} title={base ? t("Início é sempre visível") : ""}>
+                    <button key={s.key} className={"screenpick" + (on ? " on" : "") + (base ? " base" : "")} onClick={() => toggleScreen(s.key)} disabled={base} title={base ? t("Tela base — sempre visível") : ""}>
                       <span className="box">{on && <Check size={13} />}</span>
                       <span className="lb">{t(s.label)}{base && <em> · {t("base")}</em>}</span>
                     </button>

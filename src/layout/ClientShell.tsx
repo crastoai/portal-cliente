@@ -7,7 +7,7 @@ import { useAsync } from "../ui/ui";
 import { services } from "../services";
 import { preview } from "../lib/preview";
 import { useT } from "../lib/i18n";
-import { CLIENT_SCREENS, allowedScreens } from "../lib/screens";
+import { CLIENT_SCREENS, allowedScreens, firstAllowedPath } from "../lib/screens";
 import Shell, { type NavItem } from "./Shell";
 
 const SCREEN_ICON: Record<string, any> = {
@@ -101,11 +101,15 @@ export default function ClientShell() {
       modItems.push({ icon: LayoutGrid, label: c.name, section: "Módulos", ...abrir(c) });
   }
 
-  // Guarda de rota: se cair numa tela sem permissão, volta ao Início.
+  // Guarda de rota: se cair numa tela sem permissão (inclusive o Início, que o dono pode
+  // bloquear para um membro), manda para a PRIMEIRA tela permitida — nunca de volta ao Início.
   useEffect(() => {
     if (!myScreens) return;
     const scr = CLIENT_SCREENS.find((s) => (s.to === "/app" ? location.pathname === "/app" : location.pathname.startsWith(s.to)));
-    if (scr && !allowed.has(scr.key)) navigate("/app", { replace: true });
+    if (scr && !allowed.has(scr.key)) {
+      const dest = firstAllowedPath(allowed);
+      if (dest !== location.pathname) navigate(dest, { replace: true });
+    }
   }, [location.pathname, myScreens]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Categorias do sidebar do cliente (colapsáveis, com seta — igual ao admin). Início fica no

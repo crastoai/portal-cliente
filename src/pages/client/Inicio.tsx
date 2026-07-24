@@ -7,6 +7,7 @@ import { useT } from "../../lib/i18n";
 import { money } from "../../ui/ui";
 import Modal from "../../ui/Modal";
 import { summarizeFaturas, type Fatura, type FaturaSummary } from "../../lib/faturas";
+import { allowedScreens } from "../../lib/screens";
 
 type Health = { status: "green" | "amber" | "red"; message: string | null };
 type Impl = { overall_progress: number; due_date: string | null; status: string };
@@ -47,6 +48,10 @@ export default function Inicio() {
   const [implOpen, setImplOpen] = useState(false);
   const [detMod, setDetMod] = useState<Mod | null>(null);
   const [agent, setAgent] = useState<import("../../services/delivery.service").AgentUsage | null>(null);
+  // Defesa em profundidade: financeiro/negócios do Início só para quem tem a permissão "Financeiro"
+  // (dono ou membro liberado). Começa false para o membro nunca ver nem por um instante; o backend
+  // (my_faturas + pode_ver_financeiro) já protege o dado, isto só limpa a tela.
+  const [podeFin, setPodeFin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -68,6 +73,8 @@ export default function Inicio() {
       services.delivery.implEvents.listMine().then((r) => setImplEvents(Array.isArray(r) ? r : [])).catch(() => setImplEvents([]));
       // Uso REAL do agente de IA (federado do wacrm) — taxa de automação das respostas.
       services.delivery.agentUsage.getMine().then(setAgent).catch(() => setAgent(null));
+      // Permissão financeira (dono sempre; membro só se liberado) — gate do bloco financeiro/negócios.
+      services.identity.access.myScreens().then((s) => setPodeFin(allowedScreens(s as string[] | null).has("financeiro"))).catch(() => setPodeFin(false));
       setFin(summarizeFaturas((inv as unknown as Fatura[]) ?? []));
       const rows = cm ?? [];
       const ids = rows.map((r) => r.vdi_module_id);
@@ -157,7 +164,7 @@ export default function Inicio() {
       <div className="dashtabs" role="tablist">
         <button role="tab" aria-selected={tab === "solucoes"} className={"dashtab" + (tab === "solucoes" ? " on" : "")} onClick={() => setTab("solucoes")}>{t("Soluções & Serviços")}</button>
         <button role="tab" aria-selected={tab === "minhas"} className={"dashtab" + (tab === "minhas" ? " on" : "")} onClick={() => setTab("minhas")}>{t("Minhas soluções")}{mods.length ? <span className="dashtab-cnt">{mods.length}</span> : null}</button>
-        <button role="tab" aria-selected={tab === "negocios"} className={"dashtab" + (tab === "negocios" ? " on" : "")} onClick={() => setTab("negocios")}>{t("Negócios")}</button>
+        {podeFin && <button role="tab" aria-selected={tab === "negocios"} className={"dashtab" + (tab === "negocios" ? " on" : "")} onClick={() => setTab("negocios")}>{t("Negócios")}</button>}
       </div>
 
       {tab === "solucoes" && (<>
@@ -204,7 +211,7 @@ export default function Inicio() {
 
       {/* ═══ SEU CONTRATO ═══ health check do contrato (situação financeira) — farol próprio,
           separado do farol das soluções. Verde/âmbar/vermelho pela situação real das faturas. */}
-      {fin && (
+      {fin && podeFin && (
         <>
           <SecHead title={t("Seu contrato")} tom={contratoTom} caption={t("Health check do contrato — situação financeira")} />
           <div className={"finhealth fh-" + fin.status}>
@@ -349,7 +356,7 @@ export default function Inicio() {
 
       {/* Aba NEGÓCIOS — CRM + financeiro do PRÓPRIO negócio do cliente (resultados que as soluções
           geram). Próxima fase: nada fictício ainda, então mostra o que vem, sem números inventados. */}
-      {tab === "negocios" && (
+      {tab === "negocios" && podeFin && (
         <div className="scopebox">
           <div className="scopehead"><div><span className="scopedot mute" /><Activity size={17} /><span>{t("Negócios do cliente")}</span></div><small>{t("Em construção · próxima fase")}</small></div>
           <div style={{ padding: "28px 20px", textAlign: "center", color: "var(--crasto-text-muted)", fontSize: 14, lineHeight: 1.7 }}>

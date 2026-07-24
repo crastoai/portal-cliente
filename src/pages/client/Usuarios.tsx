@@ -141,7 +141,7 @@ export default function Usuarios() {
               const on = sc.key === BASE_SCREEN || telas.has(sc.key);
               const base = sc.key === BASE_SCREEN;
               return (
-                <button key={sc.key} className={"screenpick" + (on ? " on" : "") + (base ? " base" : "")} onClick={() => toggleTela(sc.key)} disabled={base} title={base ? t("Início é sempre visível") : ""}>
+                <button key={sc.key} className={"screenpick" + (on ? " on" : "") + (base ? " base" : "")} onClick={() => toggleTela(sc.key)} disabled={base} title={base ? t("Tela base — sempre visível") : ""}>
                   <span className="box">{on && <Check size={13} />}</span>
                   <span className="lb">{t(sc.label)}{base && <em> · {t("base")}</em>}</span>
                 </button>
