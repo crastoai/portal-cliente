@@ -14,7 +14,9 @@ export class DeliveryController {
     return { sets: keys.map((k, i) => `"${k}"=$${startAt + i}`).join(', '), vals: keys.map((k) => patch[k]), ok: keys.length > 0 };
   }
 
-  private readonly ROLLOUT = 'id,vdi_module_id,status,label,rollout_progress,rollout_due,rollout_status';
+  // `access_mode` viaja junto: é ele que diz ao front COMO abrir a instância
+  // (link = nova aba, como sempre foi · embed = dentro do Portal · sso = embed com sessão própria).
+  private readonly ROLLOUT = 'id,vdi_module_id,status,label,rollout_progress,rollout_due,rollout_status,access_mode';
 
   // ── Fase 4 · autoatendimento consolidado ────────────────────────────────
   // O org_id vem do JWT + RLS, nunca do navegador. Só depois de resolvê-lo no banco
@@ -216,6 +218,64 @@ export class DeliveryController {
   credSet(@Req() req: any, @Body() b: any) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select public.set_module_access($1,$2,$3,$4,$5,$6) as r', [b.clientModuleId, b.label, b.login, b.secret, b.sso, b.url ?? null])).rows[0]?.r); }
   @Delete('credentials/:id')
   credRemove(@Req() req: any, @Param('id') id: string) { return this.db.asUser(this.uid(req), async (c) => { await c.query('delete from delivery.module_credentials where id=$1', [id]); return { ok: true }; }); }
+
+  // ── module_sessions (métrica de uso: quem abriu qual módulo, quando, por quanto tempo) ──
+  //
+  // Quem abre o módulo é o PORTAL, então é aqui que dá para medir — mesmo enquanto o destino
+  // (Lovable) usa credencial compartilhada da empresa e não sabe distinguir as pessoas.
+  // A org e o usuário NÃO vêm do navegador: `auth.uid()`/`current_org_id()` saem do JWT pela
+  // RLS. O front só diz QUAL instância abriu; carimbar sessão no nome de outro é negado.
+  @Post('module-sessions/open')
+  msOpen(@Req() req: any, @Body() b: any) {
+    return this.db.asUser(this.uid(req), async (c) => (await c.query(
+      `insert into delivery.module_sessions (organization_id, client_module_id, vdi_module_id, user_id, mode)
+       select cm.organization_id, cm.id, cm.vdi_module_id, auth.uid(), coalesce($2, cm.access_mode, 'embed')
+         from delivery.client_modules cm
+        where cm.id = $1
+       returning id, started_at`,
+      [b.clientModuleId, b.mode ?? null],
+    )).rows[0] ?? null);
+  }
+  // Heartbeat: aba fechada no tapa (sem `close`) ainda deixa duração aproveitável.
+  @Post('module-sessions/:id/ping')
+  msPing(@Req() req: any, @Param('id') id: string) {
+    return this.db.asUser(this.uid(req), async (c) => {
+      await c.query(`update delivery.module_sessions set last_seen_at = now() where id=$1 and ended_at is null`, [id]);
+      return { ok: true };
+    });
+  }
+  @Post('module-sessions/:id/close')
+  msClose(@Req() req: any, @Param('id') id: string) {
+    return this.db.asUser(this.uid(req), async (c) => {
+      await c.query(`update delivery.module_sessions set ended_at = now(), last_seen_at = now() where id=$1 and ended_at is null`, [id]);
+      return { ok: true };
+    });
+  }
+  /**
+   * Resumo de uso por USUÁRIO × MÓDULO. A RLS decide o alcance: cliente vê a própria
+   * empresa, admin vê o que pedir. Duração usa `ended_at` quando houve fechamento limpo e
+   * `last_seen_at` quando não houve — nunca "agora", que inflaria sessão abandonada.
+   */
+  @Get('module-sessions/summary')
+  msSummary(@Req() req: any, @Query('org') org: string, @Query('dias') dias: string) {
+    const d = Math.max(1, Math.min(365, Number(dias) || 30));
+    return this.db.asUser(this.uid(req), async (c) => (await c.query(
+      `select s.user_id, p.full_name, p.email, s.client_module_id,
+              coalesce(cm.label, v.name, 'Módulo') as modulo,
+              count(*)::int                                     as aberturas,
+              max(s.started_at)                                 as ultimo_acesso,
+              sum(extract(epoch from (coalesce(s.ended_at, s.last_seen_at) - s.started_at)))::int as segundos
+         from delivery.module_sessions s
+         left join public.profiles p on p.id = s.user_id
+         left join delivery.client_modules cm on cm.id = s.client_module_id
+         left join catalog.vdi_modules v on v.id = s.vdi_module_id
+        where s.started_at > now() - ($1 || ' days')::interval
+          and ($2::uuid is null or s.organization_id = $2::uuid)
+        group by 1,2,3,4,5
+        order by segundos desc nulls last`,
+      [String(d), org || null],
+    )).rows);
+  }
 
   // ── client_services ──
   private readonly SVC = 'id,service_id,status,notes,service_name,service_description,service_category,service_unit';

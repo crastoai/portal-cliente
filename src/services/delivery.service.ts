@@ -69,4 +69,17 @@ export const selfService = {
   getMine: async () => api.get<any>(`/api/delivery/self-service/mine`),
 };
 
-export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, selfService };
+// Métrica de uso por usuário × módulo. Quem abre o módulo é o Portal, então é o Portal que
+// mede — vale mesmo enquanto o destino (Lovable) usa credencial compartilhada da empresa e
+// não consegue distinguir as pessoas. O servidor tira usuário e org do JWT; o front só diz
+// QUAL instância abriu. `ping` existe porque aba fechada no tapa nunca manda `close`.
+export const moduleSessions = {
+  open: async (clientModuleId: string, mode?: string) =>
+    api.post<{ id: string; started_at: string }>(`/api/delivery/module-sessions/open`, { clientModuleId, mode }),
+  ping: async (id: string) => api.post(`/api/delivery/module-sessions/${id}/ping`, {}),
+  close: async (id: string) => api.post(`/api/delivery/module-sessions/${id}/close`, {}),
+  summary: async (dias = 30, orgId?: string) =>
+    api.get<any[]>(`/api/delivery/module-sessions/summary?dias=${dias}${orgId ? `&org=${orgId}` : ""}`),
+};
+
+export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, selfService, moduleSessions };

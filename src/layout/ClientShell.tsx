@@ -60,9 +60,11 @@ export default function ClientShell() {
       const v = vmap[r.vdi_module_id] || {};
       const cred = cmap[r.id];
       return {
+        id: r.id as string, // client_module_id = a INSTÂNCIA (é o que a rota embarcada usa)
         text: `${v.category || ""} ${v.name || ""}`,
-        name: (v.name || (r as any).label || "Módulo") as string,
+        name: ((r as any).label || v.name || "Módulo") as string,
         url: (cred?.access_url || (r as any).crm_url || v.external_url || null) as string | null,
+        mode: ((r as any).access_mode || "link") as string,
         active: r.status === "active",
         isCrm: !!(r as any).crm_url, // sinal robusto: é a solução WhatsApp CRM
       };
@@ -73,22 +75,30 @@ export default function ClientShell() {
   // não contratado → cadeado (leva ao Catálogo para solicitar/liberar).
   // ⚠️ useAsync inicia `data` como NULL (não undefined) — blindar contra .find em null.
   const cs: any[] = Array.isArray(contratados) ? contratados : [];
+  // Como abrir um módulo contratado: dentro do Portal (embed/sso), em nova aba (link) ou,
+  // sem endereço ainda, levando a "Minhas Soluções" com a marca "em configuração".
+  const abrir = (c: any): Partial<NavItem> => {
+    if (!c.url) return { tag: t("em configuração"), onClick: () => navigate("/app/modulos") };
+    if (c.mode === "embed" || c.mode === "sso") return { to: `/app/m/${c.id}` };
+    return { onClick: () => window.open(c.url as string, "_blank", "noopener") };
+  };
   const modItems: NavItem[] = MODULES.map((m) => {
     // WhatsApp CRM: casa pelo sinal isCrm; demais slots: por categoria/nome.
     const owned = m.crm ? cs.find((c) => c.isCrm) : cs.find((c) => m.rx.test(c.text));
     if (owned && owned.active) {
       // WhatsApp CRM abre EMBARCADO (rota interna → iframe, sem nova aba); demais externos/SSO.
       if (m.crm) return { icon: m.icon, label: m.label, section: "Módulos", to: "/app/crm" };
-      if (owned.url) return { icon: m.icon, label: m.label, section: "Módulos", onClick: () => window.open(owned.url as string, "_blank", "noopener") };
-      return { icon: m.icon, label: m.label, section: "Módulos", onClick: () => navigate("/app/modulos") };
+      return { icon: m.icon, label: m.label, section: "Módulos", ...abrir(owned) };
     }
     if (owned) return { icon: m.icon, label: m.label, section: "Módulos", tag: t("em breve"), onClick: () => navigate("/app/modulos") };
     return { icon: m.icon, label: m.label, section: "Módulos", locked: true, onClick: () => navigate("/app/catalogo") };
   });
   // Extras: contratados que NÃO são o CRM e NÃO casam com nenhum canônico → pelo nome real.
+  // SEM exigir URL: módulo liberado tem de aparecer para o cliente mesmo antes de ter
+  // endereço publicado (antes ele sumia do menu e o cliente não via o que já era dele).
   for (const c of cs) {
-    if (c.active && c.url && !c.isCrm && !MODULES.some((m) => m.rx.test(c.text)))
-      modItems.push({ icon: LayoutGrid, label: c.name, section: "Módulos", onClick: () => window.open(c.url as string, "_blank", "noopener") });
+    if (c.active && !c.isCrm && !MODULES.some((m) => m.rx.test(c.text)))
+      modItems.push({ icon: LayoutGrid, label: c.name, section: "Módulos", ...abrir(c) });
   }
 
   // Guarda de rota: se cair numa tela sem permissão, volta ao Início.

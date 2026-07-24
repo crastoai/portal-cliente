@@ -71,7 +71,7 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
   const [rolloutForm, setRolloutForm] = useState<Record<string, { label: string; progress: string; due: string; status: string }>>({});
   const [healthForm, setHealthForm] = useState({ status: "green", message: "" });
   const [taskf, setTaskf] = useState({ name: "", start: "", end: "" });
-  const [credf, setCredf] = useState({ cmId: "", label: "", url: "", login: "", secret: "", sso: false });
+  const [credf, setCredf] = useState({ cmId: "", label: "", url: "", login: "", secret: "", sso: false, mode: "link" });
   const [modQuery, setModQuery] = useState("");
   const [modCat, setModCat] = useState("__on");
   const [svcQuery, setSvcQuery] = useState("");
@@ -209,11 +209,15 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
       const c = cm.find((x: any) => x.id === credf.cmId);
       const m = mods.find((x) => x.id === c?.vdi_module_id);
       await api.delivery.moduleCredentials.set({ clientModuleId: credf.cmId, label: credf.label || c?.label || m?.name || "Acesso", url: credf.url.trim(), login: credf.login.trim(), secret: credf.secret, sso: credf.sso });
-      setCredf({ cmId: "", label: "", url: "", login: "", secret: "", sso: false }); reload(); flash(tr("Acesso salvo ✓"));
+      // O MODO mora na instância (client_modules), não na credencial: é característica de
+      // como o módulo abre, não de quem entra. SSO marcado implica abrir embarcado.
+      await api.delivery.clientModules.updateRollout(credf.cmId, { access_mode: credf.sso && credf.mode === "link" ? "embed" : credf.mode });
+      setCredf({ cmId: "", label: "", url: "", login: "", secret: "", sso: false, mode: "link" }); reload(); flash(tr("Acesso salvo ✓"));
     } catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); } finally { setBusy(false); }
   }
   function editCred(c: any) {
-    setCredf({ cmId: c.client_module_id || "", label: c.label || "", url: c.access_url || "", login: c.login || "", secret: "", sso: !!c.sso_enabled });
+    const inst = cm.find((x: any) => x.id === c.client_module_id);
+    setCredf({ cmId: c.client_module_id || "", label: c.label || "", url: c.access_url || "", login: c.login || "", secret: "", sso: !!c.sso_enabled, mode: (inst as any)?.access_mode || "link" });
     flash(tr("Editando — altere e clique em Salvar. Senha em branco mantém a atual."));
   }
   async function delCred(cid: string) { await api.delivery.moduleCredentials.remove(cid); reload(); }
@@ -595,6 +599,12 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
         <input placeholder={tr("URL de acesso do cliente (https://…)")} value={credf.url} onChange={(e) => setCredf({ ...credf, url: e.target.value })} style={{ flex: 2, minWidth: 200 }} />
         <input placeholder={tr("Login")} value={credf.login} onChange={(e) => setCredf({ ...credf, login: e.target.value })} style={{ flex: 1, minWidth: 120 }} />
         <input placeholder={tr("Senha")} value={credf.secret} onChange={(e) => setCredf({ ...credf, secret: e.target.value })} style={{ flex: 1, minWidth: 120 }} />
+        {/* COMO ABRE: "nova aba" é o de sempre; "dentro do Portal" mantém o cliente na casca
+            (com "Voltar ao Portal") e é o que gera a métrica de uso por usuário. */}
+        <select value={credf.mode} onChange={(e) => setCredf({ ...credf, mode: e.target.value })} style={{ minWidth: 150 }} title={tr("Como o cliente abre este módulo")}>
+          <option value="link">{tr("Abre em nova aba")}</option>
+          <option value="embed">{tr("Abre dentro do Portal")}</option>
+        </select>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--crasto-text-body)" }}><input type="checkbox" checked={credf.sso} onChange={(e) => setCredf({ ...credf, sso: e.target.checked })} style={{ width: "auto" }} />{tr("Entra direto (SSO)")}</label>
         <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={saveCred}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{tr("Salvar")}</span></button>
       </div>

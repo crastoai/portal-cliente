@@ -9,10 +9,36 @@ import { RlsDbService } from '../common/rls-db.service';
 export class CatalogController {
   constructor(private readonly db: RlsDbService) {}
   private uid(req: any): string { return req.user.id; }
-  // lista de colunas validada (evita injeção via ?fields=)
+
+  // Colunas que o CLIENTE pode ver. Tudo que revele a origem interna da solução — acima de
+  // tudo `internal_url`, que aponta para app.viverdeia.ai — é 🔒 INTERNO: o cliente nunca
+  // sabe de onde vem a solução (regra inegociável do CONTEXTO_GERAL). O `?fields=` vem do
+  // NAVEGADOR: antes ele era só saneado contra injeção, então bastava pedir
+  // `fields=internal_url` para listar a Viver de IA inteira. Agora há duas camadas —
+  // whitelist aqui e, para as internas, `is_crasto_admin()` avaliado no BANCO (não em JS,
+  // que o cliente não controla mas também não é a fonte de verdade de quem é admin).
+  // Prazo/setup/customização SÃO client-facing (a tela Catálogo do cliente os mostra: "entrega
+  // em X dias"). Interno é só o que revela a ORIGEM/bastidor da solução.
+  private static readonly PUBLIC_COLS = new Set([
+    'id', 'name', 'description', 'category', 'icon', 'external_url', 'status', 'active',
+    'created_at', 'updated_at', 'crm_solution',
+    'setup_workdays', 'client_deadline_days', 'customization',
+  ]);
+  private static readonly INTERNAL_COLS = new Set([
+    'internal_url', 'department', 'tools_cost_by', 'remix_date', 'version',
+  ]);
+
+  /** Monta o SELECT: coluna pública sai direta; coluna interna sai mascarada por admin. */
   private cols(fields: string | undefined, def: string): string {
-    const src = (fields || def).split(',').map((s) => s.trim()).filter((s) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(s));
-    return src.length ? src.map((s) => `"${s}"`).join(',') : def.split(',').map((s) => `"${s.trim()}"`).join(',');
+    const pedidas = (fields || def).split(',').map((s) => s.trim()).filter((s) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(s));
+    const out: string[] = [];
+    for (const col of pedidas) {
+      if (CatalogController.PUBLIC_COLS.has(col)) out.push(`"${col}"`);
+      // NULL para quem não é admin — a mesma consulta serve os dois, o banco decide.
+      else if (CatalogController.INTERNAL_COLS.has(col)) out.push(`case when public.is_crasto_admin() then "${col}" end as "${col}"`);
+      // desconhecida → ignorada (nunca interpolar coluna que não está no catálogo acima)
+    }
+    return out.length ? out.join(',') : def.split(',').map((s) => `"${s.trim()}"`).join(',');
   }
   private set(patch: Record<string, any>, startAt: number) {
     const keys = Object.keys(patch || {}).filter((k) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k));

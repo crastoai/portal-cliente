@@ -20,6 +20,7 @@ import Financeiro from "./pages/client/Financeiro";
 import Usuarios from "./pages/client/Usuarios";
 import Suporte from "./pages/client/Suporte";
 import CrmEmbed from "./pages/client/CrmEmbed";
+import ModuleEmbed from "./pages/client/ModuleEmbed";
 import Perfil from "./pages/Perfil";
 
 import VisaoGeral from "./pages/admin/VisaoGeral";
@@ -98,6 +99,9 @@ export default function App() {
           {/* WhatsApp CRM embarcado = TELA CHEIA (fora da casca do Portal): a sidebar do
               Portal some, aparece a do CRM, e no topo a faixa "Voltar ao Portal". */}
           <Route path="/app/crm" element={<CrmEmbed />} />
+          {/* Qualquer outro módulo embarcado (hoje apps do Lovable) — mesma tela cheia.
+              :id é o client_module_id, ou seja, a INSTÂNCIA daquele cliente. */}
+          <Route path="/app/m/:id" element={<ModuleEmbed />} />
           <Route path="/app" element={<ClientShell />}>
             <Route index element={<Inicio />} />
             <Route path="modulos" element={<Modulos />} />
