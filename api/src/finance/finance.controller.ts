@@ -31,7 +31,7 @@ export class FinanceController {
   billingStatus() {
     return this.db.asService(async (c) => {
       const has = async (p: string) => !!(await c.query(`select public.reveal_provider_key($1) as k`, [p])).rows[0]?.k;
-      return { anthropic_admin: await has('anthropic_admin'), openai_admin: await has('openai_admin') };
+      return { anthropic_admin: await has('anthropic_admin'), openai_admin: await has('openai_admin'), google_billing: await has('google_billing') };
     });
   }
   private bool(v: any): boolean | null { return v === 'true' ? true : v === 'false' ? false : null; }

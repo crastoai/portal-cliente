@@ -30,6 +30,14 @@ export const INTEGRATION_FIELDS: Record<string, IntegField[]> = {
     { key: "url", label: "Evolution API URL", kind: "from", placeholder: "https://evolution.suavps.com" },
     { key: "api_key", label: "API Key global (AUTHENTICATION_API_KEY)", kind: "secret", primary: true },
   ],
+  // Google Cloud Billing (custo REAL do Gemini) — o Gemini não tem API de custo com key simples;
+  // o custo é do Google Cloud Billing, lido do BigQuery Export com uma SERVICE ACCOUNT.
+  google_billing: [
+    { key: "project_id", label: "Project ID (do dataset BigQuery)", kind: "text", placeholder: "gen-lang-client-00915..." },
+    { key: "dataset", label: "Dataset do billing export", kind: "text", placeholder: "billing_export" },
+    { key: "billing_account", label: "ID da conta de faturamento", kind: "text", placeholder: "0142E1-78F465-5D4EB4" },
+    { key: "service_account_json", label: "Service Account (JSON da chave)", kind: "secret", primary: true, placeholder: '{ "type": "service_account", "private_key": "...", "client_email": "...@...iam.gserviceaccount.com" }' },
+  ],
   cloudflare_r2: [
     { key: "account_id", label: "Account ID", kind: "text" },
     { key: "access_key_id", label: "Access Key ID", kind: "text" },
@@ -59,6 +67,7 @@ export const HINTS: Record<string, string> = {
   resend_email: "Chave do Resend (re_...). Para enviar de no-reply@crasto.ai, verifique o domínio no Resend.",
   ai_bridge: "Liga o chat/voz da proposta ao Claude Max. Rode a ponte e cole a URL + o mesmo PONTE_SECRET. Ver PONTE_CLAUDE_MAX_Setup.md.",
   evolution: "WhatsApp por QR Code (Evolution API). Cadastre aqui, uma vez, a URL da sua instância na VPS + a AUTHENTICATION_API_KEY global. No console do agente, ao escolher Evolution, a chave já vem daqui — lá fica só a instância + o QR.",
+  google_billing: "Custo REAL do Gemini (Google Cloud Billing via BigQuery). Setup uma vez no Google Cloud: (1) Billing → Billing export → habilite o export do BigQuery (cria o dataset); (2) crie uma Service Account com papéis BigQuery Data Viewer + Job User e gere a chave JSON; (3) cole aqui o JSON + o Project ID/dataset/conta de faturamento. Depois é só 'Sincronizar custos'. O Google leva ~24h para popular o export na 1ª vez.",
   banco_inter: "Faturamento Pix/boleto. O Inter exige certificado mTLS — o cert/chave ficam no cofre e o serviço roda na VPS.",
   cloudflare_r2: "Bucket R2 para documentos. Endpoint no formato https://<account>.r2.cloudflarestorage.com.",
   whatsapp_official: "WhatsApp Cloud API (Meta): phone_number_id, WABA ID, access token e verify token do webhook.",

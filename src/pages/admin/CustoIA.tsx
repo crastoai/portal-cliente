@@ -75,7 +75,7 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
   }
   async function del(r: any) { if (!confirm(t("Excluir este registro de custo?"))) return; await services.finance.aiCost.remove(r.id); reload(); }
   // As Admin keys de billing são cadastradas em Console → APIs & Chaves. Aqui só mostramos o status.
-  const [bkStatus, setBkStatus] = useState<{ anthropic_admin: boolean; openai_admin: boolean } | null>(null);
+  const [bkStatus, setBkStatus] = useState<{ anthropic_admin: boolean; openai_admin: boolean; google_billing?: boolean } | null>(null);
   useEffect(() => { services.finance.aiCost.billingStatus().then(setBkStatus).catch(() => {}); }, []);
   const [syncing, setSyncing] = useState(false);
   async function sincronizar() {
@@ -84,7 +84,7 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
       const r = await services.finance.aiCost.sync(from, to);
       const ok = r.resultados.filter((x) => x.ok);
       const falhas = r.resultados.filter((x) => !x.ok);
-      const oks = ok.map((x) => `${x.provider}: US$ ${Number(x.cost || 0).toFixed(2)}`);
+      const oks = ok.map((x) => `${x.provider}: ${Number(x.cost || 0).toFixed(2)}`);
       reload();
       if (falhas.length) toast.err([...falhas.map((x) => `${x.provider}: ${x.erro}`), ...oks].join(" · "));
       else toast.ok(oks.length ? oks.join(" · ") : t("Nada para sincronizar."));
@@ -98,17 +98,17 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
       {!embedded && <PageHead eyebrow="Painel Admin · Financeiro 🔒" title="Gestão Financeira — Custo de IA"
         sub="Todos os custos de IA da Crasto.AI, por plataforma e por cliente. Clique num indicador para ir ao detalhe."
         right={<>
-          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={sincronizar} disabled={syncing} title={t("Puxa o custo real das APIs de billing (Anthropic + OpenAI)")}><span className="crasto-btn__icon"><RefreshCw size={14} className={syncing ? "spin" : ""} /></span><span className="crasto-btn__label">{syncing ? t("Sincronizando…") : t("Sincronizar custos")}</span></button>
+          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={sincronizar} disabled={syncing} title={t("Puxa o custo real das APIs de billing (Anthropic + OpenAI + Gemini)")}><span className="crasto-btn__icon"><RefreshCw size={14} className={syncing ? "spin" : ""} /></span><span className="crasto-btn__label">{syncing ? t("Sincronizando…") : t("Sincronizar custos")}</span></button>
           <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={newRow}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Registrar custo")}</span></button>
         </>} />}
       {embedded && <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 10 }}>
-        <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={sincronizar} disabled={syncing} title={t("Puxa o custo real das APIs de billing (Anthropic + OpenAI)")}><span className="crasto-btn__icon"><RefreshCw size={14} className={syncing ? "spin" : ""} /></span><span className="crasto-btn__label">{syncing ? t("Sincronizando…") : t("Sincronizar custos")}</span></button>
+        <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={sincronizar} disabled={syncing} title={t("Puxa o custo real das APIs de billing (Anthropic + OpenAI + Gemini)")}><span className="crasto-btn__icon"><RefreshCw size={14} className={syncing ? "spin" : ""} /></span><span className="crasto-btn__label">{syncing ? t("Sincronizando…") : t("Sincronizar custos")}</span></button>
         <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={newRow}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Registrar custo")}</span></button>
       </div>}
 
       {/* Status das Admin keys de billing — cadastradas em Console → APIs & Chaves */}
       <div className="note" style={{ marginBottom: 14 }}>
-        <span><b>{t("Custo real automático:")}</b> Anthropic {bkStatus?.anthropic_admin ? "✓" : t("— falta a Admin key")} · OpenAI {bkStatus?.openai_admin ? "✓" : t("— falta a Admin key")}. {t("Cadastre as Admin keys (billing) em Console → APIs & Chaves e clique em \"Sincronizar custos\".")}</span>
+        <span><b>{t("Custo real automático:")}</b> Anthropic {bkStatus?.anthropic_admin ? "✓" : t("— falta a Admin key")} · OpenAI {bkStatus?.openai_admin ? "✓" : t("— falta a Admin key")} · Gemini {bkStatus?.google_billing ? "✓" : t("— falta a Service Account (Google)")}. {t("Cadastre em Console → Integrações & pagamentos (Admin keys + Google Cloud Billing) e clique em \"Sincronizar custos\".")}</span>
       </div>
 
       {/* seletor de período */}

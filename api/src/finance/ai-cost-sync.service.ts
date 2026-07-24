@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
+import { createSign } from 'crypto';
 import { RlsDbService } from '../common/rls-db.service';
 
 // Sincroniza o CUSTO REAL de IA direto das APIs de billing dos provedores para finance.ai_costs.
 // REALIDADE (docs oficiais): os provedores agregam por DIA, não "tempo real". Custo real só sai
 // com CHAVE DE ADMIN (diferente da de inferência): Anthropic `sk-ant-admin…` (cofre: anthropic_admin),
-// OpenAI admin com escopo api.usage.read (cofre: openai_admin). Gemini não tem API de custo
-// (Cloud Billing) → estimado por tokens em outra frente. Aqui: Anthropic + OpenAI (billed em US$).
+// OpenAI admin com escopo api.usage.read (cofre: openai_admin). GEMINI: não tem API de custo com
+// key simples — o custo é do Google Cloud Billing, lido do BigQuery Export com uma Service Account
+// (integração google_billing). Aqui: Anthropic + OpenAI (US$) + Google/Gemini (moeda da conta, BRL).
 type Resultado = { provider: string; ok: boolean; cost?: number; linhas?: number; erro?: string };
+
+const b64url = (s: string | Buffer) => Buffer.from(s as any).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
 // Soma recursiva de todos os `amount.value` da resposta (defensivo p/ variações de shape).
 function somarAmounts(obj: any): number {
@@ -74,11 +78,59 @@ export class AiCostSyncService {
     return { provider: 'openai', ok: true, cost, linhas };
   }
 
-  /** Sincroniza os provedores com API de custo real (US$). Nunca lança: devolve status por provedor. */
+  // ── GOOGLE / GEMINI — custo real do Google Cloud Billing via BigQuery Export ──
+  // Gera um access token OAuth a partir da Service Account (JWT RS256) e consulta a tabela do
+  // billing export somando o custo LÍQUIDO (cost + créditos) do Gemini no período.
+  private async googleToken(sa: any): Promise<string | null> {
+    try {
+      const now = Math.floor(Date.now() / 1000);
+      const aud = sa.token_uri || 'https://oauth2.googleapis.com/token';
+      const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+      const claim = b64url(JSON.stringify({ iss: sa.client_email, scope: 'https://www.googleapis.com/auth/bigquery.readonly', aud, iat: now, exp: now + 3600 }));
+      const signer = createSign('RSA-SHA256'); signer.update(`${header}.${claim}`); signer.end();
+      const sig = b64url(signer.sign(sa.private_key));
+      const r = await fetch(aud, {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `grant_type=${encodeURIComponent('urn:ietf:params:oauth:grant-type:jwt-bearer')}&assertion=${header}.${claim}.${sig}`,
+      });
+      const j: any = await r.json().catch(() => ({}));
+      return j?.access_token ?? null;
+    } catch { return null; }
+  }
+  private googleMeta(): Promise<any> {
+    return this.db.asService(async (c) => { try { return (await c.query(`select meta from automation.integration_configs where key='google_billing'`)).rows[0]?.meta || {}; } catch { return {}; } });
+  }
+  private async google(uid: string, start: string, end: string): Promise<Resultado> {
+    const raw = await this.revealKey('google_billing');
+    if (!raw) return { provider: 'google', ok: false, erro: 'falta a Service Account (JSON) do Google no cofre — integração "Google Cloud Billing (Gemini)".' };
+    let sa: any; try { sa = JSON.parse(raw); } catch { return { provider: 'google', ok: false, erro: 'Service Account inválida (o segredo não é um JSON válido).' }; }
+    const meta = await this.googleMeta();
+    const safe = (s: any) => String(s || '').replace(/[^a-zA-Z0-9_-]/g, '');
+    const proj = safe(meta.project_id), ds = safe(meta.dataset), ba = safe(meta.billing_account).replace(/-/g, '_');
+    if (!proj || !ds || !ba) return { provider: 'google', ok: false, erro: 'faltam Project ID / dataset / conta de faturamento na integração Google.' };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) return { provider: 'google', ok: false, erro: 'período inválido.' };
+    const token = await this.googleToken(sa);
+    if (!token) return { provider: 'google', ok: false, erro: 'não autentiquei a Service Account no Google (verifique o JSON e os papéis BigQuery).' };
+    const sql = `SELECT SUM(cost) + SUM(IFNULL((SELECT SUM(c.amount) FROM UNNEST(credits) c),0)) AS total
+      FROM \`${proj}.${ds}.gcp_billing_export_v1_${ba}\`
+      WHERE (LOWER(service.description) LIKE '%gemini%' OR LOWER(service.description) LIKE '%generative language%')
+        AND DATE(usage_start_time) BETWEEN '${start}' AND '${end}'`;
+    const r = await fetch(`https://bigquery.googleapis.com/bigquery/v2/projects/${proj}/queries`, {
+      method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: sql, useLegacySql: false, timeoutMs: 30000 }),
+    });
+    const j: any = await r.json().catch(() => ({}));
+    if (!r.ok) return { provider: 'google', ok: false, erro: `BigQuery ${r.status}: ${String(j?.error?.message || '').slice(0, 140)}` };
+    const total = Number(j?.rows?.[0]?.f?.[0]?.v || 0);
+    const linhas = await this.gravar(uid, 'google', 'gemini', total, start, end);
+    return { provider: 'google', ok: true, cost: total, linhas };
+  }
+
+  /** Sincroniza os provedores com custo real. Nunca lança: devolve status por provedor. */
   async sync(uid: string, opts?: { from?: string; to?: string }): Promise<{ periodo: { start: string; end: string }; resultados: Resultado[] }> {
     const { start, end } = this.periodo(opts?.from, opts?.to);
     const resultados: Resultado[] = [];
-    for (const fn of [this.anthropic.bind(this), this.openai.bind(this)]) {
+    for (const fn of [this.anthropic.bind(this), this.openai.bind(this), this.google.bind(this)]) {
       try { resultados.push(await fn(uid, start, end)); }
       catch (e: any) { resultados.push({ provider: 'desconhecido', ok: false, erro: e?.message || 'falha' }); }
     }
