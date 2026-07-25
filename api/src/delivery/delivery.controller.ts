@@ -16,7 +16,7 @@ export class DeliveryController {
 
   // `access_mode` viaja junto: é ele que diz ao front COMO abrir a instância
   // (link = nova aba, como sempre foi · embed = dentro do Portal · sso = embed com sessão própria).
-  private readonly ROLLOUT = 'id,vdi_module_id,status,label,rollout_progress,rollout_due,rollout_status,access_mode,monthly_cost,setup_cost,contract_date';
+  private readonly ROLLOUT = 'id,vdi_module_id,status,label,blurb,rollout_progress,rollout_due,rollout_status,access_mode,monthly_cost,setup_cost,contract_date';
 
   // ── Fase 4 · autoatendimento consolidado ────────────────────────────────
   // O org_id vem do JWT + RLS, nunca do navegador. Só depois de resolvê-lo no banco

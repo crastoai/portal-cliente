@@ -33,9 +33,20 @@ export default function Suporte() {
   const { profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({ subject: "", description: "" });
+  // Tipo de suporte escolhido — vai no e-mail para o time saber a natureza do pedido.
+  const [tipo, setTipo] = useState<"agente" | "melhorias">("agente");
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [toast, setToast] = useState("");
   const [files, setFiles] = useState<Anexo[]>([]);
   const [uploading, setUploading] = useState(0);
+
+  // Abre o modal de chamado já com o tipo escolhido (Suporte do Agente ou de Melhorias).
+  function abrirChamado(tp: "agente" | "melhorias") {
+    setTipo(tp); setF({ subject: "", description: "" }); setErr(""); setFiles([]); setOpen(true);
+  }
+  const TIPOS: { k: "agente" | "melhorias"; label: string; hint: string }[] = [
+    { k: "agente", label: "Suporte do Agente", hint: "Manter no ar, corrigir erros e estabilidade. Incluso no seu plano." },
+    { k: "melhorias", label: "Suporte de Melhorias", hint: "Evoluir o agente, novos fluxos e recursos. Orçado à parte." },
+  ];
 
   // Anexos (prints): sobem para o R2 na hora; guardamos {name, key, url}. Aceita imagem e PDF.
   async function addFiles(list: File[]) {
@@ -82,7 +93,11 @@ export default function Suporte() {
     try {
       // URL assinada FRESCA por anexo (o Resend baixa dela para anexar no e-mail do suporte).
       const attachments = await Promise.all(files.map(async (a) => ({ name: a.name, key: a.key, url: (await services.storage.getUrl(a.key).catch(() => a.url)) || a.url })));
-      const r = await services.support.tickets.open({ subject: f.subject.trim(), description: f.description, attachments });
+      // O tipo (Agente/Melhorias) entra no assunto E no corpo — o time triam pelo e-mail.
+      const tLabel = TIPOS.find((x) => x.k === tipo)?.label || "Suporte";
+      const subject = `[${tLabel}] ${f.subject.trim()}`;
+      const description = `Tipo de suporte: ${tLabel}\n\n${f.description}`;
+      const r = await services.support.tickets.open({ subject, description, attachments });
       if (!r.ok) { setErr(r.error || t("Não foi possível abrir o chamado.")); return; }
       setOpen(false); setF({ subject: "", description: "" }); setFiles([]); reload();
       setToast(t("✓ Chamado #{n} aberto.", { n: r.number }) + (r.confirmed ? " " + t("Enviamos uma confirmação para o seu e-mail.") : ""));
@@ -117,14 +132,8 @@ export default function Suporte() {
       </div>
 
       <div className="assign" style={{ marginBottom: 18 }}>
-        <div className="arow"><span className="ico" style={{ background: "#1F8A5B" }}><ShieldCheck size={16} /></span><span><span className="t">{t("Suporte do Agente")}</span><br /><span className="s">{t("Manter no ar, corrigir erros e estabilidade. Incluso no seu plano.")}</span></span></div>
-        <div className="arow"><span className="ico" style={{ background: "#3E6FB8" }}><Sparkles size={16} /></span><span><span className="t">{t("Suporte de Melhorias")}</span><br /><span className="s">{t("Evoluir o agente, novos fluxos e recursos. Orçado à parte.")}</span></span></div>
-      </div>
-
-      <div className="card" style={{ background: "linear-gradient(155deg,var(--crasto-navy),var(--crasto-navy-deep))", color: "#fff", marginBottom: 18 }}>
-        <div style={{ fontSize: 11, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--crasto-blue)", fontWeight: 700 }}>{t("Garantia de treinamento")}</div>
-        <div style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: "8px 0 6px" }}>{t("90 dias por agente")}</div>
-        <div style={{ color: "rgba(255,255,255,.75)", fontSize: 12.5 }}>{t("Todo agente que entregamos tem 3 meses de treinamento para falar o seu idioma, ter a identidade da sua marca e eliminar erros.")}</div>
+        <button className="arow" style={{ textAlign: "left", cursor: "pointer" }} onClick={() => abrirChamado("agente")}><span className="ico" style={{ background: "#1F8A5B" }}><ShieldCheck size={16} /></span><span><span className="t">{t("Suporte do Agente")}</span><br /><span className="s">{t("Manter no ar, corrigir erros e estabilidade. Incluso no seu plano.")}</span></span></button>
+        <button className="arow" style={{ textAlign: "left", cursor: "pointer" }} onClick={() => abrirChamado("melhorias")}><span className="ico" style={{ background: "#3E6FB8" }}><Sparkles size={16} /></span><span><span className="t">{t("Suporte de Melhorias")}</span><br /><span className="s">{t("Evoluir o agente, novos fluxos e recursos. Orçado à parte.")}</span></span></button>
       </div>
 
       <div className="sec-h"><h2>{t("Meus chamados")}</h2></div>
@@ -136,6 +145,16 @@ export default function Suporte() {
         footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={closeModal}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy || uploading > 0} onClick={submitTicket}><span className="crasto-btn__label">{busy ? t("Enviando…") : t("Enviar chamado")}</span></button></>}>
         <div onPaste={onPaste}>
           {err && <div className="formerr">{err}</div>}
+          <Field label={t("Qual suporte você precisa?")}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {TIPOS.map((x) => (
+                <button key={x.k} type="button" className={"crasto-btn crasto-btn--sm " + (tipo === x.k ? "crasto-btn--primary" : "crasto-btn--ghost")} onClick={() => setTipo(x.k)}>
+                  <span className="crasto-btn__label">{t(x.label)}</span>
+                </button>
+              ))}
+            </div>
+            <div className="mt" style={{ marginTop: 6, fontSize: 12 }}>{t(TIPOS.find((x) => x.k === tipo)?.hint || "")}</div>
+          </Field>
           <Field label="Assunto *"><input value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} placeholder={t("Ex.: Meu agente não está respondendo")} /></Field>
           <Field label="Descreva o que está acontecendo"><textarea value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} rows={5} placeholder={t("Conte os detalhes: o que aconteceu, quando, prints se tiver…")} /></Field>
 

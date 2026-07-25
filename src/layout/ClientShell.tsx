@@ -20,8 +20,8 @@ const SCREEN_ICON: Record<string, any> = {
 // `rx` casa a categoria/nome do módulo contratado com o slot canônico.
 const MODULES: { key: string; label: string; icon: LucideIcon; rx: RegExp; crm?: boolean }[] = [
   // WhatsApp CRM casa pelo SINAL de ser a solução CRM (crm_url presente), não pelo nome —
-  // o produto pode se chamar "Agente de SDR Autônomo", "Nina", etc. e ainda ser o CRM.
-  { key: "crm", label: "WhatsApp CRM", icon: MessageCircle, rx: /atend|crm|whats|convers|sdr|nina|openclaw/i, crm: true },
+  // o nome comercial do produto pode variar por cliente e ainda ser o CRM.
+  { key: "crm", label: "WhatsApp CRM", icon: MessageCircle, rx: /atend|crm|whats|convers|sdr|openclaw/i, crm: true },
   { key: "financeiro", label: "Financeiro", icon: Wallet, rx: /financ|erp financ/i },
   { key: "marketing", label: "Marketing", icon: Megaphone, rx: /market/i },
   { key: "social", label: "Social Media", icon: Share2, rx: /social/i },

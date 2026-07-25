@@ -7,7 +7,7 @@ import { useT } from "../../lib/i18n";
 
 type Cred = { id: string; login: string | null; sso_enabled: boolean; vdi_module_id: string; access_url: string | null; client_module_id?: string };
 type Mod = {
-  id: string; status: string; vdi_module_id: string; label: string | null;
+  id: string; status: string; vdi_module_id: string; label: string | null; blurb: string | null;
   vdi: { name: string; description: string | null; category: string | null } | null;
   external_url: string | null; cred: Cred | null;
   /** link (nova aba) | embed (dentro do Portal) | sso (embed com sessao propria) */
@@ -32,7 +32,7 @@ async function fetchData(): Promise<{ mods: Mod[]; services: Svc[] }> {
     const cred = (cmap[r.id] as Cred) ?? null;
     // Ordem: URL desta instância → WhatsApp CRM (a API resolve; é a mesma p/ todos) → template.
     const url = cred?.access_url || ((r as any).crm_url as string) || (vmap[r.vdi_module_id]?.external_url as string) || null;
-    return { id: r.id, status: r.status, vdi_module_id: r.vdi_module_id, label: (r as any).label ?? null, access_mode: (r as any).access_mode ?? "link", isCrm: !!(r as any).crm_url, vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null, external_url: url, cred };
+    return { id: r.id, status: r.status, vdi_module_id: r.vdi_module_id, label: (r as any).label ?? null, blurb: (r as any).blurb ?? null, access_mode: (r as any).access_mode ?? "link", isCrm: !!(r as any).crm_url, vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null, external_url: url, cred };
   });
   // Nome/descrição vêm desnormalizados na própria client_services (catalog.services é admin-only).
   const svcList: Svc[] = (csvc as any[]).map((c) => ({
@@ -94,8 +94,11 @@ export default function Modulos() {
               <div className="mod" key={m.id}>
                 <div className="cover"><div className="glow" />{icon(m.vdi?.category)}</div>
                 <div className="body">
-                  <h3>{m.label || m.vdi?.name || t("Solução")}</h3>
-                  <p>{m.label ? (m.vdi?.name || "") : (m.vdi?.description || t("Solução de IA da Crasto.AI."))}</p>
+                  {/* Título = apelido dado pela Crasto ao cliente; descrição = blurb configurável no
+                      detalhe do cliente. NUNCA usa o nome do catálogo VDI (traz termos internos como
+                      "Nina"/"SDR Autônomo" — que o cliente jamais deve ver). */}
+                  <h3>{m.label || t("Solução")}</h3>
+                  <p>{m.blurb || t("Solução de IA da Crasto.AI.")}</p>
 
                   {implementing ? (
                     <div className="foot">
