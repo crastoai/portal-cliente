@@ -174,10 +174,15 @@ export default function Perfil() {
           </div>
           <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busyU} onClick={saveUser}><span className="crasto-btn__label">{busyU ? t("Salvando…") : t("Salvar")}</span></button>
         </div>
+        {isClient && <div className="note" style={{ marginTop: 14 }}><span>{t("Este é o nome que aparece como sua assinatura nas mensagens do WhatsApp CRM quando você assume uma conversa. Altere aqui e salve — vale para você.")}</span></div>}
       </div>
 
       {!isClient ? (
         <div className="note"><span>{t("Admin da Crasto.AI — os dados cadastrais das empresas ficam na ficha de cada cliente (Clientes).")}</span></div>
+      ) : !isOwner ? (
+        // MEMBRO (não-dono): vê SÓ o próprio perfil acima. Dados da empresa, registros legais,
+        // sócios e documentos são confidenciais — só o dono da conta os vê e edita.
+        <div className="note"><span>{t("Os dados da empresa (registros legais, sócios e documentos) são gerenciados pelo responsável (dono) da conta.")}</span></div>
       ) : (
         <>
           <div className="ptabs">
