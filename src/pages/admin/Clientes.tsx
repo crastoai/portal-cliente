@@ -1,26 +1,49 @@
+// ============================================================================
+// Módulo "Empresas" — lista admin (prospectos, leads, oportunidades e clientes).
+// Farol de saúde + funil + filtros cruzados (trial/churned/ativos/inativos/oculto/país/período),
+// colunas ordenáveis, timestamps completos (dd/mm/aaaa hh:mm), ações inline (sem lixeira).
+// ============================================================================
 import { useMemo, useState } from "react";
-import { UserPlus, Search } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Plus, Search, Eye, Building2, Power, ArrowRightLeft, KeyRound, ShieldCheck, ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { services as api, errorMessage } from "../../services";
-import { PageHead, Empty, useAsync, money, initials, Field, Pill } from "../../ui/ui";
+import { PageHead, Empty, useAsync, money, initials, Field, Pill, useToast } from "../../ui/ui";
 import Modal from "../../ui/Modal";
 import { useT } from "../../lib/i18n";
-import { fetchClients, timeAgo } from "../../lib/adminData";
+import { fetchClients, fmtDateTime, type Client } from "../../lib/adminData";
 import { COUNTRIES, countryOf, STAGES, stageOf, tempOf, DIAL_CODES } from "../../lib/countries";
+import { preview } from "../../lib/preview";
 
 const EMPTY = { name: "", stage: "prospecto", country: "BR", tax_id: "", founded_on: "", website: "", owner_name: "", whatsapp: "", ddi: "+55", plan: "", email: "", contact_name: "" };
+const FAROL: Record<string, string> = { ok: "#1D9E75", green: "#1D9E75", saudavel: "#1D9E75", warn: "#EF9F27", amber: "#EF9F27", atencao: "#EF9F27", crit: "#E24B4A", red: "#E24B4A", risco: "#E24B4A" };
+const PAPEL_LABEL: Record<string, string> = { fornecedor: "Fornecedor", prestador_servico: "Prestador", representante_comercial: "Representante", indicador: "Indicador", colaborador: "Colaborador" };
+const FLAGS = [
+  { key: "trial", label: "Em trial", bg: "#FAEEDA", fg: "#633806" },
+  { key: "churned", label: "Churned", bg: "#FCEBEB", fg: "#791F1F" },
+  { key: "ativos", label: "Ativos", bg: "#E1F5EE", fg: "#085041" },
+  { key: "inativos", label: "Inativos", bg: "var(--crasto-bg-2)", fg: "var(--crasto-text-body)" },
+  { key: "oculto", label: "Cliente oculto", bg: "var(--crasto-bg-2)", fg: "var(--crasto-text-body)" },
+];
 
 export default function Clientes() {
   const t = useT();
+  const toast = useToast();
+  const nav = useNavigate();
   const { data, loading, reload } = useAsync(fetchClients, []);
-  const all = data ?? [];
+  const { data: agentsOvRaw } = useAsync(() => api.crmAccess.agentsOverview().catch(() => ({})), []);
+  const all = (data ?? []) as Client[];
+  const agentsOv = (agentsOvRaw ?? {}) as Record<string, { agentes: number; no_ar: number; farol: string }>;
+
   const [tab, setTab] = useState<string>("todos");
+  const [flag, setFlag] = useState<string>("");
+  const [pais, setPais] = useState<string>("");
+  const [periodo, setPeriodo] = useState<string>("");
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<{ col: string; dir: 1 | -1 }>({ col: "created_at", dir: -1 });
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({ ...EMPTY });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [toast, setToast] = useState("");
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { todos: all.length };
@@ -28,8 +51,85 @@ export default function Clientes() {
     return c;
   }, [all]);
 
-  const rows = all.filter((c) => (tab === "todos" || c.stage === tab) &&
-    (!query || [c.name, c.tax_id, c.email, c.owner_name].some((v) => (v || "").toLowerCase().includes(query.toLowerCase()))));
+  function agentesOf(c: Client) { return agentsOv[c.id]?.agentes ?? null; }
+  function hasEnv(c: Client) { return (c.modules?.length ?? 0) > 0 || c.stage === "cliente" || !!agentsOv[c.id]; }
+  function farolOf(c: Client): string | null {
+    if (!hasEnv(c)) return null;
+    const tone = (agentsOv[c.id]?.farol || c.health_v2?.tone || "").toLowerCase();
+    return FAROL[tone] ?? null;
+  }
+  function trialDays(c: Client): number | null {
+    if (!c.trial_fim) return null;
+    const ms = new Date(c.trial_fim).getTime() - Date.now();
+    return ms > 0 ? Math.ceil(ms / 86400000) : 0;
+  }
+  function isTrial(c: Client) { return c.trial_resultado === "em_andamento" || (trialDays(c) ?? 0) > 0; }
+
+  function matchFlag(c: Client) {
+    const active = (c.org_status ?? "active") === "active";
+    switch (flag) {
+      case "trial": return isTrial(c);
+      case "churned": return !!c.churned_em;
+      case "ativos": return active && !c.churned_em;
+      case "inativos": return !active;
+      case "oculto": return !!c.cliente_oculto;
+      default: return true;
+    }
+  }
+  function inPeriodo(c: Client) {
+    const m = ({ "12m": 12, "24m": 24, "36m": 36 } as Record<string, number>)[periodo];
+    if (!m || !c.created_at) return true;
+    const cut = new Date(); cut.setMonth(cut.getMonth() - m);
+    return new Date(c.created_at) >= cut;
+  }
+
+  function sortVal(c: Client): number | string {
+    switch (sort.col) {
+      case "name": return (c.name || "").toLowerCase();
+      case "stage": return STAGES.findIndex((s) => s.key === c.stage);
+      case "proposta": return c.deal_value ?? (c.mrr || 0);
+      case "created_at": return c.created_at ? new Date(c.created_at).getTime() : 0;
+      case "convertido_em": return c.convertido_em ? new Date(c.convertido_em).getTime() : 0;
+      case "agentes": return agentesOf(c) ?? -1;
+      case "farol": { const cor = farolOf(c); return cor === FAROL.crit ? 0 : cor === FAROL.warn ? 1 : cor === FAROL.ok ? 2 : 3; }
+      default: return 0;
+    }
+  }
+
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = all.filter((c) =>
+      (tab === "todos" || c.stage === tab) && matchFlag(c) && (!pais || c.country === pais) && inPeriodo(c) &&
+      (!q || [c.name, c.tax_id, c.email, c.owner_name, c.phone].some((v) => (v || "").toLowerCase().includes(q))));
+    return filtered.sort((a, b) => { const va = sortVal(a), vb = sortVal(b); return va < vb ? -sort.dir : va > vb ? sort.dir : 0; });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [all, agentsOv, tab, flag, pais, periodo, query, sort]);
+
+  function toggleSort(col: string) { setSort((s) => ({ col, dir: s.col === col ? (s.dir === 1 ? -1 : 1) : 1 })); }
+  const SortIcon = ({ col }: { col: string }) => sort.col === col ? (sort.dir === 1 ? <ArrowUp size={12} /> : <ArrowDown size={12} />) : <ChevronsUpDown size={12} style={{ opacity: 0.35 }} />;
+
+  // ── ações ──
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+  function ver(c: Client, e: React.MouseEvent) { stop(e); nav(`/admin/cliente/${c.id}`); }
+  function entrar(c: Client, e: React.MouseEvent) { stop(e); preview.set(c.id, c.name); nav("/app"); }
+  async function ativar(c: Client, e: React.MouseEvent) {
+    stop(e); const next = (c.org_status ?? "active") === "active" ? "inactive" : "active";
+    try { await api.identity.organizations.update(c.id, { status: next }); toast.ok(next === "active" ? t("Empresa ativada") : t("Empresa inativada")); reload(); }
+    catch { toast.err(t("Erro ao mudar o status.")); }
+  }
+  async function promover(c: Client, e: React.MouseEvent) {
+    stop(e); const idx = STAGES.findIndex((s) => s.key === c.stage); const next = STAGES[Math.min(idx + 1, STAGES.length - 1)];
+    if (next.key === c.stage) { toast.ok(t("Já está no último estágio.")); return; }
+    try { await api.identity.organizations.setStage(c.id, next.key); toast.ok(t("Promovido para {s}", { s: t(next.label) })); reload(); }
+    catch { toast.err(t("Erro ao promover.")); }
+  }
+  async function resetSenha(c: Client, e: React.MouseEvent) {
+    stop(e); if (!c.email) { toast.err(t("Sem e-mail de acesso cadastrado.")); return; }
+    if (!confirm(t("Enviar link de redefinição de senha para {e}?", { e: c.email }))) return;
+    try { await api.identity.auth.requestReset(c.email); toast.ok(t("Link de redefinição enviado.")); }
+    catch { toast.err(t("Erro ao enviar o reset.")); }
+  }
+  function acessos(c: Client, e: React.MouseEvent) { stop(e); nav(`/admin/cliente/${c.id}?aba=acessos`); }
 
   async function submit() {
     if (!f.name.trim()) { setErr(t("Informe o nome da empresa.")); return; }
@@ -43,63 +143,115 @@ export default function Clientes() {
       });
     } catch (e) { setErr(t("Erro ao criar:") + " " + errorMessage(e)); setBusy(false); return; }
     if (f.whatsapp.trim()) {
-      try { await api.crm.phones.add({ organization_id: org.id, label: "WhatsApp", country_code: f.ddi, number: f.whatsapp.trim(), is_primary: true }); } catch { /* telefone é opcional — não bloqueia */ }
+      try { await api.crm.phones.add({ organization_id: org.id, label: "WhatsApp", country_code: f.ddi, number: f.whatsapp.trim(), is_primary: true }); } catch { /* opcional */ }
     }
-    let msg = t("\"{n}\" cadastrado como {s}.", { n: f.name, s: t(stageOf(f.stage).label) });
     if (f.email.trim()) {
-      // Sem senha: nem o admin define nem vê a senha do cliente. Vai um link e ele escolhe a dele.
-      const r = await api.identity.users.create({ email: f.email.trim(), full_name: f.contact_name || f.owner_name || f.name, organization_id: org.id, role: "client_owner" });
-      if (!r.ok) msg += " " + t("(login não criado: {e})", { e: r.error || "erro" });
-      else if (r.email_sent) msg += "  " + t("✉️ Convite enviado para {e} — ele define a própria senha.", { e: r.email ?? f.email.trim() });
-      else msg += "  " + t("(convite não enviado: {err})", { err: r.email_error || "erro" });
+      try { await api.identity.users.create({ email: f.email.trim(), full_name: f.contact_name || f.owner_name || f.name, organization_id: org.id, role: "client_owner" }); } catch { /* não bloqueia */ }
     }
-    setBusy(false); setOpen(false); setF({ ...EMPTY }); setToast(msg); setTimeout(() => setToast(""), 16000); reload();
+    setBusy(false); setOpen(false); setF({ ...EMPTY }); toast.ok(t("\"{n}\" cadastrada.", { n: f.name })); reload();
   }
-
   const co = countryOf(f.country);
-  const nav = useNavigate();
 
   return (
     <div className="crmpage">
-      <PageHead eyebrow="Painel Admin · CRM" title="Contatos & Clientes" sub="Pipeline: prospecto → lead → oportunidade → cliente."
-        right={<button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => { setF({ ...EMPTY }); setErr(""); setOpen(true); }}><span className="crasto-btn__icon"><UserPlus size={15} /></span><span className="crasto-btn__label">{t("Novo contato")}</span></button>} />
+      {toast.node}
+      <PageHead eyebrow="Painel Admin" title="Empresas" sub="Prospectos, leads, oportunidades e clientes num só lugar."
+        right={<button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => { setF({ ...EMPTY }); setErr(""); setOpen(true); }}><span className="crasto-btn__icon"><Plus size={15} /></span><span className="crasto-btn__label">{t("Nova empresa")}</span></button>} />
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}>
+      {/* funil */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10, alignItems: "center" }}>
         {[{ key: "todos", label: "Todos" }, ...STAGES].map((s) => (
           <button key={s.key} className={"stagetab" + (tab === s.key ? " on" : "")} onClick={() => setTab(s.key)}>
             {"dot" in s && <span className="dot" style={{ background: (s as any).dot }} />}{t(s.label)} <b>{counts[s.key] ?? 0}</b>
           </button>
         ))}
+      </div>
+
+      {/* filtros cruzados */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}>
+        {FLAGS.map((fl) => (
+          <button key={fl.key} className="chip" onClick={() => setFlag((v) => (v === fl.key ? "" : fl.key))}
+            style={{ cursor: "pointer", border: "1px solid " + (flag === fl.key ? "transparent" : "var(--crasto-border-soft)"), background: flag === fl.key ? fl.bg : "transparent", color: flag === fl.key ? fl.fg : "var(--crasto-text-body)" }}>{t(fl.label)}</button>
+        ))}
+        <select className="inp" style={{ width: "auto", minWidth: 120 }} value={pais} onChange={(e) => setPais(e.target.value)}>
+          <option value="">{t("País: todos")}</option>
+          {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
+        </select>
+        <select className="inp" style={{ width: "auto", minWidth: 120 }} value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
+          <option value="">{t("Período: tudo")}</option>
+          <option value="12m">{t("Últimos 12 meses")}</option>
+          <option value="24m">{t("Últimos 2 anos")}</option>
+          <option value="36m">{t("Últimos 3 anos")}</option>
+        </select>
         <div style={{ marginLeft: "auto", position: "relative" }}>
           <Search size={15} style={{ position: "absolute", left: 11, top: 10, color: "var(--crasto-text-faint)" }} />
-          <input className="inp" style={{ paddingLeft: 34, minWidth: 240 }} placeholder={t("Buscar por nome, identidade, e-mail…")} value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input className="inp" style={{ paddingLeft: 34, minWidth: 220 }} placeholder={t("Buscar por nome, CNPJ, e-mail, telefone…")} value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
       </div>
 
-      {loading ? <Empty>Carregando…</Empty> : rows.length === 0 ? <Empty><p><strong>{t("Nada por aqui.")}</strong> {t("Clique em \"Novo contato\" para começar o pipeline.")}</p></Empty> : (
+      {loading ? <Empty>Carregando…</Empty> : rows.length === 0 ? <Empty><p><strong>{t("Nada por aqui.")}</strong> {t("Ajuste os filtros ou clique em \"Nova empresa\".")}</p></Empty> : (
         <div className="tbl-wrap">
           <table className="tbl">
-            <thead><tr><th>{t("Empresa")}</th><th>{t("Status")}</th><th>{t("País")}</th><th>{t("Identidade")}</th><th>{t("Últ. atividade")}</th><th>{t("MRR")}</th><th></th></tr></thead>
+            <thead>
+              <tr>
+                <th style={{ cursor: "pointer", textAlign: "center" }} onClick={() => toggleSort("farol")}>{t("Farol")} <SortIcon col="farol" /></th>
+                <th style={{ cursor: "pointer" }} onClick={() => toggleSort("name")}>{t("Empresa")} <SortIcon col="name" /></th>
+                <th style={{ cursor: "pointer" }} onClick={() => toggleSort("stage")}>{t("Categoria")} <SortIcon col="stage" /></th>
+                <th>{t("Contato")}</th>
+                <th>{t("Telefone")}</th>
+                <th style={{ cursor: "pointer" }} onClick={() => toggleSort("proposta")}>{t("Proposta")} <SortIcon col="proposta" /></th>
+                <th>{t("Soluções")}</th>
+                <th style={{ cursor: "pointer" }} onClick={() => toggleSort("created_at")}>{t("Criado em")} <SortIcon col="created_at" /></th>
+                <th style={{ cursor: "pointer" }} onClick={() => toggleSort("convertido_em")}>{t("Convertido em")} <SortIcon col="convertido_em" /></th>
+                <th style={{ cursor: "pointer" }} onClick={() => toggleSort("agentes")}>{t("Agentes")} <SortIcon col="agentes" /></th>
+                <th style={{ textAlign: "right" }}>{t("Ações")}</th>
+              </tr>
+            </thead>
             <tbody>
               {rows.map((c) => {
-                const st = stageOf(c.stage); const country = countryOf(c.country);
+                const st = stageOf(c.stage); const cor = farolOf(c); const td = trialDays(c); const ag = agentesOf(c);
+                const propVal = c.deal_value ?? (c.mrr > 0 ? c.mrr : null);
                 return (
                   <tr key={c.id} style={{ cursor: "pointer" }} onClick={() => nav(`/admin/cliente/${c.id}`)}>
-                    <td><div className="cust"><div className="logo">{initials(c.name)}</div><div><div className="nm">{c.name}</div><div className="em">{c.owner_name || c.email || "—"}</div></div></div></td>
+                    <td style={{ textAlign: "center" }}>
+                      <span title={cor ? (cor === FAROL.ok ? t("Saudável") : cor === FAROL.warn ? t("Atenção") : t("Em risco")) : t("Sem ambiente ainda")}
+                        style={{ display: "inline-block", width: 11, height: 11, borderRadius: "50%", background: cor || "transparent", border: cor ? "none" : "1.5px solid var(--crasto-border)" }} />
+                    </td>
+                    <td>
+                      <div className="cust"><div className="logo">{initials(c.name)}</div>
+                        <div><div className="nm">{c.name}
+                          {isTrial(c) && <span className="chip" style={{ marginLeft: 6, background: "#FAEEDA", color: "#633806" }}>{t("Trial")}{td != null ? ` · ${td}d` : ""}</span>}
+                          {c.churned_em && <span className="chip" style={{ marginLeft: 6, background: "#FCEBEB", color: "#791F1F" }}>{t("Churned")}</span>}
+                          {(c.org_status ?? "active") !== "active" && !c.churned_em && <span className="chip" style={{ marginLeft: 6 }}>{t("Inativo")}</span>}
+                        </div><div className="em">{c.owner_name || c.email || "—"}</div></div>
+                      </div>
+                    </td>
                     <td>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                         <Pill tone={st.tone}>{t(st.label)}</Pill>
-                        {c.source === "mapa_site" && <span className="chip" style={{ background: "var(--crasto-navy-05)", color: "var(--crasto-text-primary)" }} title={t("Veio do diagnóstico do site")}>Mapa</span>}
-                        {c.last_maturity != null && <span className="chip" title={t("Maturidade do diagnóstico")}>{c.last_maturity}/100</span>}
-                        {c.intent_signal === "alto" && <span className="chip" style={{ background: "#FCE9E7", color: "#B42318" }} title={t("Sinal de intenção (automático do Mapa)")}>🔥</span>}
-                        {c.lead_temperature && tempOf(c.lead_temperature) && <span className="chip" style={{ background: tempOf(c.lead_temperature)!.bg, color: tempOf(c.lead_temperature)!.fg }} title={t("Temperatura (definida por você)")}>{t(tempOf(c.lead_temperature)!.label)}</span>}
+                        {(c.papeis || []).filter((p) => p !== "cliente").map((p) => <span key={p} className="chip" style={{ background: "#EEEDFE", color: "#26215C" }}>{t(PAPEL_LABEL[p] || p)}</span>)}
+                        {c.lead_temperature && tempOf(c.lead_temperature) && <span className="chip" style={{ background: tempOf(c.lead_temperature)!.bg, color: tempOf(c.lead_temperature)!.fg }} title={t("Temperatura")}>{t(tempOf(c.lead_temperature)!.label)}</span>}
                       </div>
                     </td>
-                    <td>{country.flag} {country.code}</td>
-                    <td className="tnum" style={{ color: "var(--crasto-text-body)" }}>{c.tax_id || "—"}</td>
-                    <td style={{ color: "var(--crasto-text-muted)" }}>{c.last_activity ? timeAgo(c.last_activity) : (c.last_access ? timeAgo(c.last_access) : "—")}</td>
-                    <td className="tnum" style={{ fontWeight: 600, color: "var(--crasto-text-primary)" }}>{money(c.mrr)}</td>
-                    <td><Link className="sec-h link" to={`/admin/cliente/${c.id}`} onClick={(e) => e.stopPropagation()}>{t("Ver detalhe")}</Link></td>
+                    <td style={{ color: "var(--crasto-text-body)" }}>{c.owner_name || "—"}</td>
+                    <td className="tnum" style={{ color: "var(--crasto-text-body)", whiteSpace: "nowrap" }}>{c.phone || "—"}</td>
+                    <td className="tnum" style={{ fontWeight: 600, color: "var(--crasto-text-primary)" }}>{propVal != null ? money(propVal) : "—"}</td>
+                    <td onClick={(e) => ver(c, e)} style={{ color: "var(--crasto-blue)", whiteSpace: "nowrap", cursor: "pointer" }}>
+                      {(c.modules?.length ?? 0) > 0 ? <>{c.modules!.length} {c.modules!.length === 1 ? t("solução") : t("soluções")} <ChevronRight size={12} style={{ verticalAlign: "-1px" }} /></> : "—"}
+                    </td>
+                    <td className="tnum" style={{ color: "var(--crasto-text-muted)", whiteSpace: "nowrap" }}>{fmtDateTime(c.created_at)}</td>
+                    <td className="tnum" style={{ color: "var(--crasto-text-muted)", whiteSpace: "nowrap" }}>{fmtDateTime(c.convertido_em)}</td>
+                    <td className="tnum" style={{ color: "var(--crasto-text-body)" }}>{ag != null ? ag : "—"}</td>
+                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                      <span className="rowacts">
+                        <button className="iconbtn" title={t("Ver detalhes")} onClick={(e) => ver(c, e)}><Eye size={16} /></button>
+                        <button className="iconbtn" title={t("Entrar na visão do cliente")} onClick={(e) => entrar(c, e)}><Building2 size={16} /></button>
+                        <button className="iconbtn" title={(c.org_status ?? "active") === "active" ? t("Inativar") : t("Ativar")} onClick={(e) => ativar(c, e)}><Power size={16} color={(c.org_status ?? "active") === "active" ? "#1D9E75" : "var(--crasto-text-faint)"} /></button>
+                        <button className="iconbtn" title={t("Promover de estágio")} onClick={(e) => promover(c, e)}><ArrowRightLeft size={16} /></button>
+                        <button className="iconbtn" title={t("Resetar senha do portal")} onClick={(e) => resetSenha(c, e)}><KeyRound size={16} /></button>
+                        <button className="iconbtn" title={t("Editar acessos")} onClick={(e) => acessos(c, e)}><ShieldCheck size={16} color="var(--crasto-blue)" /></button>
+                      </span>
+                    </td>
                   </tr>
                 );
               })}
@@ -108,41 +260,41 @@ export default function Clientes() {
         </div>
       )}
 
-      <Modal title={t("Novo contato / empresa")} open={open} onClose={() => setOpen(false)}
+      {/* glossário das ações */}
+      <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginTop: 12, fontSize: 11.5, color: "var(--crasto-text-muted)" }}>
+        <span><Eye size={13} style={{ verticalAlign: "-2px" }} /> {t("ver detalhes")}</span>
+        <span><Building2 size={13} style={{ verticalAlign: "-2px" }} /> {t("entrar na visão do cliente")}</span>
+        <span><Power size={13} style={{ verticalAlign: "-2px" }} /> {t("ativar / inativar")}</span>
+        <span><ArrowRightLeft size={13} style={{ verticalAlign: "-2px" }} /> {t("promover de estágio")}</span>
+        <span><KeyRound size={13} style={{ verticalAlign: "-2px" }} /> {t("resetar senha")}</span>
+        <span><ShieldCheck size={13} style={{ verticalAlign: "-2px" }} /> {t("editar acessos")}</span>
+        <span style={{ color: "var(--crasto-text-body)" }}>{t("sem lixeira — excluir só com aval de Carlos/John")}</span>
+      </div>
+
+      <Modal title={t("Nova empresa")} open={open} onClose={() => setOpen(false)}
         footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={submit}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Cadastrar")}</span></button></>}>
         {err && <div className="formerr">{err}</div>}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label="Status no pipeline"><select value={f.stage} onChange={(e) => setF({ ...f, stage: e.target.value })}>{STAGES.map((s) => <option key={s.key} value={s.key}>{t(s.label)}</option>)}</select></Field>
+          <Field label="Categoria (estágio)"><select value={f.stage} onChange={(e) => setF({ ...f, stage: e.target.value })}>{STAGES.map((s) => <option key={s.key} value={s.key}>{t(s.label)}</option>)}</select></Field>
           <Field label="País"><select value={f.country} onChange={(e) => setF({ ...f, country: e.target.value, ddi: countryOf(e.target.value).ddi })}>{COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}</select></Field>
         </div>
         <Field label="Nome da empresa *"><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder={t("Ex.: Connect Solar Ltda")} /></Field>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <Field label={co.idLabel}><input value={f.tax_id} onChange={(e) => setF({ ...f, tax_id: e.target.value })} placeholder={co.idLabel} /></Field>
-          <Field label="Fundação da empresa"><input type="date" value={f.founded_on} onChange={(e) => setF({ ...f, founded_on: e.target.value })} /></Field>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <Field label="Dono / Presidente"><input value={f.owner_name} onChange={(e) => setF({ ...f, owner_name: e.target.value })} placeholder={t("Nome")} /></Field>
-          <Field label="Website"><input value={f.website} onChange={(e) => setF({ ...f, website: e.target.value })} placeholder="https://…" /></Field>
         </div>
-        <Field label="WhatsApp do cliente">
+        <Field label="WhatsApp">
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <select value={f.ddi} onChange={(e) => setF({ ...f, ddi: e.target.value })} style={{ width: 116, flex: "none" }}>
-              {DIAL_CODES.map((d, i) => <option key={i} value={d.ddi}>{d.flag} {d.ddi}</option>)}
-            </select>
+            <select value={f.ddi} onChange={(e) => setF({ ...f, ddi: e.target.value })} style={{ width: 116, flex: "none" }}>{DIAL_CODES.map((d, i) => <option key={i} value={d.ddi}>{d.flag} {d.ddi}</option>)}</select>
             <input style={{ flex: 1 }} value={f.whatsapp} onChange={(e) => setF({ ...f, whatsapp: e.target.value })} placeholder={t("(11) 91234-5678")} />
           </div>
         </Field>
-        <div style={{ borderTop: "1px solid var(--crasto-border-soft)", margin: "8px 0 12px", paddingTop: 10 }}>
-          <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--crasto-text-muted)", marginBottom: 8 }}>{t("Acesso ao portal (opcional)")}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Field label="E-mail do responsável"><input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} placeholder={t("cria login se preenchido")} /></Field>
-            <Field label="Nome do responsável"><input value={f.contact_name} onChange={(e) => setF({ ...f, contact_name: e.target.value })} placeholder={t("Nome")} /></Field>
-          </div>
-          <div className="note" style={{ marginTop: 4 }}><span>{t("Ao cadastrar com e-mail, o cliente recebe automaticamente um e-mail de boas-vindas da Crasto.AI com o link do portal e os dados de acesso.")}</span></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <Field label="E-mail do responsável"><input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} placeholder={t("cria login se preenchido")} /></Field>
+          <Field label="Nome do responsável"><input value={f.contact_name} onChange={(e) => setF({ ...f, contact_name: e.target.value })} placeholder={t("Nome")} /></Field>
         </div>
+        <div className="note" style={{ marginTop: 4 }}><span>{t("Mais dados (CNPJs, filiais, pessoas, papéis, origem) você completa no detalhe da empresa.")}</span></div>
       </Modal>
-
-      {toast && <div className="toast">{toast}</div>}
     </div>
   );
 }

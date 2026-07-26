@@ -12,6 +12,14 @@ export type Client = {
   // CRM v1 (migration 013): temperatura MANUAL do lead + campos da oportunidade
   lead_temperature?: string | null;
   deal_value?: number | null; deal_probability?: number | null; deal_expected_close?: string | null; deal_product?: string | null;
+  // Módulo Empresas (migrations 015/016/017)
+  created_at?: string | null; phone?: string | null;
+  papeis?: string[] | null; tipo_empresa?: string | null; emite_nf?: boolean | null; cliente_oculto?: boolean | null;
+  convertido_em?: string | null; churned_em?: string | null;
+  trial_inicio?: string | null; trial_fim?: string | null; trial_resultado?: string | null;
+  org_status?: string | null;
+  // preenchido no front a partir de crmAccess.agentsOverview()
+  agentes?: number; farol?: string | null;
 };
 
 export async function fetchClients(): Promise<Client[]> {
@@ -40,6 +48,15 @@ export function timeAgo(iso: string | null): string {
   if (h < 24) return `há ${h}h`;
   const d = Math.floor(h / 24);
   return `há ${d}d`;
+}
+
+// Regra global: TODO timestamp aparece como dd/mm/aaaa hh:mm.
+export function fmtDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 const MOD_SHORT: Record<string, string> = {

@@ -271,6 +271,10 @@
 .stagetab:hover { border-color: var(--crasto-border); background: var(--crasto-bg-2); }
 .stagetab.on { background: var(--crasto-bg-2); color: var(--crasto-text-primary); border-color: var(--crasto-border); font-weight: 600; }
 .stagetab.on b { color: var(--crasto-text-primary); }
+/* CRM: botões de ação inline na lista de empresas */
+.rowacts { display: inline-flex; gap: 2px; align-items: center; }
+.iconbtn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: none; background: transparent; border-radius: var(--crasto-radius-md); color: var(--crasto-text-muted); cursor: pointer; transition: var(--crasto-t); }
+.iconbtn:hover { background: var(--crasto-bg-2); color: var(--crasto-text-primary); }
 /* CRM: botão de temperatura do lead (manual) */
 .tempbtn { border: 1px solid var(--crasto-border-soft); background: var(--crasto-surface); color: var(--crasto-text-body); padding: 5px 12px; border-radius: var(--crasto-radius-pill); font-size: 12.5px; font-weight: 500; cursor: pointer; transition: var(--crasto-t); }
 .tempbtn:hover { border-color: var(--crasto-border); background: var(--crasto-bg-2); }
