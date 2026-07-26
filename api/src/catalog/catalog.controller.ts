@@ -83,7 +83,7 @@ export class CatalogController {
 
   // ── services (catálogo Crasto; interno vs client-facing pela RLS/filtro) ──
   @Get('services')
-  svcList(@Req() req: any) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select * from catalog.services order by category')).rows); }
+  svcList(@Req() req: any) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select *, (select count(*)::int from catalog.service_variants v where v.service_id = catalog.services.id) as variants_count from catalog.services order by category')).rows); }
   @Get('services/client-facing')
   svcClient(@Req() req: any) { return this.db.asUser(this.uid(req), async (c) => (await c.query(`select id,name,description,category,unit from catalog.services where active=true and internal=false order by category, name`)).rows); }
   @Get('services/by-ids')
@@ -96,4 +96,14 @@ export class CatalogController {
   svcUpdate(@Req() req: any, @Param('id') id: string, @Body() b: any) { return this.db.asUser(this.uid(req), async (c) => { const { sets, vals, ok } = this.set(b, 2); if (ok) await c.query(`update catalog.services set ${sets} where id=$1`, [id, ...vals]); return { ok: true }; }); }
   @Delete('services/:id')
   svcRemove(@Req() req: any, @Param('id') id: string) { return this.db.asUser(this.uid(req), async (c) => { await c.query('delete from catalog.services where id=$1', [id]); return { ok: true }; }); }
+
+  // ── variações por inteligência de um serviço (catalog.service_variants) ──
+  @Get('services/:id/variants')
+  svcVariants(@Req() req: any, @Param('id') id: string) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select * from catalog.service_variants where service_id=$1 order by sort_order, created_at', [id])).rows); }
+  @Post('services/:id/variants')
+  svcVariantAdd(@Req() req: any, @Param('id') id: string, @Body() b: any) { const { sql, vals } = this.insertOf('catalog.service_variants', { ...b, service_id: id }); return this.db.asUser(this.uid(req), async (c) => { await c.query(sql, vals); return { ok: true }; }); }
+  @Patch('service-variants/:vid')
+  svcVariantUpdate(@Req() req: any, @Param('vid') vid: string, @Body() b: any) { return this.db.asUser(this.uid(req), async (c) => { const { sets, vals, ok } = this.set(b, 2); if (ok) await c.query(`update catalog.service_variants set ${sets} where id=$1`, [vid, ...vals]); return { ok: true }; }); }
+  @Delete('service-variants/:vid')
+  svcVariantRemove(@Req() req: any, @Param('vid') vid: string) { return this.db.asUser(this.uid(req), async (c) => { await c.query('delete from catalog.service_variants where id=$1', [vid]); return { ok: true }; }); }
 }

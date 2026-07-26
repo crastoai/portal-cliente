@@ -31,6 +31,11 @@ export const services = {
   create: async (payload: Record<string, any>) => api.post(`/api/catalog/services`, payload),
   update: async (id: string, payload: Record<string, any>) => api.patch(`/api/catalog/services/${id}`, payload),
   remove: async (id: string) => api.del(`/api/catalog/services/${id}`),
+  // variações por inteligência (modelo de IA muda o preço)
+  variants: async (id: string) => api.get<Record<string, any>[]>(`/api/catalog/services/${id}/variants`),
+  addVariant: async (id: string, payload: Record<string, any>) => api.post(`/api/catalog/services/${id}/variants`, payload),
+  updateVariant: async (vid: string, payload: Record<string, any>) => api.patch(`/api/catalog/service-variants/${vid}`, payload),
+  removeVariant: async (vid: string) => api.del(`/api/catalog/service-variants/${vid}`),
 };
 
 export const catalog = { vdiModules, vdiCatalog, services };

@@ -7,9 +7,10 @@ import { useSettings } from "../../lib/settings";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 
-type S = { id: string; name: string; category: string | null; unit: string; price_table: number; price_min: number | null; price_max: number | null; base_commission: number; internal: boolean; notes: string | null };
+type S = { id: string; name: string; category: string | null; unit: string; price_table: number; price_min: number | null; price_max: number | null; base_commission: number; internal: boolean; notes: string | null; business_category?: string | null; cost_allocation?: string | null; usage_included?: number | null; usage_unit?: string | null; overage_price?: number | null; desconto_max?: number | null; variants_count?: number };
 // Comissão-base começa em 10% (padrão novo do Crasto: 10%, podendo chegar a 30%).
-const EMPTY = { id: "", name: "", category: "", unit: "mensal", price_table: "", price_min: "", price_max: "", base_commission: "10", internal: false, notes: "" };
+const EMPTY = { id: "", name: "", category: "", unit: "mensal", price_table: "", price_min: "", price_max: "", base_commission: "10", internal: false, notes: "", business_category: "", cost_allocation: "absorvido", usage_included: "", usage_unit: "", overage_price: "", desconto_max: "" };
+const BIZ_CATS = [{ v: "consultoria_ia", l: "Consultoria de IA" }, { v: "instalacao", l: "Instalação / implantação" }, { v: "saas_produto", l: "SaaS / produto" }, { v: "suporte", l: "Suporte" }, { v: "addon", l: "Add-on" }, { v: "outro", l: "Outro" }];
 
 export default function Servicos() {
   const { taxRate } = useSettings();
@@ -25,7 +26,13 @@ export default function Servicos() {
   const [fInterno, setFInterno] = useState("");
   const [fComissao, setFComissao] = useState("");
   const [filtrosOpen, setFiltrosOpen] = useState(false);
+  const [variants, setVariants] = useState<any[]>([]);
+  const [vf, setVf] = useState({ nome: "", ai_model: "", price_table: "" });
   const editing = !!f.id;
+
+  async function loadVariants(id: string) { try { setVariants((await api.catalog.services.variants(id)) as any[]); } catch { setVariants([]); } }
+  async function addVariant() { if (!f.id || !vf.nome.trim()) return; await api.catalog.services.addVariant(f.id, { nome: vf.nome.trim(), ai_model: vf.ai_model || null, price_table: Number(vf.price_table) || 0 }); setVf({ nome: "", ai_model: "", price_table: "" }); loadVariants(f.id); }
+  async function delVariant(vid: string) { await api.catalog.services.removeVariant(vid); loadVariants(f.id); }
 
   // Categorias vêm do próprio banco (serviços já cadastrados) — controlar/filtrar por elas.
   const cats = Array.from(new Set(allRows.map((r) => (r.category || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt"));
@@ -39,8 +46,8 @@ export default function Servicos() {
     (!fComissao || (fComissao === "com" ? r.base_commission > 0 : r.base_commission === 0)) &&
     (!q || `${r.name} ${r.category || ""} ${r.notes || ""}`.toLowerCase().includes(q)));
 
-  function openNew() { setF({ ...EMPTY }); setErr(""); setOpen(true); }
-  function openEdit(s: S) { setF({ id: s.id, name: s.name, category: s.category ?? "", unit: s.unit, price_table: String(s.price_table), price_min: s.price_min != null ? String(s.price_min) : "", price_max: s.price_max != null ? String(s.price_max) : "", base_commission: String(s.base_commission), internal: !!s.internal, notes: s.notes ?? "" }); setErr(""); setOpen(true); }
+  function openNew() { setF({ ...EMPTY }); setVariants([]); setErr(""); setOpen(true); }
+  function openEdit(s: S) { setF({ id: s.id, name: s.name, category: s.category ?? "", unit: s.unit, price_table: String(s.price_table), price_min: s.price_min != null ? String(s.price_min) : "", price_max: s.price_max != null ? String(s.price_max) : "", base_commission: String(s.base_commission), internal: !!s.internal, notes: s.notes ?? "", business_category: s.business_category ?? "", cost_allocation: s.cost_allocation ?? "absorvido", usage_included: s.usage_included != null ? String(s.usage_included) : "", usage_unit: s.usage_unit ?? "", overage_price: s.overage_price != null ? String(s.overage_price) : "", desconto_max: s.desconto_max != null ? String(s.desconto_max) : "" }); setVariants([]); loadVariants(s.id); setErr(""); setOpen(true); }
 
   async function submit() {
     if (!f.name.trim()) { setErr(t("Informe o nome do serviço.")); return; }
@@ -53,6 +60,12 @@ export default function Servicos() {
       price_max: f.price_max !== "" ? Number(f.price_max) : price,
       base_commission: Number(f.base_commission) || 0,
       internal: !!f.internal, notes: f.notes || null,
+      business_category: f.business_category || null,
+      cost_allocation: f.cost_allocation || "absorvido",
+      usage_included: f.usage_included !== "" ? Number(f.usage_included) : null,
+      usage_unit: f.usage_unit || null,
+      overage_price: f.overage_price !== "" ? Number(f.overage_price) : null,
+      desconto_max: f.desconto_max !== "" ? Number(f.desconto_max) : null,
     };
     try {
       if (editing) await api.catalog.services.update(f.id, payload);
@@ -121,7 +134,7 @@ export default function Servicos() {
                 return (
                   <tr key={r.id} style={{ cursor: "pointer" }} onClick={() => openEdit(r)} title={t("Clique para editar")}>
                     <td style={{ fontWeight: 600, color: "var(--crasto-text-primary)" }}>{r.name}{r.internal && <Lock size={12} title={t("Interno (remix VdI)")} style={{ verticalAlign: -1, marginLeft: 6, color: "var(--crasto-text-muted)" }} />}</td>
-                    <td><span className="chip">{r.category}</span></td>
+                    <td><span className="chip">{r.category}</span>{(r.variants_count ?? 0) > 0 && <span className="chip" style={{ marginLeft: 4, background: "#EEEDFE", color: "#26215C" }} title={t("Variações por inteligência")}>{r.variants_count} var.</span>}</td>
                     <td>{r.unit.replace("_", " ")}</td>
                     <td className="tnum" style={{ fontWeight: 700, color: "var(--crasto-text-primary)" }}>{money(r.price_table)}</td>
                     <td className="tnum" style={{ color: "var(--crasto-text-muted)", fontSize: 12 }}>{range(r) || "—"}</td>
@@ -160,6 +173,37 @@ export default function Servicos() {
           <Field label="Preço máximo (R$)"><input type="number" value={f.price_max} onChange={(e) => setF({ ...f, price_max: e.target.value })} placeholder={t("= âncora se vazio")} /></Field>
         </div>
         {f.price_table !== "" && <div className="note" style={{ marginTop: 2 }}><span>{t("Imposto")} ({fmtRate(taxRate)}%): <b>{money(taxOf(Number(f.price_table), taxRate))}</b> · {t("Líquido")}: <b>{money((Number(f.price_table) || 0) - taxOf(Number(f.price_table), taxRate))}</b></span></div>}
+
+        {/* Negócio, uso & custo */}
+        <div className="svc-sec-label">{t("Negócio, uso & custo")}</div>
+        <div className="svc-grid2">
+          <Field label="Categoria de negócio"><select value={f.business_category} onChange={(e) => setF({ ...f, business_category: e.target.value })}><option value="">{t("—")}</option>{BIZ_CATS.map((b) => <option key={b.v} value={b.v}>{t(b.l)}</option>)}</select></Field>
+          <Field label="Custo de IA (padrão)"><select value={f.cost_allocation} onChange={(e) => setF({ ...f, cost_allocation: e.target.value })}><option value="absorvido">{t("Crasto absorve")}</option><option value="byo_cliente">{t("BYO — conta do cliente")}</option></select><span className="svc-hint">{t("padrão; ajustável por cliente no detalhe")}</span></Field>
+        </div>
+        <div className="svc-grid3">
+          <Field label="Franquia incluída"><input type="number" value={f.usage_included} onChange={(e) => setF({ ...f, usage_included: e.target.value })} placeholder={t("ex.: 1000")} /></Field>
+          <Field label="Unidade de uso"><input value={f.usage_unit} onChange={(e) => setF({ ...f, usage_unit: e.target.value })} placeholder={t("ex.: mensagens")} /></Field>
+          <Field label="Excedente (R$/un.)"><input type="number" value={f.overage_price} onChange={(e) => setF({ ...f, overage_price: e.target.value })} placeholder="0" /></Field>
+        </div>
+        <Field label="Desconto máximo do serviço (%)"><input type="number" value={f.desconto_max} onChange={(e) => setF({ ...f, desconto_max: e.target.value })} placeholder={t("vazio = teto global (10% livre / 50% com aprovação do Crasto)")} /></Field>
+
+        {/* Variações por inteligência */}
+        <div className="svc-sec-label">{t("Variações por inteligência")}</div>
+        {!editing ? <div className="note"><span>{t("Salve o serviço primeiro para adicionar variações por modelo de IA.")}</span></div> : (<>
+          {variants.map((v) => (
+            <div className="crmrow" key={v.id}>
+              <div style={{ flex: 1, minWidth: 0 }}><div className="nm">{v.nome} {v.ai_model && <span className="chip" style={{ marginLeft: 6 }}>{v.ai_model}</span>}</div></div>
+              <div className="tnum" style={{ fontWeight: 600 }}>{money(v.price_table)}</div>
+              <button className="icobtn" title={t("Excluir variação")} onClick={() => delVariant(v.id)}><Trash2 size={13} /></button>
+            </div>
+          ))}
+          <div className="addrow">
+            <input placeholder={t("Nome (ex.: Avançado)")} value={vf.nome} onChange={(e) => setVf({ ...vf, nome: e.target.value })} style={{ flex: 1, minWidth: 110 }} />
+            <input placeholder={t("Modelo de IA (ex.: Sonnet 5)")} value={vf.ai_model} onChange={(e) => setVf({ ...vf, ai_model: e.target.value })} style={{ flex: 1, minWidth: 130 }} />
+            <input type="number" placeholder={t("Preço R$")} value={vf.price_table} onChange={(e) => setVf({ ...vf, price_table: e.target.value })} style={{ width: 100 }} />
+            <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={addVariant}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Adicionar")}</span></button>
+          </div>
+        </>)}
 
         {/* Comissão & observações */}
         <div className="svc-sec-label">{t("Comissão & observações")}</div>
