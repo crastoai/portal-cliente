@@ -471,6 +471,7 @@ begin
   return (select coalesce(json_agg(t order by t.mrr desc, t.name), '[]'::json) from (
     select o.id, o.name, o.plan, o.stage, o.country, o.tax_id, o.website, o.founded_on, o.owner_name,
       o.source, o.last_maturity, o.intent_signal,
+      o.lead_temperature, o.deal_value, o.deal_probability, o.deal_expected_close, o.deal_product,
       (select p.email from public.profiles p where p.organization_id = o.id order by (p.role = 'client_owner') desc limit 1) as email,
       coalesce((select array_agg(v.name) from delivery.client_modules cm join catalog.vdi_modules v on v.id = cm.vdi_module_id where cm.organization_id = o.id), '{}') as modules,
       (select max(u.last_sign_in_at) from public.profiles p join auth.users u on u.id = p.id where p.organization_id = o.id) as last_access,
@@ -3254,7 +3255,14 @@ CREATE TABLE public.organizations (
     first_diagnostic_at timestamp with time zone,
     last_maturity integer,
     intent_signal text,
-    CONSTRAINT organizations_stage_check CHECK ((stage = ANY (ARRAY['contato'::text, 'prospecto'::text, 'lead'::text, 'qualificado'::text, 'cliente'::text])))
+    lead_temperature text,
+    deal_value numeric(14,2),
+    deal_probability smallint,
+    deal_expected_close date,
+    deal_product text,
+    CONSTRAINT organizations_stage_check CHECK ((stage = ANY (ARRAY['prospecto'::text, 'lead'::text, 'oportunidade'::text, 'cliente'::text]))),
+    CONSTRAINT organizations_deal_probability_check CHECK (((deal_probability IS NULL) OR ((deal_probability >= 0) AND (deal_probability <= 100)))),
+    CONSTRAINT organizations_lead_temperature_check CHECK (((lead_temperature IS NULL) OR (lead_temperature = ANY (ARRAY['quente'::text, 'morno'::text, 'frio'::text]))))
 );
 
 

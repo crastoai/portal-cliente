@@ -9,6 +9,9 @@ export type Client = {
   health_v2?: HealthV2 | null;
   // origem/sinal do diagnóstico do site (/mapa) — migration 063
   source?: string | null; last_maturity?: number | null; intent_signal?: string | null; last_diagnostic_at?: string | null;
+  // CRM v1 (migration 013): temperatura MANUAL do lead + campos da oportunidade
+  lead_temperature?: string | null;
+  deal_value?: number | null; deal_probability?: number | null; deal_expected_close?: string | null; deal_product?: string | null;
 };
 
 export async function fetchClients(): Promise<Client[]> {

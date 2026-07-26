@@ -5,12 +5,13 @@
 // Ao avançar o status para "cliente", avisa o wrapper (onStageChange) que troca
 // para a ficha completa de cliente (ClienteDetalhe).
 // ============================================================================
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Trash2, MapPin, Phone, Clock, FileText, ArrowRight } from "lucide-react";
 import { services as api } from "../../services";
 import { PageHead, Empty, Pill, useAsync, useToast } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
-import { STAGES, stageOf, countryOf } from "../../lib/countries";
+import { STAGES, stageOf, countryOf, TEMPS } from "../../lib/countries";
 import DiagnosticoMapa, { fmtDate } from "./DiagnosticoMapa";
 
 export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: string) => void }) {
@@ -46,6 +47,11 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
       if (stage !== "cliente") reload();
     } catch { toast.err(t("Erro ao mover o stage.")); }
   }
+  async function setTemp(v: string) {
+    const next = org.lead_temperature === v ? null : v;   // clicar de novo remove
+    try { await api.identity.organizations.update(id!, { lead_temperature: next }); reload(); }
+    catch { toast.err(t("Erro ao salvar a temperatura.")); }
+  }
   async function del() {
     if (!confirm(t("Apagar \"{n}\" e todos os dados? Não dá pra desfazer.", { n: org.name }))) return;
     const r = await api.identity.clients.remove(id!);
@@ -65,10 +71,25 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
 
       {/* pipeline */}
       <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
-        {STAGES.map((s) => <button key={s.key} className={"stagetab" + (org.stage === s.key ? " on" : "")} onClick={() => setStage(s.key)}>{t(s.label)}</button>)}
+        {STAGES.map((s) => <button key={s.key} className={"stagetab" + (org.stage === s.key ? " on" : "")} onClick={() => setStage(s.key)}><span className="dot" style={{ background: s.dot }} />{t(s.label)}</button>)}
         {org.intent_signal && <span className="chip" style={{ marginLeft: 4, background: org.intent_signal === "alto" ? "#FCE9E7" : "var(--crasto-bg-3)", color: org.intent_signal === "alto" ? "#B42318" : "var(--crasto-text-body)" }}>{t("Intenção")}: {t(org.intent_signal)}</span>}
         <span style={{ marginLeft: "auto", alignSelf: "center", fontSize: 12, color: "var(--crasto-text-muted)" }}>{t("Status atual:")} <b style={{ color: "var(--crasto-text-primary)" }}>{t(st.label)}</b></span>
       </div>
+
+      {/* Temperatura do lead (manual) — progressivo: só no estágio lead */}
+      {org.stage === "lead" && (
+        <div className="card" style={{ marginBottom: 18, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ fontWeight: 700, color: "var(--crasto-text-primary)" }}>{t("Temperatura do lead")}</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {TEMPS.map((tp) => (
+              <button key={tp.key} className={"tempbtn" + (org.lead_temperature === tp.key ? " on" : "")}
+                style={org.lead_temperature === tp.key ? { background: tp.bg, color: tp.fg, borderColor: tp.fg } : {}}
+                onClick={() => setTemp(tp.key)}>{t(tp.label)}</button>
+            ))}
+          </div>
+          <span className="mt" style={{ fontSize: 12 }}>{t("Definida por você — separada do sinal automático do Mapa.")}</span>
+        </div>
+      )}
 
       {!diag && (
         <div className="card" style={{ marginBottom: 18 }}>
@@ -112,14 +133,15 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
         </>
       )}
 
-      {/* Oportunidade → gerar proposta */}
-      {org.stage === "qualificado" && (
-        <div className="card" style={{ marginTop: 18, background: "var(--crasto-navy-04)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 220 }}>
-            <div style={{ fontWeight: 700, color: "var(--crasto-text-primary)" }}>{t("Pronto para proposta")}</div>
-            <div className="mt">{t("Gere a proposta no Gerador; ao marcar como ganha, o contato vira cliente.")}</div>
+      {/* Oportunidade → campos da negociação (progressivo) + gerar proposta */}
+      {org.stage === "oportunidade" && (
+        <div className="card" style={{ marginTop: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}><FileText size={16} style={{ color: "var(--crasto-text-primary)" }} /><h3 style={{ margin: 0 }}>{t("Oportunidade")}</h3></div>
+          <DealEditor orgId={id!} org={org} t={t} toast={toast} onSaved={reload} />
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 14, borderTop: "1px solid var(--crasto-border-soft)", paddingTop: 12 }}>
+            <div style={{ flex: 1, minWidth: 220 }} className="mt">{t("Gere a proposta no Gerador; ao marcar como ganha, o contato vira cliente.")}</div>
+            <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => nav("/admin/propostas")}><span className="crasto-btn__label">{t("Ir ao Gerador de propostas")}</span><span className="crasto-btn__icon"><ArrowRight size={14} /></span></button>
           </div>
-          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => nav("/admin/propostas")}><span className="crasto-btn__label">{t("Ir ao Gerador de propostas")}</span><span className="crasto-btn__icon"><ArrowRight size={14} /></span></button>
         </div>
       )}
 
@@ -139,5 +161,55 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
         </div>
       )}
     </div>
+  );
+}
+
+// Editor dos campos da oportunidade (progressivo — só aparece no estágio oportunidade).
+function DealEditor({ orgId, org, t, toast, onSaved }: { orgId: string; org: any; t: (s: string, p?: any) => string; toast: any; onSaved: () => void }) {
+  const [v, setV] = useState({
+    deal_value: org.deal_value ?? "",
+    deal_probability: org.deal_probability ?? "",
+    deal_expected_close: org.deal_expected_close ? String(org.deal_expected_close).slice(0, 10) : "",
+    deal_product: org.deal_product ?? "",
+  });
+  const [busy, setBusy] = useState(false);
+  async function save() {
+    setBusy(true);
+    try {
+      await api.identity.organizations.update(orgId, {
+        deal_value: v.deal_value === "" ? null : Number(v.deal_value),
+        deal_probability: v.deal_probability === "" ? null : Number(v.deal_probability),
+        deal_expected_close: v.deal_expected_close || null,
+        deal_product: v.deal_product || null,
+      });
+      toast.ok(t("Oportunidade salva"));
+      onSaved();
+    } catch { toast.err(t("Erro ao salvar a oportunidade.")); }
+    setBusy(false);
+  }
+  return (
+    <>
+      <div className="infogrid">
+        <div>
+          <div className="infolab">{t("Valor da proposta (R$)")}</div>
+          <input className="inp" type="number" min="0" step="0.01" value={v.deal_value} onChange={(e) => setV({ ...v, deal_value: e.target.value })} placeholder="0,00" />
+        </div>
+        <div>
+          <div className="infolab">{t("Probabilidade (%)")}</div>
+          <input className="inp" type="number" min="0" max="100" value={v.deal_probability} onChange={(e) => setV({ ...v, deal_probability: e.target.value })} placeholder="0–100" />
+        </div>
+        <div>
+          <div className="infolab">{t("Data prevista de fechamento")}</div>
+          <input className="inp" type="date" value={v.deal_expected_close} onChange={(e) => setV({ ...v, deal_expected_close: e.target.value })} />
+        </div>
+        <div>
+          <div className="infolab">{t("Produto / serviço")}</div>
+          <input className="inp" value={v.deal_product} onChange={(e) => setV({ ...v, deal_product: e.target.value })} placeholder={t("Ex.: Implantação WhatsApp CRM")} />
+        </div>
+      </div>
+      <div style={{ marginTop: 10 }}>
+        <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={save}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar oportunidade")}</span></button>
+      </div>
+    </>
   );
 }

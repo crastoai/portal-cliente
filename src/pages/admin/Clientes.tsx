@@ -6,7 +6,7 @@ import { PageHead, Empty, useAsync, money, initials, Field, Pill } from "../../u
 import Modal from "../../ui/Modal";
 import { useT } from "../../lib/i18n";
 import { fetchClients, timeAgo } from "../../lib/adminData";
-import { COUNTRIES, countryOf, STAGES, stageOf, DIAL_CODES } from "../../lib/countries";
+import { COUNTRIES, countryOf, STAGES, stageOf, tempOf, DIAL_CODES } from "../../lib/countries";
 
 const EMPTY = { name: "", stage: "prospecto", country: "BR", tax_id: "", founded_on: "", website: "", owner_name: "", whatsapp: "", ddi: "+55", plan: "", email: "", contact_name: "" };
 
@@ -66,7 +66,9 @@ export default function Clientes() {
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}>
         {[{ key: "todos", label: "Todos" }, ...STAGES].map((s) => (
-          <button key={s.key} className={"stagetab" + (tab === s.key ? " on" : "")} onClick={() => setTab(s.key)}>{t(s.label)} <b>{counts[s.key] ?? 0}</b></button>
+          <button key={s.key} className={"stagetab" + (tab === s.key ? " on" : "")} onClick={() => setTab(s.key)}>
+            {"dot" in s && <span className="dot" style={{ background: (s as any).dot }} />}{t(s.label)} <b>{counts[s.key] ?? 0}</b>
+          </button>
         ))}
         <div style={{ marginLeft: "auto", position: "relative" }}>
           <Search size={15} style={{ position: "absolute", left: 11, top: 10, color: "var(--crasto-text-faint)" }} />
@@ -89,7 +91,8 @@ export default function Clientes() {
                         <Pill tone={st.tone}>{t(st.label)}</Pill>
                         {c.source === "mapa_site" && <span className="chip" style={{ background: "var(--crasto-navy-05)", color: "var(--crasto-text-primary)" }} title={t("Veio do diagnóstico do site")}>Mapa</span>}
                         {c.last_maturity != null && <span className="chip" title={t("Maturidade do diagnóstico")}>{c.last_maturity}/100</span>}
-                        {c.intent_signal === "alto" && <span className="chip" style={{ background: "#FCE9E7", color: "#B42318" }} title={t("Sinal de intenção")}>🔥</span>}
+                        {c.intent_signal === "alto" && <span className="chip" style={{ background: "#FCE9E7", color: "#B42318" }} title={t("Sinal de intenção (automático do Mapa)")}>🔥</span>}
+                        {c.lead_temperature && tempOf(c.lead_temperature) && <span className="chip" style={{ background: tempOf(c.lead_temperature)!.bg, color: tempOf(c.lead_temperature)!.fg }} title={t("Temperatura (definida por você)")}>{t(tempOf(c.lead_temperature)!.label)}</span>}
                       </div>
                     </td>
                     <td>{country.flag} {country.code}</td>

@@ -63,7 +63,7 @@ export default function VisaoGeral() {
   // da verdade, com dois pontos de entrada (categoria no topo + filtro por coluna nos cabeçalhos)
   // e uma linha de "filtros ativos" que espelha o estado. Filtro client-side (lista pequena).
   const [q, setQ] = useState("");
-  const [stage, setStage] = useState<string>("todos");              // categoria: prospecto/lead/qualificado/cliente
+  const [stage, setStage] = useState<string>("todos");              // categoria: prospecto/lead/oportunidade/cliente
   const [sortKey, setSortKey] = useState<"health" | "acesso" | "nome">("health");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");     // health asc = pior primeiro (triagem)
   const [colF, setColF] = useState<{ health: string[]; agent: string[]; acesso: string[] }>({ health: [], agent: [], acesso: [] });

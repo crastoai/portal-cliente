@@ -51,12 +51,21 @@ export const DIAL_CODES: { ddi: string; flag: string; name: string }[] = [
 ];
 
 // key = valor gravado no banco; label = o que o usuário vê.
-// 2026-07-21: key inicial renomeada 'contato' → 'prospecto' (migration 063/064; label já era "Prospecto").
+// 2026-07-21: key inicial renomeada 'contato' → 'prospecto' (label já era "Prospecto").
+// 2026-07-26: 'qualificado' → 'oportunidade' (migration 013 — alinhado ao banco). `dot` = cor do estágio no funil.
 export const STAGES = [
-  { key: "prospecto", label: "Prospecto", tone: "mute" },
-  { key: "lead", label: "Lead", tone: "info" },
-  { key: "qualificado", label: "Oportunidade", tone: "warn" },
-  { key: "cliente", label: "Cliente", tone: "ok" },
+  { key: "prospecto", label: "Prospecto", tone: "mute", dot: "#8A8F98" },
+  { key: "lead", label: "Lead", tone: "info", dot: "#2E6F9E" },
+  { key: "oportunidade", label: "Oportunidade", tone: "warn", dot: "#BA7517" },
+  { key: "cliente", label: "Cliente", tone: "ok", dot: "#1D9E75" },
 ] as const;
 
 export const stageOf = (s?: string | null) => STAGES.find((x) => x.key === s) ?? STAGES[0];
+
+// Temperatura MANUAL do lead (definida pelo vendedor; ≠ intent_signal, que é automático do Mapa).
+export const TEMPS = [
+  { key: "quente", label: "Quente", bg: "#FCE9E7", fg: "#B42318" },
+  { key: "morno", label: "Morno", bg: "#FBEEDD", fg: "#8A5A12" },
+  { key: "frio", label: "Frio", bg: "#E7F0FA", fg: "#1F5E8F" },
+] as const;
+export const tempOf = (k?: string | null) => TEMPS.find((x) => x.key === k) ?? null;
