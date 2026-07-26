@@ -208,8 +208,8 @@ export default function Clientes() {
               </select>
               {periodo === "custom" && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
-                  <div><div style={{ fontSize: 11, color: "var(--crasto-text-muted)" }}>{t("De")}</div><input className="inp" type="date" value={dataDe} onChange={(e) => setDataDe(e.target.value)} /></div>
-                  <div><div style={{ fontSize: 11, color: "var(--crasto-text-muted)" }}>{t("Até")}</div><input className="inp" type="date" value={dataAte} onChange={(e) => setDataAte(e.target.value)} /></div>
+                  <div style={{ minWidth: 0 }}><div style={{ fontSize: 11, color: "var(--crasto-text-muted)" }}>{t("De")}</div><input className="inp" type="date" value={dataDe} onChange={(e) => setDataDe(e.target.value)} style={{ width: "100%", minWidth: 0, boxSizing: "border-box" }} /></div>
+                  <div style={{ minWidth: 0 }}><div style={{ fontSize: 11, color: "var(--crasto-text-muted)" }}>{t("Até")}</div><input className="inp" type="date" value={dataAte} onChange={(e) => setDataAte(e.target.value)} style={{ width: "100%", minWidth: 0, boxSizing: "border-box" }} /></div>
                 </div>
               )}
               <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" style={{ marginTop: 12 }} onClick={limparFiltros}><span className="crasto-btn__label">{t("Limpar filtros")}</span></button>
