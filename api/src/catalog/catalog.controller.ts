@@ -58,7 +58,7 @@ export class CatalogController {
   }
   @Get('vdi-modules/active-by-name')
   vmActiveByName(@Req() req: any) {
-    return this.db.asUser(this.uid(req), async (c) => (await c.query('select id,name,category,department,internal_url from catalog.vdi_modules where active=true order by name')).rows);
+    return this.db.asUser(this.uid(req), async (c) => (await c.query('select id,name,category,department,internal_url,social_solution,crm_solution from catalog.vdi_modules where active=true order by name')).rows);
   }
   @Get('vdi-modules')
   vmAll(@Req() req: any) {

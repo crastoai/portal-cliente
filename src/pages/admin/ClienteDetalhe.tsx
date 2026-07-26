@@ -10,6 +10,7 @@ import Modal from "../../ui/Modal";
 import { COUNTRIES, countryOf, STAGES, stageOf, DIAL_CODES } from "../../lib/countries";
 import { reg as regInfo, regTypeFor, COUNTRIES as REG_COUNTRIES, countryName as regCountryName } from "../../lib/registrations";
 import { CrmAccessSection } from "./CrmAccessSection";
+import SocialIntegracoes from "./SocialIntegracoes";
 import DiagnosticoCard from "./DiagnosticoCard";
 
 type Org = any;
@@ -490,6 +491,19 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
                 <div className="assign">{groups[d].map(card)}</div>
               </div>
             )) : <div className="assign">{filtered.map(card)}</div>}
+          </>
+        );
+      })()}
+
+      {/* Integrações do Social Media — só quando o módulo está contratado. Chaves BYO deste
+          cliente, cifradas no cofre do social-api (o Portal só mostra a máscara). */}
+      {(() => {
+        const socialMod = mods.find((m: any) => (m as any).social_solution);
+        if (!socialMod || !activeSet.has(socialMod.id)) return null;
+        return (
+          <>
+            <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Integrações — Social Media")}</h2><Pill tone="mute">{tr("chaves deste cliente (cifradas)")}</Pill></div>
+            <SocialIntegracoes orgId={id!} />
           </>
         );
       })()}
