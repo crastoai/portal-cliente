@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { UserPlus, Clock, SlidersHorizontal, Bot, Activity, DollarSign, ShieldCheck, ArrowRight, Search } from "lucide-react";
+import { UserPlus, Clock, SlidersHorizontal, Bot, Activity, DollarSign, ShieldCheck, ArrowRight, Search, ChevronDown, X, ArrowUp, ArrowDown, Check } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { services, errorMessage } from "../../services";
 import { PageHead, Pill, useAsync, money, initials, Field } from "../../ui/ui";
-import { fetchClients, healthScore, timeAgo, modShort } from "../../lib/adminData";
+import { fetchClients, healthScore, timeAgo, modShort, type Client } from "../../lib/adminData";
+import { STAGES } from "../../lib/countries";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 import type { CrmAgent } from "../../services/crmAccess.service";
@@ -58,31 +59,61 @@ export default function VisaoGeral() {
   const mrr = receber.reduce((s: number, a: any) => s + mensalDe(a), 0);
   const aReceber = receber.reduce((s: number, a: any) => s + (Number(a.amount || 0) - Number(a.amount_paid || 0)), 0);
 
-  // ── Tabela em ESCALA (pesquisa de padrões de admin/CS): busca + filtro rápido + ordenação
-  // por risco. Sem isso, 100 clientes viram scroll cego. Filtro client-side (a lista é pequena).
+  // ── Tabela em ESCALA — arquitetura de filtros (pesquisa dos subagentes): UM estado como fonte
+  // da verdade, com dois pontos de entrada (categoria no topo + filtro por coluna nos cabeçalhos)
+  // e uma linha de "filtros ativos" que espelha o estado. Filtro client-side (lista pequena).
   const [q, setQ] = useState("");
-  const [fchip, setFchip] = useState<"todos" | "risco" | "sem_agente" | "dormente">("todos");
+  const [stage, setStage] = useState<string>("todos");              // categoria: prospecto/lead/qualificado/cliente
   const [sortKey, setSortKey] = useState<"health" | "acesso" | "nome">("health");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");     // health asc = pior primeiro (triagem)
+  const [colF, setColF] = useState<{ health: string[]; agent: string[]; acesso: string[] }>({ health: [], agent: [], acesso: [] });
+  const [menu, setMenu] = useState<string | null>(null);            // qual popover de coluna está aberto
   const query = q.trim().toLowerCase();
-  const DORMENTE = 30 * 86400000;
+  const ageMs = (c: Client) => (c.last_access ? Date.now() - new Date(c.last_access).getTime() : Infinity);
+
+  // Buckets por coluna (id, rótulo, teste). Dependem de agByOrg → definidos aqui dentro.
+  type Bkt = { id: string; label: string; test: (c: Client) => boolean };
+  const BUCKETS: Record<"health" | "agent" | "acesso", Bkt[]> = {
+    health: [
+      { id: "risco", label: t("Em risco"), test: (c) => healthScore(c).tone === "crit" },
+      { id: "atencao", label: t("Atenção"), test: (c) => healthScore(c).tone === "warn" },
+      { id: "saudavel", label: t("Saudável"), test: (c) => healthScore(c).tone === "ok" },
+    ],
+    agent: [
+      { id: "no_ar", label: t("No ar"), test: (c) => (agByOrg[c.id]?.no_ar ?? 0) > 0 },
+      { id: "pausado", label: t("Pausado"), test: (c) => (agByOrg[c.id]?.agentes ?? 0) > 0 && (agByOrg[c.id]?.no_ar ?? 0) === 0 },
+      { id: "sem", label: t("Sem agente"), test: (c) => (agByOrg[c.id]?.agentes ?? 0) === 0 },
+    ],
+    acesso: [
+      { id: "ativo", label: t("Ativo (7d)"), test: (c) => ageMs(c) < 7 * 86400000 },
+      { id: "dormente", label: t("Dormente 30d+"), test: (c) => ageMs(c) > 30 * 86400000 },
+      { id: "nunca", label: t("Nunca acessou"), test: (c) => !c.last_access },
+    ],
+  };
+  const passCol = (col: "health" | "agent" | "acesso", c: Client) =>
+    colF[col].length === 0 || BUCKETS[col].some((b) => colF[col].includes(b.id) && b.test(c));
+  const toggleBucket = (col: "health" | "agent" | "acesso", id: string) =>
+    setColF((s) => ({ ...s, [col]: s[col].includes(id) ? s[col].filter((x) => x !== id) : [...s[col], id] }));
+
+  const stageCount = (k: string) => clients.filter((c) => k === "todos" || c.stage === k).length;
   const lista = clients
     .filter((c) => !query || `${c.name} ${c.email || ""}`.toLowerCase().includes(query))
-    .filter((c) => {
-      if (fchip === "risco") return healthScore(c).tone === "crit";
-      if (fchip === "sem_agente") return (agByOrg[c.id]?.agentes ?? 0) === 0;
-      if (fchip === "dormente") return !c.last_access || (Date.now() - new Date(c.last_access).getTime()) > DORMENTE;
-      return true;
-    })
+    .filter((c) => stage === "todos" || c.stage === stage)
+    .filter((c) => passCol("health", c) && passCol("agent", c) && passCol("acesso", c))
     .sort((a, b) => {
-      if (sortKey === "nome") return a.name.localeCompare(b.name, "pt-BR");
-      if (sortKey === "acesso") { const av = a.last_access ? new Date(a.last_access).getTime() : 0; const bv = b.last_access ? new Date(b.last_access).getTime() : 0; return bv - av; }
-      // health: pior primeiro (triage — o urgente sobe), como recomenda a pesquisa.
-      return healthScore(a).score - healthScore(b).score;
+      const dir = sortDir === "asc" ? 1 : -1;
+      if (sortKey === "nome") return a.name.localeCompare(b.name, "pt-BR") * dir;
+      if (sortKey === "acesso") { const av = a.last_access ? new Date(a.last_access).getTime() : 0; const bv = b.last_access ? new Date(b.last_access).getTime() : 0; return (av - bv) * dir; }
+      return (healthScore(a).score - healthScore(b).score) * dir; // health asc = pior primeiro
     });
-  const CHIPS: { k: typeof fchip; lb: string }[] = [
-    { k: "todos", lb: t("Todos") }, { k: "risco", lb: t("Em risco") },
-    { k: "sem_agente", lb: t("Sem agente") }, { k: "dormente", lb: t("Dormente 30d+") },
+
+  // Chips de filtros ATIVOS (espelham o estado; cada um removível). Categoria + filtros de coluna.
+  const activeChips: { key: string; label: string; clear: () => void }[] = [
+    ...(stage !== "todos" ? [{ key: "stage", label: `${t("Categoria")}: ${t(STAGES.find((s) => s.key === stage)?.label || stage)}`, clear: () => setStage("todos") }] : []),
+    ...(["health", "agent", "acesso"] as const).flatMap((col) =>
+      colF[col].map((id) => ({ key: `${col}:${id}`, label: BUCKETS[col].find((b) => b.id === id)?.label || id, clear: () => toggleBucket(col, id) }))),
   ];
+  const clearAll = () => { setStage("todos"); setColF({ health: [], agent: [], acesso: [] }); };
 
   // ESCOLHER O CRM: cada agente do cliente tem o SEU CRM. Abrimos a popup com os agentes
   // (mesma lógica do Console do wacrm) — o admin escolhe qual visualizar. Sem escolher um
@@ -151,6 +182,48 @@ export default function VisaoGeral() {
   const setW = (prof: "weights_new" | "weights_established", k: keyof W, v: string) =>
     setCfg((p) => p ? { ...p, [prof]: { ...p[prof], [k]: Number(v) || 0 } } : p);
 
+  // Cabeçalho de coluna: ordena E/OU filtra por buckets, num popover. Um clique no rótulo abre o
+  // menu; o filtro escreve no MESMO estado (colF) que os chips de filtros ativos leem.
+  const sortArrow = (k: string) => sortKey === k ? (sortDir === "asc" ? <ArrowUp size={11} /> : <ArrowDown size={11} />) : null;
+  const renderTh = (col: string, label: string, sortAs?: "health" | "acesso" | "nome", filterAs?: "health" | "agent" | "acesso", align?: "right") => {
+    const open = menu === col;
+    const active = filterAs ? colF[filterAs].length > 0 : false;
+    const clickable = !!(sortAs || filterAs);
+    return (
+      <th style={align === "right" ? { textAlign: "right" } : undefined}>
+        {clickable ? (
+          <button type="button" className={"colhd" + (active ? " has-filter" : "")} onClick={() => setMenu(open ? null : col)} aria-haspopup="menu" aria-expanded={open}>
+            <span>{label}</span>{sortAs ? sortArrow(sortAs) : null}{active && <span className="colhd-dot" />}<ChevronDown size={12} className="colhd-cv" />
+          </button>
+        ) : <span className="colhd colhd--plain">{label}</span>}
+        {open && (
+          <>
+            <div className="colmenu-back" onClick={() => setMenu(null)} />
+            <div className="colmenu" style={align === "right" ? { right: 0 } : undefined} role="menu">
+              {sortAs && (<>
+                <div className="colmenu-h">{t("Ordenar")}</div>
+                <button className={"colmenu-i" + (sortKey === sortAs && sortDir === "asc" ? " on" : "")} onClick={() => { setSortKey(sortAs); setSortDir("asc"); }}><ArrowUp size={13} /> {t("Crescente")}</button>
+                <button className={"colmenu-i" + (sortKey === sortAs && sortDir === "desc" ? " on" : "")} onClick={() => { setSortKey(sortAs); setSortDir("desc"); }}><ArrowDown size={13} /> {t("Decrescente")}</button>
+              </>)}
+              {filterAs && (<>
+                <div className="colmenu-h">{t("Filtrar")}</div>
+                {BUCKETS[filterAs].map((b) => {
+                  const on = colF[filterAs].includes(b.id);
+                  const n = clients.filter(b.test).length;
+                  return (
+                    <button key={b.id} className={"colmenu-i" + (on ? " on" : "")} onClick={() => toggleBucket(filterAs, b.id)} role="menuitemcheckbox" aria-checked={on}>
+                      <span className="colmenu-ck">{on && <Check size={12} />}</span><span style={{ flex: 1 }}>{b.label}</span><span className="colmenu-n">{n}</span>
+                    </button>
+                  );
+                })}
+              </>)}
+            </div>
+          </>
+        )}
+      </th>
+    );
+  };
+
   return (
     <div className="bizdash">
       <PageHead eyebrow="Painel Admin · Crasto.AI" title="Visão geral do negócio" sub="A saúde da operação num relance."
@@ -177,21 +250,32 @@ export default function VisaoGeral() {
       </div>
 
       <div className="sec-h"><h2>{t("Clientes · saúde & uso")}</h2></div>
-      {/* Toolbar: busca + filtros rápidos + contagem. Ordena-se pelo cabeçalho. */}
+      {/* Toolbar faceted: busca (por cliente) + CATEGORIA (por estágio, com contagem). Os filtros
+          operacionais (risco/agente/dormência) migraram para o cabeçalho de cada coluna. */}
       <div className="cli-toolbar">
         <div className="catsearch cli-search"><Search size={15} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Buscar cliente…")} /></div>
-        <div className="cli-chips">{CHIPS.map((ch) => <button key={ch.k} className={"cli-chip" + (fchip === ch.k ? " on" : "")} onClick={() => setFchip(ch.k)}>{ch.lb}</button>)}</div>
+        <div className="cli-chips">
+          <button className={"cli-chip" + (stage === "todos" ? " on" : "")} onClick={() => setStage("todos")}>{t("Todos")}<span className="cli-chip-n">{stageCount("todos")}</span></button>
+          {STAGES.map((s) => <button key={s.key} className={"cli-chip" + (stage === s.key ? " on" : "")} onClick={() => setStage(s.key)}>{t(s.label)}<span className="cli-chip-n">{stageCount(s.key)}</span></button>)}
+        </div>
         <span className="cli-count">{loading ? "" : t("{n} de {tot}", { n: lista.length, tot: clients.length })}</span>
       </div>
+      {activeChips.length > 0 && (
+        <div className="actfilters">
+          <span className="actf-lbl">{t("Filtros ativos")}</span>
+          {activeChips.map((ch) => <button key={ch.key} className="actchip" onClick={ch.clear} title={t("Remover filtro")}>{ch.label} <X size={12} /></button>)}
+          <button className="actf-clear" onClick={clearAll}>{t("Limpar tudo")}</button>
+        </div>
+      )}
       <div className="tbl-wrap cli-tbl">
         <table className="tbl">
           <thead><tr>
-            <th className="th-sort" onClick={() => setSortKey("nome")}>{t("Cliente")}{sortKey === "nome" ? " ↓" : ""}</th>
-            <th className="th-sort" onClick={() => setSortKey("health")}>{t("Health")}{sortKey === "health" ? " ↓" : ""}</th>
-            <th>{t("Agente")}</th>
-            <th>{t("Módulos")}</th>
-            <th style={{ textAlign: "right" }}>{t("MRR")}</th>
-            <th className="th-sort" onClick={() => setSortKey("acesso")}>{t("Últ. acesso")}{sortKey === "acesso" ? " ↓" : ""}</th>
+            {renderTh("nome", t("Cliente"), "nome")}
+            {renderTh("health", t("Health"), "health", "health")}
+            {renderTh("agent", t("Agente"), undefined, "agent")}
+            {renderTh("mods", t("Módulos"))}
+            {renderTh("mrr", t("MRR"), undefined, undefined, "right")}
+            {renderTh("acesso", t("Últ. acesso"), "acesso", "acesso")}
             <th style={{ textAlign: "right" }}>{t("ação")}</th>
           </tr></thead>
           <tbody>

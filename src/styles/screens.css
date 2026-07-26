@@ -783,3 +783,34 @@
   .svc-grid2, .svc-grid3 { grid-template-columns: 1fr; gap: 12px; }
   .svc-internal { align-self: start; padding-bottom: 0; margin-top: 2px; }
 }
+
+/* ── Visão geral · filtros da tabela de clientes (categoria + filtro por coluna + chips ativos) ── */
+.cli-chip-n { margin-left: 6px; font-size: 11px; font-weight: 700; opacity: .6; }
+.cli-chip.on .cli-chip-n { opacity: .85; }
+
+/* Linha de filtros ATIVOS (espelha o estado; cada chip remove só o seu) */
+.actfilters { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+.actf-lbl { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--crasto-text-muted); }
+.actchip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--crasto-border); background: var(--crasto-surface); color: var(--crasto-text-body); border-radius: 999px; padding: 4px 10px; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: border-color .15s, color .15s; }
+.actchip:hover { border-color: var(--crasto-danger); color: var(--crasto-danger); }
+.actf-clear { margin-left: 2px; border: 0; background: transparent; color: var(--crasto-text-muted); font-size: 12.5px; font-weight: 600; cursor: pointer; text-decoration: underline; }
+.actf-clear:hover { color: var(--crasto-text-primary); }
+
+/* Cabeçalho clicável (ordena/filtra) — o TH precisa ser relative para ancorar o popover */
+.cli-tbl thead th { position: relative; }
+.colhd { display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; font: inherit; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--crasto-text-muted); cursor: pointer; padding: 0; white-space: nowrap; }
+.colhd:hover { color: var(--crasto-text-primary); }
+.colhd.colhd--plain { cursor: default; }
+.colhd .colhd-cv { opacity: 0; transition: opacity .15s; }
+.colhd:hover .colhd-cv { opacity: .55; }
+.colhd.has-filter { color: var(--crasto-text-primary); }
+.colhd-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--crasto-blue, #6E9CE8); }
+
+.colmenu-back { position: fixed; inset: 0; z-index: 40; }
+.colmenu { position: absolute; top: calc(100% + 4px); left: 12px; z-index: 41; min-width: 210px; background: var(--crasto-surface); border: 1px solid var(--crasto-border); border-radius: 12px; box-shadow: var(--crasto-shadow-xl, 0 18px 44px -20px rgba(1,14,38,.5)); padding: 6px; text-transform: none; letter-spacing: 0; }
+.colmenu-h { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--crasto-text-faint); padding: 8px 10px 4px; }
+.colmenu-i { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: 0; background: transparent; border-radius: 8px; padding: 7px 10px; font-size: 13px; font-weight: 500; color: var(--crasto-text-body); cursor: pointer; }
+.colmenu-i:hover { background: var(--crasto-bg-2, #F6F8FB); color: var(--crasto-text-primary); }
+.colmenu-i.on { color: var(--crasto-text-primary); font-weight: 600; }
+.colmenu-ck { width: 14px; display: inline-flex; justify-content: center; color: var(--crasto-blue, #6E9CE8); }
+.colmenu-n { font-size: 11.5px; font-weight: 700; color: var(--crasto-text-faint); font-family: var(--crasto-font-mono, monospace); }
