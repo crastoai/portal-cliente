@@ -53,10 +53,10 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
   const [edit, setEdit] = useState(false);
   const [ef, setEf] = useState<Org>(null);
   // Edição de usuário do Portal (nome/e-mail/papel).
-  const [person, setPerson] = useState({ full_name: "", role: "", email: "", birthday: "" });
+  const [person, setPerson] = useState({ full_name: "", role: "", funcao: "", email: "", birthday: "", is_primary: false, disc_tipo: "", disc_data: "", notes: "" });
   const [phone, setPhone] = useState({ label: "mobile", country_code: "+55", number: "", person_id: "" });
   const [epId, setEpId] = useState("");
-  const [ep, setEp] = useState({ full_name: "", role: "", email: "", birthday: "" });
+  const [ep, setEp] = useState({ full_name: "", role: "", funcao: "", email: "", birthday: "", is_primary: false, disc_tipo: "", disc_data: "", notes: "" });
   const [ephId, setEphId] = useState("");
   const [eph, setEph] = useState({ label: "mobile", country_code: "+55", number: "", person_id: "" });
   const [act, setAct] = useState({ type: "note", title: "", description: "" });
@@ -65,8 +65,8 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
   const [taxid, setTaxid] = useState({ kind: "CNPJ", value: "", address: "" });
   const [regOpen, setRegOpen] = useState(false);
   const [regF, setRegF] = useState<any>({ id: "", organization_id: id, country: "BR", reg_type: "cnpj", cnpj: "", legal_name: "", trade_name: "", is_headquarters: false, is_active: true });
-  function newReg() { setRegF({ id: "", organization_id: id, country: "BR", reg_type: "cnpj", cnpj: "", legal_name: "", trade_name: "", is_headquarters: false, is_active: true }); setRegOpen(true); }
-  function editReg(c: any) { setRegF({ id: c.id, organization_id: id, country: c.country || "BR", reg_type: c.reg_type || "cnpj", cnpj: c.cnpj || "", legal_name: c.legal_name || "", trade_name: c.trade_name || "", is_headquarters: !!c.is_headquarters, is_active: c.is_active !== false }); setRegOpen(true); }
+  function newReg() { setRegF({ id: "", organization_id: id, country: "BR", reg_type: "cnpj", cnpj: "", legal_name: "", trade_name: "", is_headquarters: false, is_active: true, zip_code: "", inscricao_estadual: "", city: "", state: "" }); setRegOpen(true); }
+  function editReg(c: any) { setRegF({ id: c.id, organization_id: id, country: c.country || "BR", reg_type: c.reg_type || "cnpj", cnpj: c.cnpj || "", legal_name: c.legal_name || "", trade_name: c.trade_name || "", is_headquarters: !!c.is_headquarters, is_active: c.is_active !== false, zip_code: c.zip_code || "", inscricao_estadual: c.inscricao_estadual || "", city: c.city || "", state: c.state || "" }); setRegOpen(true); }
   async function saveReg() { if (regF.cnpj && !regInfo(regF.reg_type).validate(regF.cnpj)) { alert(tr("Número do registro inválido para o país selecionado.")); return; } try { await api.identity.cnpjs.adminSave(regF); setRegOpen(false); reload(); } catch (e) { alert(errorMessage(e)); } }
   async function delReg(c: any) { if (!confirm(tr("Excluir este registro?"))) return; await api.identity.cnpjs.adminRemove(c.id); reload(); }
   async function delPartner(p: any) { if (!confirm(tr("Excluir o sócio \"{n}\"?", { n: p.full_name || "sócio" }))) return; try { await api.identity.partners.remove(p.id); reload(); } catch (e) { alert(errorMessage(e)); } }
@@ -121,10 +121,10 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
     if (r.ok) nav("/admin/clientes", { replace: true });
     else flash(tr("Erro ao apagar:") + " " + (r.error || tr("tente novamente")));
   }
-  async function addPerson() { if (!person.full_name.trim()) return; await api.crm.people.add({ organization_id: id, full_name: person.full_name.trim(), role: person.role || null, email: person.email || null, birthday: person.birthday || null }); setPerson({ full_name: "", role: "", email: "", birthday: "" }); reload(); }
+  async function addPerson() { if (!person.full_name.trim()) return; await api.crm.people.add({ organization_id: id, full_name: person.full_name.trim(), role: person.role || null, funcao: person.funcao || null, email: person.email || null, birthday: person.birthday || null, is_primary: person.is_primary, disc_tipo: person.disc_tipo || null, disc_data: person.disc_data || null, notes: person.notes || null }); setPerson({ full_name: "", role: "", funcao: "", email: "", birthday: "", is_primary: false, disc_tipo: "", disc_data: "", notes: "" }); reload(); }
   async function addPhone() { if (!phone.number.trim()) return; await api.crm.phones.add({ organization_id: id, label: phone.label, country_code: phone.country_code, number: phone.number.trim(), person_id: phone.person_id || null }); setPhone({ label: "mobile", country_code: "+55", number: "", person_id: "" }); reload(); }
-  function startEditPerson(p: any) { setEpId(p.id); setEp({ full_name: p.full_name || "", role: p.role || "", email: p.email || "", birthday: p.birthday || "" }); }
-  async function savePerson() { if (!ep.full_name.trim()) return; await api.crm.people.update(epId, { full_name: ep.full_name.trim(), role: ep.role || null, email: ep.email || null, birthday: ep.birthday || null }); setEpId(""); reload(); }
+  function startEditPerson(p: any) { setEpId(p.id); setEp({ full_name: p.full_name || "", role: p.role || "", funcao: p.funcao || "", email: p.email || "", birthday: p.birthday || "", is_primary: !!p.is_primary, disc_tipo: p.disc_tipo || "", disc_data: p.disc_data || "", notes: p.notes || "" }); }
+  async function savePerson() { if (!ep.full_name.trim()) return; await api.crm.people.update(epId, { full_name: ep.full_name.trim(), role: ep.role || null, funcao: ep.funcao || null, email: ep.email || null, birthday: ep.birthday || null, is_primary: ep.is_primary, disc_tipo: ep.disc_tipo || null, disc_data: ep.disc_data || null, notes: ep.notes || null }); setEpId(""); reload(); }
   function startEditPhone(ph: any) { setEphId(ph.id); setEph({ label: ph.label || "mobile", country_code: ph.country_code || "+55", number: ph.number || "", person_id: ph.person_id || "" }); }
   async function savePhone() { if (!eph.number.trim()) return; await api.crm.phones.update(ephId, { label: eph.label, country_code: eph.country_code, number: eph.number.trim(), person_id: eph.person_id || null }); setEphId(""); reload(); }
   async function addActivity() { if (!act.title.trim()) return; await api.crm.activities.add({ organization_id: id, type: act.type, title: act.title.trim(), description: act.description || null }); setAct({ type: "note", title: "", description: "" }); reload(); }
@@ -331,6 +331,14 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
           <Field label="Razão social"><input value={regF.legal_name} onChange={(e) => setRegF({ ...regF, legal_name: e.target.value })} /></Field>
           <Field label="Nome fantasia"><input value={regF.trade_name} onChange={(e) => setRegF({ ...regF, trade_name: e.target.value })} /></Field>
         </div>
+        <div className="grid2">
+          <Field label="CEP"><input value={regF.zip_code || ""} onChange={(e) => setRegF({ ...regF, zip_code: e.target.value })} placeholder="00000-000" /></Field>
+          <Field label="Inscrição estadual"><input value={regF.inscricao_estadual || ""} onChange={(e) => setRegF({ ...regF, inscricao_estadual: e.target.value })} placeholder={tr("(se houver)")} /></Field>
+        </div>
+        <div className="grid2">
+          <Field label="Cidade"><input value={regF.city || ""} onChange={(e) => setRegF({ ...regF, city: e.target.value })} /></Field>
+          <Field label="Estado / UF"><input value={regF.state || ""} onChange={(e) => setRegF({ ...regF, state: e.target.value })} /></Field>
+        </div>
         <div style={{ display: "flex", gap: 18, marginTop: 6 }}>
           <label style={{ display: "flex", alignItems: "center", gap: 8 }}><button type="button" className={"sw" + (regF.is_headquarters ? " on" : "")} onClick={() => setRegF({ ...regF, is_headquarters: !regF.is_headquarters })} /><span style={{ fontSize: 13, fontWeight: 600 }}>{regF.is_headquarters ? tr("Matriz") : tr("Filial")}</span></label>
           <label style={{ display: "flex", alignItems: "center", gap: 8 }}><button type="button" className={"sw" + (regF.is_active ? " on" : "")} onClick={() => setRegF({ ...regF, is_active: !regF.is_active })} /><span style={{ fontSize: 13, fontWeight: 600 }}>{regF.is_active ? tr("Ativo") : tr("Inativo")}</span></label>
@@ -379,24 +387,35 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
       <div className="sec-h"><h2>{tr("Pessoas da empresa")}</h2></div>
       <div className="addrow">
         <input placeholder={tr("Nome completo")} value={person.full_name} onChange={(e) => setPerson({ ...person, full_name: e.target.value })} style={{ flex: 2, minWidth: 140 }} />
-        <input placeholder={tr("Cargo (dono, diretor…)")} value={person.role} onChange={(e) => setPerson({ ...person, role: e.target.value })} style={{ flex: 1, minWidth: 120 }} />
-        <input placeholder={tr("E-mail")} value={person.email} onChange={(e) => setPerson({ ...person, email: e.target.value })} style={{ flex: 1, minWidth: 140 }} />
-        <input type="date" title={tr("Aniversário")} value={person.birthday} onChange={(e) => setPerson({ ...person, birthday: e.target.value })} />
+        <input placeholder={tr("Cargo")} value={person.role} onChange={(e) => setPerson({ ...person, role: e.target.value })} style={{ flex: 1, minWidth: 100 }} />
+        <input placeholder={tr("Função")} value={person.funcao} onChange={(e) => setPerson({ ...person, funcao: e.target.value })} style={{ flex: 1, minWidth: 100 }} />
+        <input placeholder={tr("E-mail")} value={person.email} onChange={(e) => setPerson({ ...person, email: e.target.value })} style={{ flex: 1, minWidth: 130 }} />
+        <select value={person.disc_tipo} onChange={(e) => setPerson({ ...person, disc_tipo: e.target.value })} title={tr("Perfil DISC")}><option value="">{tr("DISC")}</option><option value="D">D — Dominância</option><option value="I">I — Influência</option><option value="S">S — Estabilidade</option><option value="C">C — Conformidade</option></select>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, whiteSpace: "nowrap" }} title={tr("Contato principal")}><input type="checkbox" checked={person.is_primary} onChange={(e) => setPerson({ ...person, is_primary: e.target.checked })} />{tr("Principal")}</label>
         <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={addPerson}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{tr("Adicionar")}</span></button>
       </div>
       {people.map((p) => (epId === p.id ? (
         <div className="addrow" key={p.id}>
           <input placeholder={tr("Nome completo")} value={ep.full_name} onChange={(e) => setEp({ ...ep, full_name: e.target.value })} style={{ flex: 2, minWidth: 140 }} />
-          <input placeholder={tr("Cargo (dono, diretor…)")} value={ep.role} onChange={(e) => setEp({ ...ep, role: e.target.value })} style={{ flex: 1, minWidth: 120 }} />
-          <input placeholder={tr("E-mail")} value={ep.email} onChange={(e) => setEp({ ...ep, email: e.target.value })} style={{ flex: 1, minWidth: 140 }} />
-          <input type="date" value={ep.birthday} onChange={(e) => setEp({ ...ep, birthday: e.target.value })} />
+          <input placeholder={tr("Cargo")} value={ep.role} onChange={(e) => setEp({ ...ep, role: e.target.value })} style={{ flex: 1, minWidth: 100 }} />
+          <input placeholder={tr("Função")} value={ep.funcao} onChange={(e) => setEp({ ...ep, funcao: e.target.value })} style={{ flex: 1, minWidth: 100 }} />
+          <input placeholder={tr("E-mail")} value={ep.email} onChange={(e) => setEp({ ...ep, email: e.target.value })} style={{ flex: 1, minWidth: 130 }} />
+          <select value={ep.disc_tipo} onChange={(e) => setEp({ ...ep, disc_tipo: e.target.value })} title={tr("Perfil DISC")}><option value="">{tr("DISC")}</option><option value="D">D</option><option value="I">I</option><option value="S">S</option><option value="C">C</option></select>
+          <input type="date" title={tr("Data do teste DISC")} value={ep.disc_data} onChange={(e) => setEp({ ...ep, disc_data: e.target.value })} />
+          <input placeholder={tr("Descrição")} value={ep.notes} onChange={(e) => setEp({ ...ep, notes: e.target.value })} style={{ flex: 1, minWidth: 120 }} />
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, whiteSpace: "nowrap" }}><input type="checkbox" checked={ep.is_primary} onChange={(e) => setEp({ ...ep, is_primary: e.target.checked })} />{tr("Principal")}</label>
           <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={savePerson}><span className="crasto-btn__label">{tr("Salvar")}</span></button>
           <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setEpId("")}><span className="crasto-btn__label">{tr("Cancelar")}</span></button>
         </div>
       ) : (
         <div className="crmrow" key={p.id}>
           <div className="logo" style={{ width: 34, height: 34, borderRadius: 9, background: "var(--crasto-bg-3)", color: "var(--crasto-text-primary)", display: "grid", placeItems: "center", fontWeight: 700, fontSize: 13 }}>{initials(p.full_name)}</div>
-          <div style={{ flex: 1, minWidth: 0 }}><div className="nm">{p.full_name} {p.role && <span className="chip" style={{ marginLeft: 6 }}>{p.role}</span>}</div><div className="mt">{p.email || tr("sem e-mail")}{p.birthday ? ` · 🎂 ${fmtDate(p.birthday)}` : ""}</div></div>
+          <div style={{ flex: 1, minWidth: 0 }}><div className="nm">{p.full_name}
+            {p.is_primary && <span className="chip" style={{ marginLeft: 6, background: "var(--crasto-navy-05)", color: "var(--crasto-text-primary)" }}>{tr("Principal")}</span>}
+            {p.role && <span className="chip" style={{ marginLeft: 6 }}>{p.role}</span>}
+            {p.funcao && <span className="chip" style={{ marginLeft: 6 }}>{p.funcao}</span>}
+            {p.disc_tipo && <span className="chip" style={{ marginLeft: 6, background: "#EEEDFE", color: "#26215C" }}>DISC {p.disc_tipo}</span>}
+          </div><div className="mt">{p.email || tr("sem e-mail")}{p.birthday ? ` · 🎂 ${fmtDate(p.birthday)}` : ""}{p.notes ? ` · ${p.notes}` : ""}</div></div>
           <button className="icobtn" title={tr("Editar")} onClick={() => startEditPerson(p)}><Pencil size={14} /></button>
           <button className="icobtn rm" onClick={() => delRow("crm", "people", p.id)}><Trash2 size={14} /></button>
         </div>

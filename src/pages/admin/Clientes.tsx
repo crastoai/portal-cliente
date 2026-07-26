@@ -4,7 +4,7 @@
 // colunas ordenáveis, timestamps completos (dd/mm/aaaa hh:mm), ações inline (sem lixeira).
 // ============================================================================
 import { useMemo, useState } from "react";
-import { Plus, Search, Eye, Building2, Power, ArrowRightLeft, KeyRound, ShieldCheck, ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
+import { Plus, Search, Eye, Building2, Power, ArrowRightLeft, KeyRound, ShieldCheck, ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown, Filter, ChevronDown, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, Empty, useAsync, money, initials, Field, Pill, useToast } from "../../ui/ui";
@@ -38,6 +38,9 @@ export default function Clientes() {
   const [flag, setFlag] = useState<string>("");
   const [pais, setPais] = useState<string>("");
   const [periodo, setPeriodo] = useState<string>("");
+  const [dataDe, setDataDe] = useState<string>("");
+  const [dataAte, setDataAte] = useState<string>("");
+  const [filtrosOpen, setFiltrosOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<{ col: string; dir: 1 | -1 }>({ col: "created_at", dir: -1 });
   const [open, setOpen] = useState(false);
@@ -77,11 +80,21 @@ export default function Clientes() {
     }
   }
   function inPeriodo(c: Client) {
+    if (periodo === "custom") {
+      if (!c.created_at) return false;
+      const d = new Date(c.created_at);
+      if (dataDe && d < new Date(dataDe + "T00:00:00")) return false;
+      if (dataAte && d > new Date(dataAte + "T23:59:59")) return false;
+      return true;
+    }
     const m = ({ "12m": 12, "24m": 24, "36m": 36 } as Record<string, number>)[periodo];
     if (!m || !c.created_at) return true;
     const cut = new Date(); cut.setMonth(cut.getMonth() - m);
     return new Date(c.created_at) >= cut;
   }
+  const periodoLabel = periodo === "custom" ? t("personalizado") : ({ "12m": "12m", "24m": "2 anos", "36m": "3 anos" } as Record<string, string>)[periodo] || "";
+  const filtrosAtivos = !!(pais || periodo);
+  function limparFiltros() { setFlag(""); setPais(""); setPeriodo(""); setDataDe(""); setDataAte(""); }
 
   function sortVal(c: Client): number | string {
     switch (sort.col) {
@@ -103,7 +116,7 @@ export default function Clientes() {
       (!q || [c.name, c.tax_id, c.email, c.owner_name, c.phone].some((v) => (v || "").toLowerCase().includes(q))));
     return filtered.sort((a, b) => { const va = sortVal(a), vb = sortVal(b); return va < vb ? -sort.dir : va > vb ? sort.dir : 0; });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [all, agentsOv, tab, flag, pais, periodo, query, sort]);
+  }, [all, agentsOv, tab, flag, pais, periodo, dataDe, dataAte, query, sort]);
 
   function toggleSort(col: string) { setSort((s) => ({ col, dir: s.col === col ? (s.dir === 1 ? -1 : 1) : 1 })); }
   const SortIcon = ({ col }: { col: string }) => sort.col === col ? (sort.dir === 1 ? <ArrowUp size={12} /> : <ArrowDown size={12} />) : <ChevronsUpDown size={12} style={{ opacity: 0.35 }} />;
@@ -173,16 +186,37 @@ export default function Clientes() {
           <button key={fl.key} className="chip" onClick={() => setFlag((v) => (v === fl.key ? "" : fl.key))}
             style={{ cursor: "pointer", border: "1px solid " + (flag === fl.key ? "transparent" : "var(--crasto-border-soft)"), background: flag === fl.key ? fl.bg : "transparent", color: flag === fl.key ? fl.fg : "var(--crasto-text-body)" }}>{t(fl.label)}</button>
         ))}
-        <select className="inp" style={{ width: "auto", minWidth: 120 }} value={pais} onChange={(e) => setPais(e.target.value)}>
-          <option value="">{t("País: todos")}</option>
-          {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
-        </select>
-        <select className="inp" style={{ width: "auto", minWidth: 120 }} value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
-          <option value="">{t("Período: tudo")}</option>
-          <option value="12m">{t("Últimos 12 meses")}</option>
-          <option value="24m">{t("Últimos 2 anos")}</option>
-          <option value="36m">{t("Últimos 3 anos")}</option>
-        </select>
+        <div style={{ position: "relative" }}>
+          <button className="chip" onClick={() => setFiltrosOpen((o) => !o)} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid " + (filtrosAtivos ? "transparent" : "var(--crasto-border-soft)"), background: filtrosAtivos ? "var(--crasto-navy-05)" : "transparent", color: "var(--crasto-text-body)" }}>
+            <Filter size={13} />{t("Filtros")}{filtrosAtivos ? ` · ${[pais ? countryOf(pais).name : null, periodoLabel].filter(Boolean).join(", ")}` : ""}<ChevronDown size={12} />
+          </button>
+          {filtrosOpen && (
+            <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 60, background: "var(--crasto-surface)", border: "1px solid var(--crasto-border)", borderRadius: "var(--crasto-radius-md)", boxShadow: "var(--crasto-shadow-md)", padding: 14, width: 290 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><b style={{ fontSize: 13 }}>{t("Filtros")}</b><button className="iconbtn" style={{ width: 24, height: 24 }} onClick={() => setFiltrosOpen(false)}><X size={14} /></button></div>
+              <div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", marginBottom: 4 }}>{t("País")}</div>
+              <select className="inp" style={{ width: "100%" }} value={pais} onChange={(e) => setPais(e.target.value)}>
+                <option value="">{t("Todos os países")}</option>
+                {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
+              </select>
+              <div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", margin: "12px 0 4px" }}>{t("Período (por data de criação)")}</div>
+              <select className="inp" style={{ width: "100%" }} value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
+                <option value="">{t("Tudo")}</option>
+                <option value="12m">{t("Últimos 12 meses")}</option>
+                <option value="24m">{t("Últimos 2 anos")}</option>
+                <option value="36m">{t("Últimos 3 anos")}</option>
+                <option value="custom">{t("Personalizado (escolher datas)")}</option>
+              </select>
+              {periodo === "custom" && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
+                  <div><div style={{ fontSize: 11, color: "var(--crasto-text-muted)" }}>{t("De")}</div><input className="inp" type="date" value={dataDe} onChange={(e) => setDataDe(e.target.value)} /></div>
+                  <div><div style={{ fontSize: 11, color: "var(--crasto-text-muted)" }}>{t("Até")}</div><input className="inp" type="date" value={dataAte} onChange={(e) => setDataAte(e.target.value)} /></div>
+                </div>
+              )}
+              <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" style={{ marginTop: 12 }} onClick={limparFiltros}><span className="crasto-btn__label">{t("Limpar filtros")}</span></button>
+            </div>
+          )}
+        </div>
+        {filtrosAtivos && <button className="chip" onClick={limparFiltros} style={{ cursor: "pointer", border: "none", color: "var(--crasto-blue)" }}>{t("Limpar filtros")}</button>}
         <div style={{ marginLeft: "auto", position: "relative" }}>
           <Search size={15} style={{ position: "absolute", left: 11, top: 10, color: "var(--crasto-text-faint)" }} />
           <input className="inp" style={{ paddingLeft: 34, minWidth: 220 }} placeholder={t("Buscar por nome, CNPJ, e-mail, telefone…")} value={query} onChange={(e) => setQuery(e.target.value)} />
