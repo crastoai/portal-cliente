@@ -605,3 +605,8 @@
   background: var(--crasto-bg-subtle, rgba(0,0,0,.04)); border: 1px solid var(--crasto-border-soft); border-radius: 7px; padding: 3px 6px 3px 9px; }
 .mod-cred-item b { font-weight: 600; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mod-cred-sso { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; font-size: 12.5px; color: var(--crasto-success); }
+
+/* Visão geral: linha comercial com 5 KPIs (MRR + A receber + 3). Colapsa em telas menores. */
+.kpis--5 { grid-template-columns: repeat(5, 1fr); }
+@media (max-width: 1200px) { .kpis--5 { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 680px) { .kpis--5 { grid-template-columns: repeat(2, 1fr); } }

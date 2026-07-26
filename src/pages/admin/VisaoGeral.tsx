@@ -24,12 +24,13 @@ export default function VisaoGeral() {
   const t = useT();
   const navigate = useNavigate();
   const { data, loading, reload } = useAsync(async () => {
-    const [clients, ov, agentsOv] = await Promise.all([
+    const [clients, ov, agentsOv, receber] = await Promise.all([
       fetchClients(),
       services.analytics.admin.consoleOverview().catch(() => null),
       services.crmAccess.agentsOverview().catch(() => ({})), // federado do wacrm (agente REAL)
+      services.finance.accounts.list("receivable").catch(() => [] as any[]), // contas a receber (dado real)
     ]);
-    return { clients: clients ?? [], ov: ov as any, agentsOv: agentsOv as Record<string, { agentes: number; no_ar: number; farol: string }> };
+    return { clients: clients ?? [], ov: ov as any, agentsOv: agentsOv as Record<string, { agentes: number; no_ar: number; farol: string }>, receber: (receber ?? []) as any[] };
   }, []);
   const clients = data?.clients ?? [];
   const ov = data?.ov ?? null;
@@ -37,9 +38,25 @@ export default function VisaoGeral() {
   // Agente por org vem do wacrm (federado). Se a chamada falhou, `agByOrg` é {} → a coluna
   // mostra "—" (dado indisponível), nunca "sem agente" mentiroso.
   const agByOrg = data?.agentsOv ?? {};
-  const mrr = clients.reduce((s, c) => s + Number(c.mrr), 0);
   const modules = clients.reduce((s, c) => s + (c.modules?.length ?? 0), 0);
   const risk = clients.filter((c) => healthScore(c).tone === "crit").length;
+
+  // FINANCEIRO REAL (contas a receber). MRR = valor RECORRENTE por mês de cada contrato:
+  //  • conta parcelada → o valor da parcela (é a mensalidade; ex.: Connect 12× R$1.500 → R$1.500);
+  //  • conta com recorrência mensal/anual sem parcelas → o valor (anual ÷ 12);
+  //  • conta pontual (sem parcela, sem recorrência) → não é recorrente → não entra.
+  // Recebíveis = tudo que ainda está EM ABERTO (total − já pago). Nada fictício: se não há
+  // contas, os dois somam 0 e é a verdade.
+  const receber = (data?.receber ?? []).filter((a: any) => a.status !== "cancelled");
+  const mensalDe = (a: any) => {
+    const p = Array.isArray(a?.payment_schedule) ? a.payment_schedule : [];
+    if (p.length) return Number(p[0]?.amount || 0);
+    if (a.recurrence === "monthly" || a.recurrence === "mensal") return Number(a.amount || 0);
+    if (a.recurrence === "yearly" || a.recurrence === "anual") return Number(a.amount || 0) / 12;
+    return 0;
+  };
+  const mrr = receber.reduce((s: number, a: any) => s + mensalDe(a), 0);
+  const aReceber = receber.reduce((s: number, a: any) => s + (Number(a.amount || 0) - Number(a.amount_paid || 0)), 0);
 
   // ── Tabela em ESCALA (pesquisa de padrões de admin/CS): busca + filtro rápido + ordenação
   // por risco. Sem isso, 100 clientes viram scroll cego. Filtro client-side (a lista é pequena).
@@ -143,8 +160,9 @@ export default function VisaoGeral() {
         </>} />
 
       <div className="conslabel">{t("comercial (hoje)")}</div>
-      <div className="kpis">
-        <div className="kpi navy"><div className="lab">{t("MRR (receita recorrente)")}</div><div className="val tnum">{money(mrr)}</div><div className="delta">{t("soma dos contratos")}</div></div>
+      <div className="kpis kpis--5">
+        <div className="kpi navy"><div className="lab">{t("MRR (receita recorrente)")}</div><div className="val tnum">{money(mrr)}</div><div className="delta">{t("recorrente · financeiro")}</div></div>
+        <button className="kpi kpi-btn" onClick={() => navigate("/admin/financeiro?tab=receber")}><div className="lab">{t("A receber")}</div><div className="val tnum">{money(aReceber)}</div><div className="delta">{t("em aberto · financeiro")} <ArrowRight size={11} /></div></button>
         <div className="kpi"><div className="lab">{t("Clientes ativos")}</div><div className="val tnum">{clients.length}</div><div className="delta">{t("no portal")}</div></div>
         <div className="kpi g"><div className="lab">{t("Módulos entregues")}</div><div className="val tnum">{modules}</div><div className="delta">{t("{n} por cliente", { n: clients.length ? (modules / clients.length).toFixed(1) : 0 })}</div></div>
         <div className="kpi"><div className="lab">{t("Em risco (churn)")}</div><div className="val tnum" style={{ color: risk ? "var(--crasto-danger)" : undefined }}>{risk}</div><div className="delta">{t("requer atenção")}</div></div>
