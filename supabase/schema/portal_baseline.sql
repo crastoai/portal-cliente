@@ -3469,7 +3469,8 @@ CREATE TABLE public.profiles (
     connector_id uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    avatar_url text
+    avatar_url text,
+    notifications_seen_at timestamp with time zone
 );
 
 
@@ -3547,6 +3548,8 @@ CREATE TABLE support.tickets (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     kind text DEFAULT 'support'::text NOT NULL,
+    assigned_to text,
+    CONSTRAINT tickets_assigned_to_check CHECK (((assigned_to IS NULL) OR (assigned_to = ANY (ARRAY['agente_ia'::text, 'john'::text, 'crasto'::text])))),
     CONSTRAINT tickets_status_check CHECK ((status = ANY (ARRAY['open'::text, 'in_progress'::text, 'resolved'::text, 'closed'::text])))
 );
 
