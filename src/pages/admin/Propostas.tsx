@@ -6,7 +6,7 @@ import { taxOf, fmtRate } from "../../lib/config";
 import { useSettings } from "../../lib/settings";
 import { useT } from "../../lib/i18n";
 
-type Org = { id: string; name: string; cnpj: string | null };
+type Org = { id: string; name: string; cnpj: string | null; cliente_oculto?: boolean };
 type Svc = { id: string; name: string; unit: string; price_table: number; category?: string | null };
 type Agent = { id: string; name: string; agent_type: string; commission_default: number; payment_handling: string; active: boolean };
 type TaxId = { id: string; kind: string; value: string; address: string | null; is_primary: boolean };
@@ -16,6 +16,8 @@ const ANEXOS = ["Plano Diretor", "Playbook Comercial", "Plano de Marketing", "Fi
 const HANDL: Record<string, string> = { nota_fiscal: "Nota Fiscal", por_fora: "por fora", reembolso: "reembolso de despesas" };
 const DOC_KIND_L: Record<string, string> = { cnpj_card: "Cartão CNPJ", contrato_social: "Contrato Social", plano_diretor: "Plano Diretor", socios: "Sócios", outro: "Documento" };
 const MODALIDADES = ["Presencial", "Online", "Híbrido"];
+const DESCONTO_LIVRE = 10; // % livre para vendedores/John
+const DESCONTO_TETO = 50;  // % máximo (acima de 10% exige aprovação do Carlos Crasto)
 
 // detecta o tipo de item p/ mostrar as especificidades certas
 function itemKind(s?: Svc): "workshop" | "agent" | "automation" | "generic" {
@@ -48,6 +50,8 @@ export default function Propostas() {
   const [currency, setCurrency] = useState<"BRL" | "USD">("BRL");
   const [fx, setFx] = useState<number>(0);
   const [special, setSpecial] = useState(false);
+  const [desconto, setDesconto] = useState(0);
+  const [aprovadoCrasto, setAprovadoCrasto] = useState(false);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
   // contrato (Fase 3)
@@ -173,8 +177,14 @@ export default function Propostas() {
   const agent = agents.find((a) => a.id === agentId);
   const commissionPct = agent ? Number(agent.commission_default) : 0;
   const total = useMemo(() => items.reduce((s, id) => s + (vals[id] ?? 0), 0), [items, vals]);
-  const commission = Math.round((total * commissionPct) / 100);
-  const tax = special ? 0 : taxOf(total, taxRate);
+  const oculto = !!org?.cliente_oculto;
+  const semNF = special || oculto;                                  // cliente oculto = valores mantidos, sem NF
+  const descPct = Math.max(0, Math.min(DESCONTO_TETO, Number(desconto) || 0));
+  const descontoOk = descPct <= DESCONTO_LIVRE || aprovadoCrasto;   // acima de 10% só com aprovação do Crasto
+  const descontoValor = Math.round((total * (descontoOk ? descPct : 0)) / 100);
+  const subLiquido = total - descontoValor;
+  const commission = Math.round((subLiquido * commissionPct) / 100);
+  const tax = semNF ? 0 : taxOf(subLiquido, taxRate);
 
   // opções de CNPJ (tax_ids ou o CNPJ do próprio cadastro)
   const cnpjOpts = taxIds.length ? taxIds : (org?.cnpj ? [{ id: "org", kind: "CNPJ", value: org.cnpj, address: null, is_primary: true }] : []);
@@ -210,7 +220,7 @@ export default function Propostas() {
     try {
       const prop = await api.commerce.proposals.create({
         organization_id: orgId, connector_id: agentId || null, title: `Proposta — ${org?.name ?? ""}`.trim(),
-        status: "sent", subtotal: total, commission_total: commission, special_sale: special, tax_rate: taxRate,
+        status: "sent", subtotal: subLiquido, commission_total: commission, special_sale: semNF, tax_rate: taxRate,
         currency, fx_rate: currency === "USD" ? fx : null,
         bill_to: bill?.value ?? null, bill_to_address: bill?.address ?? null,
         attachments: Object.fromEntries([...att].map((a) => [a, true])),
@@ -436,15 +446,32 @@ export default function Propostas() {
             return <div className="sumrow" key={id}><span>{s?.name}</span><span className="tnum">{fmt(vals[id] ?? 0)}</span></div>;
           })}
           <div className="sumrow"><span>{t("Subtotal (serviços)")}</span><span className="tnum">{fmt(total)}</span></div>
-          <div className="sumrow"><span>{t("Imposto")} ({fmtRate(taxRate)}%){special ? t(" — isento (venda especial)") : ""}</span><span className="tnum" style={{ color: special ? "var(--crasto-text-muted)" : "var(--crasto-danger)" }}>{fmt(tax)}</span></div>
-          <div className="sumrow tot"><span>{special ? t("Total (sem NF)") : t("Total com imposto")}</span><span className="tnum">{fmt(total + tax)}</span></div>
+          <div className="sumrow" style={{ alignItems: "center" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{t("Desconto")}
+              <input type="number" min={0} max={DESCONTO_TETO} value={desconto} onChange={(e) => setDesconto(Math.max(0, Math.min(DESCONTO_TETO, Number(e.target.value) || 0)))} style={{ width: 56, fontSize: 12.5, padding: "3px 6px", border: "1px solid var(--crasto-border-soft)", borderRadius: 7, background: "var(--crasto-bg-3)", color: "var(--crasto-text-body)" }} />%
+            </span>
+            <span className="tnum" style={{ color: "var(--crasto-danger)" }}>{descontoValor > 0 ? "− " + fmt(descontoValor) : "—"}</span>
+          </div>
+          {descPct > DESCONTO_LIVRE && (
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, margin: "0 0 6px", padding: "9px 11px", borderRadius: 9, background: aprovadoCrasto ? "var(--crasto-navy-05)" : "#FBEEDD", color: aprovadoCrasto ? "var(--crasto-text-body)" : "#8A5A12" }}>
+              <input type="checkbox" checked={aprovadoCrasto} onChange={(e) => setAprovadoCrasto(e.target.checked)} style={{ width: "auto", marginTop: 2 }} />
+              <span>{t("Desconto acima de {l}% exige aprovação do Carlos Crasto (teto {t}%). Vendedores e John: até {l}%.", { l: DESCONTO_LIVRE, t: DESCONTO_TETO })}</span>
+            </label>
+          )}
+          <div className="sumrow"><span>{t("Imposto")} ({fmtRate(taxRate)}%){semNF ? t(" — sem NF") : ""}</span><span className="tnum" style={{ color: semNF ? "var(--crasto-text-muted)" : "var(--crasto-danger)" }}>{fmt(tax)}</span></div>
+          <div className="sumrow tot"><span>{semNF ? t("Total (sem NF)") : t("Total com imposto")}</span><span className="tnum">{fmt(subLiquido + tax)}</span></div>
           <div className="sumrow"><span>{t("Comissão")} {agent?.agent_type === "conector" ? t("conector") : t("indicador")} ({commissionPct}%)</span><span className="tnum" style={{ color: "#B8863A" }}>{fmt(commission)}</span></div>
+          {oculto && (
+            <div className="note" style={{ margin: "12px 0 4px", background: "#FBEEDD", color: "#8A5A12", padding: "10px 12px", borderRadius: 10 }}>
+              👁️ <b>{t("Cliente oculto (auditoria)")}</b> — {t("faz tudo igual a um cliente comum; só NÃO emite NF nesta proposta.")}
+            </div>
+          )}
           <label className="frow specialbox" style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, margin: "12px 0 4px", padding: "12px 14px", borderRadius: 12, background: special ? "var(--crasto-navy-05)" : "var(--crasto-bg-3)", border: special ? "1px solid var(--crasto-navy-20)" : "1px solid var(--crasto-border-soft)" }}>
             <input type="checkbox" checked={special} onChange={(e) => setSpecial(e.target.checked)} style={{ width: "auto", marginTop: 2 }} />
             <span style={{ margin: 0 }}>{t("Venda especial (sem Nota Fiscal) — faz todo o fluxo mas não emite NF e não aplica imposto. Ex.: vendas-teste, cortesias, permutas.")}</span>
           </label>
           <div className="paycheck">🟢 <b>{t("IA se paga em ~28 dias")}</b><div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", marginTop: 4, fontWeight: 400 }}>{t("Baseado no Plano Diretor: economia + receita projetada > investimento em 30d.")}</div></div>
-          <button className="crasto-btn crasto-btn--primary crasto-btn--md" style={{ width: "100%", marginTop: 14 }} disabled={busy} onClick={gerar}><span className="crasto-btn__label">{busy ? t("Gerando…") : special ? t("Gerar venda especial (sem NF)") : t("Gerar proposta personalizada")}</span></button>
+          <button className="crasto-btn crasto-btn--primary crasto-btn--md" style={{ width: "100%", marginTop: 14 }} disabled={busy || (descPct > DESCONTO_LIVRE && !aprovadoCrasto)} onClick={gerar}><span className="crasto-btn__label">{busy ? t("Gerando…") : (descPct > DESCONTO_LIVRE && !aprovadoCrasto) ? t("Aguarda aprovação do Crasto") : semNF ? t("Gerar proposta (sem NF)") : t("Gerar proposta personalizada")}</span></button>
 
           {contract && (
             <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--crasto-border-soft)" }}>

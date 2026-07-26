@@ -56,7 +56,7 @@ export class IdentityController {
   }
   @Get('organizations/proposals')
   proposals(@Req() req: any) {
-    return this.db.asUser(this.uid(req), async (c) => (await c.query('select id,name,cnpj from public.organizations order by name')).rows);
+    return this.db.asUser(this.uid(req), async (c) => (await c.query('select id,name,cnpj,cliente_oculto from public.organizations order by name')).rows);
   }
   @Post('organizations')
   orgCreate(@Req() req: any, @Body() b: any) {
