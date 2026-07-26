@@ -85,6 +85,29 @@ export class IdentityController {
   orgUpdateMine(@Req() req: any, @Body() b: any) {
     return this.db.asUser(this.uid(req), async (c) => (await c.query('select public.update_my_org($1) as r', [b])).rows[0]?.r);
   }
+
+  // ── origem/indicação/comissão (INTERNO, owner-only; tabela crm.org_referral, RLS só admin) ──
+  @Get('org/:id/referral')
+  @UseGuards(AdminGuard)
+  orgReferralGet(@Req() req: any, @Param('id') id: string) {
+    return this.db.asUser(this.uid(req), async (c) => (await c.query('select * from crm.org_referral where organization_id=$1', [id])).rows[0] ?? null);
+  }
+  @Post('org/:id/referral')
+  @UseGuards(AdminGuard)
+  orgReferralUpsert(@Req() req: any, @Param('id') id: string, @Body() b: any) {
+    const cols = ['origem_canal', 'indicado_por', 'indicado_em', 'comissao_tipo', 'comissao_percent', 'comissao_status', 'captado_por', 'primeiro_contato_em', 'obs'];
+    const keys = cols.filter((k) => k in (b || {}));
+    const vals = keys.map((k) => (b[k] === '' ? null : b[k]));
+    return this.db.asUser(this.uid(req), async (c) => {
+      if (keys.length === 0) { await c.query('insert into crm.org_referral (organization_id) values ($1) on conflict (organization_id) do nothing', [id]); return { ok: true }; }
+      const insCols = ['organization_id', ...keys].map((k) => `"${k}"`).join(',');
+      const insVals = [id, ...vals];
+      const ph = insVals.map((_, i) => `$${i + 1}`).join(',');
+      const upd = keys.map((k, i) => `"${k}"=$${i + 2}`).join(', ');
+      await c.query(`insert into crm.org_referral (${insCols}) values (${ph}) on conflict (organization_id) do update set ${upd}, updated_at=now()`, insVals);
+      return { ok: true };
+    });
+  }
   @Get('org/mine/contact')
   myContact(@Req() req: any) {
     return this.db.asUser(this.uid(req), async (c) => { try { return (await c.query('select * from public.my_org_contact()')).rows[0] ?? null; } catch { return null; } });

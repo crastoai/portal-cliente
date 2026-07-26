@@ -43,6 +43,9 @@ export const organizations = {
     api.get<{ ddi: string | null; number: string | null } | null>(`/api/identity/org/mine/contact`).catch(() => null),
   setStage: async (id: string, stage: string) => api.patch(`/api/identity/org/${id}/stage`, { stage }),
   create: async (payload: Record<string, any>) => api.post<{ id: string; name: string }>(`/api/identity/organizations`, payload),
+  /** Origem/indicação/comissão (interno, owner-only). */
+  referral: async (id: string) => api.get<Record<string, any> | null>(`/api/identity/org/${id}/referral`).catch(() => null),
+  saveReferral: async (id: string, patch: Record<string, any>) => api.post(`/api/identity/org/${id}/referral`, patch),
 };
 
 /** CNPJs da empresa (matriz + filiais). */

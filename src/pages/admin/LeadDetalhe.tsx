@@ -13,6 +13,7 @@ import { PageHead, Empty, Pill, useAsync, useToast } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import { STAGES, stageOf, countryOf, TEMPS } from "../../lib/countries";
 import DiagnosticoMapa, { fmtDate } from "./DiagnosticoMapa";
+import EmpresaExtra from "./EmpresaExtra";
 
 export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: string) => void }) {
   const { id } = useParams();
@@ -90,6 +91,9 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
           <span className="mt" style={{ fontSize: 12 }}>{t("Definida por você — separada do sinal automático do Mapa.")}</span>
         </div>
       )}
+
+      {/* Cadastro & relação (tipo/NF/oculto + papéis/indicador + origem interno) */}
+      <EmpresaExtra orgId={id!} org={org} onSaved={reload} flash={(m) => toast.ok(m)} />
 
       {!diag && (
         <div className="card" style={{ marginBottom: 18 }}>

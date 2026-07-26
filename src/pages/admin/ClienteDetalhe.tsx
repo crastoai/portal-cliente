@@ -12,6 +12,7 @@ import { reg as regInfo, regTypeFor, COUNTRIES as REG_COUNTRIES, countryName as 
 import { CrmAccessSection } from "./CrmAccessSection";
 import SocialIntegracoes from "./SocialIntegracoes";
 import DiagnosticoCard from "./DiagnosticoCard";
+import EmpresaExtra from "./EmpresaExtra";
 
 type Org = any;
 const icon = (cat?: string | null) => { const c = (cat || "").toLowerCase(); return c.includes("atend") ? <MessageCircle size={16} /> : c.includes("market") ? <Send size={16} /> : c.includes("vend") ? <Search size={16} /> : <Grid3x3 size={16} />; };
@@ -284,6 +285,9 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
         </div>
         {org.notes && <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--crasto-border-soft)", fontSize: 13, color: "var(--crasto-text-body)" }}><b>{tr("Observações:")}</b> {org.notes}</div>}
       </div>
+
+      {/* Cadastro & relação (tipo/NF/oculto + papéis/indicador + origem interno) */}
+      <EmpresaExtra orgId={id!} org={org} onSaved={reload} flash={flash} />
 
       {/* CNPJs & endereços de faturamento */}
       <div className="sec-h" style={{ marginTop: 4 }}><h2>{tr("CNPJs & endereços de faturamento")}</h2><Pill tone="mute">{tr("usado nas propostas")}</Pill></div>
