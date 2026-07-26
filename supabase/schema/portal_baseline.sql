@@ -3103,6 +3103,8 @@ CREATE TABLE delivery.client_modules (
     label text,
     crm_agent_id uuid,
     access_mode text DEFAULT 'link'::text NOT NULL,
+    cost_allocation text,
+    CONSTRAINT client_modules_cost_allocation_check CHECK (((cost_allocation IS NULL) OR (cost_allocation = ANY (ARRAY['absorvido'::text, 'byo_cliente'::text])))),
     CONSTRAINT client_modules_access_mode_chk CHECK ((access_mode = ANY (ARRAY['link'::text, 'embed'::text, 'sso'::text]))),
     CONSTRAINT client_modules_status_check CHECK ((status = ANY (ARRAY['active'::text, 'implementing'::text, 'paused'::text, 'cancelled'::text])))
 );
