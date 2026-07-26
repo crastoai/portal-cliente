@@ -2778,7 +2778,35 @@ CREATE TABLE catalog.services (
     price_max numeric(12,2),
     internal boolean DEFAULT false NOT NULL,
     notes text,
+    business_category text,
+    cost_allocation text DEFAULT 'absorvido'::text,
+    usage_included numeric(14,2),
+    usage_unit text,
+    overage_price numeric(14,4),
+    desconto_max numeric(5,2),
+    CONSTRAINT services_cost_allocation_check CHECK (((cost_allocation IS NULL) OR (cost_allocation = ANY (ARRAY['absorvido'::text, 'byo_cliente'::text])))),
     CONSTRAINT services_unit_check CHECK ((unit = ANY (ARRAY['mensal'::text, 'hora'::text, 'projeto'::text, 'setup_unico'::text])))
+);
+
+
+--
+-- Name: service_variants; Type: TABLE; Schema: catalog; Owner: -  (migration 020)
+-- Variações de preço por inteligência (modelo de IA). RLS: policy service_variants_admin_all
+-- USING public.is_crasto_admin(). GRANT select/insert/update/delete a authenticated, service_role.
+--
+
+CREATE TABLE catalog.service_variants (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    service_id uuid NOT NULL,
+    nome text NOT NULL,
+    ai_model text,
+    price_table numeric(12,2) DEFAULT 0 NOT NULL,
+    price_min numeric(12,2),
+    price_max numeric(12,2),
+    is_default boolean DEFAULT false NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT service_variants_pkey PRIMARY KEY (id)
 );
 
 
