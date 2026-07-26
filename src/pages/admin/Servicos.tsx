@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Upload, Pencil, Trash2, Lock, Search, Filter, ChevronDown, X } from "lucide-react";
+import { Plus, Upload, Pencil, Trash2, Lock, Search, Filter, ChevronDown, X, Link2 } from "lucide-react";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, Empty, useAsync, money, Field } from "../../ui/ui";
 import { taxOf, fmtRate } from "../../lib/config";
@@ -127,7 +127,7 @@ export default function Servicos() {
       {loading ? <Empty>Carregando…</Empty> : rows.length === 0 ? <Empty><p><strong>{catFilter || filtrosAtivos || q ? t("Nenhum serviço com esses filtros.") : t("Nenhum serviço.")}</strong> {catFilter || filtrosAtivos || q ? t("Ajuste ou limpe os filtros.") : t("Clique em \"Novo serviço\".")}</p></Empty> : (
         <div className="tbl-wrap">
           <table className="tbl">
-            <thead><tr><th>{t("Serviço")}</th><th>{t("Categoria")}</th><th>{t("Unidade")}</th><th>{t("Preço-âncora")}</th><th>{t("Faixa")}</th><th>{t("Imposto")} ({fmtRate(taxRate)}%)</th><th>{t("Líquido")}</th><th>{t("Comissão")}</th><th></th></tr></thead>
+            <thead><tr><th>{t("Serviço")}</th><th>{t("Categoria")}</th><th>{t("Unidade")}</th><th>{t("Preço-âncora")}</th><th>{t("Faixa")}</th><th title={t("Vinculado à configuração global de imposto")}>{t("Imposto")} ({fmtRate(taxRate)}%) <Link2 size={11} style={{ verticalAlign: -1, opacity: 0.55 }} /></th><th>{t("Líquido")}</th><th>{t("Comissão")}</th><th></th></tr></thead>
             <tbody>
               {rows.map((r) => {
                 const imp = taxOf(r.price_table, taxRate);
@@ -149,6 +149,12 @@ export default function Servicos() {
           </table>
         </div>
       )}
+      {/* legenda: campos vinculados + o que é alocação de custo */}
+      <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginTop: 12, fontSize: 11.5, color: "var(--crasto-text-muted)" }}>
+        <span><Link2 size={12} style={{ verticalAlign: -2, marginRight: 4, opacity: 0.6 }} />{t("campo com este ícone puxa valor de outra config (ex.: imposto vem da config global)")}</span>
+        <span><b style={{ color: "var(--crasto-text-body)" }}>{t("Crasto absorve")}</b> = {t("a Crasto.AI paga o custo de IA desse item")}</span>
+        <span><b style={{ color: "var(--crasto-text-body)" }}>{t("Cliente paga (BYO)")}</b> = {t("o cliente usa a própria conta/API (ex.: WhatsApp) e arca com o custo")}</span>
+      </div>
       <Modal wide title={editing ? t("Editar serviço") : t("Novo serviço")} open={open} onClose={() => setOpen(false)}
         footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={submit}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar")}</span></button></>}>
         {err && <div className="formerr">{err}</div>}
@@ -172,13 +178,13 @@ export default function Servicos() {
           <Field label="Preço mínimo (R$)"><input type="number" value={f.price_min} onChange={(e) => setF({ ...f, price_min: e.target.value })} placeholder={t("= âncora se vazio")} /></Field>
           <Field label="Preço máximo (R$)"><input type="number" value={f.price_max} onChange={(e) => setF({ ...f, price_max: e.target.value })} placeholder={t("= âncora se vazio")} /></Field>
         </div>
-        {f.price_table !== "" && <div className="note" style={{ marginTop: 2 }}><span>{t("Imposto")} ({fmtRate(taxRate)}%): <b>{money(taxOf(Number(f.price_table), taxRate))}</b> · {t("Líquido")}: <b>{money((Number(f.price_table) || 0) - taxOf(Number(f.price_table), taxRate))}</b></span></div>}
+        {f.price_table !== "" && <div className="note" style={{ marginTop: 2 }}><span><Link2 size={12} style={{ verticalAlign: -2, opacity: 0.6, marginRight: 4 }} title={t("Taxa vinculada à configuração global de imposto")} />{t("Imposto")} ({fmtRate(taxRate)}%): <b>{money(taxOf(Number(f.price_table), taxRate))}</b> · {t("Líquido")}: <b>{money((Number(f.price_table) || 0) - taxOf(Number(f.price_table), taxRate))}</b> <span style={{ opacity: 0.7 }}>· {t("a taxa vem da config global (🔗)")}</span></span></div>}
 
         {/* Negócio, uso & custo */}
         <div className="svc-sec-label">{t("Negócio, uso & custo")}</div>
         <div className="svc-grid2">
           <Field label="Categoria de negócio"><select value={f.business_category} onChange={(e) => setF({ ...f, business_category: e.target.value })}><option value="">{t("—")}</option>{BIZ_CATS.map((b) => <option key={b.v} value={b.v}>{t(b.l)}</option>)}</select></Field>
-          <Field label="Custo de IA (padrão)"><select value={f.cost_allocation} onChange={(e) => setF({ ...f, cost_allocation: e.target.value })}><option value="absorvido">{t("Crasto absorve")}</option><option value="byo_cliente">{t("BYO — conta do cliente")}</option></select><span className="svc-hint">{t("padrão; ajustável por cliente no detalhe")}</span></Field>
+          <Field label="Custo de IA (padrão)"><select value={f.cost_allocation} onChange={(e) => setF({ ...f, cost_allocation: e.target.value })}><option value="absorvido">{t("Crasto absorve")}</option><option value="byo_cliente">{t("Cliente paga (conta própria)")}</option></select><span className="svc-hint">{t("padrão; ajustável por cliente no detalhe")}</span></Field>
         </div>
         <div className="svc-grid3">
           <Field label="Franquia incluída"><input type="number" value={f.usage_included} onChange={(e) => setF({ ...f, usage_included: e.target.value })} placeholder={t("ex.: 1000")} /></Field>

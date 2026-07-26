@@ -103,7 +103,7 @@ export default function Propostas() {
     setChatBusy(true); setChatInput("");
     setChatLog((l) => [...l, { role: "you", text: msg }]);
     const context = { cliente: org?.name, itens: items.map((id) => svcs.find((x) => x.id === id)?.name).filter(Boolean), venda_especial: special };
-    const r = await api.commerce.ai(msg, context);
+    const r = await api.commerce.proposals.ai(msg, context);
     setChatBusy(false);
     if (!r.ok) { setChatLog((l) => [...l, { role: "ai", text: (r.offline ? "🔌 " : "⚠️ ") + (r.error || "erro") }]); return; }
     // aplica as ações sugeridas
