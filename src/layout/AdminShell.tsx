@@ -6,9 +6,9 @@ const CONSOLE = "Console · IA 🔒";
 const NAV: NavItem[] = [
   { to: "/admin", end: true, icon: LayoutDashboard, label: "Visão geral" },
   { to: "/admin/clientes", icon: Users, label: "Empresas", section: "Operação" },
+  { to: "/admin/servicos", icon: Tag, label: "Catálogo de serviços", section: "Operação" },
   { to: "/admin/catalogo", icon: Grid3x3, label: "Catálogo de módulos", section: "Operação" },
   { to: "/admin/propostas", icon: FileText, label: "Gerador de propostas", section: "Operação" },
-  { to: "/admin/servicos", icon: Tag, label: "Catálogo de serviços", section: "Operação" },
   { to: "/admin/implantacoes", icon: Rocket, label: "Solicitações de implantação", section: "Operação" },
   { to: "/admin/tickets", icon: LifeBuoy, label: "Chamados & Suporte", section: "Operação" },
   // Console · IA (admin-only) — camada operacional dos agentes (SPEC do Console)

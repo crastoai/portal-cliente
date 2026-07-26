@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { LogOut, Menu, X, Camera, Lock, ChevronLeft, ChevronRight, ChevronDown, type LucideIcon } from "lucide-react";
+import { LogOut, Menu, X, Camera, Lock, ChevronLeft, ChevronRight, ChevronDown, Bell, type LucideIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { services } from "../services";
 import ThemeToggle from "../ui/ThemeToggle";
@@ -91,8 +91,24 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
     );
   };
 
+  const [alerts, setAlerts] = useState(0);
+  useEffect(() => {
+    if (profile?.role !== "crasto_admin") return;
+    let alive = true;
+    const load = () => services.support.tickets.listAll("implementation_request").then((ts: any) => { if (alive) setAlerts((ts || []).filter((x: any) => x.status === "open").length); }).catch(() => {});
+    load();
+    const iv = setInterval(load, 60000);
+    return () => { alive = false; clearInterval(iv); };
+  }, [profile?.role]);
+
   const userCluster = (
     <>
+      {profile?.role === "crasto_admin" && (
+        <button type="button" className={"tb-bell" + (alerts > 0 ? " on" : "")} title={alerts > 0 ? t("{n} solicitação(ões) de implantação nova(s)", { n: alerts }) : t("Sem solicitações novas")} onClick={() => navigate("/admin/implantacoes")} aria-label={t("Notificações")}>
+          <Bell size={17} />
+          {alerts > 0 && <span className="tb-bell__dot">{alerts}</span>}
+        </button>
+      )}
       <button type="button" className="tb-av su-av--btn" title={t("Trocar foto de perfil")} disabled={avBusy} onClick={() => avInput.current?.click()} style={!profile?.avatar_url && logoTone ? { background: logoTone } : undefined}>
         {profile?.avatar_url ? <img src={profile.avatar_url} alt="" /> : ini}
         <span className="su-av__cam"><Camera size={12} /></span>
