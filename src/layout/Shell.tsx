@@ -139,13 +139,19 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
         </nav>
       </aside>
 
+      {/* Seta de recolher/expandir CRAVADA na borda do sidebar (handle), sempre visível.
+          Fica fixa na linha da sidebar e acompanha a largura ao recolher. No mobile some
+          (lá o menu é drawer pelo hambúrguer). */}
+      <button className="side-collapse" onClick={() => setCollapsed((c) => !c)} title={collapsed ? t("Expandir menu") : t("Recolher menu")} aria-label={collapsed ? t("Expandir menu") : t("Recolher menu")}>
+        {collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+      </button>
+
       <main className="main">
         {/* Barra superior: navegação fica na sidebar; identidade + sistema (idioma, tema,
             usuário) no canto SUPERIOR DIREITO — padrão internacional (Gmail/HubSpot/Salesforce).
             No celular, o hambúrguer abre o drawer e a marca aparece à esquerda. */}
         <header className="topbar">
           <button className="tb-burger" onClick={() => setOpen(true)} aria-label={t("Abrir menu")}><Menu size={20} /></button>
-          <button className="tb-collapse" onClick={() => setCollapsed((c) => !c)} title={collapsed ? t("Expandir menu") : t("Recolher menu")} aria-label={t("Recolher menu")}>{collapsed ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}</button>
           <span className="tb-brand"><Wordmark /></span>
           <div className="tb-right">
             <LangSwitcher />
