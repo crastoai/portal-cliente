@@ -28,4 +28,10 @@ export const pendingActions = {
   listMine: async () => api.get<PendingAction[]>(`/api/support/pending-actions/mine`),
 };
 
-export const support = { tickets, pendingActions };
+export type Notif = { type: string; title: string; subtitle?: string; at?: string | null; assignee?: string | null; link?: string };
+export const notifications = {
+  list: async () => api.get<{ items: Notif[]; count: number; admin: boolean }>(`/api/support/notifications`),
+  markSeen: async () => api.post(`/api/support/notifications/seen`).catch(() => ({})),
+};
+
+export const support = { tickets, pendingActions, notifications };

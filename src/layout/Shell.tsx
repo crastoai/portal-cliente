@@ -1,12 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { LogOut, Menu, X, Camera, Lock, ChevronLeft, ChevronRight, ChevronDown, Bell, type LucideIcon } from "lucide-react";
+import { LogOut, Menu, X, Camera, Lock, ChevronLeft, ChevronRight, ChevronDown, Bell, Rocket, Sparkles, AlertTriangle, DollarSign, MessageCircle, type LucideIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { services } from "../services";
 import ThemeToggle from "../ui/ThemeToggle";
 import LangSwitcher from "../ui/LangSwitcher";
 import { useT } from "../lib/i18n";
 import { initials } from "../ui/ui";
+
+// Central de notificações: ícone por tipo + rótulo de quem está atuando.
+function notifIcon(type: string) {
+  switch (type) {
+    case "implementation_request": return <Rocket size={15} />;
+    case "improvement_request": return <Sparkles size={15} />;
+    case "support": case "ticket_update": return <MessageCircle size={15} />;
+    case "health_red": return <AlertTriangle size={15} />;
+    case "invoice": return <DollarSign size={15} />;
+    default: return <Bell size={15} />;
+  }
+}
+const ASSIGNEE_L: Record<string, string> = { agente_ia: "Jorge (IA)", john: "John", crasto: "Crasto" };
 
 // Wordmark completo (logo Crasto.AI) — navy no claro, branco no escuro.
 function Wordmark() {
@@ -91,23 +104,45 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
     );
   };
 
-  const [alerts, setAlerts] = useState(0);
+  const [notifs, setNotifs] = useState<any[]>([]);
+  const [notifCount, setNotifCount] = useState(0);
+  const [bellOpen, setBellOpen] = useState(false);
   useEffect(() => {
-    if (profile?.role !== "crasto_admin") return;
+    if (!profile?.id) return;
     let alive = true;
-    const load = () => services.support.tickets.listAll("implementation_request").then((ts: any) => { if (alive) setAlerts((ts || []).filter((x: any) => x.status === "open").length); }).catch(() => {});
+    const load = () => services.support.notifications.list().then((r: any) => { if (alive) { setNotifs(r?.items || []); setNotifCount(r?.count || 0); } }).catch(() => {});
     load();
     const iv = setInterval(load, 60000);
     return () => { alive = false; clearInterval(iv); };
-  }, [profile?.role]);
+  }, [profile?.id]);
+  function toggleBell() {
+    const opening = !bellOpen;
+    setBellOpen(opening);
+    if (opening && notifCount > 0) { setNotifCount(0); services.support.notifications.markSeen(); }
+  }
 
   const userCluster = (
     <>
-      {profile?.role === "crasto_admin" && (
-        <button type="button" className={"tb-bell" + (alerts > 0 ? " on" : "")} title={alerts > 0 ? t("{n} solicitação(ões) de implantação nova(s)", { n: alerts }) : t("Sem solicitações novas")} onClick={() => navigate("/admin/implantacoes")} aria-label={t("Notificações")}>
-          <Bell size={17} />
-          {alerts > 0 && <span className="tb-bell__dot">{alerts}</span>}
-        </button>
+      {profile?.id && (
+        <div className="tb-bell-wrap">
+          <button type="button" className={"tb-bell" + (notifCount > 0 ? " on" : "")} title={notifCount > 0 ? t("{n} nova(s) notificação(ões)", { n: notifCount }) : t("Notificações")} onClick={toggleBell} aria-label={t("Notificações")}>
+            <Bell size={17} />
+            {notifCount > 0 && <span className="tb-bell__dot">{notifCount}</span>}
+          </button>
+          {bellOpen && (<>
+            <div className="tb-bell__ovl" onClick={() => setBellOpen(false)} />
+            <div className="tb-bell__panel">
+              <div className="tb-bell__head">{t("Notificações")}</div>
+              {notifs.length === 0 ? <div className="tb-bell__empty">{t("Tudo em dia ✓")}</div> : notifs.map((n, i) => (
+                <button key={i} className="tb-bell__item" onClick={() => { setBellOpen(false); if (n.link) navigate(n.link); }}>
+                  <span className="tb-bell__ic">{notifIcon(n.type)}</span>
+                  <span className="tb-bell__txt"><span className="tt">{n.title}</span>{n.subtitle && <span className="ss">{n.subtitle}</span>}</span>
+                  {n.assignee && <span className="tb-bell__who">{ASSIGNEE_L[n.assignee] || n.assignee}</span>}
+                </button>
+              ))}
+            </div>
+          </>)}
+        </div>
       )}
       <button type="button" className="tb-av su-av--btn" title={t("Trocar foto de perfil")} disabled={avBusy} onClick={() => avInput.current?.click()} style={!profile?.avatar_url && logoTone ? { background: logoTone } : undefined}>
         {profile?.avatar_url ? <img src={profile.avatar_url} alt="" /> : ini}

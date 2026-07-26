@@ -36,4 +36,33 @@ export class SupportController {
 
   @Get('pending-actions/mine')
   pendingMine(@Req() req: any) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select id,type,description,status from support.pending_actions order by status desc')).rows); }
+
+  // ── Central de notificações (agregada, por perfil via RLS) ──
+  @Get('notifications')
+  notifications(@Req() req: any) {
+    const uid = this.uid(req);
+    return this.db.asUser(uid, async (c) => {
+      const admin = (await c.query('select public.is_crasto_admin() as a')).rows[0]?.a === true;
+      const seen = (await c.query('select notifications_seen_at from public.profiles where id=$1', [uid])).rows[0]?.notifications_seen_at ?? null;
+      const items: any[] = [];
+      if (admin) {
+        const L: any = { implementation_request: 'Solicitação de implantação', improvement_request: 'Demanda de melhoria', support: 'Chamado de suporte' };
+        const LINK: any = { implementation_request: '/admin/implantacoes', improvement_request: '/admin/tickets', support: '/admin/tickets' };
+        const tk = (await c.query(`select t.subject, t.kind, t.assigned_to, t.created_at as at, o.name as org from support.tickets t join public.organizations o on o.id=t.organization_id where t.status='open' order by t.created_at desc limit 30`)).rows;
+        for (const r of tk) items.push({ type: r.kind, title: (L[r.kind] || 'Chamado') + ': ' + (r.subject || ''), subtitle: r.org, at: r.at, assignee: r.assigned_to, link: LINK[r.kind] || '/admin/tickets' });
+        const red = (await c.query(`select o.id, o.name, h.updated_at as at from delivery.system_health h join public.organizations o on o.id=h.organization_id where h.status='red' order by h.updated_at desc limit 20`)).rows;
+        for (const r of red) items.push({ type: 'health_red', title: 'Ambiente em risco: ' + r.name, subtitle: 'farol vermelho', at: r.at, assignee: null, link: '/admin/cliente/' + r.id });
+      } else {
+        const inv = (await c.query(`select description, amount, due_date, status from billing.invoices where status in ('open','overdue') order by due_date nulls last limit 20`)).rows;
+        for (const r of inv) items.push({ type: 'invoice', title: r.status === 'overdue' ? 'Fatura vencida' : 'Fatura a vencer', subtitle: (r.description || 'Fatura') + ' · R$ ' + Number(r.amount || 0).toLocaleString('pt-BR'), at: r.due_date, assignee: null, link: '/app' });
+        const upd = (await c.query(`select subject, status, updated_at as at from support.tickets where status in ('in_progress','resolved') order by updated_at desc limit 20`)).rows;
+        for (const r of upd) items.push({ type: 'ticket_update', title: 'Atualização no seu chamado', subtitle: r.subject, at: r.at, assignee: null, link: '/app' });
+      }
+      items.sort((a, b) => (new Date(b.at || 0).getTime()) - (new Date(a.at || 0).getTime()));
+      const count = seen ? items.filter((i) => i.at && new Date(i.at) > new Date(seen)).length : items.length;
+      return { items: items.slice(0, 30), count, admin };
+    });
+  }
+  @Post('notifications/seen')
+  notifSeen(@Req() req: any) { const uid = this.uid(req); return this.db.asUser(uid, async (c) => { await c.query('update public.profiles set notifications_seen_at=now() where id=$1', [uid]); return { ok: true }; }); }
 }

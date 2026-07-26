@@ -281,6 +281,18 @@
 .tb-bell.on { color: var(--crasto-danger); animation: bellpulse 1.4s ease-in-out infinite; }
 .tb-bell__dot { position: absolute; top: 2px; right: 2px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 999px; background: var(--crasto-danger); color: #fff; font-size: 10px; font-weight: 700; display: grid; place-items: center; line-height: 1; }
 @keyframes bellpulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+.tb-bell-wrap { position: relative; }
+.tb-bell__ovl { position: fixed; inset: 0; z-index: 40; }
+.tb-bell__panel { position: absolute; top: calc(100% + 8px); right: 0; z-index: 50; width: 340px; max-width: 92vw; max-height: 420px; overflow-y: auto; background: var(--crasto-surface); border: 1px solid var(--crasto-border); border-radius: 14px; box-shadow: 0 16px 44px rgba(1,14,38,.22); padding: 6px; }
+.tb-bell__head { font-size: 12px; font-weight: 700; color: var(--crasto-text-muted); text-transform: uppercase; letter-spacing: .05em; padding: 8px 10px 6px; }
+.tb-bell__empty { font-size: 13px; color: var(--crasto-text-muted); padding: 14px 10px; text-align: center; }
+.tb-bell__item { display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left; border: none; background: transparent; border-radius: 10px; padding: 9px 10px; cursor: pointer; }
+.tb-bell__item:hover { background: var(--crasto-bg-2); }
+.tb-bell__ic { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--crasto-bg-3); color: var(--crasto-text-primary); }
+.tb-bell__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tb-bell__txt .tt { font-size: 13px; font-weight: 600; color: var(--crasto-text-primary); line-height: 1.3; }
+.tb-bell__txt .ss { font-size: 11.5px; color: var(--crasto-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb-bell__who { flex: none; align-self: center; font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--crasto-navy-05); color: var(--crasto-text-primary); white-space: nowrap; }
 /* CRM: botão de temperatura do lead (manual) */
 .tempbtn { border: 1px solid var(--crasto-border-soft); background: var(--crasto-surface); color: var(--crasto-text-body); padding: 5px 12px; border-radius: var(--crasto-radius-pill); font-size: 12.5px; font-weight: 500; cursor: pointer; transition: var(--crasto-t); }
 .tempbtn:hover { border-color: var(--crasto-border); background: var(--crasto-bg-2); }
