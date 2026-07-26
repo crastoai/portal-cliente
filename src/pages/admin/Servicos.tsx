@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Upload, Pencil, Trash2, Lock } from "lucide-react";
+import { Plus, Upload, Pencil, Trash2, Lock, Search, Filter, ChevronDown, X } from "lucide-react";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, Empty, useAsync, money, Field } from "../../ui/ui";
 import { taxOf, fmtRate } from "../../lib/config";
@@ -20,11 +20,24 @@ export default function Servicos() {
   const [f, setF] = useState<any>({ ...EMPTY });
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [toast, setToast] = useState("");
   const [catFilter, setCatFilter] = useState("");
+  const [query, setQuery] = useState("");
+  const [fUnidade, setFUnidade] = useState("");
+  const [fInterno, setFInterno] = useState("");
+  const [fComissao, setFComissao] = useState("");
+  const [filtrosOpen, setFiltrosOpen] = useState(false);
   const editing = !!f.id;
 
   // Categorias vêm do próprio banco (serviços já cadastrados) — controlar/filtrar por elas.
   const cats = Array.from(new Set(allRows.map((r) => (r.category || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt"));
-  const rows = catFilter ? allRows.filter((r) => (r.category || "") === catFilter) : allRows;
+  const filtrosAtivos = !!(fUnidade || fInterno || fComissao);
+  function limparFiltros() { setFUnidade(""); setFInterno(""); setFComissao(""); }
+  const q = query.trim().toLowerCase();
+  const rows = allRows.filter((r) =>
+    (!catFilter || (r.category || "") === catFilter) &&
+    (!fUnidade || r.unit === fUnidade) &&
+    (!fInterno || (fInterno === "sim" ? r.internal : !r.internal)) &&
+    (!fComissao || (fComissao === "com" ? r.base_commission > 0 : r.base_commission === 0)) &&
+    (!q || `${r.name} ${r.category || ""} ${r.notes || ""}`.toLowerCase().includes(q)));
 
   function openNew() { setF({ ...EMPTY }); setErr(""); setOpen(true); }
   function openEdit(s: S) { setF({ id: s.id, name: s.name, category: s.category ?? "", unit: s.unit, price_table: String(s.price_table), price_min: s.price_min != null ? String(s.price_min) : "", price_max: s.price_max != null ? String(s.price_max) : "", base_commission: String(s.base_commission), internal: !!s.internal, notes: s.notes ?? "" }); setErr(""); setOpen(true); }
@@ -58,7 +71,7 @@ export default function Servicos() {
 
   return (
     <div className="svcpage">
-      <PageHead eyebrow="Painel Admin" title="Serviços & preços" sub="Base oficial de preços da Crasto.AI. Preço-âncora + faixa (mín–máx); imposto padrão exibido à parte."
+      <PageHead eyebrow="Painel Admin" title="Catálogo de serviços" sub="Base oficial de preços da Crasto.AI. Preço-âncora + faixa (mín–máx); imposto padrão exibido à parte."
         right={<><button className="crasto-btn crasto-btn--secondary crasto-btn--sm"><span className="crasto-btn__icon"><Upload size={15} /></span><span className="crasto-btn__label">{t("Importar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={openNew}><span className="crasto-btn__icon"><Plus size={15} /></span><span className="crasto-btn__label">{t("Novo serviço")}</span></button></>} />
       {!loading && cats.length > 0 && (
         <div className="svc-filter">
@@ -68,7 +81,37 @@ export default function Servicos() {
           ))}
         </div>
       )}
-      {loading ? <Empty>Carregando…</Empty> : rows.length === 0 ? <Empty><p><strong>{catFilter ? t("Nenhum serviço nesta categoria.") : t("Nenhum serviço.")}</strong> {catFilter ? "" : t("Clique em \"Novo serviço\".")}</p></Empty> : (
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", margin: "4px 0 14px" }}>
+        <div style={{ position: "relative" }}>
+          <button className="chip" onClick={() => setFiltrosOpen((o) => !o)} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid " + (filtrosAtivos ? "transparent" : "var(--crasto-border-soft)"), background: filtrosAtivos ? "var(--crasto-navy-05)" : "transparent", color: "var(--crasto-text-body)" }}>
+            <Filter size={13} />{t("Filtros")}<ChevronDown size={12} />
+          </button>
+          {filtrosOpen && (
+            <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 60, background: "var(--crasto-surface)", border: "1px solid var(--crasto-border)", borderRadius: "var(--crasto-radius-md)", boxShadow: "var(--crasto-shadow-md)", padding: 14, width: 260 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><b style={{ fontSize: 13 }}>{t("Filtros")}</b><button className="icobtn" onClick={() => setFiltrosOpen(false)}><X size={14} /></button></div>
+              <div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", marginBottom: 4 }}>{t("Unidade")}</div>
+              <select className="inp" style={{ width: "100%", boxSizing: "border-box" }} value={fUnidade} onChange={(e) => setFUnidade(e.target.value)}>
+                <option value="">{t("Todas")}</option><option value="mensal">{t("Mensal")}</option><option value="hora">{t("Hora")}</option><option value="projeto">{t("Projeto")}</option><option value="setup_unico">{t("Setup único")}</option>
+              </select>
+              <div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", margin: "12px 0 4px" }}>{t("Comissão")}</div>
+              <select className="inp" style={{ width: "100%", boxSizing: "border-box" }} value={fComissao} onChange={(e) => setFComissao(e.target.value)}>
+                <option value="">{t("Todas")}</option><option value="com">{t("Com comissão")}</option><option value="sem">{t("Sem comissão")}</option>
+              </select>
+              <div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", margin: "12px 0 4px" }}>{t("Origem")}</div>
+              <select className="inp" style={{ width: "100%", boxSizing: "border-box" }} value={fInterno} onChange={(e) => setFInterno(e.target.value)}>
+                <option value="">{t("Todos")}</option><option value="nao">{t("Próprio (cliente vê)")}</option><option value="sim">{t("Interno (remix VdI)")}</option>
+              </select>
+              <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" style={{ marginTop: 12 }} onClick={limparFiltros}><span className="crasto-btn__label">{t("Limpar filtros")}</span></button>
+            </div>
+          )}
+        </div>
+        {filtrosAtivos && <button className="chip" onClick={limparFiltros} style={{ cursor: "pointer", border: "none", color: "var(--crasto-blue)" }}>{t("Limpar filtros")}</button>}
+        <div style={{ marginLeft: "auto", position: "relative" }}>
+          <Search size={15} style={{ position: "absolute", left: 11, top: 10, color: "var(--crasto-text-faint)" }} />
+          <input className="inp" style={{ paddingLeft: 34, minWidth: 220 }} placeholder={t("Buscar serviço…")} value={query} onChange={(e) => setQuery(e.target.value)} />
+        </div>
+      </div>
+      {loading ? <Empty>Carregando…</Empty> : rows.length === 0 ? <Empty><p><strong>{catFilter || filtrosAtivos || q ? t("Nenhum serviço com esses filtros.") : t("Nenhum serviço.")}</strong> {catFilter || filtrosAtivos || q ? t("Ajuste ou limpe os filtros.") : t("Clique em \"Novo serviço\".")}</p></Empty> : (
         <div className="tbl-wrap">
           <table className="tbl">
             <thead><tr><th>{t("Serviço")}</th><th>{t("Categoria")}</th><th>{t("Unidade")}</th><th>{t("Preço-âncora")}</th><th>{t("Faixa")}</th><th>{t("Imposto")} ({fmtRate(taxRate)}%)</th><th>{t("Líquido")}</th><th>{t("Comissão")}</th><th></th></tr></thead>
@@ -76,7 +119,7 @@ export default function Servicos() {
               {rows.map((r) => {
                 const imp = taxOf(r.price_table, taxRate);
                 return (
-                  <tr key={r.id}>
+                  <tr key={r.id} style={{ cursor: "pointer" }} onClick={() => openEdit(r)} title={t("Clique para editar")}>
                     <td style={{ fontWeight: 600, color: "var(--crasto-text-primary)" }}>{r.name}{r.internal && <Lock size={12} title={t("Interno (remix VdI)")} style={{ verticalAlign: -1, marginLeft: 6, color: "var(--crasto-text-muted)" }} />}</td>
                     <td><span className="chip">{r.category}</span></td>
                     <td>{r.unit.replace("_", " ")}</td>
@@ -85,7 +128,7 @@ export default function Servicos() {
                     <td className="tnum" style={{ color: "var(--crasto-danger)" }}>{money(imp)}</td>
                     <td className="tnum" style={{ fontWeight: 600, color: "var(--crasto-success)" }}>{money(r.price_table - imp)}</td>
                     <td className="tnum">{r.base_commission}%</td>
-                    <td><div style={{ display: "flex", gap: 6 }}><button className="icobtn" title={t("Editar")} onClick={() => openEdit(r)}><Pencil size={14} /></button><button className="icobtn" title={t("Excluir")} onClick={() => del(r)}><Trash2 size={14} /></button></div></td>
+                    <td onClick={(e) => e.stopPropagation()}><div style={{ display: "flex", gap: 6 }}><button className="icobtn" title={t("Editar")} onClick={() => openEdit(r)}><Pencil size={14} /></button><button className="icobtn" title={t("Excluir")} onClick={() => del(r)}><Trash2 size={14} /></button></div></td>
                   </tr>
                 );
               })}
