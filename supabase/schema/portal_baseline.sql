@@ -470,9 +470,12 @@ begin
   if not public.is_crasto_admin() then raise exception 'not authorized'; end if;
   return (select coalesce(json_agg(t order by t.mrr desc, t.name), '[]'::json) from (
     select o.id, o.name, o.plan, o.stage, o.country, o.tax_id, o.website, o.founded_on, o.owner_name,
-      o.source, o.last_maturity, o.intent_signal,
+      o.source, o.last_maturity, o.intent_signal, o.created_at,
       o.lead_temperature, o.deal_value, o.deal_probability, o.deal_expected_close, o.deal_product,
+      o.papeis, o.tipo_empresa, o.emite_nf, o.cliente_oculto, o.convertido_em, o.churned_em,
+      o.trial_inicio, o.trial_fim, o.trial_resultado, o.status as org_status,
       (select p.email from public.profiles p where p.organization_id = o.id order by (p.role = 'client_owner') desc limit 1) as email,
+      (select ph.country_code || ' ' || ph.number from crm.phones ph where ph.organization_id = o.id order by ph.is_primary desc, ph.created_at limit 1) as phone,
       coalesce((select array_agg(v.name) from delivery.client_modules cm join catalog.vdi_modules v on v.id = cm.vdi_module_id where cm.organization_id = o.id), '{}') as modules,
       (select max(u.last_sign_in_at) from public.profiles p join auth.users u on u.id = p.id where p.organization_id = o.id) as last_access,
       coalesce((select overall_progress from delivery.implementations i where i.organization_id = o.id), 0) as progress,
@@ -818,13 +821,15 @@ begin
       is_headquarters=coalesce((p->>'is_headquarters')::boolean,is_headquarters),
       is_active=coalesce((p->>'is_active')::boolean,is_active),
       inscricao_estadual=p->>'inscricao_estadual', inscricao_municipal=p->>'inscricao_municipal',
-      regime_tributario=p->>'regime_tributario', notes=p->>'notes', updated_at=now()
+      regime_tributario=p->>'regime_tributario', notes=p->>'notes',
+      zip_code=p->>'zip_code', city=p->>'city', state=p->>'state', address=p->>'address', updated_at=now()
     where id=(p->>'id')::uuid and organization_id=v_org returning id into v_id;
   else
-    insert into crm.company_cnpjs(organization_id,cnpj,trade_name,legal_name,country,reg_type,is_headquarters,is_active,inscricao_estadual,inscricao_municipal,regime_tributario,notes)
+    insert into crm.company_cnpjs(organization_id,cnpj,trade_name,legal_name,country,reg_type,is_headquarters,is_active,inscricao_estadual,inscricao_municipal,regime_tributario,notes,zip_code,city,state,address)
     values (v_org,p->>'cnpj',p->>'trade_name',p->>'legal_name',coalesce(p->>'country','BR'),coalesce(p->>'reg_type','cnpj'),
       coalesce((p->>'is_headquarters')::boolean,false),coalesce((p->>'is_active')::boolean,true),
-      p->>'inscricao_estadual',p->>'inscricao_municipal',p->>'regime_tributario',p->>'notes')
+      p->>'inscricao_estadual',p->>'inscricao_municipal',p->>'regime_tributario',p->>'notes',
+      p->>'zip_code',p->>'city',p->>'state',p->>'address')
     returning id into v_id;
   end if;
   return v_id;
@@ -2368,13 +2373,15 @@ begin
       is_headquarters=coalesce((p->>'is_headquarters')::boolean,is_headquarters),
       is_active=coalesce((p->>'is_active')::boolean,is_active),
       inscricao_estadual=p->>'inscricao_estadual', inscricao_municipal=p->>'inscricao_municipal',
-      regime_tributario=p->>'regime_tributario', notes=p->>'notes', updated_at=now()
+      regime_tributario=p->>'regime_tributario', notes=p->>'notes',
+      zip_code=p->>'zip_code', city=p->>'city', state=p->>'state', address=p->>'address', updated_at=now()
     where id=(p->>'id')::uuid and organization_id=v_org returning id into v_id;
   else
-    insert into crm.company_cnpjs(organization_id,cnpj,trade_name,legal_name,country,reg_type,is_headquarters,is_active,inscricao_estadual,inscricao_municipal,regime_tributario,notes)
+    insert into crm.company_cnpjs(organization_id,cnpj,trade_name,legal_name,country,reg_type,is_headquarters,is_active,inscricao_estadual,inscricao_municipal,regime_tributario,notes,zip_code,city,state,address)
     values (v_org,p->>'cnpj',p->>'trade_name',p->>'legal_name',coalesce(p->>'country','BR'),coalesce(p->>'reg_type','cnpj'),
       coalesce((p->>'is_headquarters')::boolean,false),coalesce((p->>'is_active')::boolean,true),
-      p->>'inscricao_estadual',p->>'inscricao_municipal',p->>'regime_tributario',p->>'notes')
+      p->>'inscricao_estadual',p->>'inscricao_municipal',p->>'regime_tributario',p->>'notes',
+      p->>'zip_code',p->>'city',p->>'state',p->>'address')
     returning id into v_id;
   end if;
   return v_id;
@@ -2982,8 +2989,39 @@ CREATE TABLE crm.people (
     birthday date,
     is_primary boolean DEFAULT false NOT NULL,
     notes text,
+    funcao text,
+    emails text[] DEFAULT '{}'::text[] NOT NULL,
+    disc_tipo text,
+    disc_data date,
+    disc_scores jsonb,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: org_referral; Type: TABLE; Schema: crm; Owner: -  (migration 015)
+-- Origem/indicação/comissão INTERNA por empresa. RLS: policy org_referral_admin_all USING public.is_crasto_admin()
+-- (WITH CHECK idem); GRANT select/insert/update/delete a authenticated, service_role. FK: organization_id →
+-- public.organizations(id) ON DELETE CASCADE; indicado_por → public.organizations(id) ON DELETE SET NULL.
+--
+
+CREATE TABLE crm.org_referral (
+    organization_id uuid NOT NULL,
+    origem_canal text,
+    indicado_por uuid,
+    indicado_em timestamp with time zone,
+    comissao_tipo text,
+    comissao_percent numeric(5,2),
+    comissao_status text,
+    captado_por text,
+    primeiro_contato_em timestamp with time zone,
+    obs text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT org_referral_pkey PRIMARY KEY (organization_id),
+    CONSTRAINT org_referral_comissao_status_check CHECK (((comissao_status IS NULL) OR (comissao_status = ANY (ARRAY['sem_comissao'::text, 'pendente'::text, 'paga'::text])))),
+    CONSTRAINT org_referral_comissao_tipo_check CHECK (((comissao_tipo IS NULL) OR (comissao_tipo = ANY (ARRAY['desconto_fatura'::text, 'dinheiro'::text]))))
 );
 
 
@@ -3260,6 +3298,16 @@ CREATE TABLE public.organizations (
     deal_probability smallint,
     deal_expected_close date,
     deal_product text,
+    tipo_empresa text,
+    emite_nf boolean,
+    cliente_oculto boolean DEFAULT false NOT NULL,
+    convertido_em timestamp with time zone,
+    churned_em timestamp with time zone,
+    trial_inicio timestamp with time zone,
+    trial_fim timestamp with time zone,
+    trial_resultado text,
+    papeis text[] DEFAULT '{}'::text[] NOT NULL,
+    CONSTRAINT organizations_trial_resultado_check CHECK (((trial_resultado IS NULL) OR (trial_resultado = ANY (ARRAY['em_andamento'::text, 'converteu'::text, 'nao_converteu'::text])))),
     CONSTRAINT organizations_stage_check CHECK ((stage = ANY (ARRAY['prospecto'::text, 'lead'::text, 'oportunidade'::text, 'cliente'::text]))),
     CONSTRAINT organizations_deal_probability_check CHECK (((deal_probability IS NULL) OR ((deal_probability >= 0) AND (deal_probability <= 100)))),
     CONSTRAINT organizations_lead_temperature_check CHECK (((lead_temperature IS NULL) OR (lead_temperature = ANY (ARRAY['quente'::text, 'morno'::text, 'frio'::text]))))
@@ -3356,6 +3404,9 @@ CREATE TABLE public.connectors (
     payment_handling text DEFAULT 'nota_fiscal'::text NOT NULL,
     contract_months integer DEFAULT 12 NOT NULL,
     notes text,
+    organization_id uuid,
+    reward_type text,
+    CONSTRAINT connectors_reward_type_check CHECK (((reward_type IS NULL) OR (reward_type = ANY (ARRAY['desconto_fatura'::text, 'dinheiro'::text])))),
     CONSTRAINT connectors_agent_type_check CHECK ((agent_type = ANY (ARRAY['indicador'::text, 'conector'::text]))),
     CONSTRAINT connectors_payment_handling_check CHECK ((payment_handling = ANY (ARRAY['nota_fiscal'::text, 'por_fora'::text, 'reembolso'::text]))),
     CONSTRAINT connectors_payment_method_check CHECK ((payment_method = ANY (ARRAY['pix'::text, 'bank'::text, 'bitcoin'::text, 'other'::text]))),
