@@ -769,3 +769,17 @@
 
 /* Sua equipe (RH) — pill de tempo conectado, neutro com números tabulares. */
 .scopepill.mute { color: var(--crasto-text-muted); font-variant-numeric: tabular-nums; }
+
+/* ── Serviços & preços: modal em "área de sistema" (largo no desktop, 1-coluna no mobile) ── */
+.svc-filter { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 14px; }
+.svc-sec-label { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--crasto-text-muted); margin: 18px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--crasto-border-soft); }
+.svc-sec-label:first-child { margin-top: 2px; }
+.svc-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.svc-grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+.svc-hint { display: block; margin-top: 5px; font-size: 11.5px; color: var(--crasto-text-muted); }
+.svc-internal { align-self: end; padding-bottom: 9px; }
+/* No mobile o card pode ser pequeno: cada campo numa linha. */
+@media (max-width: 640px) {
+  .svc-grid2, .svc-grid3 { grid-template-columns: 1fr; gap: 12px; }
+  .svc-internal { align-self: start; padding-bottom: 0; margin-top: 2px; }
+}

@@ -8,17 +8,23 @@ import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 
 type S = { id: string; name: string; category: string | null; unit: string; price_table: number; price_min: number | null; price_max: number | null; base_commission: number; internal: boolean; notes: string | null };
-const EMPTY = { id: "", name: "", category: "", unit: "mensal", price_table: "", price_min: "", price_max: "", base_commission: "", internal: false, notes: "" };
+// Comissão-base começa em 10% (padrão novo do Crasto: 10%, podendo chegar a 30%).
+const EMPTY = { id: "", name: "", category: "", unit: "mensal", price_table: "", price_min: "", price_max: "", base_commission: "10", internal: false, notes: "" };
 
 export default function Servicos() {
   const { taxRate } = useSettings();
   const t = useT();
   const { data, loading, reload } = useAsync(async () => (await api.catalog.services.list()) as unknown as S[], []);
-  const rows = data ?? [];
+  const allRows = data ?? [];
   const [open, setOpen] = useState(false);
   const [f, setF] = useState<any>({ ...EMPTY });
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [toast, setToast] = useState("");
+  const [catFilter, setCatFilter] = useState("");
   const editing = !!f.id;
+
+  // Categorias vêm do próprio banco (serviços já cadastrados) — controlar/filtrar por elas.
+  const cats = Array.from(new Set(allRows.map((r) => (r.category || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt"));
+  const rows = catFilter ? allRows.filter((r) => (r.category || "") === catFilter) : allRows;
 
   function openNew() { setF({ ...EMPTY }); setErr(""); setOpen(true); }
   function openEdit(s: S) { setF({ id: s.id, name: s.name, category: s.category ?? "", unit: s.unit, price_table: String(s.price_table), price_min: s.price_min != null ? String(s.price_min) : "", price_max: s.price_max != null ? String(s.price_max) : "", base_commission: String(s.base_commission), internal: !!s.internal, notes: s.notes ?? "" }); setErr(""); setOpen(true); }
@@ -54,7 +60,15 @@ export default function Servicos() {
     <div className="svcpage">
       <PageHead eyebrow="Painel Admin" title="Serviços & preços" sub="Base oficial de preços da Crasto.AI. Preço-âncora + faixa (mín–máx); imposto padrão exibido à parte."
         right={<><button className="crasto-btn crasto-btn--secondary crasto-btn--sm"><span className="crasto-btn__icon"><Upload size={15} /></span><span className="crasto-btn__label">{t("Importar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={openNew}><span className="crasto-btn__icon"><Plus size={15} /></span><span className="crasto-btn__label">{t("Novo serviço")}</span></button></>} />
-      {loading ? <Empty>Carregando…</Empty> : rows.length === 0 ? <Empty><p><strong>{t("Nenhum serviço.")}</strong> {t("Clique em \"Novo serviço\".")}</p></Empty> : (
+      {!loading && cats.length > 0 && (
+        <div className="svc-filter">
+          <button className={"cattab" + (!catFilter ? " is-active" : "")} onClick={() => setCatFilter("")}>{t("Todas")}<span className="cnt">{allRows.length}</span></button>
+          {cats.map((c) => (
+            <button key={c} className={"cattab" + (catFilter === c ? " is-active" : "")} onClick={() => setCatFilter(c)}>{c}<span className="cnt">{allRows.filter((r) => (r.category || "") === c).length}</span></button>
+          ))}
+        </div>
+      )}
+      {loading ? <Empty>Carregando…</Empty> : rows.length === 0 ? <Empty><p><strong>{catFilter ? t("Nenhum serviço nesta categoria.") : t("Nenhum serviço.")}</strong> {catFilter ? "" : t("Clique em \"Novo serviço\".")}</p></Empty> : (
         <div className="tbl-wrap">
           <table className="tbl">
             <thead><tr><th>{t("Serviço")}</th><th>{t("Categoria")}</th><th>{t("Unidade")}</th><th>{t("Preço-âncora")}</th><th>{t("Faixa")}</th><th>{t("Imposto")} ({fmtRate(taxRate)}%)</th><th>{t("Líquido")}</th><th>{t("Comissão")}</th><th></th></tr></thead>
@@ -79,26 +93,41 @@ export default function Servicos() {
           </table>
         </div>
       )}
-      <Modal title={editing ? t("Editar serviço") : t("Novo serviço")} open={open} onClose={() => setOpen(false)}
+      <Modal wide title={editing ? t("Editar serviço") : t("Novo serviço")} open={open} onClose={() => setOpen(false)}
         footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={submit}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar")}</span></button></>}>
         {err && <div className="formerr">{err}</div>}
+
+        {/* Identificação */}
+        <div className="svc-sec-label">{t("Identificação")}</div>
         <Field label="Nome *"><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder={t("Ex.: Implantação WhatsApp CRM")} /></Field>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label="Categoria"><input value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })} placeholder={t("Recorrente, Avulso, Suporte…")} /></Field>
+        <div className="svc-grid2">
+          <Field label="Categoria">
+            {/* Combobox: clique na seta abre as categorias já cadastradas; ou digite uma nova. */}
+            <input list="svc-cats" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })} placeholder={t("Escolha na seta ou digite uma nova…")} autoComplete="off" />
+            <datalist id="svc-cats">{cats.map((c) => <option key={c} value={c} />)}</datalist>
+          </Field>
           <Field label="Unidade"><select value={f.unit} onChange={(e) => setF({ ...f, unit: e.target.value })}><option value="mensal">{t("Mensal")}</option><option value="hora">{t("Hora")}</option><option value="projeto">{t("Projeto")}</option><option value="setup_unico">{t("Setup único")}</option></select></Field>
         </div>
-        <Field label="Preço-âncora (R$) — valor mais comum"><input type="number" value={f.price_table} onChange={(e) => setF({ ...f, price_table: e.target.value })} placeholder="0" /></Field>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+
+        {/* Preços & faixa */}
+        <div className="svc-sec-label">{t("Preços & faixa")}</div>
+        <div className="svc-grid3">
+          <Field label="Preço-âncora (R$)"><input type="number" value={f.price_table} onChange={(e) => setF({ ...f, price_table: e.target.value })} placeholder="0" /></Field>
           <Field label="Preço mínimo (R$)"><input type="number" value={f.price_min} onChange={(e) => setF({ ...f, price_min: e.target.value })} placeholder={t("= âncora se vazio")} /></Field>
           <Field label="Preço máximo (R$)"><input type="number" value={f.price_max} onChange={(e) => setF({ ...f, price_max: e.target.value })} placeholder={t("= âncora se vazio")} /></Field>
         </div>
-        <Field label="Comissão-base (%)"><input type="number" value={f.base_commission} onChange={(e) => setF({ ...f, base_commission: e.target.value })} placeholder="0" /></Field>
-        {f.price_table !== "" && <div className="note" style={{ marginTop: 4 }}><span>{t("Imposto")} ({fmtRate(taxRate)}%): <b>{money(taxOf(Number(f.price_table), taxRate))}</b> · {t("Líquido")}: <b>{money((Number(f.price_table) || 0) - taxOf(Number(f.price_table), taxRate))}</b></span></div>}
-        <Field label="Notas (opcional)"><textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder={t("Observações internas do serviço.")} /></Field>
-        <label className="frow" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <input type="checkbox" checked={f.internal} onChange={(e) => setF({ ...f, internal: e.target.checked })} style={{ width: "auto" }} />
-          <span style={{ margin: 0 }}>{t("🔒 Interno (remix do Viver de IA — o cliente nunca vê a origem)")}</span>
-        </label>
+        {f.price_table !== "" && <div className="note" style={{ marginTop: 2 }}><span>{t("Imposto")} ({fmtRate(taxRate)}%): <b>{money(taxOf(Number(f.price_table), taxRate))}</b> · {t("Líquido")}: <b>{money((Number(f.price_table) || 0) - taxOf(Number(f.price_table), taxRate))}</b></span></div>}
+
+        {/* Comissão & observações */}
+        <div className="svc-sec-label">{t("Comissão & observações")}</div>
+        <div className="svc-grid2">
+          <Field label="Comissão-base (%)"><input type="number" value={f.base_commission} onChange={(e) => setF({ ...f, base_commission: e.target.value })} placeholder="10" /><span className="svc-hint">{t("Padrão 10% · até 30%")}</span></Field>
+          <label className="frow svc-internal" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <input type="checkbox" checked={f.internal} onChange={(e) => setF({ ...f, internal: e.target.checked })} style={{ width: "auto" }} />
+            <span style={{ margin: 0 }}>{t("🔒 Interno (remix do Viver de IA — o cliente nunca vê a origem)")}</span>
+          </label>
+        </div>
+        <Field label="Notas (opcional)"><textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} rows={3} placeholder={t("Observações internas (ex.: fora do horário comercial R$ 650/h; inclui trabalho de bastidores de skills/contexto que consome tokens da Crasto.AI).")} /></Field>
       </Modal>
       {toast && <div className="toast">{toast}</div>}
     </div>
