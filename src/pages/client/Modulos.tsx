@@ -14,6 +14,8 @@ type Mod = {
   access_mode?: string | null;
   /** É a solução WhatsApp CRM → abre DENTRO do portal (/app/crm, com seletor de agente). */
   isCrm: boolean;
+  /** É a solução Social Media (nossa) → abre EMBARCADA por SSO (/app/m/:id). */
+  isSocial: boolean;
 };
 type Svc = { id: string; status: string; name: string; description: string | null; category: string | null; unit: string | null };
 
@@ -31,8 +33,8 @@ async function fetchData(): Promise<{ mods: Mod[]; services: Svc[] }> {
   const mods: Mod[] = cms.map((r) => {
     const cred = (cmap[r.id] as Cred) ?? null;
     // Ordem: URL desta instância → WhatsApp CRM (a API resolve; é a mesma p/ todos) → template.
-    const url = cred?.access_url || ((r as any).crm_url as string) || (vmap[r.vdi_module_id]?.external_url as string) || null;
-    return { id: r.id, status: r.status, vdi_module_id: r.vdi_module_id, label: (r as any).label ?? null, blurb: (r as any).blurb ?? null, access_mode: (r as any).access_mode ?? "link", isCrm: !!(r as any).crm_url, vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null, external_url: url, cred };
+    const url = cred?.access_url || ((r as any).crm_url as string) || ((r as any).social_url as string) || (vmap[r.vdi_module_id]?.external_url as string) || null;
+    return { id: r.id, status: r.status, vdi_module_id: r.vdi_module_id, label: (r as any).label ?? null, blurb: (r as any).blurb ?? null, access_mode: (r as any).access_mode ?? "link", isCrm: !!(r as any).crm_url, isSocial: !!(r as any).social_solution, vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null, external_url: url, cred };
   });
   // Nome/descrição vêm desnormalizados na própria client_services (catalog.services é admin-only).
   const svcList: Svc[] = (csvc as any[]).map((c) => ({
@@ -121,7 +123,8 @@ export default function Modulos() {
                             // com o usuário logado). Nunca abrir URL externa em nova aba.
                             if (m.isCrm) { navigate("/app/crm"); return; }
                             if (!m.external_url) return;
-                            if (m.access_mode === "embed" || m.access_mode === "sso") navigate(`/app/m/${m.id}`);
+                            // Social Media (nossa solução) e modos embed/sso abrem embarcados (com SSO); o resto, nova aba.
+                            if (m.isSocial || m.access_mode === "embed" || m.access_mode === "sso") navigate(`/app/m/${m.id}`);
                             else window.open(m.external_url, "_blank", "noopener");
                           }}
                         >
@@ -130,7 +133,7 @@ export default function Modulos() {
                         </button>
                       </div>
 
-                      {cred && cred.sso_enabled && (
+                      {((cred && cred.sso_enabled) || m.isSocial) && (
                         <div className="mt" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, color: "var(--crasto-success)" }}>
                           <ShieldCheck size={14} /> {t("Entra direto, sem precisar de senha.")}
                         </div>

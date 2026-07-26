@@ -109,7 +109,11 @@ export class DeliveryController {
     const cols = this.ROLLOUT.split(',').map((k) => `cm.${k.trim()}`).join(', ');
     return this.db.asUser(this.uid(req), async (c) => (await c.query(
       `select ${cols},
-              case when m.crm_solution and $1::text is not null then $1::text end as crm_url
+              case when m.crm_solution and $1::text is not null then $1::text end as crm_url,
+              -- Social Media (solução própria): URL de embed = external_url do catálogo (mesma p/
+              -- todos; o tenant vem do JWT), exposta só quando a flag está ligada — igual ao crm_url.
+              case when m.social_solution then m.external_url end as social_url,
+              m.social_solution
          from delivery.client_modules cm
          join catalog.vdi_modules m on m.id = cm.vdi_module_id
         -- Sub-acesso por USUÁRIO (Fase 2): sem linhas em user_module_access = vê todos os

@@ -67,6 +67,7 @@ export default function ClientShell() {
         mode: ((r as any).access_mode || "link") as string,
         active: r.status === "active",
         isCrm: !!(r as any).crm_url, // sinal robusto: é a solução WhatsApp CRM
+        isSocial: !!(r as any).social_solution, // Social Media: abre embarcado por SSO
       };
     });
   }, [pv.active]);
@@ -79,7 +80,8 @@ export default function ClientShell() {
   // sem endereço ainda, levando a "Minhas Soluções" com a marca "em configuração".
   const abrir = (c: any): Partial<NavItem> => {
     if (!c.url) return { tag: t("em configuração"), onClick: () => navigate("/app/modulos") };
-    if (c.mode === "embed" || c.mode === "sso") return { to: `/app/m/${c.id}` };
+    // Social Media (nossa solução) e módulos embed/sso abrem DENTRO do Portal (com SSO); o resto, nova aba.
+    if (c.isSocial || c.mode === "embed" || c.mode === "sso") return { to: `/app/m/${c.id}` };
     return { onClick: () => window.open(c.url as string, "_blank", "noopener") };
   };
   const modItems: NavItem[] = MODULES.map((m) => {
