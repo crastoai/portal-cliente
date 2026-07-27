@@ -27,6 +27,20 @@ export class CrmController {
   @Patch('people/:id')
   peopleUpdate(@Req() req: any, @Param('id') id: string, @Body() b: any) { return this.db.asUser(this.uid(req), async (c) => { const { sets, vals, ok } = this.set(b, 2); if (ok) await c.query(`update crm.people set ${sets} where id=$1`, [id, ...vals]); return { ok: true }; }); }
 
+  // ── familiares (persona/CRM: parentesco + sexo + nascimento→idade) ──
+  @Get('family')
+  familyList(@Req() req: any, @Query('person') person: string, @Query('org') org: string) {
+    return this.db.asUser(this.uid(req), async (c) => (person
+      ? (await c.query('select * from crm.family_members where person_id=$1 order by birthday nulls last, created_at', [person])).rows
+      : (await c.query('select * from crm.family_members where organization_id=$1 order by created_at', [org])).rows));
+  }
+  @Post('family')
+  familyAdd(@Req() req: any, @Body() b: any) { const { sql, vals } = this.ins('crm.family_members', b, 'id'); return this.db.asUser(this.uid(req), async (c) => (await c.query(sql, vals)).rows[0]); }
+  @Patch('family/:id')
+  familyUpdate(@Req() req: any, @Param('id') id: string, @Body() b: any) { return this.db.asUser(this.uid(req), async (c) => { const { sets, vals, ok } = this.set(b, 2); if (ok) await c.query(`update crm.family_members set ${sets} where id=$1`, [id, ...vals]); return { ok: true }; }); }
+  @Delete('family/:id')
+  familyRemove(@Req() req: any, @Param('id') id: string) { return this.db.asUser(this.uid(req), async (c) => { await c.query('delete from crm.family_members where id=$1', [id]); return { ok: true }; }); }
+
   // ── phones ──
   @Get('phones')
   phonesByOrg(@Req() req: any, @Query('org') org: string) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select * from crm.phones where organization_id=$1', [org])).rows); }

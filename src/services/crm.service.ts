@@ -12,6 +12,14 @@ export const people = {
   update: async (id: string, patch: Record<string, any>) => api.patch(`/api/crm/people/${id}`, patch),
 };
 
+export const family = {
+  listByPerson: async (personId: string) => api.get<Record<string, any>[]>(`/api/crm/family?person=${personId}`),
+  listByOrg: async (orgId: string) => api.get<Record<string, any>[]>(`/api/crm/family?org=${orgId}`),
+  add: async (payload: Record<string, any>) => api.post<{ id: string }>(`/api/crm/family`, payload),
+  update: async (id: string, patch: Record<string, any>) => api.patch(`/api/crm/family/${id}`, patch),
+  remove: async (id: string) => api.del(`/api/crm/family/${id}`),
+};
+
 export const phones = {
   listByOrg: async (orgId: string) => api.get<Phone[]>(`/api/crm/phones?org=${orgId}`),
   listByOrgs: async (ids: string[]) =>
@@ -42,4 +50,4 @@ export const taxIds = {
 export const removeRow = async (table: "people" | "phones" | "activities" | "documents", id: string) =>
   api.del(`/api/crm/row/${table}/${id}`);
 
-export const crm = { people, phones, documents, activities, taxIds, removeRow };
+export const crm = { people, family, phones, documents, activities, taxIds, removeRow };

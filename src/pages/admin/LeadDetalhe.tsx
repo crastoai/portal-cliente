@@ -14,6 +14,7 @@ import { useT } from "../../lib/i18n";
 import { STAGES, stageOf, countryOf, TEMPS } from "../../lib/countries";
 import DiagnosticoMapa, { fmtDate } from "./DiagnosticoMapa";
 import EmpresaExtra from "./EmpresaExtra";
+import PessoasEditor from "./PessoasEditor";
 
 export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: string) => void }) {
   const { id } = useParams();
@@ -127,25 +128,9 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
         </div>
       </div>
 
-      {/* Contato */}
-      <div className="sec-h" style={{ marginTop: 4 }}><h2>{t("Contato")}</h2><Pill tone="mute">{t("pessoas & telefones")}</Pill></div>
-      {data.people.length === 0 && data.phones.length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{t("Nenhum contato cadastrado.")}</div> : (
-        <>
-          {data.people.map((p) => { const nm = prettyName(p.full_name); return (
-            <div className="crmrow" key={p.id}>
-              <div className="logo">{initials(nm)}</div>
-              <div><div className="nm">{nm}{p.is_primary && <span className="chip" style={{ marginLeft: 6 }}>{t("principal")}</span>}</div>
-                <div style={{ color: "var(--crasto-text-primary)", fontSize: 13.5 }}>{[p.role, p.email].filter(Boolean).join("  ·  ") || "—"}</div></div>
-            </div>
-          ); })}
-          {data.phones.map((ph) => (
-            <div className="crmrow" key={ph.id}>
-              <Phone size={16} style={{ color: "var(--crasto-text-muted)" }} />
-              <div><div className="nm tnum">{ph.country_code} {ph.number}</div><div className="mt">{ph.label}</div></div>
-            </div>
-          ))}
-        </>
-      )}
+      {/* Contatos — persona/CRM completo (mesmo componente da ficha de cliente) */}
+      <div className="sec-h" style={{ marginTop: 4 }}><h2>{t("Contatos da empresa")}</h2><Pill tone="mute">{t("persona · familiares · consultável")}</Pill></div>
+      <PessoasEditor orgId={id!} />
 
       {/* Cadastro & relação (tipo/NF/oculto + papéis/indicador + origem interno) */}
       <EmpresaExtra orgId={id!} org={org} onSaved={reload} flash={(m) => toast.ok(m)} />

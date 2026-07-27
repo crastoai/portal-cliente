@@ -13,6 +13,7 @@ import { CrmAccessSection } from "./CrmAccessSection";
 import SocialIntegracoes from "./SocialIntegracoes";
 import DiagnosticoCard from "./DiagnosticoCard";
 import EmpresaExtra from "./EmpresaExtra";
+import PessoasEditor from "./PessoasEditor";
 
 type Org = any;
 const icon = (cat?: string | null) => { const c = (cat || "").toLowerCase(); return c.includes("atend") ? <MessageCircle size={16} /> : c.includes("market") ? <Send size={16} /> : c.includes("vend") ? <Search size={16} /> : <Grid3x3 size={16} />; };
@@ -380,70 +381,9 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
         ))}
       </>)}
 
-      {/* Pessoas */}
-      <div className="sec-h"><h2>{tr("Pessoas da empresa")}</h2></div>
-      <div className="addrow">
-        <input placeholder={tr("Nome completo")} value={person.full_name} onChange={(e) => setPerson({ ...person, full_name: e.target.value })} style={{ flex: 2, minWidth: 140 }} />
-        <input placeholder={tr("Cargo")} value={person.role} onChange={(e) => setPerson({ ...person, role: e.target.value })} style={{ flex: 1, minWidth: 100 }} />
-        <input placeholder={tr("Função")} value={person.funcao} onChange={(e) => setPerson({ ...person, funcao: e.target.value })} style={{ flex: 1, minWidth: 100 }} />
-        <input placeholder={tr("E-mail")} value={person.email} onChange={(e) => setPerson({ ...person, email: e.target.value })} style={{ flex: 1, minWidth: 130 }} />
-        <select value={person.disc_tipo} onChange={(e) => setPerson({ ...person, disc_tipo: e.target.value })} title={tr("Perfil DISC")}><option value="">{tr("DISC")}</option><option value="D">D — Dominância</option><option value="I">I — Influência</option><option value="S">S — Estabilidade</option><option value="C">C — Conformidade</option></select>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, whiteSpace: "nowrap" }} title={tr("Contato principal")}><input type="checkbox" checked={person.is_primary} onChange={(e) => setPerson({ ...person, is_primary: e.target.checked })} />{tr("Principal")}</label>
-        <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={addPerson}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{tr("Adicionar")}</span></button>
-      </div>
-      {people.map((p) => (epId === p.id ? (
-        <div className="addrow" key={p.id}>
-          <input placeholder={tr("Nome completo")} value={ep.full_name} onChange={(e) => setEp({ ...ep, full_name: e.target.value })} style={{ flex: 2, minWidth: 140 }} />
-          <input placeholder={tr("Cargo")} value={ep.role} onChange={(e) => setEp({ ...ep, role: e.target.value })} style={{ flex: 1, minWidth: 100 }} />
-          <input placeholder={tr("Função")} value={ep.funcao} onChange={(e) => setEp({ ...ep, funcao: e.target.value })} style={{ flex: 1, minWidth: 100 }} />
-          <input placeholder={tr("E-mail")} value={ep.email} onChange={(e) => setEp({ ...ep, email: e.target.value })} style={{ flex: 1, minWidth: 130 }} />
-          <select value={ep.disc_tipo} onChange={(e) => setEp({ ...ep, disc_tipo: e.target.value })} title={tr("Perfil DISC")}><option value="">{tr("DISC")}</option><option value="D">D</option><option value="I">I</option><option value="S">S</option><option value="C">C</option></select>
-          <input type="date" title={tr("Data do teste DISC")} value={ep.disc_data} onChange={(e) => setEp({ ...ep, disc_data: e.target.value })} />
-          <input placeholder={tr("Descrição")} value={ep.notes} onChange={(e) => setEp({ ...ep, notes: e.target.value })} style={{ flex: 1, minWidth: 120 }} />
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, whiteSpace: "nowrap" }}><input type="checkbox" checked={ep.is_primary} onChange={(e) => setEp({ ...ep, is_primary: e.target.checked })} />{tr("Principal")}</label>
-          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={savePerson}><span className="crasto-btn__label">{tr("Salvar")}</span></button>
-          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setEpId("")}><span className="crasto-btn__label">{tr("Cancelar")}</span></button>
-        </div>
-      ) : (
-        <div className="crmrow" key={p.id}>
-          <div className="logo" style={{ width: 34, height: 34, borderRadius: 9, background: "var(--crasto-bg-3)", color: "var(--crasto-text-primary)", display: "grid", placeItems: "center", fontWeight: 700, fontSize: 13 }}>{initials(prettyName(p.full_name))}</div>
-          <div style={{ flex: 1, minWidth: 0 }}><div className="nm">{prettyName(p.full_name)}
-            {p.is_primary && <span className="chip" style={{ marginLeft: 6, background: "var(--crasto-navy-05)", color: "var(--crasto-text-primary)" }}>{tr("Principal")}</span>}
-            {p.role && <span className="chip" style={{ marginLeft: 6 }}>{p.role}</span>}
-            {p.funcao && <span className="chip" style={{ marginLeft: 6 }}>{p.funcao}</span>}
-            {p.disc_tipo && <span className="chip" style={{ marginLeft: 6, background: "#EEEDFE", color: "#26215C" }}>DISC {p.disc_tipo}</span>}
-          </div><div className="mt">{p.email || tr("sem e-mail")}{p.birthday ? ` · 🎂 ${fmtDate(p.birthday)}` : ""}{p.notes ? ` · ${p.notes}` : ""}</div></div>
-          <button className="icobtn" title={tr("Editar")} onClick={() => startEditPerson(p)}><Pencil size={14} /></button>
-          <button className="icobtn rm" onClick={() => delRow("crm", "people", p.id)}><Trash2 size={14} /></button>
-        </div>
-      )))}
-
-      {/* Telefones */}
-      <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Telefones")}</h2></div>
-      <div className="addrow">
-        <select value={phone.label} onChange={(e) => setPhone({ ...phone, label: e.target.value })}><option value="mobile">{tr("Celular")}</option><option value="fixo">{tr("Fixo")}</option><option value="whatsapp">WhatsApp</option></select>
-        <select value={phone.country_code} onChange={(e) => setPhone({ ...phone, country_code: e.target.value })}>{DIAL_CODES.map((d, i) => <option key={i} value={d.ddi}>{d.flag} {d.ddi}</option>)}</select>
-        <input placeholder={tr("Número")} value={phone.number} onChange={(e) => setPhone({ ...phone, number: e.target.value })} style={{ flex: 1, minWidth: 130 }} />
-        <select value={phone.person_id} onChange={(e) => setPhone({ ...phone, person_id: e.target.value })}><option value="">{tr("(empresa)")}</option>{people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select>
-        <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={addPhone}><span className="crasto-btn__label">{tr("Adicionar")}</span></button>
-      </div>
-      {phones.map((ph) => (ephId === ph.id ? (
-        <div className="addrow" key={ph.id}>
-          <select value={eph.label} onChange={(e) => setEph({ ...eph, label: e.target.value })}><option value="mobile">{tr("Celular")}</option><option value="fixo">{tr("Fixo")}</option><option value="whatsapp">WhatsApp</option></select>
-          <select value={eph.country_code} onChange={(e) => setEph({ ...eph, country_code: e.target.value })}>{DIAL_CODES.map((d, i) => <option key={i} value={d.ddi}>{d.flag} {d.ddi}</option>)}</select>
-          <input placeholder={tr("Número")} value={eph.number} onChange={(e) => setEph({ ...eph, number: e.target.value })} style={{ flex: 1, minWidth: 130 }} />
-          <select value={eph.person_id} onChange={(e) => setEph({ ...eph, person_id: e.target.value })}><option value="">{tr("(empresa)")}</option>{people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select>
-          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={savePhone}><span className="crasto-btn__label">{tr("Salvar")}</span></button>
-          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setEphId("")}><span className="crasto-btn__label">{tr("Cancelar")}</span></button>
-        </div>
-      ) : (
-        <div className="crmrow" key={ph.id}>
-          <Pill tone="info">{ph.label}</Pill>
-          <div className="nm tnum" style={{ flex: 1, minWidth: 0 }}>{ph.country_code} {ph.number}{ph.person_id ? <span className="mt" style={{ fontWeight: 400 }}> · {people.find((p) => p.id === ph.person_id)?.full_name}</span> : ""}</div>
-          <button className="icobtn" title={tr("Editar")} onClick={() => startEditPhone(ph)}><Pencil size={14} /></button>
-          <button className="icobtn rm" onClick={() => delRow("crm", "phones", ph.id)}><Trash2 size={14} /></button>
-        </div>
-      )))}
+      {/* Contatos — persona/CRM completo (componente compartilhado com a ficha de lead) */}
+      <div className="sec-h"><h2>{tr("Contatos da empresa")}</h2><Pill tone="mute">{tr("persona · familiares · consultável")}</Pill></div>
+      <PessoasEditor orgId={id!} />
 
       {/* Cadastro & relação (tipo/NF/oculto + papéis/indicador + origem interno) */}
       <EmpresaExtra orgId={id!} org={org} onSaved={reload} flash={flash} />
