@@ -203,7 +203,7 @@ export default function ConsolePermissoes() {
     }).catch(() => setCrm({ loading: false, hasAccess: false, owner: false, catalog: [], screens: new Set() }));
   }
   function toggleCrmScreen(k: string) {
-    if (k === "dashboard") return; // base do CRM
+    if (k === "mesa") return; // base do CRM (Minhas Tarefas) — sempre visível
     setCrm((c) => { if (!c) return c; const s = new Set(c.screens); s.has(k) ? s.delete(k) : s.add(k); return { ...c, screens: s }; });
   }
 
@@ -376,10 +376,12 @@ export default function ConsolePermissoes() {
           {cfgCrm && crm && !crm.loading && crm.hasAccess && !crm.owner && (
             <div className="screengrid">
               {crm.catalog.map((sc) => {
-                const on = sc.key === "dashboard" || crm.screens.has(sc.key);
-                const base = sc.key === "dashboard";
+                // Base do CRM = "Minhas Tarefas" (mesa): sempre visível (ninguém fica sem página).
+                // O Dashboard virou opcional — pode desmarcar para quem não pode ver essa tela.
+                const on = sc.key === "mesa" || crm.screens.has(sc.key);
+                const base = sc.key === "mesa";
                 return (
-                  <button key={sc.key} className={"screenpick" + (on ? " on" : "") + (base ? " base" : "")} onClick={() => toggleCrmScreen(sc.key)} disabled={base} title={base ? t("Dashboard é sempre visível") : ""}>
+                  <button key={sc.key} className={"screenpick" + (on ? " on" : "") + (base ? " base" : "")} onClick={() => toggleCrmScreen(sc.key)} disabled={base} title={base ? t("Minhas Tarefas é a tela base — sempre visível") : ""}>
                     <span className="box">{on && <Check size={13} />}</span>
                     <span className="lb">{t(sc.label)}{base && <em> · {t("base")}</em>}</span>
                   </button>
