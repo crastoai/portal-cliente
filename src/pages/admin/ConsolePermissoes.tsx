@@ -179,10 +179,19 @@ export default function ConsolePermissoes() {
         const screens = pf.owner ? [] : Array.from(new Set([BASE_SCREEN, ...pf.screens]));
         await services.analytics.admin.setUserAccess(cfg.user.id, role, screens);
       }
-      // Telas do CRM só fazem sentido para quem TEM acesso e não é dono (dono vê tudo lá).
-      if (cfgCrm && crm && !crm.loading && crm.hasAccess && !crm.owner) {
-        const r = await services.crmAccess.setCrmScreens(cfgCrm.orgId, cfgCrm.user.id, Array.from(crm.screens));
-        if (r?.error) throw new Error(r.error);
+      // O papel Dono/Membro é UMA escolha só (Portal + CRM). Sincroniza o papel do CRM com o do
+      // Portal — sem isto, mudar de Dono→Membro no Portal deixava o CRM ainda "Dono" (não restringível).
+      if (cfgCrm && crm && !crm.loading && crm.hasAccess) {
+        const dono = cfg ? pf.owner : crm.owner; // com perfil no Portal, o toggle Dono/Membro manda
+        if (crm.owner !== dono) {
+          const ru: any = await services.crmAccess.update(cfgCrm.orgId, cfgCrm.user.id, { role: dono ? "client_owner" : "client_member" });
+          if (ru?.error) throw new Error(ru.error);
+        }
+        // Telas do CRM só para MEMBRO (dono vê tudo lá, não é restringível).
+        if (!dono) {
+          const r = await services.crmAccess.setCrmScreens(cfgCrm.orgId, cfgCrm.user.id, Array.from(crm.screens));
+          if (r?.error) throw new Error(r.error);
+        }
       }
       const orgId = alvo.orgId;
       fecharPermissoes();
@@ -370,10 +379,10 @@ export default function ConsolePermissoes() {
           {cfgCrm && crm && !crm.loading && !crm.hasAccess && (
             <div className="mt" style={{ color: "var(--crasto-text-muted)" }}>{t("Este usuário não tem acesso ao WhatsApp CRM.")}</div>
           )}
-          {cfgCrm && crm && !crm.loading && crm.hasAccess && crm.owner && (
+          {cfgCrm && crm && !crm.loading && crm.hasAccess && (cfg ? pf.owner : crm.owner) && (
             <div className="note"><Check size={15} /><div>{t("Dono do CRM: vê todas as telas do WhatsApp CRM (não é restringível).")}</div></div>
           )}
-          {cfgCrm && crm && !crm.loading && crm.hasAccess && !crm.owner && (
+          {cfgCrm && crm && !crm.loading && crm.hasAccess && !(cfg ? pf.owner : crm.owner) && (
             <div className="screengrid">
               {crm.catalog.map((sc) => {
                 // Base do CRM = "Minhas Tarefas" (mesa): sempre visível (ninguém fica sem página).
