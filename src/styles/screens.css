@@ -271,6 +271,15 @@
 .stagetab:hover { border-color: var(--crasto-border); background: var(--crasto-bg-2); }
 .stagetab.on { background: var(--crasto-bg-2); color: var(--crasto-text-primary); border-color: var(--crasto-border); font-weight: 600; }
 .stagetab.on b { color: var(--crasto-text-primary); }
+/* Funil (decisão Crasto 2026-07-27): etapa ATUAL em evidência com glow; passadas/futuras
+   transparentes. `stage-dim` = etapa não-atual (some ao passar o mouse se for clicável);
+   `stage-locked` = etapa bloqueada (passada = não volta; futura = ainda não conquistou). */
+.stagetab.stage-dim { opacity: .34; }
+.stagetab.stage-dim:hover { opacity: .9; }
+.stagetab.stage-dim.stage-locked, .stagetab.stage-dim:disabled { opacity: .26; cursor: not-allowed; }
+.stagetab.stage-glow { box-shadow: 0 0 0 1px var(--crasto-blue), 0 3px 16px rgba(46,111,158,.42) !important; animation: stageGlow 2.6s ease-in-out infinite; }
+.stagetab.stage-glow:hover { box-shadow: 0 0 0 1px var(--crasto-blue), 0 6px 24px rgba(46,111,158,.6) !important; }
+@keyframes stageGlow { 0%,100% { box-shadow: 0 0 0 1px var(--crasto-blue), 0 2px 10px rgba(46,111,158,.28); } 50% { box-shadow: 0 0 0 1px var(--crasto-blue), 0 4px 20px rgba(46,111,158,.52); } }
 /* CRM: botões de ação inline na lista de empresas */
 .rowacts { display: inline-flex; gap: 2px; align-items: center; }
 .iconbtn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: none; background: transparent; border-radius: var(--crasto-radius-md); color: var(--crasto-text-muted); cursor: pointer; transition: var(--crasto-t); }

@@ -101,6 +101,7 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
   // proposta gerada; CLIENTE só com proposta ganha (assinada+paga). O estágio atual sempre pode voltar.
   const hasProposal = (proposals ?? []).length > 0;
   const hasWon = (proposals ?? []).some((p: any) => p.status === "accepted");
+  const curIdx = STAGES.findIndex((x) => x.key === org.stage);
   function stageLock(key: string): string | null {
     if (key === org.stage || key === "prospecto" || key === "lead") return null;
     if (key === "oportunidade" && !hasProposal) return tr("Vira oportunidade quando há uma proposta gerada (você gera no Gerador de propostas).");
@@ -281,11 +282,15 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
 
       {/* pipeline */}
       <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-        {STAGES.map((s) => { const lock = stageLock(s.key); return (
-          <button key={s.key} className={"stagetab" + (org.stage === s.key ? " on" : "")} title={lock || undefined} disabled={!!lock}
-            style={lock ? { opacity: 0.4, cursor: "not-allowed" } : undefined}
-            onClick={() => { if (!lock) setStage(s.key); }}>{tr(s.label)}</button>
-        ); })}
+        {STAGES.map((s, i) => {
+          const isCur = i === curIdx, isPast = i < curIdx;
+          const lock = isCur ? null : (isPast ? tr("Já demonstrou interesse — não retorna a esta etapa.") : stageLock(s.key));
+          const cls = "stagetab" + (isCur ? " on stage-glow" : " stage-dim") + (lock ? " stage-locked" : "");
+          return (
+            <button key={s.key} className={cls} title={lock || undefined} disabled={!!lock || isCur}
+              onClick={() => { if (!lock && !isCur) setStage(s.key); }}>{tr(s.label)}</button>
+          );
+        })}
         <span style={{ marginLeft: "auto", alignSelf: "center", fontSize: 12, color: "var(--crasto-text-muted)" }}>{tr("Status atual:")} <b style={{ color: "var(--crasto-text-primary)" }}>{tr(st.label)}</b></span>
       </div>
 
