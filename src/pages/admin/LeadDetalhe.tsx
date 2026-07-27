@@ -17,6 +17,7 @@ import EmpresaExtra from "./EmpresaExtra";
 import PessoasEditor from "./PessoasEditor";
 import SiteField from "./SiteField";
 import OrgInline from "./OrgInline";
+import ServicosDeal from "./ServicosDeal";
 
 export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: string) => void }) {
   const { id } = useParams();
@@ -149,6 +150,14 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
       {/* Contatos — persona/CRM completo (mesmo componente da ficha de cliente) */}
       <div className="sec-h" style={{ marginTop: 4 }}><h2>{t("Contatos da empresa")}</h2><Pill tone="mute">{t("persona · familiares · consultável")}</Pill></div>
       <PessoasEditor orgId={id!} />
+
+      {/* Serviços de interesse — o que ele quer contratar (liga ao Catálogo → vira proposta → Oportunidade) */}
+      <div className="sec-h" style={{ marginTop: 20 }}><h2>{t("Serviços de interesse")}</h2><Pill tone="mute">{t("o que ele quer contratar · alimenta a proposta")}</Pill></div>
+      <ServicosDeal orgId={id!} defaultSituacao="interesse" />
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 8 }}>
+        <div className="mt" style={{ flex: 1, minWidth: 220 }}>{t("Monte a proposta com esses serviços no Gerador. Ao existir proposta, a empresa pode virar Oportunidade.")}</div>
+        <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => nav("/admin/propostas")}><span className="crasto-btn__label">{t("Ir ao Gerador de propostas")}</span><span className="crasto-btn__icon"><ArrowRight size={14} /></span></button>
+      </div>
 
       {/* Cadastro & relação (tipo/NF/oculto + papéis/indicador + origem interno) */}
       <EmpresaExtra orgId={id!} org={org} onSaved={reload} flash={(m) => toast.ok(m)} />

@@ -52,8 +52,9 @@ export const moduleCredentials = {
 export const clientServices = {
   listByOrg: async (orgId: string) => api.get<any[]>(`/api/delivery/services?org=${orgId}`),
   listMine: async () => api.get<any[]>(`/api/delivery/services/mine`),
-  attach: async (orgId: string, svc: { id: string; name?: string; description?: string | null; category?: string | null; unit?: string | null }) =>
-    api.post(`/api/delivery/services`, { organization_id: orgId, service_id: svc.id, service_name: svc.name ?? null, service_description: svc.description ?? null, service_category: svc.category ?? null, service_unit: svc.unit ?? null }),
+  attach: async (orgId: string, svc: { id: string; name?: string; description?: string | null; category?: string | null; unit?: string | null }, extra?: Record<string, any>) =>
+    api.post(`/api/delivery/services`, { organization_id: orgId, service_id: svc.id, service_name: svc.name ?? null, service_description: svc.description ?? null, service_category: svc.category ?? null, service_unit: svc.unit ?? null, ...(extra || {}) }),
+  update: async (id: string, patch: Record<string, any>) => api.patch(`/api/delivery/services/${id}`, patch),
   detach: async (id: string) => api.del(`/api/delivery/services/${id}`),
   setStatus: async (id: string, status: string) => api.patch(`/api/delivery/services/${id}/status`, { status }),
 };

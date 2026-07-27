@@ -476,15 +476,24 @@ export class DeliveryController {
   }
 
   // ── client_services ──
-  private readonly SVC = 'id,service_id,status,notes,service_name,service_description,service_category,service_unit';
+  private readonly SVC = 'id,service_id,status,notes,service_name,service_description,service_category,service_unit,situacao,periodo,modalidade,cost_allocation,especificacoes';
   @Get('services/mine')
   svcMine(@Req() req: any) { return this.db.asUser(this.uid(req), async (c) => (await c.query(`select ${this.SVC} from delivery.client_services`)).rows); }
   @Get('services')
   svcByOrg(@Req() req: any, @Query('org') org: string) { return this.db.asUser(this.uid(req), async (c) => (await c.query(`select ${this.SVC} from delivery.client_services where organization_id=$1`, [org])).rows); }
   @Post('services')
-  svcAttach(@Req() req: any, @Body() b: any) { return this.db.asUser(this.uid(req), async (c) => { await c.query(`insert into delivery.client_services (organization_id,service_id,status,service_name,service_description,service_category,service_unit) values ($1,$2,'active',$3,$4,$5,$6)`, [b.organization_id, b.service_id, b.service_name ?? null, b.service_description ?? null, b.service_category ?? null, b.service_unit ?? null]); return { ok: true }; }); }
+  svcAttach(@Req() req: any, @Body() b: any) { return this.db.asUser(this.uid(req), async (c) => { await c.query(`insert into delivery.client_services (organization_id,service_id,status,service_name,service_description,service_category,service_unit,situacao,periodo,modalidade,cost_allocation,especificacoes) values ($1,$2,'active',$3,$4,$5,$6,$7,$8,$9,$10,$11)`, [b.organization_id, b.service_id, b.service_name ?? null, b.service_description ?? null, b.service_category ?? null, b.service_unit ?? null, b.situacao ?? 'contratado', b.periodo ?? null, b.modalidade ?? null, b.cost_allocation ?? null, b.especificacoes ?? null]); return { ok: true }; }); }
   @Delete('services/:id')
   svcDetach(@Req() req: any, @Param('id') id: string) { return this.db.asUser(this.uid(req), async (c) => { await c.query('delete from delivery.client_services where id=$1', [id]); return { ok: true }; }); }
   @Patch('services/:id/status')
   svcStatus(@Req() req: any, @Param('id') id: string, @Body() b: any) { return this.db.asUser(this.uid(req), async (c) => { await c.query('update delivery.client_services set status=$2 where id=$1', [id, b.status ?? null]); return { ok: true }; }); }
+  @Patch('services/:id')
+  svcUpdate(@Req() req: any, @Param('id') id: string, @Body() b: any) {
+    const cols = ['situacao', 'periodo', 'modalidade', 'cost_allocation', 'especificacoes', 'status', 'notes'];
+    const keys = cols.filter((k) => k in (b || {}));
+    if (!keys.length) return { ok: true };
+    const sets = keys.map((k, i) => `"${k}"=$${i + 2}`).join(', ');
+    const vals = keys.map((k) => (b[k] === '' ? null : b[k]));
+    return this.db.asUser(this.uid(req), async (c) => { await c.query(`update delivery.client_services set ${sets} where id=$1`, [id, ...vals]); return { ok: true }; });
+  }
 }
