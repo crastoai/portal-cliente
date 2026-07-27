@@ -19,7 +19,7 @@ export default function ServicosDeal({ orgId, defaultSituacao = "interesse", onD
   const { data, loading, reload } = useAsync(async () => {
     const [rows, cat] = await Promise.all([
       api.delivery.clientServices.listByOrg(orgId).catch(() => []),
-      api.catalog.services.listClientFacing().catch(() => []),
+      api.catalog.services.list().catch(() => []),  // admin: traz price_table p/ a proposta
     ]);
     return { rows: (rows as any[]) ?? [], cat: (cat as any[]) ?? [] };
   }, [orgId]);
@@ -32,7 +32,7 @@ export default function ServicosDeal({ orgId, defaultSituacao = "interesse", onD
   const [toast, setToast] = useState("");
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 3000); };
 
-  const available = cat.filter((s) => !q || `${s.name} ${s.category || ""}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const available = cat.filter((s) => !s.internal && (!q || `${s.name} ${s.category || ""}`.toLowerCase().includes(q.trim().toLowerCase())));
 
   async function add() {
     const svc = cat.find((s) => s.id === pick);
