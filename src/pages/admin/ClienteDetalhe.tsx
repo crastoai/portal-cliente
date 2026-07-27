@@ -66,8 +66,18 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
   const [taxid, setTaxid] = useState({ kind: "CNPJ", value: "", address: "" });
   const [regOpen, setRegOpen] = useState(false);
   const [regF, setRegF] = useState<any>({ id: "", organization_id: id, country: "BR", reg_type: "cnpj", cnpj: "", legal_name: "", trade_name: "", is_headquarters: false, is_active: true });
-  function newReg() { setRegF({ id: "", organization_id: id, country: "BR", reg_type: "cnpj", cnpj: "", legal_name: "", trade_name: "", is_headquarters: false, is_active: true, zip_code: "", inscricao_estadual: "", city: "", state: "" }); setRegOpen(true); }
-  function editReg(c: any) { setRegF({ id: c.id, organization_id: id, country: c.country || "BR", reg_type: c.reg_type || "cnpj", cnpj: c.cnpj || "", legal_name: c.legal_name || "", trade_name: c.trade_name || "", is_headquarters: !!c.is_headquarters, is_active: c.is_active !== false, zip_code: c.zip_code || "", inscricao_estadual: c.inscricao_estadual || "", city: c.city || "", state: c.state || "" }); setRegOpen(true); }
+  function newReg() { setRegF({ id: "", organization_id: id, country: "BR", reg_type: "cnpj", cnpj: "", legal_name: "", trade_name: "", is_headquarters: false, is_active: true, zip_code: "", inscricao_estadual: "", logradouro: "", numero: "", bairro: "", city: "", state: "" }); setRegOpen(true); }
+  function editReg(c: any) { setRegF({ id: c.id, organization_id: id, country: c.country || "BR", reg_type: c.reg_type || "cnpj", cnpj: c.cnpj || "", legal_name: c.legal_name || "", trade_name: c.trade_name || "", is_headquarters: !!c.is_headquarters, is_active: c.is_active !== false, zip_code: c.zip_code || "", inscricao_estadual: c.inscricao_estadual || "", logradouro: c.logradouro || "", numero: c.numero || "", bairro: c.bairro || "", city: c.city || "", state: c.state || "" }); setRegOpen(true); }
+  // CEP → autopreenche logradouro/bairro/cidade/UF via ViaCEP (BR). Offline: preenche na mão.
+  async function cepLookup(cep: string) {
+    const d = (cep || "").replace(/\D/g, "");
+    if (d.length !== 8 || regF.country !== "BR") return;
+    try {
+      const r = await fetch(`https://viacep.com.br/ws/${d}/json/`);
+      const j = await r.json();
+      if (j && !j.erro) setRegF((f: any) => ({ ...f, logradouro: f.logradouro || j.logradouro || "", bairro: f.bairro || j.bairro || "", city: j.localidade || f.city, state: j.uf || f.state }));
+    } catch { /* sem internet: preenche manual */ }
+  }
   async function saveReg() { if (regF.cnpj && !regInfo(regF.reg_type).validate(regF.cnpj)) { alert(tr("Número do registro inválido para o país selecionado.")); return; } try { await api.identity.cnpjs.adminSave(regF); setRegOpen(false); reload(); } catch (e) { alert(errorMessage(e)); } }
   async function delReg(c: any) { if (!confirm(tr("Excluir este registro?"))) return; await api.identity.cnpjs.adminRemove(c.id); reload(); }
   async function delPartner(p: any) { if (!confirm(tr("Excluir o sócio \"{n}\"?", { n: p.full_name || "sócio" }))) return; try { await api.identity.partners.remove(p.id); reload(); } catch (e) { alert(errorMessage(e)); } }
@@ -356,11 +366,18 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
           <Field label="Nome fantasia"><input value={regF.trade_name} onChange={(e) => setRegF({ ...regF, trade_name: e.target.value })} /></Field>
         </div>
         <div className="grid2">
-          <Field label="CEP"><input value={regF.zip_code || ""} onChange={(e) => setRegF({ ...regF, zip_code: e.target.value })} placeholder="00000-000" /></Field>
+          <Field label="CEP (autopreenche)"><input value={regF.zip_code || ""} onChange={(e) => setRegF({ ...regF, zip_code: e.target.value })} onBlur={(e) => cepLookup(e.target.value)} placeholder="00000-000" /></Field>
           <Field label="Inscrição estadual"><input value={regF.inscricao_estadual || ""} onChange={(e) => setRegF({ ...regF, inscricao_estadual: e.target.value })} placeholder={tr("(se houver)")} /></Field>
         </div>
         <div className="grid2">
+          <Field label="Logradouro"><input value={regF.logradouro || ""} onChange={(e) => setRegF({ ...regF, logradouro: e.target.value })} placeholder={tr("Rua / Avenida")} /></Field>
+          <Field label="Número"><input value={regF.numero || ""} onChange={(e) => setRegF({ ...regF, numero: e.target.value })} /></Field>
+        </div>
+        <div className="grid2">
+          <Field label="Bairro"><input value={regF.bairro || ""} onChange={(e) => setRegF({ ...regF, bairro: e.target.value })} /></Field>
           <Field label="Cidade"><input value={regF.city || ""} onChange={(e) => setRegF({ ...regF, city: e.target.value })} /></Field>
+        </div>
+        <div className="grid2">
           <Field label="Estado / UF"><input value={regF.state || ""} onChange={(e) => setRegF({ ...regF, state: e.target.value })} /></Field>
         </div>
         <div style={{ display: "flex", gap: 18, marginTop: 6 }}>
