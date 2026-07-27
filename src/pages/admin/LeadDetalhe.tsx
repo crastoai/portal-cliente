@@ -7,15 +7,16 @@
 // ============================================================================
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Trash2, MapPin, Phone, Clock, FileText, ArrowRight } from "lucide-react";
+import { Trash2, MapPin, Phone, Clock, FileText, ArrowRight, Building2 } from "lucide-react";
 import { services as api } from "../../services";
 import { PageHead, Empty, Pill, useAsync, useToast, initials, prettyName } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
-import { STAGES, stageOf, countryOf, TEMPS } from "../../lib/countries";
+import { STAGES, stageOf, countryOf, TEMPS, COUNTRIES } from "../../lib/countries";
 import DiagnosticoMapa, { fmtDate } from "./DiagnosticoMapa";
 import EmpresaExtra from "./EmpresaExtra";
 import PessoasEditor from "./PessoasEditor";
 import SiteField from "./SiteField";
+import OrgInline from "./OrgInline";
 
 export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: string) => void }) {
   const { id } = useParams();
@@ -117,6 +118,20 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
           <span className="mt" style={{ fontSize: 12 }}>{t("Definida por você — separada do sinal automático do Mapa.")}</span>
         </div>
       )}
+
+      {/* Dados da empresa — editável inline (mesmo cartão da ficha de cliente) */}
+      <div className="card" style={{ marginBottom: 18 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}><Building2 size={16} style={{ color: "var(--crasto-text-primary)" }} /><h3 style={{ margin: 0 }}>{t("Dados da empresa")}</h3><span className="mt" style={{ fontSize: 11.5 }}>{t("clique e edite — salva sozinho")}</span></div>
+        <div className="infogrid">
+          <div><div className="infolab">{t("Nome / Razão")}</div><OrgInline orgId={id!} field="name" value={org.name} placeholder={t("Nome da empresa")} flash={(m) => toast.ok(m)} reloadOnSave reload={reload} /></div>
+          <div><div className="infolab">{t("País")}</div><OrgInline orgId={id!} field="country" value={org.country} type="select" options={COUNTRIES.map((c) => ({ v: c.code, l: `${c.flag} ${c.name}` }))} flash={(m) => toast.ok(m)} reloadOnSave reload={reload} /></div>
+          <div><div className="infolab">{co.idLabel}</div><OrgInline orgId={id!} field="tax_id" value={org.tax_id} placeholder="—" flash={(m) => toast.ok(m)} /></div>
+          <div><div className="infolab">{t("Fundação")}</div><OrgInline orgId={id!} field="founded_on" value={org.founded_on ? String(org.founded_on).slice(0, 10) : ""} type="date" flash={(m) => toast.ok(m)} /></div>
+          <div><div className="infolab">{t("Dono / Presidente")}</div><OrgInline orgId={id!} field="owner_name" value={org.owner_name} placeholder="—" flash={(m) => toast.ok(m)} /></div>
+          <div><div className="infolab">{t("Website")}</div><OrgInline orgId={id!} field="website" value={org.website} placeholder="https://…" flash={(m) => toast.ok(m)} /></div>
+        </div>
+        <div style={{ marginTop: 12 }}><div className="infolab">{t("Observações")}</div><OrgInline orgId={id!} field="notes" value={org.notes} placeholder={t("nota interna sobre a empresa")} flash={(m) => toast.ok(m)} /></div>
+      </div>
 
       {/* Perfil — veio do site (imutável); o cadeado edita e guarda o histórico */}
       <div className="card" style={{ marginBottom: 18 }}>
