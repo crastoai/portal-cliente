@@ -66,6 +66,7 @@ export default function ClientShell() {
         url: (cred?.access_url || (r as any).crm_url || v.external_url || null) as string | null,
         mode: ((r as any).access_mode || "link") as string,
         active: r.status === "active",
+        rollout_status: (r as any).rollout_status ?? null, // só 'delivered' libera o acesso
         isCrm: !!(r as any).crm_url, // sinal robusto: é a solução WhatsApp CRM
         isSocial: !!(r as any).social_solution, // Social Media: abre embarcado por SSO
       };
@@ -78,8 +79,12 @@ export default function ClientShell() {
   const cs: any[] = Array.isArray(contratados) ? contratados : [];
   // Como abrir um módulo contratado: dentro do Portal (embed/sso), em nova aba (link) ou,
   // sem endereço ainda, levando a "Minhas Soluções" com a marca "em configuração".
+  // Implantação ainda não entregue (Em andamento / Em espera) → NÃO abre; mostra o status e leva a
+  // "Minhas Soluções" (onde o card fica bloqueado com a mensagem). Só 'delivered' libera. Igual ao card.
+  const emAndamento = (c: any) => c && (c.rollout_status === "in_progress" || c.rollout_status === "on_hold");
   const abrir = (c: any): Partial<NavItem> => {
     if (!c.url) return { tag: t("em configuração"), onClick: () => navigate("/app/modulos") };
+    if (emAndamento(c)) return { tag: t("em andamento"), onClick: () => navigate("/app/modulos") };
     // Social Media (nossa solução) e módulos embed/sso abrem DENTRO do Portal (com SSO); o resto, nova aba.
     if (c.isSocial || c.mode === "embed" || c.mode === "sso") return { to: `/app/m/${c.id}` };
     return { onClick: () => window.open(c.url as string, "_blank", "noopener") };
@@ -89,7 +94,9 @@ export default function ClientShell() {
     const owned = m.crm ? cs.find((c) => c.isCrm) : cs.find((c) => m.rx.test(c.text));
     if (owned && owned.active) {
       // WhatsApp CRM abre EMBARCADO (rota interna → iframe, sem nova aba); demais externos/SSO.
-      if (m.crm) return { icon: m.icon, label: m.label, section: "Módulos", to: "/app/crm" };
+      if (m.crm) return emAndamento(owned)
+        ? { icon: m.icon, label: m.label, section: "Módulos", tag: t("em andamento"), onClick: () => navigate("/app/modulos") }
+        : { icon: m.icon, label: m.label, section: "Módulos", to: "/app/crm" };
       return { icon: m.icon, label: m.label, section: "Módulos", ...abrir(owned) };
     }
     if (owned) return { icon: m.icon, label: m.label, section: "Módulos", tag: t("em breve"), onClick: () => navigate("/app/modulos") };
