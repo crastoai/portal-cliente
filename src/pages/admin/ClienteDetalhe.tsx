@@ -107,7 +107,14 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
     } catch (e) { flash(tr("Erro ao salvar:") + " " + errorMessage(e)); }
     finally { setBusy(false); }
   }
-  async function setStage(stage: string) { await api.identity.organizations.setStage(id!, stage); onStageChange?.(stage); if (stage === "cliente") reload(); }
+  async function setStage(stage: string) {
+    try {
+      await api.identity.organizations.setStage(id!, stage);
+      flash(tr("Movido para {s}", { s: tr(stageOf(stage).label) }));
+      onStageChange?.(stage);            // wrapper troca Lead↔Cliente na hora
+      if (stage === "cliente") reload();
+    } catch (e) { flash(tr("Erro ao mover o estágio:") + " " + errorMessage(e)); }
+  }
   async function toggleModule(mid: string, on: boolean) {
     if (on) await api.delivery.clientModules.detach(id!, mid);
     else await api.delivery.clientModules.attach(id!, mid);
@@ -259,7 +266,6 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
       <PageHead eyebrow={`CRM · ${co.flag} ${co.name}`} title={org.name} sub={`${co.idLabel}: ${org.tax_id || "—"}  ·  ${org.website || "sem site"}`}
         right={<>
           <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => { preview.set(id!, org.name); nav("/app"); }}><span className="crasto-btn__icon"><Eye size={14} /></span><span className="crasto-btn__label">{tr("Visualizar cliente")}</span></button>
-          <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => { setEf(org); setEdit(true); }}><span className="crasto-btn__icon"><Pencil size={14} /></span><span className="crasto-btn__label">{tr("Editar")}</span></button>
           <button className="crasto-btn crasto-btn--destructive crasto-btn--sm" onClick={del} disabled={busy}><span className="crasto-btn__icon"><Trash2 size={14} /></span><span className="crasto-btn__label">{tr("Excluir")}</span></button>
         </>} />
 
@@ -269,18 +275,22 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
         <span style={{ marginLeft: "auto", alignSelf: "center", fontSize: 12, color: "var(--crasto-text-muted)" }}>{tr("Status atual:")} <b style={{ color: "var(--crasto-text-primary)" }}>{tr(st.label)}</b></span>
       </div>
 
-      {/* Dados da empresa (cadastro) */}
+      {/* Dados da empresa — edição INLINE (clique e edite; salva sozinho, sem botão) */}
       <div className="card" style={{ marginBottom: 18 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}><Building2 size={16} style={{ color: "var(--crasto-text-primary)" }} /><h3 style={{ margin: 0 }}>{tr("Dados da empresa")}</h3></div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}><Building2 size={16} style={{ color: "var(--crasto-text-primary)" }} /><h3 style={{ margin: 0 }}>{tr("Dados da empresa")}</h3><span className="mt" style={{ fontSize: 11.5 }}>{tr("clique e edite — salva sozinho")}</span></div>
         <div className="infogrid">
-          <div><div className="infolab">{tr("País")}</div><div className="infoval">{co.flag} {co.name}</div></div>
-          <div><div className="infolab">{co.idLabel}</div><div className="infoval tnum">{org.tax_id || "—"}</div></div>
-          <div><div className="infolab">{tr("Fundação")}</div><div className="infoval">{fmtDate(org.founded_on)}</div></div>
-          <div><div className="infolab">{tr("Dono / Presidente")}</div><div className="infoval">{org.owner_name || "—"}</div></div>
-          <div><div className="infolab">{tr("Website")}</div><div className="infoval">{org.website ? <a href={org.website} target="_blank" rel="noreferrer" style={{ color: "#3E6FB8" }}>{org.website}</a> : "—"}</div></div>
-          <div><div className="infolab">{tr("Plano")}</div><div className="infoval">{org.plan || "—"}</div></div>
+          <div><div className="infolab">{tr("Nome / Razão")}</div><OrgInline orgId={id!} field="name" value={org.name} placeholder={tr("Nome da empresa")} flash={flash} reloadOnSave reload={reload} /></div>
+          <div><div className="infolab">{tr("País")}</div><OrgInline orgId={id!} field="country" value={org.country} type="select" options={COUNTRIES.map((c) => ({ v: c.code, l: `${c.flag} ${c.name}` }))} flash={flash} reloadOnSave reload={reload} /></div>
+          <div><div className="infolab">{co.idLabel}</div><OrgInline orgId={id!} field="tax_id" value={org.tax_id} placeholder="—" flash={flash} /></div>
+          <div><div className="infolab">{tr("Fundação")}</div><OrgInline orgId={id!} field="founded_on" value={org.founded_on ? String(org.founded_on).slice(0, 10) : ""} type="date" flash={flash} /></div>
+          <div><div className="infolab">{tr("Dono / Presidente")}</div><OrgInline orgId={id!} field="owner_name" value={org.owner_name} placeholder="—" flash={flash} /></div>
+          <div><div className="infolab">{tr("Website")}</div><OrgInline orgId={id!} field="website" value={org.website} placeholder="https://…" flash={flash} /></div>
+          <div><div className="infolab">{tr("Plano")}</div><OrgInline orgId={id!} field="plan" value={org.plan} placeholder="—" flash={flash} /></div>
         </div>
-        {org.notes && <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--crasto-border-soft)", fontSize: 13, color: "var(--crasto-text-body)" }}><b>{tr("Observações:")}</b> {org.notes}</div>}
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--crasto-border-soft)" }}>
+          <div className="infolab">{tr("Observações")}</div>
+          <OrgInline orgId={id!} field="notes" value={org.notes} placeholder={tr("nota interna sobre a empresa")} flash={flash} />
+        </div>
       </div>
 
       {/* CNPJs & endereços de faturamento */}
@@ -720,29 +730,36 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
         <div className="lead" key={a.id}><div className="av">{({ note: "📝", conversation: "💬", order: "🛒", meeting: "📅", proposal: "📄" } as any)[a.type] || "•"}</div><div><div className="nm">{a.title}</div><div className="mt">{a.description || a.type} · {fmtDate(a.occurred_at)}</div></div><button className="icobtn rm" onClick={() => delRow("crm", "activities", a.id)}><Trash2 size={13} /></button></div>
       ))}
 
-      {/* Modal editar empresa */}
-      <Modal title={tr("Editar empresa")} open={edit && !!ef} onClose={() => setEdit(false)}
-        footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setEdit(false)}><span className="crasto-btn__label">{tr("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={saveEdit}><span className="crasto-btn__label">{busy ? tr("Salvando…") : tr("Salvar")}</span></button></>}>
-        {ef && <>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Field label="Status"><select value={ef.stage} onChange={(e) => setEf({ ...ef, stage: e.target.value })}>{STAGES.map((s) => <option key={s.key} value={s.key}>{tr(s.label)}</option>)}</select></Field>
-            <Field label="País"><select value={ef.country} onChange={(e) => setEf({ ...ef, country: e.target.value })}>{COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}</select></Field>
-          </div>
-          <Field label="Nome"><input value={ef.name} onChange={(e) => setEf({ ...ef, name: e.target.value })} /></Field>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Field label={countryOf(ef.country).idLabel}><input value={ef.tax_id ?? ""} onChange={(e) => setEf({ ...ef, tax_id: e.target.value })} /></Field>
-            <Field label="Fundação"><input type="date" value={ef.founded_on ?? ""} onChange={(e) => setEf({ ...ef, founded_on: e.target.value })} /></Field>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Field label="Dono / Presidente"><input value={ef.owner_name ?? ""} onChange={(e) => setEf({ ...ef, owner_name: e.target.value })} /></Field>
-            <Field label="Plano"><input value={ef.plan ?? ""} onChange={(e) => setEf({ ...ef, plan: e.target.value })} /></Field>
-          </div>
-          <Field label="Website"><input value={ef.website ?? ""} onChange={(e) => setEf({ ...ef, website: e.target.value })} /></Field>
-          <Field label="Observações"><textarea value={ef.notes ?? ""} onChange={(e) => setEf({ ...ef, notes: e.target.value })} /></Field>
-        </>}
-      </Modal>
-
       {toast && <div className="toast">{toast}</div>}
     </div>
   );
+}
+
+// Campo editável INLINE dos dados da empresa: salva sozinho (input no blur, select na troca)
+// direto na fonte, via o mesmo endpoint PATCH /identity/org/:id. Sem botão salvar.
+function OrgInline({ orgId, field, value, type = "text", options, placeholder, flash, reloadOnSave, reload }: {
+  orgId: string; field: string; value: any; type?: "text" | "date" | "select";
+  options?: { v: string; l: string }[]; placeholder?: string; flash: (m: string) => void;
+  reloadOnSave?: boolean; reload?: () => void;
+}) {
+  const tr = useT();
+  const [v, setV] = useState<string>(value ?? "");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { setV(value ?? ""); }, [value]);
+  async function save(next: string) {
+    if ((value ?? "") === (next ?? "")) return;   // nada mudou → não bate no banco
+    setSaving(true);
+    try {
+      await api.identity.organizations.update(orgId, { [field]: next === "" ? null : next });
+      flash(tr("Salvo ✓"));
+      if (reloadOnSave) reload?.();
+    } catch (e) { setV(value ?? ""); flash(tr("Erro ao salvar:") + " " + errorMessage(e)); }
+    finally { setSaving(false); }
+  }
+  if (type === "select") return (
+    <select className="inp" style={{ width: "100%" }} value={v} disabled={saving} onChange={(e) => { setV(e.target.value); save(e.target.value); }}>
+      {(options ?? []).map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+    </select>
+  );
+  return <input className="inp" style={{ width: "100%" }} type={type} value={v} placeholder={placeholder} disabled={saving} onChange={(e) => setV(e.target.value)} onBlur={() => save(v)} />;
 }
