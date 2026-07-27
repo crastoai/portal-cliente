@@ -55,4 +55,6 @@ export const taxIds = {
 export const removeRow = async (table: "people" | "phones" | "activities" | "documents", id: string) =>
   api.del(`/api/crm/row/${table}/${id}`);
 
-export const crm = { people, family, fieldHistory, phones, documents, activities, taxIds, removeRow };
+export const personaStats = async (stage?: string) => api.get<Record<string, number>>(`/api/crm/persona-stats${stage ? `?stage=${stage}` : ""}`);
+
+export const crm = { people, family, fieldHistory, personaStats, phones, documents, activities, taxIds, removeRow };

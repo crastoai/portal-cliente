@@ -13,6 +13,7 @@ import { useT } from "../../lib/i18n";
 import { fetchClients, fmtDateTime, type Client } from "../../lib/adminData";
 import { COUNTRIES, countryOf, STAGES, stageOf, tempOf, DIAL_CODES } from "../../lib/countries";
 import { preview } from "../../lib/preview";
+import PersonaStats from "./PersonaStats";
 
 const EMPTY = { name: "", stage: "prospecto", country: "BR", tax_id: "", founded_on: "", website: "", owner_name: "", whatsapp: "", ddi: "+55", plan: "", email: "", contact_name: "" };
 const FAROL: Record<string, string> = { ok: "#1D9E75", green: "#1D9E75", saudavel: "#1D9E75", warn: "#EF9F27", amber: "#EF9F27", atencao: "#EF9F27", crit: "#E24B4A", red: "#E24B4A", risco: "#E24B4A" };
@@ -170,6 +171,9 @@ export default function Clientes() {
       {toast.node}
       <PageHead eyebrow="Painel Admin" title="Empresas" sub="Prospectos, leads, oportunidades e clientes num só lugar."
         right={<button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => { setF({ ...EMPTY }); setErr(""); setOpen(true); }}><span className="crasto-btn__icon"><Plus size={15} /></span><span className="crasto-btn__label">{t("Nova empresa")}</span></button>} />
+
+      {/* Indicadores de persona (agregado, filtra por estágio) — decisão Crasto 2026-07-27 */}
+      <PersonaStats />
 
       {/* funil */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10, alignItems: "center" }}>

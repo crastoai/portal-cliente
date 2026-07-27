@@ -49,6 +49,10 @@ export class CrmController {
   @Post('field-history')
   fhAdd(@Req() req: any, @Body() b: any) { const uid = this.uid(req); const { sql, vals } = this.ins('crm.field_history', { ...b, changed_by: uid }, 'id'); return this.db.asUser(uid, async (c) => (await c.query(sql, vals)).rows[0]); }
 
+  // ── indicadores de persona (agregado, filtra por estágio) — para o topo de Empresas ──
+  @Get('persona-stats')
+  personaStats(@Req() req: any, @Query('stage') stage: string) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select public.admin_crm_persona_stats($1) as s', [stage || null])).rows[0]?.s); }
+
   // ── phones ──
   @Get('phones')
   phonesByOrg(@Req() req: any, @Query('org') org: string) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select * from crm.phones where organization_id=$1', [org])).rows); }
