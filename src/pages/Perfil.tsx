@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Plus, Search, Building2, FileText, Users, Upload, Download, Trash2 } from "lucide-react";
+import { Camera, Plus, Search, Building2, FileText, Users, Upload, Download, Trash2, KeyRound } from "lucide-react";
 import { services, errorMessage } from "../services";
 import { useAuth } from "../lib/auth";
 import { PageHead, Field, Empty, Pill, useAsync, initials } from "../ui/ui";
 import { useT } from "../lib/i18n";
+import Modal from "../ui/Modal";
+import { supabase } from "../lib/supabase";
 import { COUNTRIES, reg, regTypeFor } from "../lib/registrations";
 
 const REGIMES = ["Simples Nacional", "Lucro Presumido", "Lucro Real", "MEI", "Isento / Outro"];
@@ -36,6 +38,36 @@ export default function Perfil() {
     setBusyU(true);
     try { await services.identity.profiles.update(profile.id, { full_name: name.trim() || null }); await refreshProfile(); flash(t("Perfil salvo ✓")); }
     catch (e) { flash(errorMessage(e)); } finally { setBusyU(false); }
+  }
+
+  // --- Redefinir senha (própria) ---
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pw, setPw] = useState({ atual: "", nova: "", conf: "" });
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwErr, setPwErr] = useState<string | null>(null);
+  const [pwSent, setPwSent] = useState(false);
+  function abrirPw() { setPw({ atual: "", nova: "", conf: "" }); setPwErr(null); setPwSent(false); setPwOpen(true); }
+  async function redefinirSenha() {
+    setPwErr(null);
+    if (pw.nova.length < 8) { setPwErr(t("A nova senha precisa ter ao menos 8 caracteres.")); return; }
+    if (pw.nova !== pw.conf) { setPwErr(t("A confirmação não confere com a nova senha.")); return; }
+    if (!profile?.email) { setPwErr(t("Sessão sem e-mail — recarregue a página.")); return; }
+    setPwBusy(true);
+    try {
+      // O Supabase não valida a senha ATUAL no updateUser, então re-autenticamos com ela antes.
+      const { error: e1 } = await supabase.auth.signInWithPassword({ email: profile.email, password: pw.atual });
+      if (e1) { setPwErr(t("Senha atual incorreta. Se não lembra, use \"Esqueci minha senha\".")); return; }
+      await services.identity.auth.updatePassword(pw.nova);
+      setPwOpen(false); flash(t("Senha redefinida ✓"));
+    } catch (e) { setPwErr(errorMessage(e)); }
+    finally { setPwBusy(false); }
+  }
+  async function esqueciSenha() {
+    if (!profile?.email) return;
+    setPwBusy(true); setPwErr(null);
+    try { await services.identity.auth.requestReset(profile.email); setPwSent(true); }
+    catch (e) { setPwErr(errorMessage(e)); }
+    finally { setPwBusy(false); }
   }
 
   // --- Dados da empresa ---
@@ -172,7 +204,10 @@ export default function Perfil() {
             <Field label="Nome completo"><input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("Seu nome")} /></Field>
             <Field label="E-mail (login)"><input value={profile?.email || ""} disabled /></Field>
           </div>
-          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busyU} onClick={saveUser}><span className="crasto-btn__label">{busyU ? t("Salvando…") : t("Salvar")}</span></button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busyU} onClick={saveUser}><span className="crasto-btn__label">{busyU ? t("Salvando…") : t("Salvar")}</span></button>
+            <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={abrirPw}><span className="crasto-btn__icon"><KeyRound size={14} /></span><span className="crasto-btn__label">{t("Redefinir senha")}</span></button>
+          </div>
         </div>
         {isClient && <div className="note" style={{ marginTop: 14 }}><span>{t("Este é o nome que aparece como sua assinatura nas mensagens do WhatsApp CRM quando você assume uma conversa. Altere aqui e salve — vale para você.")}</span></div>}
       </div>
@@ -328,6 +363,27 @@ export default function Perfil() {
           )}
         </>
       )}
+
+      {/* Redefinir senha: confirma a senha atual + nova; ou "Esqueci minha senha" → e-mail de reset
+          (mesmo fluxo já existente). */}
+      <Modal title={t("Redefinir senha")} open={pwOpen} onClose={() => setPwOpen(false)}
+        footer={pwSent
+          ? <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => setPwOpen(false)}><span className="crasto-btn__label">{t("Fechar")}</span></button>
+          : <><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={pwBusy} onClick={() => setPwOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={pwBusy} onClick={redefinirSenha}><span className="crasto-btn__label">{pwBusy ? t("Salvando…") : t("Redefinir")}</span></button></>}>
+        {pwErr && <div className="formerr">{pwErr}</div>}
+        {pwSent ? (
+          <div className="note"><span>{t("Enviamos um e-mail para {e} com o link para redefinir a senha. Abra o e-mail e siga o passo a passo — é o mesmo fluxo de sempre.", { e: profile?.email || "" })}</span></div>
+        ) : (
+          <>
+            <Field label={t("Senha atual")}><input type="password" autoComplete="current-password" value={pw.atual} onChange={(e) => setPw({ ...pw, atual: e.target.value })} placeholder={t("Sua senha de hoje")} /></Field>
+            <div style={{ marginTop: -8, marginBottom: 10 }}>
+              <button type="button" onClick={esqueciSenha} disabled={pwBusy} style={{ border: 0, background: "transparent", color: "var(--crasto-blue, #6E9CE8)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: 0 }}>{t("Esqueci minha senha")}</button>
+            </div>
+            <Field label={t("Nova senha")}><input type="password" autoComplete="new-password" value={pw.nova} onChange={(e) => setPw({ ...pw, nova: e.target.value })} placeholder={t("Mínimo de 8 caracteres")} /></Field>
+            <Field label={t("Confirmar nova senha")}><input type="password" autoComplete="new-password" value={pw.conf} onChange={(e) => setPw({ ...pw, conf: e.target.value })} onKeyDown={(e) => e.key === "Enter" && redefinirSenha()} placeholder={t("Repita a nova senha")} /></Field>
+          </>
+        )}
+      </Modal>
 
       {toast && <div className="toast">{toast}</div>}
     </div>
