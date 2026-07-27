@@ -15,6 +15,7 @@ import { STAGES, stageOf, countryOf, TEMPS } from "../../lib/countries";
 import DiagnosticoMapa, { fmtDate } from "./DiagnosticoMapa";
 import EmpresaExtra from "./EmpresaExtra";
 import PessoasEditor from "./PessoasEditor";
+import SiteField from "./SiteField";
 
 export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: string) => void }) {
   const { id } = useParams();
@@ -23,15 +24,16 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
   const toast = useToast();
 
   const { data, loading, reload } = useAsync(async () => {
-    const [org, diag, people, phones, acts, proposals] = await Promise.all([
+    const [org, diag, people, phones, acts, proposals, fhist] = await Promise.all([
       api.identity.organizations.getById(id!),
       api.analytics.admin.diagnostic<any>(id!).catch(() => null),
       api.crm.people.listByOrg(id!).catch(() => []),
       api.crm.phones.listByOrg(id!).catch(() => []),
       api.crm.activities.listByOrg(id!).catch(() => []),
       api.commerce.proposals.listByOrg(id!).catch(() => []),
+      api.crm.fieldHistory.list("organization", id!).catch(() => []),
     ]);
-    return { org, diag, people: (people as any[]) ?? [], phones: (phones as any[]) ?? [], acts: (acts as any[]) ?? [], proposals: (proposals as any[]) ?? [] };
+    return { org, diag, people: (people as any[]) ?? [], phones: (phones as any[]) ?? [], acts: (acts as any[]) ?? [], proposals: (proposals as any[]) ?? [], fhist: (fhist as any[]) ?? [] };
   }, [id]);
 
   if (loading) return <><PageHead eyebrow="CRM" title="Detalhe" /><Empty>Carregando…</Empty></>;
@@ -48,6 +50,7 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
   const hasProposal = proposals.length > 0;
   const hasWon = proposals.some((p) => p.status === "accepted");
   const curIdx = STAGES.findIndex((x) => x.key === org.stage);
+  const histOf = (f: string) => ((data.fhist as any[]) ?? []).filter((r) => r.field === f);
   function stageLock(key: string): string | null {
     if (key === org.stage || key === "prospecto" || key === "lead") return null;
     if (key === "oportunidade" && !hasProposal) return t("Vira oportunidade quando há uma proposta gerada (você gera no Gerador de propostas).");
@@ -115,15 +118,15 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
         </div>
       )}
 
-      {/* Perfil */}
+      {/* Perfil — veio do site (imutável); o cadeado edita e guarda o histórico */}
       <div className="card" style={{ marginBottom: 18 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}><FileText size={16} style={{ color: "var(--crasto-text-primary)" }} /><h3 style={{ margin: 0 }}>{t("Perfil")}</h3></div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}><FileText size={16} style={{ color: "var(--crasto-text-primary)" }} /><h3 style={{ margin: 0 }}>{t("Perfil")}</h3><span className="mt" style={{ fontSize: 11.5 }}>{t("veio do site · clique no 🔒 p/ editar — guarda o histórico")}</span></div>
         <div className="infogrid">
-          <div><div className="infolab">{t("Segmento")}</div><div className="infoval">{diag?.segmento || "—"}</div></div>
-          <div><div className="infolab">{t("Faturamento")}</div><div className="infoval">{diag?.faturamento || "—"}</div></div>
-          <div><div className="infolab">{t("Tempo de operação")}</div><div className="infoval">{diag?.tempo || "—"}</div></div>
-          <div><div className="infolab">{t("Cargo")}</div><div className="infoval">{diag?.cargo || "—"}</div></div>
-          <div><div className="infolab">{t("E-mail")}</div><div className="infoval">{diag?.email || "—"}</div></div>
+          <div><SiteField orgId={id!} field="segmento" label={t("Segmento")} siteValue={diag?.segmento} history={histOf("segmento")} onSaved={reload} /></div>
+          <div><SiteField orgId={id!} field="faturamento" label={t("Faturamento")} siteValue={diag?.faturamento} history={histOf("faturamento")} onSaved={reload} /></div>
+          <div><SiteField orgId={id!} field="tempo" label={t("Tempo de operação")} siteValue={diag?.tempo} history={histOf("tempo")} onSaved={reload} /></div>
+          <div><SiteField orgId={id!} field="cargo" label={t("Cargo")} siteValue={diag?.cargo} history={histOf("cargo")} onSaved={reload} /></div>
+          <div><SiteField orgId={id!} field="email" label={t("E-mail")} siteValue={diag?.email} history={histOf("email")} onSaved={reload} /></div>
           <div><div className="infolab">{t("País")}</div><div className="infoval">{co.flag} {co.name}</div></div>
         </div>
       </div>

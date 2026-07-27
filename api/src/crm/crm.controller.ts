@@ -41,6 +41,14 @@ export class CrmController {
   @Delete('family/:id')
   familyRemove(@Req() req: any, @Param('id') id: string) { return this.db.asUser(this.uid(req), async (c) => { await c.query('delete from crm.family_members where id=$1', [id]); return { ok: true }; }); }
 
+  // ── histórico de campo (dado do site imutável; ao editar, o antigo vira histórico) ──
+  @Get('field-history')
+  fhList(@Req() req: any, @Query('entity') entity: string, @Query('id') id: string) {
+    return this.db.asUser(this.uid(req), async (c) => (await c.query('select * from crm.field_history where entity=$1 and entity_id=$2 order by changed_at desc', [entity, id])).rows);
+  }
+  @Post('field-history')
+  fhAdd(@Req() req: any, @Body() b: any) { const uid = this.uid(req); const { sql, vals } = this.ins('crm.field_history', { ...b, changed_by: uid }, 'id'); return this.db.asUser(uid, async (c) => (await c.query(sql, vals)).rows[0]); }
+
   // ── phones ──
   @Get('phones')
   phonesByOrg(@Req() req: any, @Query('org') org: string) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select * from crm.phones where organization_id=$1', [org])).rows); }

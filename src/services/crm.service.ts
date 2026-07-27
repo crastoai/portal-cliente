@@ -20,6 +20,11 @@ export const family = {
   remove: async (id: string) => api.del(`/api/crm/family/${id}`),
 };
 
+export const fieldHistory = {
+  list: async (entity: string, id: string) => api.get<Record<string, any>[]>(`/api/crm/field-history?entity=${entity}&id=${id}`),
+  add: async (payload: Record<string, any>) => api.post<{ id: string }>(`/api/crm/field-history`, payload),
+};
+
 export const phones = {
   listByOrg: async (orgId: string) => api.get<Phone[]>(`/api/crm/phones?org=${orgId}`),
   listByOrgs: async (ids: string[]) =>
@@ -50,4 +55,4 @@ export const taxIds = {
 export const removeRow = async (table: "people" | "phones" | "activities" | "documents", id: string) =>
   api.del(`/api/crm/row/${table}/${id}`);
 
-export const crm = { people, family, phones, documents, activities, taxIds, removeRow };
+export const crm = { people, family, fieldHistory, phones, documents, activities, taxIds, removeRow };
