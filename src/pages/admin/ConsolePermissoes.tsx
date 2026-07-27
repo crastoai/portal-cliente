@@ -94,6 +94,8 @@ export default function ConsolePermissoes() {
   // Convite de pessoa POR CLIENTE — pessoas moram aqui agora (antes: no detalhe do cliente).
   const [convite, setConvite] = useState<{ orgId: string; orgName: string } | null>(null);
   const [cf, setCf] = useState({ email: "", full_name: "", role: "client_member" });
+  // Edição do e-mail (login) direto no popup de Permissões.
+  const [emailEd, setEmailEd] = useState<{ on: boolean; val: string; busy: boolean }>({ on: false, val: "", busy: false });
   const [cErr, setCErr] = useState<string | null>(null);
   // Master-detail: um cliente selecionado por vez (escala a 100+ — a lista faz scroll e só
   // o CRM do selecionado carrega). `fchip` = filtro rápido por situação de acesso.
@@ -168,7 +170,28 @@ export default function ConsolePermissoes() {
     else { setCfgCrm(null); setCrm(null); }
     setAlvo({ pessoa: pe, orgName, orgId });
   }
-  function fecharPermissoes() { setAlvo(null); setCfg(null); setCfgCrm(null); setCrm(null); }
+  function fecharPermissoes() { setAlvo(null); setCfg(null); setCfgCrm(null); setCrm(null); setEmailEd({ on: false, val: "", busy: false }); }
+
+  // Troca o E-MAIL (que é o LOGIN). Usa o IdP do Portal (updateByAdmin: muda o auth + espelha no
+  // perfil, com trava anti-colisão). Se for pessoa só do CRM, usa a ponte do CRM (mesmo idp por baixo).
+  async function salvarEmail() {
+    if (!alvo) return;
+    const novo = emailEd.val.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(novo)) { toast.err(t("E-mail inválido.")); return; }
+    if (novo === (alvo.pessoa.email || "").toLowerCase()) { setEmailEd({ on: false, val: "", busy: false }); return; }
+    setEmailEd((e) => ({ ...e, busy: true }));
+    try {
+      const portalId = alvo.pessoa.portal?.id;
+      const r: any = portalId
+        ? await services.identity.users.update(portalId, { email: novo })
+        : await services.crmAccess.update(alvo.orgId, alvo.pessoa.crm!.id, { email: novo });
+      if (r?.error) throw new Error(r.error);
+      setAlvo((a) => (a ? { ...a, pessoa: { ...a.pessoa, email: novo } } : a));
+      setEmailEd({ on: false, val: "", busy: false });
+      await reload();
+      toast.ok(t("E-mail (login) atualizado ✓ — reenvie o acesso se a pessoa ainda não definiu a senha."));
+    } catch (e) { toast.err(errorMessage(e)); setEmailEd((s) => ({ ...s, busy: false })); }
+  }
 
   async function salvarPermissoes() {
     if (!alvo) return;
@@ -337,7 +360,24 @@ export default function ConsolePermissoes() {
         {alvo && (<>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
             <div className="logo" style={{ width: 36, height: 36, fontSize: 12 }}>{initials(alvo.pessoa.nome)}</div>
-            <div><div className="nm">{alvo.pessoa.nome}</div><div className="mt">{alvo.pessoa.email} · {alvo.orgName}</div></div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="nm">{alvo.pessoa.nome}</div>
+              {emailEd.on ? (
+                <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 5, flexWrap: "wrap" }}>
+                  <input type="email" autoFocus value={emailEd.val} onChange={(e) => setEmailEd({ ...emailEd, val: e.target.value })} onKeyDown={(e) => e.key === "Enter" && salvarEmail()} placeholder="novo@email.com" style={{ flex: 1, minWidth: 170 }} />
+                  <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={emailEd.busy} onClick={salvarEmail}><span className="crasto-btn__label">{emailEd.busy ? t("Salvando…") : t("Salvar e-mail")}</span></button>
+                  <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={emailEd.busy} onClick={() => setEmailEd({ on: false, val: "", busy: false })}><span className="crasto-btn__label">{t("Cancelar")}</span></button>
+                </div>
+              ) : (
+                <div className="mt" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span>{alvo.pessoa.email} · {alvo.orgName}</span>
+                  <button type="button" onClick={() => setEmailEd({ on: true, val: alvo.pessoa.email || "", busy: false })}
+                    style={{ border: 0, background: "transparent", color: "var(--crasto-blue, #6E9CE8)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: 0 }}>
+                    {t("Alterar e-mail")}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* ---- Bloco 1: o Portal (papel + telas) ---- */}
