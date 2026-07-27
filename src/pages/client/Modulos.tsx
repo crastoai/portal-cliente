@@ -107,11 +107,11 @@ export default function Modulos() {
               <div className="mod" key={m.id}>
                 <div className="cover"><div className="glow" />{icon(m.vdi?.category)}</div>
                 <div className="body">
-                  {/* Título = apelido dado pela Crasto ao cliente; descrição = blurb configurável no
-                      detalhe do cliente. NUNCA usa o nome do catálogo VDI (traz termos internos como
-                      "Nina"/"SDR Autônomo" — que o cliente jamais deve ver). */}
-                  <h3>{m.label || t("Solução")}</h3>
-                  <p>{m.blurb || t("Solução de IA da Crasto.AI.")}</p>
+                  {/* Título = apelido dado pela Crasto ao cliente; sem apelido, cai no NOME real da
+                      solução (catálogo) — igual ao sidebar. Só "Solução" se não houver nem apelido nem
+                      nome. Para módulos cujo nome de catálogo tenha termo interno, definir o Apelido. */}
+                  <h3>{m.label || m.vdi?.name || t("Solução")}</h3>
+                  <p>{m.blurb || m.vdi?.description || t("Solução de IA da Crasto.AI.")}</p>
 
                   {bloqueado ? (
                     <>
