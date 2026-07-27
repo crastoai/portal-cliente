@@ -9,7 +9,7 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Trash2, MapPin, Phone, Clock, FileText, ArrowRight } from "lucide-react";
 import { services as api } from "../../services";
-import { PageHead, Empty, Pill, useAsync, useToast } from "../../ui/ui";
+import { PageHead, Empty, Pill, useAsync, useToast, initials, prettyName } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import { STAGES, stageOf, countryOf, TEMPS } from "../../lib/countries";
 import DiagnosticoMapa, { fmtDate } from "./DiagnosticoMapa";
@@ -22,14 +22,15 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
   const toast = useToast();
 
   const { data, loading, reload } = useAsync(async () => {
-    const [org, diag, people, phones, acts] = await Promise.all([
+    const [org, diag, people, phones, acts, proposals] = await Promise.all([
       api.identity.organizations.getById(id!),
       api.analytics.admin.diagnostic<any>(id!).catch(() => null),
       api.crm.people.listByOrg(id!).catch(() => []),
       api.crm.phones.listByOrg(id!).catch(() => []),
       api.crm.activities.listByOrg(id!).catch(() => []),
+      api.commerce.proposals.listByOrg(id!).catch(() => []),
     ]);
-    return { org, diag, people: (people as any[]) ?? [], phones: (phones as any[]) ?? [], acts: (acts as any[]) ?? [] };
+    return { org, diag, people: (people as any[]) ?? [], phones: (phones as any[]) ?? [], acts: (acts as any[]) ?? [], proposals: (proposals as any[]) ?? [] };
   }, [id]);
 
   if (loading) return <><PageHead eyebrow="CRM" title="Detalhe" /><Empty>Carregando…</Empty></>;
@@ -39,6 +40,18 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
   const diag = data.diag as any | null;
   const st = stageOf(org.stage);
   const co = countryOf(org.country);
+  // REGRA DE ESTÁGIO (decisão Crasto 2026-07-27): prospecto/lead são manuais; OPORTUNIDADE
+  // só existe com proposta gerada; CLIENTE só com proposta ganha (assinada+paga). Não se
+  // "pula" para esses estágios na mão — eles são consequência. O estágio atual sempre pode voltar.
+  const proposals = (data.proposals as any[]) ?? [];
+  const hasProposal = proposals.length > 0;
+  const hasWon = proposals.some((p) => p.status === "accepted");
+  function stageLock(key: string): string | null {
+    if (key === org.stage || key === "prospecto" || key === "lead") return null;
+    if (key === "oportunidade" && !hasProposal) return t("Vira oportunidade quando há uma proposta gerada (você gera no Gerador de propostas).");
+    if (key === "cliente" && !hasWon) return t("Vira cliente quando a proposta é ganha — assinada e paga.");
+    return null;
+  }
 
   async function setStage(stage: string) {
     try {
@@ -72,7 +85,11 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
 
       {/* pipeline */}
       <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
-        {STAGES.map((s) => <button key={s.key} className={"stagetab" + (org.stage === s.key ? " on" : "")} onClick={() => setStage(s.key)}><span className="dot" style={{ background: s.dot }} />{t(s.label)}</button>)}
+        {STAGES.map((s) => { const lock = stageLock(s.key); return (
+          <button key={s.key} className={"stagetab" + (org.stage === s.key ? " on" : "")} title={lock || undefined} disabled={!!lock}
+            style={lock ? { opacity: 0.4, cursor: "not-allowed" } : undefined}
+            onClick={() => { if (!lock) setStage(s.key); }}><span className="dot" style={{ background: s.dot }} />{t(s.label)}</button>
+        ); })}
         {org.intent_signal && <span className="chip" style={{ marginLeft: 4, background: org.intent_signal === "alto" ? "#FCE9E7" : "var(--crasto-bg-3)", color: org.intent_signal === "alto" ? "#B42318" : "var(--crasto-text-body)" }}>{t("Intenção")}: {t(org.intent_signal)}</span>}
         <span style={{ marginLeft: "auto", alignSelf: "center", fontSize: 12, color: "var(--crasto-text-muted)" }}>{t("Status atual:")} <b style={{ color: "var(--crasto-text-primary)" }}>{t(st.label)}</b></span>
       </div>
@@ -109,12 +126,13 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
       <div className="sec-h" style={{ marginTop: 4 }}><h2>{t("Contato")}</h2><Pill tone="mute">{t("pessoas & telefones")}</Pill></div>
       {data.people.length === 0 && data.phones.length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{t("Nenhum contato cadastrado.")}</div> : (
         <>
-          {data.people.map((p) => (
+          {data.people.map((p) => { const nm = prettyName(p.full_name); return (
             <div className="crmrow" key={p.id}>
-              <div className="logo">{(p.full_name || "?").slice(0, 2).toUpperCase()}</div>
-              <div><div className="nm">{p.full_name}{p.is_primary && <span className="chip" style={{ marginLeft: 6 }}>{t("principal")}</span>}</div><div className="mt">{[p.role, p.email].filter(Boolean).join(" · ") || "—"}</div></div>
+              <div className="logo">{initials(nm)}</div>
+              <div><div className="nm">{nm}{p.is_primary && <span className="chip" style={{ marginLeft: 6 }}>{t("principal")}</span>}</div>
+                <div style={{ color: "var(--crasto-text-primary)", fontSize: 13.5 }}>{[p.role, p.email].filter(Boolean).join("  ·  ") || "—"}</div></div>
             </div>
-          ))}
+          ); })}
           {data.phones.map((ph) => (
             <div className="crmrow" key={ph.id}>
               <Phone size={16} style={{ color: "var(--crasto-text-muted)" }} />

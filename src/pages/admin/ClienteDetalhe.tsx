@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { MessageCircle, Search, Send, Grid3x3, Pencil, Trash2, UserPlus, Plus, Upload, Download, FileText, Building2, Eye } from "lucide-react";
 import { preview } from "../../lib/preview";
 import { services as api, errorMessage } from "../../services";
-import { PageHead, Pill, Empty, useAsync, initials, Field, money } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, initials, Field, money, prettyName } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import UsoModulos from "../../ui/UsoModulos";
 import Modal from "../../ui/Modal";
@@ -97,6 +97,16 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
   const activeSet = new Set(cm.map((c) => c.vdi_module_id));
   const rollAvg = cm.length ? Math.round(cm.reduce((s: number, c: any) => s + (c.rollout_progress || 0), 0) / cm.length) : (progress || 0);
   const co = countryOf(org.country); const st = stageOf(org.stage);
+  // REGRA DE ESTÁGIO (decisão Crasto 2026-07-27): prospecto/lead manuais; OPORTUNIDADE só com
+  // proposta gerada; CLIENTE só com proposta ganha (assinada+paga). O estágio atual sempre pode voltar.
+  const hasProposal = (proposals ?? []).length > 0;
+  const hasWon = (proposals ?? []).some((p: any) => p.status === "accepted");
+  function stageLock(key: string): string | null {
+    if (key === org.stage || key === "prospecto" || key === "lead") return null;
+    if (key === "oportunidade" && !hasProposal) return tr("Vira oportunidade quando há uma proposta gerada (você gera no Gerador de propostas).");
+    if (key === "cliente" && !hasWon) return tr("Vira cliente quando a proposta é ganha — assinada e paga.");
+    return null;
+  }
 
   async function saveEdit() {
     setBusy(true);
@@ -271,7 +281,11 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
 
       {/* pipeline */}
       <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-        {STAGES.map((s) => <button key={s.key} className={"stagetab" + (org.stage === s.key ? " on" : "")} onClick={() => setStage(s.key)}>{tr(s.label)}</button>)}
+        {STAGES.map((s) => { const lock = stageLock(s.key); return (
+          <button key={s.key} className={"stagetab" + (org.stage === s.key ? " on" : "")} title={lock || undefined} disabled={!!lock}
+            style={lock ? { opacity: 0.4, cursor: "not-allowed" } : undefined}
+            onClick={() => { if (!lock) setStage(s.key); }}>{tr(s.label)}</button>
+        ); })}
         <span style={{ marginLeft: "auto", alignSelf: "center", fontSize: 12, color: "var(--crasto-text-muted)" }}>{tr("Status atual:")} <b style={{ color: "var(--crasto-text-primary)" }}>{tr(st.label)}</b></span>
       </div>
 
@@ -387,8 +401,8 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
         </div>
       ) : (
         <div className="crmrow" key={p.id}>
-          <div className="logo" style={{ width: 34, height: 34, borderRadius: 9, background: "var(--crasto-bg-3)", color: "var(--crasto-text-primary)", display: "grid", placeItems: "center", fontWeight: 700, fontSize: 13 }}>{initials(p.full_name)}</div>
-          <div style={{ flex: 1, minWidth: 0 }}><div className="nm">{p.full_name}
+          <div className="logo" style={{ width: 34, height: 34, borderRadius: 9, background: "var(--crasto-bg-3)", color: "var(--crasto-text-primary)", display: "grid", placeItems: "center", fontWeight: 700, fontSize: 13 }}>{initials(prettyName(p.full_name))}</div>
+          <div style={{ flex: 1, minWidth: 0 }}><div className="nm">{prettyName(p.full_name)}
             {p.is_primary && <span className="chip" style={{ marginLeft: 6, background: "var(--crasto-navy-05)", color: "var(--crasto-text-primary)" }}>{tr("Principal")}</span>}
             {p.role && <span className="chip" style={{ marginLeft: 6 }}>{p.role}</span>}
             {p.funcao && <span className="chip" style={{ marginLeft: 6 }}>{p.funcao}</span>}

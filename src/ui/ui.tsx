@@ -78,6 +78,17 @@ export function initials(s?: string | null) {
   return (s || "?").trim().slice(0, 2).toUpperCase();
 }
 
+/** Nome "de gente": se o valor parece um slug de e-mail (ex.: "fabio.pando", tudo minúsculo
+ *  com ponto/underscore), vira "Fabio Pando". Nome já normal (com espaço/acento/maiúscula)
+ *  é preservado. Usado no CRM para exibir contatos vindos do site de forma apresentável. */
+export function prettyName(s?: string | null): string {
+  const v = (s || "").trim();
+  if (!v) return "—";
+  const looksSlug = /^[a-z0-9._-]+$/.test(v) && /[._-]/.test(v);
+  if (!looksSlug) return v;
+  return v.split(/[._-]+/).filter(Boolean).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+
 /** Avatar com foto (se houver) e fallback nas iniciais. Usa a classe .logo do DS. */
 export function Avatar({ name, url, size = 34, style }: { name?: string | null; url?: string | null; size?: number; style?: React.CSSProperties }) {
   return (
