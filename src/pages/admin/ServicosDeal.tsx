@@ -6,7 +6,7 @@
 // lead e cliente (o `defaultSituacao` muda o que é criado). Decisão Crasto 2026-07-27.
 // ============================================================================
 import { useState } from "react";
-import { Plus, Trash2, Search } from "lucide-react";
+import { Plus, Trash2, Search, FileText } from "lucide-react";
 import { services as api } from "../../services";
 import { useAsync, Empty } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
@@ -14,7 +14,7 @@ import { useT } from "../../lib/i18n";
 const SITUACAO = [["interesse", "Interesse"], ["proposta", "Na proposta"], ["contratado", "Contratado"]];
 const CUSTO = [["", "—"], ["absorvido", "Crasto absorve"], ["byo_cliente", "Cliente assume (BYO)"]];
 
-export default function ServicosDeal({ orgId, defaultSituacao = "interesse" }: { orgId: string; defaultSituacao?: string }) {
+export default function ServicosDeal({ orgId, defaultSituacao = "interesse", onDone }: { orgId: string; defaultSituacao?: string; onDone?: () => void }) {
   const t = useT();
   const { data, loading, reload } = useAsync(async () => {
     const [rows, cat] = await Promise.all([
@@ -46,6 +46,30 @@ export default function ServicosDeal({ orgId, defaultSituacao = "interesse" }: {
   async function up(id: string, patch: Record<string, any>) { try { await api.delivery.clientServices.update(id, patch); flash(t("Salvo ✓")); } catch { flash(t("Erro ao salvar.")); } }
   async function upReload(id: string, patch: Record<string, any>) { await up(id, patch); await reload(); }
   async function del(id: string) { if (!confirm(t("Remover este serviço?"))) return; await api.delivery.clientServices.detach(id); await reload(); }
+
+  const interesses = rows.filter((r) => (r.situacao || "interesse") === "interesse");
+  // GATILHO (onda B): cria a v1 da proposta com os serviços de interesse, marca-os como
+  // 'proposta' e move a empresa para OPORTUNIDADE. Crasto refina os valores no Gerador.
+  async function gerarProposta() {
+    if (!interesses.length) { flash(t("Marque ao menos um serviço de interesse.")); return; }
+    if (!confirm(t("Gerar a v1 da proposta com {n} serviço(s) e mover a empresa para Oportunidade?", { n: interesses.length }))) return;
+    setBusy(true);
+    try {
+      const items = interesses.map((r) => {
+        const c = cat.find((x) => x.id === r.service_id);
+        return { service_id: r.service_id || null, description: r.service_name || c?.name || t("Serviço"), unit_price: Number(c?.price_table ?? 0), qty: 1 };
+      });
+      const subtotal = items.reduce((s, i) => s + i.unit_price, 0);
+      const prop: any = await api.commerce.proposals.create({ organization_id: orgId, title: t("Proposta — serviços de interesse"), subtotal, status: "draft" });
+      if (!prop?.id) throw new Error("no proposal");
+      await api.commerce.proposals.addItems(items.map((i) => ({ proposal_id: prop.id, organization_id: orgId, service_id: i.service_id, description: i.description, qty: 1, unit_price: i.unit_price })));
+      await Promise.all(interesses.map((r) => api.delivery.clientServices.update(r.id, { situacao: "proposta" })));
+      await api.identity.organizations.setStage(orgId, "oportunidade");
+      flash(t("Proposta criada · empresa movida para Oportunidade ✓"));
+      await reload();
+      onDone?.();
+    } catch { flash(t("Erro ao gerar a proposta.")); } finally { setBusy(false); }
+  }
 
   const chipTone = (s: string) => (s === "contratado" ? "var(--crasto-success)" : s === "proposta" ? "var(--crasto-blue)" : "var(--crasto-text-muted)");
 
@@ -85,6 +109,12 @@ export default function ServicosDeal({ orgId, defaultSituacao = "interesse" }: {
           </div>
         </div>
       ))}
+      {defaultSituacao === "interesse" && interesses.length > 0 && (
+        <div style={{ marginTop: 12, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", borderTop: "1px solid var(--crasto-border-soft)", paddingTop: 12 }}>
+          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={gerarProposta}><span className="crasto-btn__icon"><FileText size={14} /></span><span className="crasto-btn__label">{busy ? t("Gerando…") : t("Gerar proposta destes interesses → Oportunidade")}</span></button>
+          <span className="mt" style={{ fontSize: 11.5 }}>{t("Cria a v1 da proposta e move a empresa para Oportunidade. Você refina os valores no Gerador.")}</span>
+        </div>
+      )}
       {toast && <div className="toast">{toast}</div>}
     </div>
   );
