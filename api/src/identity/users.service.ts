@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { RlsDbService } from '../common/rls-db.service';
 import { EmailService } from '../common/email.service';
 import { IdpService } from '../common/idp.service';
@@ -22,6 +22,7 @@ import { portalInvite, passwordReset } from '../common/email-templates';
  */
 @Injectable()
 export class UsersService {
+  private readonly log = new Logger('Users');
   constructor(
     private readonly db: RlsDbService,
     private readonly email: EmailService,
@@ -101,22 +102,29 @@ export class UsersService {
     if (fullName != null && fullName !== (cur.full_name || '')) authPatch.full_name = fullName;
     const role = b.role === 'client_owner' ? 'client_owner' : b.role === 'client_member' ? 'client_member' : undefined;
 
-    // 1) Auth primeiro (pode falhar por e-mail em uso) → só então mexe no perfil.
-    if (authPatch.email || authPatch.full_name != null) await this.idp.updateUser(userId, authPatch);
+    try {
+      // 1) Auth primeiro (pode falhar por e-mail em uso) → só então mexe no perfil.
+      if (authPatch.email || authPatch.full_name != null) await this.idp.updateUser(userId, authPatch);
 
-    // 2) Perfil — e-mail (espelho), nome, papel.
-    const sets: string[] = []; const vals: any[] = [userId];
-    const add = (col: string, v: any, cast = '') => { vals.push(v); sets.push(`${col}=$${vals.length}${cast}`); };
-    if (authPatch.email) add('email', authPatch.email);
-    if (authPatch.full_name != null) add('full_name', authPatch.full_name);
-    if (role && role !== cur.role) add('role', role, '::public.app_role');
-    if (sets.length) await this.db.asService((c) => c.query(`update public.profiles set ${sets.join(', ')} where id=$1`, vals));
+      // 2) Perfil — e-mail (espelho), nome, papel.
+      const sets: string[] = []; const vals: any[] = [userId];
+      const add = (col: string, v: any, cast = '') => { vals.push(v); sets.push(`${col}=$${vals.length}${cast}`); };
+      if (authPatch.email) add('email', authPatch.email);
+      if (authPatch.full_name != null) add('full_name', authPatch.full_name);
+      if (role && role !== cur.role) add('role', role, '::public.app_role');
+      if (sets.length) await this.db.asService((c) => c.query(`update public.profiles set ${sets.join(', ')} where id=$1`, vals));
 
-    await this.audit.log(req, 'portal_access_updated', {
-      targetType: 'user', targetId: userId, org: cur.organization_id,
-      ctx: { email: authPatch.email, nome: authPatch.full_name, papel: role },
-    });
-    return { ok: true };
+      await this.audit.log(req, 'portal_access_updated', {
+        targetType: 'user', targetId: userId, org: cur.organization_id,
+        ctx: { email: authPatch.email, nome: authPatch.full_name, papel: role },
+      });
+      return { ok: true };
+    } catch (e: any) {
+      if (e?.status) throw e; // já é HttpException (400 e-mail em uso, etc.) — mantém a mensagem clara
+      // Nunca deixa virar "Internal server error" opaco: loga e devolve a causa real.
+      this.log.error(`updateByAdmin ${userId}: ${e?.message}`, e?.stack);
+      throw new BadRequestException('Falha ao atualizar o usuário: ' + (e?.message || 'erro inesperado'));
+    }
   }
 
   /** Cliente-dono convida alguém da PRÓPRIA empresa (tela Usuários do cliente). */

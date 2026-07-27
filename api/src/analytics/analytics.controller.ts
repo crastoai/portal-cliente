@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Post, Req, UseGuards } from '@nestjs/common';
 import { JwtOrgGuard } from '../common/jwt-org.guard';
 import { RlsDbService } from '../common/rls-db.service';
 
@@ -42,10 +42,20 @@ export class AnalyticsController {
     const keys = Object.keys(params).filter((k) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k));
     const args = keys.map((k, i) => `"${k}" => $${i + 1}`).join(', ');
     const vals = keys.map((k) => (params[k] !== null && typeof params[k] === 'object' && !Array.isArray(params[k]) ? JSON.stringify(params[k]) : params[k]));
-    return this.db.asUser(this.uid(req), async (c) => {
-      const setr = await this.isSet(c, name);
-      if (setr) return (await c.query(`select coalesce(json_agg(t), '[]'::json) as r from public.${name}(${args}) t`, vals)).rows[0].r;
-      return (await c.query(`select public.${name}(${args}) as r`, vals)).rows[0]?.r ?? null;
-    });
+    try {
+      return await this.db.asUser(this.uid(req), async (c) => {
+        const setr = await this.isSet(c, name);
+        if (setr) return (await c.query(`select coalesce(json_agg(t), '[]'::json) as r from public.${name}(${args}) t`, vals)).rows[0].r;
+        return (await c.query(`select public.${name}(${args}) as r`, vals)).rows[0]?.r ?? null;
+      });
+    } catch (e: any) {
+      // Regras de negócio das RPCs (RAISE no Postgres, ex.: "não é possível remover o único dono
+      // do cliente") vinham como 500 opaco ("Internal server error"). Agora sobem com a MENSAGEM real.
+      if (e?.status) throw e;
+      const msg = String(e?.message || 'erro ao executar a operação')
+        // acentua a mensagem mais comum (o RAISE do banco vem sem acento)
+        .replace(/nao e possivel remover o unico dono do cliente/i, 'Não é possível remover o único dono do cliente. Defina outro dono antes de rebaixar este.');
+      throw new BadRequestException(msg);
+    }
   }
 }
