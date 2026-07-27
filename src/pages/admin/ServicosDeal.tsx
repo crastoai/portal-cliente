@@ -6,9 +6,9 @@
 // lead e cliente (o `defaultSituacao` muda o que é criado). Decisão Crasto 2026-07-27.
 // ============================================================================
 import { useState } from "react";
-import { Plus, Trash2, Search, FileText } from "lucide-react";
+import { Plus, Trash2, Search, FileText, ChevronDown } from "lucide-react";
 import { services as api } from "../../services";
-import { useAsync, Empty } from "../../ui/ui";
+import { useAsync, Empty, money } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 
 const SITUACAO = [["interesse", "Interesse"], ["proposta", "Na proposta"], ["contratado", "Contratado"]];
@@ -26,7 +26,7 @@ export default function ServicosDeal({ orgId, defaultSituacao = "interesse", onD
 
   const rows = data?.rows ?? [];
   const cat = data?.cat ?? [];
-  const [pick, setPick] = useState("");
+  const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
@@ -34,13 +34,11 @@ export default function ServicosDeal({ orgId, defaultSituacao = "interesse", onD
 
   const available = cat.filter((s) => !s.internal && (!q || `${s.name} ${s.category || ""}`.toLowerCase().includes(q.trim().toLowerCase())));
 
-  async function add() {
-    const svc = cat.find((s) => s.id === pick);
-    if (!svc) { flash(t("Escolha um serviço do catálogo.")); return; }
+  async function addDirect(svc: any) {
     setBusy(true);
     try {
       await api.delivery.clientServices.attach(orgId, { id: svc.id, name: svc.name, description: svc.description, category: svc.category, unit: svc.unit }, { situacao: defaultSituacao });
-      setPick(""); setQ(""); await reload(); flash(t("Serviço adicionado ✓"));
+      setQ(""); setOpen(false); await reload(); flash(t("Serviço adicionado ✓"));
     } catch { flash(t("Erro ao adicionar.")); } finally { setBusy(false); }
   }
   async function up(id: string, patch: Record<string, any>) { try { await api.delivery.clientServices.update(id, patch); flash(t("Salvo ✓")); } catch { flash(t("Erro ao salvar.")); } }
@@ -75,26 +73,35 @@ export default function ServicosDeal({ orgId, defaultSituacao = "interesse", onD
 
   return (
     <div>
-      {/* adicionar do catálogo */}
-      <div className="catsearch" style={{ marginBottom: 8 }}>
-        <Search size={16} />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Buscar serviço no catálogo…")} />
-      </div>
-      <div className="addrow" style={{ marginBottom: 12 }}>
-        <select value={pick} onChange={(e) => setPick(e.target.value)} style={{ flex: 1, minWidth: 200 }}>
-          <option value="">{t("Escolha um serviço…")}</option>
-          {available.map((s) => <option key={s.id} value={s.id}>{s.name}{s.category ? ` · ${s.category}` : ""}</option>)}
-        </select>
-        <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={add}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{defaultSituacao === "interesse" ? t("Adicionar interesse") : t("Adicionar serviço")}</span></button>
+      {/* adicionar do catálogo — combobox: digita e filtra, ou clica na seta pra ver todos; clique no item adiciona */}
+      <div style={{ position: "relative", marginBottom: 12 }}>
+        <div className="catsearch" style={{ margin: 0 }}>
+          <Search size={16} />
+          <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 160)}
+            placeholder={t("Digite para buscar no catálogo (ex.: Google Workspace) ou clique na seta…")} />
+          <button type="button" className="icobtn" onMouseDown={(e) => { e.preventDefault(); setOpen((o) => !o); }} title={t("Ver serviços do catálogo")}><ChevronDown size={16} /></button>
+        </div>
+        {open && (
+          <div style={{ position: "absolute", zIndex: 30, left: 0, right: 0, marginTop: 4, background: "var(--crasto-surface)", border: "1px solid var(--crasto-border)", borderRadius: 12, boxShadow: "0 14px 34px rgba(0,0,0,.14)", maxHeight: 300, overflowY: "auto" }}>
+            {available.length === 0 ? <div className="mt" style={{ padding: "11px 13px" }}>{q ? t("Nada encontrado para “{q}”.", { q }) : t("Catálogo vazio.")}</div> : available.slice(0, 40).map((s) => (
+              <button key={s.id} type="button" disabled={busy} onMouseDown={(e) => { e.preventDefault(); addDirect(s); }}
+                style={{ display: "flex", width: "100%", textAlign: "left", gap: 8, alignItems: "center", padding: "9px 12px", background: "none", border: "none", borderTop: "1px solid var(--crasto-border-soft)", cursor: "pointer", color: "var(--crasto-text-primary)" }}>
+                <Plus size={13} style={{ color: "var(--crasto-blue)", flex: "none" }} />
+                <span style={{ flex: 1, minWidth: 0 }}><span style={{ fontWeight: 600 }}>{s.name}</span>{s.category ? <span className="mt" style={{ marginLeft: 6 }}>· {s.category}</span> : null}</span>
+                {s.price_table != null && <span className="tnum mt" style={{ fontSize: 12, flex: "none" }}>{money(s.price_table)}</span>}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {loading ? <Empty>Carregando…</Empty> : rows.length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{t("Nenhum serviço ainda — escolha do catálogo acima o que ele quer.")}</div> : rows.map((r) => (
         <div className="card" style={{ marginBottom: 10, padding: 14 }} key={r.id}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <span style={{ width: 9, height: 9, borderRadius: "50%", background: chipTone(r.situacao || "interesse"), flex: "none" }} />
-            <div style={{ flex: 1, minWidth: 160 }}>
-              <div className="nm" style={{ fontWeight: 700 }}>{r.service_name || t("Serviço")}</div>
-              <div className="mt">{[r.service_category, r.service_unit].filter(Boolean).join(" · ")}</div>
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <input defaultValue={r.service_name || ""} onBlur={(e) => up(r.id, { service_name: e.target.value })} placeholder={t("Nome do serviço (customize p/ este cliente)")} title={t("Customizável por cliente/lead")} className="inp" style={{ fontWeight: 700, padding: "6px 8px" }} />
+              <div className="mt" style={{ marginTop: 2 }}>{[r.service_category, r.service_unit].filter(Boolean).join(" · ")}</div>
             </div>
             <select defaultValue={r.situacao || "interesse"} onChange={(e) => upReload(r.id, { situacao: e.target.value })} className="selorg" style={{ width: 150 }}>
               {SITUACAO.map(([v, l]) => <option key={v} value={v}>{t(l)}</option>)}
