@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageCircle, Search, Send, Grid3x3, Eye, Copy, ExternalLink, ShieldCheck, Briefcase } from "lucide-react";
+import { MessageCircle, Search, Send, Grid3x3, Eye, Copy, ExternalLink, ShieldCheck, Briefcase, Lock } from "lucide-react";
 import { services } from "../../services";
 import { PageHead, Pill, Empty, useAsync } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
@@ -16,6 +16,8 @@ type Mod = {
   isCrm: boolean;
   /** É a solução Social Media (nossa) → abre EMBARCADA por SSO (/app/m/:id). */
   isSocial: boolean;
+  /** Andamento da implantação: in_progress (Em andamento) | on_hold (Em espera) | delivered (Entregue). Só 'delivered' libera o Acessar. */
+  rollout_status?: string | null;
 };
 type Svc = { id: string; status: string; name: string; description: string | null; category: string | null; unit: string | null };
 
@@ -34,7 +36,7 @@ async function fetchData(): Promise<{ mods: Mod[]; services: Svc[] }> {
     const cred = (cmap[r.id] as Cred) ?? null;
     // Ordem: URL desta instância → WhatsApp CRM (a API resolve; é a mesma p/ todos) → template.
     const url = cred?.access_url || ((r as any).crm_url as string) || ((r as any).social_url as string) || (vmap[r.vdi_module_id]?.external_url as string) || null;
-    return { id: r.id, status: r.status, vdi_module_id: r.vdi_module_id, label: (r as any).label ?? null, blurb: (r as any).blurb ?? null, access_mode: (r as any).access_mode ?? "link", isCrm: !!(r as any).crm_url, isSocial: !!(r as any).social_solution, vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null, external_url: url, cred };
+    return { id: r.id, status: r.status, vdi_module_id: r.vdi_module_id, label: (r as any).label ?? null, blurb: (r as any).blurb ?? null, access_mode: (r as any).access_mode ?? "link", isCrm: !!(r as any).crm_url, isSocial: !!(r as any).social_solution, rollout_status: (r as any).rollout_status ?? null, vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null, external_url: url, cred };
   });
   // Nome/descrição vêm desnormalizados na própria client_services (catalog.services é admin-only).
   const svcList: Svc[] = (csvc as any[]).map((c) => ({
@@ -88,8 +90,17 @@ export default function Modulos() {
           {mods.map((m) => {
             const implementing = m.status === "implementing" || m.status === "pending";
             const active = m.status === "active";
+            // Andamento da implantação (dado real): só 'delivered' (Entregue) libera o acesso.
+            const rs = m.rollout_status;
+            const emAndamento = rs === "in_progress" || rs === "on_hold";
+            const bloqueado = implementing || emAndamento; // Acessar fica bloqueado até "Entregue"
             const st = active ? "ok" : implementing ? "warn" : "info";
             const stl = active ? t("Ativo") : implementing ? t("Em configuração") : m.status;
+            // Rótulo do status para o card bloqueado + mensagem explicativa (puxa o status real).
+            const statusMsg = implementing ? t("Em configuração") : rs === "on_hold" ? t("Em espera") : t("Em andamento");
+            const bloqMsg = implementing ? t("Em configuração — disponível em breve.")
+              : rs === "on_hold" ? t("Em espera — a Crasto.AI retoma a implantação em breve.")
+              : t("Em andamento — o acesso é liberado assim que a implantação for concluída.");
             const cred = m.cred;
             const shown = cred ? revealed[cred.id] : undefined;
             return (
@@ -102,11 +113,18 @@ export default function Modulos() {
                   <h3>{m.label || t("Solução")}</h3>
                   <p>{m.blurb || t("Solução de IA da Crasto.AI.")}</p>
 
-                  {implementing ? (
-                    <div className="foot">
-                      <Pill tone="warn">{t("Em configuração")}</Pill>
-                      <span className="mt">{t("disponível em breve")}</span>
-                    </div>
+                  {bloqueado ? (
+                    <>
+                      <div className="foot">
+                        <Pill tone="warn">{statusMsg}</Pill>
+                        {/* Acesso BLOQUEADO enquanto a implantação não for "Entregue" — botão desativado (cadeado). */}
+                        <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled title={t("Disponível quando a implantação for concluída")}>
+                          <span className="crasto-btn__icon"><Lock size={14} /></span>
+                          <span className="crasto-btn__label">{t("Acessar")}</span>
+                        </button>
+                      </div>
+                      <div className="mt" style={{ marginTop: 8, color: "var(--crasto-text-muted)" }}>{bloqMsg}</div>
+                    </>
                   ) : (
                     <>
                       <div className="foot">
