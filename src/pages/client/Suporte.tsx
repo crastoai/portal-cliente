@@ -97,7 +97,7 @@ export default function Suporte() {
       const tLabel = TIPOS.find((x) => x.k === tipo)?.label || "Suporte";
       const subject = `[${tLabel}] ${f.subject.trim()}`;
       const description = `Tipo de suporte: ${tLabel}\n\n${f.description}`;
-      const r = await services.support.tickets.open({ subject, description, attachments });
+      const r = await services.support.tickets.open({ subject, description, attachments, kind: tipo === "melhorias" ? "improvement_request" : "support" });
       if (!r.ok) { setErr(r.error || t("Não foi possível abrir o chamado.")); return; }
       setOpen(false); setF({ subject: "", description: "" }); setFiles([]); reload();
       setToast(t("✓ Chamado #{n} aberto.", { n: r.number }) + (r.confirmed ? " " + t("Enviamos uma confirmação para o seu e-mail.") : ""));

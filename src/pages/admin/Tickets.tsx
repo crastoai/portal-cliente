@@ -7,8 +7,9 @@ export default function Tickets() {
   return (
     <TicketQueue cfg={{
       kind: "support",
-      title: "Chamados & Suporte",
-      sub: "Fila de tickets dos clientes.",
+      queryKind: "support,improvement_request",
+      title: "Chamados & Melhorias",
+      sub: "Fila de suporte e demandas de melhoria dos clientes. Atribua um responsável (Jorge, John ou Crasto).",
       icon: <LifeBuoy size={16} />,
       statusLabel: (s) => (({ open: t("Aberto"), in_progress: t("Em andamento"), resolved: t("Resolvido"), closed: t("Fechado") } as any)[s] || s),
       statusTone: (s) => (s === "resolved" || s === "closed" ? "ok" : s === "in_progress" ? "warn" : "info"),

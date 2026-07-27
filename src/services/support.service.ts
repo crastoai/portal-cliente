@@ -18,6 +18,8 @@ export const tickets = {
   listAll: async (kind?: string) => api.get<Record<string, any>[]>(`/api/support/tickets${kind ? `?kind=${encodeURIComponent(kind)}` : ""}`),
   /** Admin: muda o status do chamado. */
   setStatus: async (id: string, status: string) => api.patch(`/api/support/tickets/${id}/status`, { status }),
+  /** Admin: define/limpa o responsável (agente_ia=Jorge / john / crasto). */
+  assign: async (id: string, assigned_to: string | null) => api.patch(`/api/support/tickets/${id}/assign`, { assigned_to }),
   /** Admin: avisa o cliente por e-mail e atualiza o status. */
   notify: async (ticketId: string, template: "resolved" | "received"): Promise<{ ok: boolean; status?: string; email?: string; email_sent?: boolean; email_error?: string; error?: string }> => {
     try { return await api.post(`/api/support/tickets/${ticketId}/notify`, { template }); } catch (e) { return { ok: false, error: errorMessage(e) }; }

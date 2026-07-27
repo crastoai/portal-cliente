@@ -5,9 +5,19 @@ import { PageHead, Pill, Empty, useAsync, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 
 const STATUSES = ["open", "in_progress", "resolved", "closed"];
+// Responsável pela demanda: Jorge = agente de IA, John, Crasto. "" = ainda sem dono.
+const ASSIGNEES = [
+  { v: "", l: "Sem responsável" },
+  { v: "agente_ia", l: "Jorge (IA)" },
+  { v: "john", l: "John" },
+  { v: "crasto", l: "Crasto" },
+];
+const KIND_L: Record<string, string> = { support: "Suporte", improvement_request: "Melhoria", implementation_request: "Implantação" };
 
 export type QueueConfig = {
   kind: "support" | "implementation_request";
+  /** tipos consultados (pode ser vários separados por vírgula); default = `kind`. */
+  queryKind?: string;
   title: string;
   sub: string;
   icon: React.ReactNode;
@@ -27,15 +37,17 @@ export type QueueConfig = {
 
 export default function TicketQueue({ cfg }: { cfg: QueueConfig }) {
   const t = useT();
+  const qKind = cfg.queryKind ?? cfg.kind;
+  const mixed = qKind.includes(",");
   const { data, loading, reload } = useAsync(async () => {
     const [tk, orgs] = await Promise.all([
-      services.support.tickets.listAll(cfg.kind),
+      services.support.tickets.listAll(qKind),
       services.identity.organizations.listForProposals(),
     ]);
     const ids = Array.from(new Set((tk as any[]).map((x) => x.organization_id).filter(Boolean)));
     const phones = await services.crm.phones.listByOrgs(ids as string[]).catch(() => [] as any[]);
     return { items: (tk as any[]) ?? [], orgs: (orgs as any[]) ?? [], phones: (phones as any[]) ?? [] };
-  }, [cfg.kind]);
+  }, [qKind]);
 
   const items = data?.items ?? [];
   const orgs = data?.orgs ?? [];
@@ -53,6 +65,7 @@ export default function TicketQueue({ cfg }: { cfg: QueueConfig }) {
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 7000); };
 
   async function setStatus(id: string, status: string) { setBusy(id); await services.support.tickets.setStatus(id, status); await reload(); setBusy(""); }
+  async function setAssignee(id: string, who: string) { setBusy(id); await services.support.tickets.assign(id, who || null); await reload(); setBusy(""); }
   async function notify(id: string) {
     setBusy(id);
     const r = await services.support.tickets.notify(id, cfg.actionTemplate);
@@ -112,10 +125,17 @@ export default function TicketQueue({ cfg }: { cfg: QueueConfig }) {
               <div className="card" style={{ marginBottom: 12 }} key={it.id}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <Pill tone={cfg.statusTone(it.status) as any}>{cfg.statusLabel(it.status)}</Pill>
+                  {mixed && it.kind !== "support" && <Pill tone={it.kind === "improvement_request" ? "info" : "warn"}>{KIND_L[it.kind] || it.kind}</Pill>}
                   <div style={{ flex: 1, minWidth: 180 }}>
                     <div className="nm" style={{ fontWeight: 700 }}>{cfg.kind === "support" ? it.subject : orgName(it.organization_id)}</div>
                     <div className="mt">{cfg.kind === "support" ? orgName(it.organization_id) + " · " : ""}{new Date(it.created_at).toLocaleString("pt-BR")}</div>
                   </div>
+                  <label className="mt" style={{ fontSize: 11.5, display: "flex", alignItems: "center", gap: 6 }}>
+                    {t("Responsável")}
+                    <select value={it.assigned_to || ""} disabled={busy === it.id} onChange={(e) => setAssignee(it.id, e.target.value)} className="selorg" style={{ width: 150 }}>
+                      {ASSIGNEES.map((a) => <option key={a.v} value={a.v}>{t(a.l)}</option>)}
+                    </select>
+                  </label>
                   <select value={it.status} disabled={busy === it.id} onChange={(e) => setStatus(it.id, e.target.value)} className="selorg" style={{ width: 160 }}>
                     {STATUSES.map((s) => <option key={s} value={s}>{cfg.statusLabel(s)}</option>)}
                   </select>

@@ -30,7 +30,8 @@ export class TicketsService {
   async open(req: any, uid: string, b: { subject?: string; description?: string; kind?: string; attachments?: any[] }) {
     const subject = String(b.subject || '').trim();
     if (!subject) throw new BadRequestException('Informe o assunto.');
-    const kind = b.kind === 'implementation_request' ? 'implementation_request' : 'support';
+    // Cliente pode abrir suporte, solicitação de implantação OU demanda de melhoria (do agente/módulo).
+    const kind = (b.kind === 'implementation_request' || b.kind === 'improvement_request') ? b.kind : 'support';
 
     // Anexos (prints): o cliente sobe no R2 e manda {name, key, url}. Guardamos só {name, key}
     // no chamado (a URL assinada é efêmera; o admin regera sob demanda); a `url` só serve para o
