@@ -283,6 +283,74 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
         {org.notes && <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--crasto-border-soft)", fontSize: 13, color: "var(--crasto-text-body)" }}><b>{tr("Observações:")}</b> {org.notes}</div>}
       </div>
 
+      {/* CNPJs & endereços de faturamento */}
+      <div className="sec-h" style={{ marginTop: 4 }}><h2>{tr("CNPJs & endereços de faturamento")}</h2><Pill tone="mute">{tr("usado nas propostas")}</Pill></div>
+      <div className="addrow">
+        <select value={taxid.kind} onChange={(e) => setTaxid({ ...taxid, kind: e.target.value })}><option value="CNPJ">CNPJ</option><option value="CPF">CPF</option><option value="EIN">EIN</option><option value="VAT">VAT</option><option value="Outro">{tr("Outro")}</option></select>
+        <input placeholder={tr("Número do documento")} value={taxid.value} onChange={(e) => setTaxid({ ...taxid, value: e.target.value })} style={{ flex: 1, minWidth: 150 }} />
+        <input placeholder={tr("Endereço de faturamento (rua, nº, cidade/UF, CEP)")} value={taxid.address} onChange={(e) => setTaxid({ ...taxid, address: e.target.value })} style={{ flex: 2, minWidth: 200 }} />
+        <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={addTaxid}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{tr("Adicionar")}</span></button>
+      </div>
+      {taxids.length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhum CNPJ cadastrado — a proposta usará o {id} do cadastro acima.", { id: countryOf(org.country).idLabel })}</div> : taxids.map((t) => (
+        <div className="crmrow" key={t.id}>
+          <Pill tone={t.is_primary ? "ok" : "info"}>{t.kind}</Pill>
+          <div><div className="nm tnum">{t.value} {t.is_primary && <span className="chip" style={{ marginLeft: 6, background: "var(--crasto-navy-05)", color: "var(--crasto-text-primary)" }}>{tr("principal")}</span>}</div><div className="mt">{t.address || tr("sem endereço")}</div></div>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
+            {!t.is_primary && <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setPrimaryTaxid(t.id)} title={tr("Tornar o CNPJ principal")}><span className="crasto-btn__label">{tr("Tornar principal")}</span></button>}
+            <button className="icobtn rm" onClick={() => delTaxid(t.id)} title={tr("Excluir")}><Trash2 size={14} /></button>
+          </div>
+        </div>
+      ))}
+
+      {/* Grupo & registros legais (internacional — Grupo × N registros × país) */}
+      <div className="sec-h" style={{ marginTop: 20 }}><h2>{tr("Grupo & registros legais")}</h2><Pill tone="mute">{tr("Grupo × N registros · internacional")}</Pill>
+        <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" style={{ marginLeft: "auto" }} onClick={newReg}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{tr("Adicionar registro")}</span></button></div>
+      {(cnpjs ?? []).length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhum registro legal cadastrado.")}</div> : cnpjs.map((c: any) => (
+        <div className="crmrow" key={c.id}>
+          <Pill tone={c.is_headquarters ? "ok" : "info"}>{c.is_headquarters ? tr("Matriz") : tr("Filial")}</Pill>
+          <div style={{ flex: 1, minWidth: 0 }}><div className="nm tnum">{regInfo(c.reg_type).label} {c.cnpj || "—"} {!c.is_active && <span className="chip" style={{ marginLeft: 6 }}>{tr("Inativo")}</span>}</div><div className="mt">{[regCountryName(c.country), c.trade_name || c.legal_name].filter(Boolean).join(" · ") || tr("sem nome")}</div></div>
+          <div style={{ display: "flex", gap: 4 }}>
+            <button className="icobtn" title={tr("Editar")} onClick={() => editReg(c)}><Pencil size={13} /></button>
+            <button className="icobtn rm" title={tr("Excluir")} onClick={() => delReg(c)}><Trash2 size={13} /></button>
+          </div>
+        </div>
+      ))}
+      <Modal title={regF.id ? tr("Editar registro legal") : tr("Novo registro legal")} open={regOpen} onClose={() => setRegOpen(false)}
+        footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setRegOpen(false)}><span className="crasto-btn__label">{tr("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={saveReg}><span className="crasto-btn__label">{tr("Salvar")}</span></button></>}>
+        <div className="grid2">
+          <Field label="País"><select value={regF.country} onChange={(e) => setRegF({ ...regF, country: e.target.value, reg_type: regTypeFor(e.target.value) })}>{REG_COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}</select></Field>
+          <Field label={regInfo(regF.reg_type).label}><input value={regF.cnpj} onChange={(e) => setRegF({ ...regF, cnpj: e.target.value })} onBlur={(e) => setRegF({ ...regF, cnpj: regInfo(regF.reg_type).format(e.target.value) })} placeholder={regInfo(regF.reg_type).placeholder} /></Field>
+        </div>
+        <div className="grid2">
+          <Field label="Razão social"><input value={regF.legal_name} onChange={(e) => setRegF({ ...regF, legal_name: e.target.value })} /></Field>
+          <Field label="Nome fantasia"><input value={regF.trade_name} onChange={(e) => setRegF({ ...regF, trade_name: e.target.value })} /></Field>
+        </div>
+        <div className="grid2">
+          <Field label="CEP"><input value={regF.zip_code || ""} onChange={(e) => setRegF({ ...regF, zip_code: e.target.value })} placeholder="00000-000" /></Field>
+          <Field label="Inscrição estadual"><input value={regF.inscricao_estadual || ""} onChange={(e) => setRegF({ ...regF, inscricao_estadual: e.target.value })} placeholder={tr("(se houver)")} /></Field>
+        </div>
+        <div className="grid2">
+          <Field label="Cidade"><input value={regF.city || ""} onChange={(e) => setRegF({ ...regF, city: e.target.value })} /></Field>
+          <Field label="Estado / UF"><input value={regF.state || ""} onChange={(e) => setRegF({ ...regF, state: e.target.value })} /></Field>
+        </div>
+        <div style={{ display: "flex", gap: 18, marginTop: 6 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8 }}><button type="button" className={"sw" + (regF.is_headquarters ? " on" : "")} onClick={() => setRegF({ ...regF, is_headquarters: !regF.is_headquarters })} /><span style={{ fontSize: 13, fontWeight: 600 }}>{regF.is_headquarters ? tr("Matriz") : tr("Filial")}</span></label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8 }}><button type="button" className={"sw" + (regF.is_active ? " on" : "")} onClick={() => setRegF({ ...regF, is_active: !regF.is_active })} /><span style={{ fontSize: 13, fontWeight: 600 }}>{regF.is_active ? tr("Ativo") : tr("Inativo")}</span></label>
+        </div>
+      </Modal>
+
+      {/* Sócios cadastrados pelo cliente */}
+      {(partners ?? []).length > 0 && (<>
+        <div className="sec-h" style={{ marginTop: 20 }}><h2>{tr("Sócios")}</h2><Pill tone="mute">{tr("cadastrados pelo cliente no portal")}</Pill></div>
+        {partners.map((p: any) => (
+          <div className="crmrow" key={p.id}>
+            <Pill tone={p.is_ceo ? "ok" : "info"}>{p.is_ceo ? tr("Administrador") : tr("Sócio")}</Pill>
+            <div style={{ flex: 1, minWidth: 0 }}><div className="nm">{p.full_name || "—"} {!p.is_active && <span className="chip" style={{ marginLeft: 6 }}>{tr("Inativo")}</span>}</div><div className="mt">{[p.role_title, p.cpf, p.ownership_percentage != null ? `${p.ownership_percentage}%` : null].filter(Boolean).join(" · ")}</div></div>
+            <button className="icobtn" title={tr("Excluir sócio")} onClick={() => delPartner(p)}><Trash2 size={14} /></button>
+          </div>
+        ))}
+      </>)}
+
       {/* Pessoas */}
       <div className="sec-h"><h2>{tr("Pessoas da empresa")}</h2></div>
       <div className="addrow">
@@ -353,74 +421,6 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
 
       {/* Diagnóstico do site (Mapa de IA) — card + popup; some se o cliente não veio do /mapa */}
       <DiagnosticoCard orgId={id!} />
-
-      {/* CNPJs & endereços de faturamento */}
-      <div className="sec-h" style={{ marginTop: 4 }}><h2>{tr("CNPJs & endereços de faturamento")}</h2><Pill tone="mute">{tr("usado nas propostas")}</Pill></div>
-      <div className="addrow">
-        <select value={taxid.kind} onChange={(e) => setTaxid({ ...taxid, kind: e.target.value })}><option value="CNPJ">CNPJ</option><option value="CPF">CPF</option><option value="EIN">EIN</option><option value="VAT">VAT</option><option value="Outro">{tr("Outro")}</option></select>
-        <input placeholder={tr("Número do documento")} value={taxid.value} onChange={(e) => setTaxid({ ...taxid, value: e.target.value })} style={{ flex: 1, minWidth: 150 }} />
-        <input placeholder={tr("Endereço de faturamento (rua, nº, cidade/UF, CEP)")} value={taxid.address} onChange={(e) => setTaxid({ ...taxid, address: e.target.value })} style={{ flex: 2, minWidth: 200 }} />
-        <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={addTaxid}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{tr("Adicionar")}</span></button>
-      </div>
-      {taxids.length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhum CNPJ cadastrado — a proposta usará o {id} do cadastro acima.", { id: countryOf(org.country).idLabel })}</div> : taxids.map((t) => (
-        <div className="crmrow" key={t.id}>
-          <Pill tone={t.is_primary ? "ok" : "info"}>{t.kind}</Pill>
-          <div><div className="nm tnum">{t.value} {t.is_primary && <span className="chip" style={{ marginLeft: 6, background: "var(--crasto-navy-05)", color: "var(--crasto-text-primary)" }}>{tr("principal")}</span>}</div><div className="mt">{t.address || tr("sem endereço")}</div></div>
-          <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
-            {!t.is_primary && <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setPrimaryTaxid(t.id)} title={tr("Tornar o CNPJ principal")}><span className="crasto-btn__label">{tr("Tornar principal")}</span></button>}
-            <button className="icobtn rm" onClick={() => delTaxid(t.id)} title={tr("Excluir")}><Trash2 size={14} /></button>
-          </div>
-        </div>
-      ))}
-
-      {/* Grupo & registros legais (internacional — Grupo × N registros × país) */}
-      <div className="sec-h" style={{ marginTop: 20 }}><h2>{tr("Grupo & registros legais")}</h2><Pill tone="mute">{tr("Grupo × N registros · internacional")}</Pill>
-        <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" style={{ marginLeft: "auto" }} onClick={newReg}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{tr("Adicionar registro")}</span></button></div>
-      {(cnpjs ?? []).length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhum registro legal cadastrado.")}</div> : cnpjs.map((c: any) => (
-        <div className="crmrow" key={c.id}>
-          <Pill tone={c.is_headquarters ? "ok" : "info"}>{c.is_headquarters ? tr("Matriz") : tr("Filial")}</Pill>
-          <div style={{ flex: 1, minWidth: 0 }}><div className="nm tnum">{regInfo(c.reg_type).label} {c.cnpj || "—"} {!c.is_active && <span className="chip" style={{ marginLeft: 6 }}>{tr("Inativo")}</span>}</div><div className="mt">{[regCountryName(c.country), c.trade_name || c.legal_name].filter(Boolean).join(" · ") || tr("sem nome")}</div></div>
-          <div style={{ display: "flex", gap: 4 }}>
-            <button className="icobtn" title={tr("Editar")} onClick={() => editReg(c)}><Pencil size={13} /></button>
-            <button className="icobtn rm" title={tr("Excluir")} onClick={() => delReg(c)}><Trash2 size={13} /></button>
-          </div>
-        </div>
-      ))}
-      <Modal title={regF.id ? tr("Editar registro legal") : tr("Novo registro legal")} open={regOpen} onClose={() => setRegOpen(false)}
-        footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setRegOpen(false)}><span className="crasto-btn__label">{tr("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={saveReg}><span className="crasto-btn__label">{tr("Salvar")}</span></button></>}>
-        <div className="grid2">
-          <Field label="País"><select value={regF.country} onChange={(e) => setRegF({ ...regF, country: e.target.value, reg_type: regTypeFor(e.target.value) })}>{REG_COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}</select></Field>
-          <Field label={regInfo(regF.reg_type).label}><input value={regF.cnpj} onChange={(e) => setRegF({ ...regF, cnpj: e.target.value })} onBlur={(e) => setRegF({ ...regF, cnpj: regInfo(regF.reg_type).format(e.target.value) })} placeholder={regInfo(regF.reg_type).placeholder} /></Field>
-        </div>
-        <div className="grid2">
-          <Field label="Razão social"><input value={regF.legal_name} onChange={(e) => setRegF({ ...regF, legal_name: e.target.value })} /></Field>
-          <Field label="Nome fantasia"><input value={regF.trade_name} onChange={(e) => setRegF({ ...regF, trade_name: e.target.value })} /></Field>
-        </div>
-        <div className="grid2">
-          <Field label="CEP"><input value={regF.zip_code || ""} onChange={(e) => setRegF({ ...regF, zip_code: e.target.value })} placeholder="00000-000" /></Field>
-          <Field label="Inscrição estadual"><input value={regF.inscricao_estadual || ""} onChange={(e) => setRegF({ ...regF, inscricao_estadual: e.target.value })} placeholder={tr("(se houver)")} /></Field>
-        </div>
-        <div className="grid2">
-          <Field label="Cidade"><input value={regF.city || ""} onChange={(e) => setRegF({ ...regF, city: e.target.value })} /></Field>
-          <Field label="Estado / UF"><input value={regF.state || ""} onChange={(e) => setRegF({ ...regF, state: e.target.value })} /></Field>
-        </div>
-        <div style={{ display: "flex", gap: 18, marginTop: 6 }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 8 }}><button type="button" className={"sw" + (regF.is_headquarters ? " on" : "")} onClick={() => setRegF({ ...regF, is_headquarters: !regF.is_headquarters })} /><span style={{ fontSize: 13, fontWeight: 600 }}>{regF.is_headquarters ? tr("Matriz") : tr("Filial")}</span></label>
-          <label style={{ display: "flex", alignItems: "center", gap: 8 }}><button type="button" className={"sw" + (regF.is_active ? " on" : "")} onClick={() => setRegF({ ...regF, is_active: !regF.is_active })} /><span style={{ fontSize: 13, fontWeight: 600 }}>{regF.is_active ? tr("Ativo") : tr("Inativo")}</span></label>
-        </div>
-      </Modal>
-
-      {/* Sócios cadastrados pelo cliente */}
-      {(partners ?? []).length > 0 && (<>
-        <div className="sec-h" style={{ marginTop: 20 }}><h2>{tr("Sócios")}</h2><Pill tone="mute">{tr("cadastrados pelo cliente no portal")}</Pill></div>
-        {partners.map((p: any) => (
-          <div className="crmrow" key={p.id}>
-            <Pill tone={p.is_ceo ? "ok" : "info"}>{p.is_ceo ? tr("Administrador") : tr("Sócio")}</Pill>
-            <div style={{ flex: 1, minWidth: 0 }}><div className="nm">{p.full_name || "—"} {!p.is_active && <span className="chip" style={{ marginLeft: 6 }}>{tr("Inativo")}</span>}</div><div className="mt">{[p.role_title, p.cpf, p.ownership_percentage != null ? `${p.ownership_percentage}%` : null].filter(Boolean).join(" · ")}</div></div>
-            <button className="icobtn" title={tr("Excluir sócio")} onClick={() => delPartner(p)}><Trash2 size={14} /></button>
-          </div>
-        ))}
-      </>)}
 
       {/* Propostas / contrato ganho */}
       <div className="sec-h" style={{ marginTop: 20 }}><h2>{tr("Propostas & contrato")}</h2><Pill tone="mute">{tr("marcar como ganha liga o MRR")}</Pill></div>
@@ -610,22 +610,9 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
         );
       })}
 
-      {/* Tarefas / cronograma */}
-      <div className="sec-h"><h2>{tr("Etapas do cronograma")}</h2><Pill tone="mute">{tr("vira o Gantt do cliente")}</Pill></div>
-      <div className="addrow">
-        <input placeholder={tr("Nome da etapa")} value={taskf.name} onChange={(e) => setTaskf({ ...taskf, name: e.target.value })} style={{ flex: 2, minWidth: 160 }} />
-        <input type="date" title={tr("Início previsto")} value={taskf.start} onChange={(e) => setTaskf({ ...taskf, start: e.target.value })} />
-        <input type="date" title={tr("Fim previsto")} value={taskf.end} onChange={(e) => setTaskf({ ...taskf, end: e.target.value })} />
-        <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={addTask}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{tr("Adicionar")}</span></button>
-      </div>
-      {(tasks ?? []).length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhuma etapa. Adicione o cronograma acima.")}</div> : (tasks ?? []).map((tk) => (
-        <div className="crmrow" key={tk.id}>
-          <Pill tone={tk.status === "done" ? "ok" : tk.status === "doing" ? "warn" : "mute"}>{tk.status === "done" ? tr("Feito") : tk.status === "doing" ? tr("Fazendo") : tr("A fazer")}</Pill>
-          <div style={{ flex: 1 }}><div className="nm">{tk.name}</div><div className="mt">{tk.planned_start ? fmtDate(tk.planned_start) : "—"} → {tk.planned_end ? fmtDate(tk.planned_end) : "—"}</div></div>
-          <select value={tk.status} onChange={(e) => setTaskStatus(tk.id, e.target.value)} style={{ width: 130 }}><option value="todo">{tr("A fazer")}</option><option value="doing">{tr("Fazendo")}</option><option value="done">{tr("Feito")}</option></select>
-          <button className="icobtn rm" onClick={() => delTask(tk.id)}><Trash2 size={14} /></button>
-        </div>
-      ))}
+      {/* Etapas do cronograma: NÃO se edita aqui (decisão Crasto 2026-07-27). O cronograma nasce na
+          PROPOSTA e é pré-definido por módulo no Catálogo de Módulos (VDI); ao contratar o módulo,
+          preenche automaticamente. Editor manual removido. */}
 
       {/* Credenciais de módulo (F-D) */}
       <UsoModulos orgId={id} titulo={tr("Uso dos módulos por usuário")} />
