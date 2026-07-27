@@ -2,7 +2,7 @@ import { useState } from "react";
 import { UserPlus, Boxes, Check} from "lucide-react";
 import { services, errorMessage } from "../../services";
 import { useAuth } from "../../lib/auth";
-import { PageHead, Pill, Empty, useAsync, Avatar, Field } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, Avatar, Field, useSort, SortTh } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import { CLIENT_SCREENS, ALL_SCREEN_KEYS, BASE_SCREEN } from "../../lib/screens";
 import UsoModulos from "../../ui/UsoModulos";
@@ -20,6 +20,7 @@ export default function Usuarios() {
     [profile?.organization_id]
   );
   const users = data ?? [];
+  const { sort, toggle, sorted } = useSort("name", 1);
   const roleLabel = (r: string) => (r === "client_owner" ? t("Dono") : r === "client_member" ? t("Membro") : r);
   const roleTone = (r: string) => (r === "client_owner" ? "ok" : "mute");
 
@@ -98,9 +99,21 @@ export default function Usuarios() {
       {loading ? <Empty>Carregando…</Empty> : users.length === 0 ? <Empty>Nenhum usuário.</Empty> : (
         <div className="tbl-wrap">
           <table className="tbl">
-            <thead><tr><th>{t("Usuário")}</th><th>{t("Papel")}</th><th>{t("E-mail")}</th><th>{t("Acesso")}</th></tr></thead>
+            <thead><tr>
+              <SortTh col="name" sort={sort} toggle={toggle}>{t("Usuário")}</SortTh>
+              <SortTh col="role" sort={sort} toggle={toggle}>{t("Papel")}</SortTh>
+              <SortTh col="email" sort={sort} toggle={toggle}>{t("E-mail")}</SortTh>
+              <th>{t("Acesso")}</th>
+            </tr></thead>
             <tbody>
-              {users.map((u) => (
+              {sorted(users, (u, col) => {
+                switch (col) {
+                  case "name": return u.full_name || u.email || "";
+                  case "role": return roleLabel(u.role);
+                  case "email": return u.email || "";
+                  default: return u.full_name || u.email || "";
+                }
+              }).map((u) => (
                 <tr key={u.id}>
                   <td><div className="cust"><Avatar name={u.full_name || u.email} url={u.avatar_url} /><div className="nm">{u.full_name || "—"}</div></div></td>
                   <td><Pill tone={roleTone(u.role)}>{roleLabel(u.role)}</Pill></td>

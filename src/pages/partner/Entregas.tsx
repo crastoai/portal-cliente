@@ -1,5 +1,5 @@
 import { services } from "../../services";
-import { PageHead, Pill, Empty, useAsync, initials } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, initials, useSort, SortTh } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 
 
@@ -20,6 +20,16 @@ export default function Entregas() {
   }, []);
   const rows = data ?? [];
   const delivered = rows.filter((r) => r.status === "delivered").length;
+  const { sort, toggle, sorted } = useSort("name", 1);
+  const sortedRows = sorted(rows, (r, col) => {
+    switch (col) {
+      case "name": return r.name;
+      case "mods": return r.mods;
+      case "progress": return r.progress ?? 0;
+      case "status": return r.status ?? "";
+      default: return r.name;
+    }
+  });
 
   return (
     <div>
@@ -34,9 +44,14 @@ export default function Entregas() {
       {loading ? <Empty>Carregando…</Empty> : rows.length === 0 ? <Empty>Você ainda não indicou clientes.</Empty> : (
         <div className="tbl-wrap">
           <table className="tbl">
-            <thead><tr><th>{t("Cliente indicado")}</th><th>{t("Módulos")}</th><th>{t("Progresso")}</th><th>{t("Status")}</th></tr></thead>
+            <thead><tr>
+              <SortTh col="name" sort={sort} toggle={toggle}>{t("Cliente indicado")}</SortTh>
+              <SortTh col="mods" sort={sort} toggle={toggle}>{t("Módulos")}</SortTh>
+              <SortTh col="progress" sort={sort} toggle={toggle}>{t("Progresso")}</SortTh>
+              <SortTh col="status" sort={sort} toggle={toggle}>{t("Status")}</SortTh>
+            </tr></thead>
             <tbody>
-              {rows.map((r) => (
+              {sortedRows.map((r) => (
                 <tr key={r.id}>
                   <td><div className="cust"><div className="logo">{initials(r.name)}</div><div className="nm">{r.name}</div></div></td>
                   <td className="tnum">{t("{n} módulos", { n: r.mods })}</td>

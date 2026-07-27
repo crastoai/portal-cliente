@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { services, errorMessage } from "../../services";
-import { PageHead, Pill, Empty, useAsync, money, Field, useToast } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, money, Field, useToast, useSort, SortTh } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 
@@ -51,6 +51,10 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
   const total = Number(s.total || 0), prev = Number(s.prev_total || 0);
   const deltaPct = prev > 0 ? Math.round(((total - prev) / prev) * 100) : total > 0 ? 100 : 0;
   const avgClient = Number(s.clients || 0) > 0 ? Number(s.client_cost || 0) / Number(s.clients) : 0;
+  // Ordenação por coluna (padrão: maior custo primeiro) — uma instância por tabela.
+  const { sort: sortP, toggle: toggleP, sorted: sortedP } = useSort("cost", -1);
+  const { sort: sortC, toggle: toggleC, sorted: sortedC } = useSort("cost", -1);
+  const { sort: sortL, toggle: toggleL, sorted: sortedL } = useSort("cost", -1);
 
   const [busy, setBusy] = useState(false);
   // Feedback com cor semântica: erro=vermelho, alerta=laranja, sucesso=verde (toast--err/warn/ok).
@@ -133,9 +137,24 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
         <div className="sec-h" id="cia-plataforma"><h2>{t("Custo por plataforma de IA")}</h2></div>
         <div className="tbl-wrap" style={{ marginBottom: 20 }}>
           <table className="tbl">
-            <thead><tr><th>{t("Plataforma")}</th><th>{t("Para que serve")}</th><th>{t("Consumo")}</th><th style={{ textAlign: "right" }}>{t("Custo (mês)")}</th><th style={{ textAlign: "right" }}>{t("% do total")}</th><th>{t("Situação")}</th></tr></thead>
+            <thead><tr>
+              <SortTh col="platform" sort={sortP} toggle={toggleP}>{t("Plataforma")}</SortTh>
+              <SortTh col="purpose" sort={sortP} toggle={toggleP}>{t("Para que serve")}</SortTh>
+              <SortTh col="usage" sort={sortP} toggle={toggleP}>{t("Consumo")}</SortTh>
+              <SortTh col="cost" sort={sortP} toggle={toggleP} right>{t("Custo (mês)")}</SortTh>
+              <SortTh col="pct" sort={sortP} toggle={toggleP} right>{t("% do total")}</SortTh>
+              <SortTh col="status" sort={sortP} toggle={toggleP}>{t("Situação")}</SortTh>
+            </tr></thead>
             <tbody>
-              {byPlatform.map((r, i) => (
+              {sortedP(byPlatform, (r, col) => {
+                switch (col) {
+                  case "platform": return platLabel(r);
+                  case "purpose": return r.purpose || platMeta(r.platform)?.purpose || "";
+                  case "usage": return Number(r.tokens_in || 0) + Number(r.tokens_out || 0);
+                  case "status": return r.status || "";
+                  default: return Number(r.cost || 0);
+                }
+              }).map((r, i) => (
                 <tr key={i}>
                   <td className="nm" style={{ fontWeight: 600 }}>{platLabel(r)}</td>
                   <td className="mt">{r.purpose || platMeta(r.platform)?.purpose || "—"}</td>
@@ -153,9 +172,22 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
         <div className="sec-h" id="cia-cliente"><h2>{t("Custo por cliente")}</h2></div>
         <div className="tbl-wrap">
           <table className="tbl">
-            <thead><tr><th>{t("Cliente")}</th><th>{t("Tipo")}</th><th>{t("Consumo")}</th><th style={{ textAlign: "right" }}>{t("Custo (mês)")}</th><th style={{ textAlign: "right" }}>{t("% do total")}</th></tr></thead>
+            <thead><tr>
+              <SortTh col="client" sort={sortC} toggle={toggleC}>{t("Cliente")}</SortTh>
+              <SortTh col="kind" sort={sortC} toggle={toggleC}>{t("Tipo")}</SortTh>
+              <SortTh col="usage" sort={sortC} toggle={toggleC}>{t("Consumo")}</SortTh>
+              <SortTh col="cost" sort={sortC} toggle={toggleC} right>{t("Custo (mês)")}</SortTh>
+              <SortTh col="pct" sort={sortC} toggle={toggleC} right>{t("% do total")}</SortTh>
+            </tr></thead>
             <tbody>
-              {byClient.map((r, i) => (
+              {sortedC(byClient, (r, col) => {
+                switch (col) {
+                  case "client": return r.organization_name || "";
+                  case "kind": return r.kind || "";
+                  case "usage": return Number(r.tokens_in || 0) + Number(r.tokens_out || 0);
+                  default: return Number(r.cost || 0);
+                }
+              }).map((r, i) => (
                 <tr key={i}>
                   <td className="nm" style={{ fontWeight: 600 }}>{r.organization_name}</td>
                   <td>{kindPill(r.kind)}</td>
@@ -173,9 +205,20 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
           <div className="sec-h" style={{ marginTop: 20 }}><h2>{t("Lançamentos do mês")}</h2></div>
           <div className="tbl-wrap">
             <table className="tbl">
-              <thead><tr><th>{t("Plataforma")}</th><th>{t("Cliente")}</th><th style={{ textAlign: "right" }}>{t("Custo")}</th><th></th></tr></thead>
+              <thead><tr>
+                <SortTh col="platform" sort={sortL} toggle={toggleL}>{t("Plataforma")}</SortTh>
+                <SortTh col="client" sort={sortL} toggle={toggleL}>{t("Cliente")}</SortTh>
+                <SortTh col="cost" sort={sortL} toggle={toggleL} right>{t("Custo")}</SortTh>
+                <th></th>
+              </tr></thead>
               <tbody>
-                {(panel.rows as any[]).map((r) => (
+                {sortedL(panel.rows as any[], (r, col) => {
+                  switch (col) {
+                    case "platform": return platLabel(r);
+                    case "client": return r.organization_name || "";
+                    default: return Number(r.cost || 0);
+                  }
+                }).map((r) => (
                   <tr key={r.id}>
                     <td>{platLabel(r)}</td>
                     <td>{r.organization_name}</td>

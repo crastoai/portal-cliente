@@ -2,7 +2,7 @@ import { useState } from "react";
 import { FileText, QrCode, Copy, Check, MessageCircle, AlertTriangle, Clock } from "lucide-react";
 import { services } from "../../services";
 import { useAuth } from "../../lib/auth";
-import { PageHead, Pill, Empty, useAsync, money } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, money, useSort, SortTh } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import { useSettings } from "../../lib/settings";
 import { summarizeFaturas, isOverdue, type Fatura } from "../../lib/faturas";
@@ -28,6 +28,18 @@ export default function Financeiro() {
   const next = sum.next;
   const tone = (i: Fatura) => (i.status === "paid" ? "ok" : isOverdue(i) ? "crit" : i.status === "canceled" ? "mute" : "warn");
   const label = (i: Fatura) => (i.status === "paid" ? t("Paga") : isOverdue(i) ? t("Vencida") : i.status === "canceled" ? t("Cancelada") : t("Em aberto"));
+
+  // Ordenação da tabela de faturas — padrão: vencimento mais recente primeiro.
+  const { sort, toggle, sorted } = useSort("due", -1);
+  const invSorted = sorted(inv, (i, col) => {
+    switch (col) {
+      case "desc": return i.description || "";
+      case "due": return i.due_date ? new Date(i.due_date + "T00:00:00") : null;
+      case "amount": return i.amount;
+      case "status": return label(i);
+      default: return i.due_date ? new Date(i.due_date + "T00:00:00") : null;
+    }
+  });
 
   const waDigits = (cfg.supportWhatsapp || "").replace(/\D/g, "");
   function openWhatsApp() {
@@ -114,9 +126,14 @@ export default function Financeiro() {
           ) : (
             <div className="tbl-wrap">
               <table className="tbl">
-                <thead><tr><th>{t("Fatura")}</th><th>{t("Vencimento")}</th><th>{t("Valor")}</th><th>{t("Status")}</th></tr></thead>
+                <thead><tr>
+                  <SortTh col="desc" sort={sort} toggle={toggle}>{t("Fatura")}</SortTh>
+                  <SortTh col="due" sort={sort} toggle={toggle}>{t("Vencimento")}</SortTh>
+                  <SortTh col="amount" sort={sort} toggle={toggle}>{t("Valor")}</SortTh>
+                  <SortTh col="status" sort={sort} toggle={toggle}>{t("Status")}</SortTh>
+                </tr></thead>
                 <tbody>
-                  {inv.map((i) => (
+                  {invSorted.map((i) => (
                     <tr key={i.id}>
                       <td>{i.description || "—"}</td>
                       <td>{i.due_date ? new Date(i.due_date + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</td>

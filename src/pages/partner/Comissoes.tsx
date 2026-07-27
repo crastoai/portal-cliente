@@ -1,5 +1,5 @@
 import { services } from "../../services";
-import { PageHead, Pill, Empty, useAsync, money } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, money, useSort, SortTh } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 
 type Comm = { org: string; sale_amount: number; commission_amount: number; nf_status: string };
@@ -11,6 +11,7 @@ export default function Comissoes() {
   const total = rows.reduce((s, r) => s + Number(r.commission_amount), 0);
   const paid = rows.filter((r) => r.nf_status === "paid").reduce((s, r) => s + Number(r.commission_amount), 0);
   const pending = total - paid;
+  const { sort, toggle, sorted } = useSort("commission_amount", -1);
 
   return (
     <div>
@@ -26,9 +27,22 @@ export default function Comissoes() {
       {loading ? <Empty>Carregando…</Empty> : rows.length === 0 ? <Empty>Nenhuma comissão ainda.</Empty> : (
         <div className="tbl-wrap">
           <table className="tbl">
-            <thead><tr><th>{t("Cliente")}</th><th>{t("Valor da venda")}</th><th>{t("Comissão 20%")}</th><th>{t("Nota Fiscal")}</th></tr></thead>
+            <thead><tr>
+              <SortTh col="org" sort={sort} toggle={toggle}>{t("Cliente")}</SortTh>
+              <SortTh col="sale_amount" sort={sort} toggle={toggle}>{t("Valor da venda")}</SortTh>
+              <SortTh col="commission_amount" sort={sort} toggle={toggle}>{t("Comissão 20%")}</SortTh>
+              <SortTh col="nf_status" sort={sort} toggle={toggle}>{t("Nota Fiscal")}</SortTh>
+            </tr></thead>
             <tbody>
-              {rows.map((c, i) => (
+              {sorted(rows, (c, col) => {
+                switch (col) {
+                  case "org": return c.org;
+                  case "sale_amount": return c.sale_amount;
+                  case "commission_amount": return c.commission_amount;
+                  case "nf_status": return c.nf_status;
+                  default: return c.commission_amount;
+                }
+              }).map((c, i) => (
                 <tr key={i}>
                   <td>{c.org}</td>
                   <td className="tnum">{money(c.sale_amount)}</td>

@@ -1,5 +1,56 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode, type CSSProperties } from "react";
+import { ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
 import { useT } from "../lib/i18n";
+
+// ============================================================================
+// REGRA GLOBAL DE UI: TODA tabela do sistema tem cabeçalho clicável para ordenar
+// aquela coluna (crescente ↔ decrescente), com seta indicadora. Use este hook +
+// <SortTh> (tabelas <table>) ou <SortArrow>/`sortProps` (cabeçalhos em grid/div).
+// Ordenação natural: strings via localeCompare pt (case-insensitive); números
+// numéricos; vazios (null/""/undefined) SEMPRE por último em qualquer direção.
+// ============================================================================
+export type SortState = { col: string; dir: 1 | -1 };
+function cmpVals(a: unknown, b: unknown): number {
+  const na = a === null || a === undefined || a === "";
+  const nb = b === null || b === undefined || b === "";
+  if (na && nb) return 0;
+  if (na) return 1;   // vazio depois
+  if (nb) return -1;
+  if (typeof a === "string" && typeof b === "string") return a.toLowerCase().localeCompare(b.toLowerCase(), "pt");
+  const x = a as number, y = b as number;
+  return x < y ? -1 : x > y ? 1 : 0;
+}
+/** Estado + helpers de ordenação de tabela. `sorted(rows, val)` devolve cópia ordenada. */
+export function useSort(initialCol = "", initialDir: 1 | -1 = 1) {
+  const [sort, setSort] = useState<SortState>({ col: initialCol, dir: initialDir });
+  const toggle = (col: string) => setSort((s) => ({ col, dir: s.col === col ? (s.dir === 1 ? -1 : 1) : 1 }));
+  function sorted<R>(rows: R[], val: (r: R, col: string) => unknown): R[] {
+    if (!sort.col) return rows;
+    return [...rows].sort((a, b) => cmpVals(val(a, sort.col), val(b, sort.col)) * sort.dir);
+  }
+  return { sort, toggle, sorted };
+}
+/** Seta indicadora (↑/↓ na coluna ativa; ⇅ apagado nas demais). Serve p/ qualquer cabeçalho. */
+export function SortArrow({ col, sort }: { col: string; sort: SortState }) {
+  if (sort.col !== col) return <ChevronsUpDown size={12} style={{ opacity: 0.35, flexShrink: 0 }} />;
+  return sort.dir === 1 ? <ArrowUp size={12} style={{ flexShrink: 0 }} /> : <ArrowDown size={12} style={{ flexShrink: 0 }} />;
+}
+/** Célula de cabeçalho <th> clicável e ordenável. `center`/`right` alinham o conteúdo. */
+export function SortTh({ col, sort, toggle, children, style, center, right }: {
+  col: string; sort: SortState; toggle: (c: string) => void; children: ReactNode; style?: CSSProperties; center?: boolean; right?: boolean;
+}) {
+  return (
+    <th onClick={() => toggle(col)} style={{ cursor: "pointer", whiteSpace: "nowrap", userSelect: "none", ...style }}>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, justifyContent: center ? "center" : right ? "flex-end" : "flex-start" }}>
+        {children}<SortArrow col={col} sort={sort} />
+      </span>
+    </th>
+  );
+}
+/** Props para tornar um cabeçalho em grid/div clicável (não-<table>). Combine com <SortArrow>. */
+export function sortProps(col: string, toggle: (c: string) => void): { onClick: () => void; style: CSSProperties } {
+  return { onClick: () => toggle(col), style: { cursor: "pointer", userSelect: "none" } };
+}
 
 /** Toast tipado (DS): sucesso=verde, erro=vermelho, atenção=laranja.
  *  Uso: const toast = useToast(); toast.ok("Salvo ✓"); toast.err(msg); ... {toast.node} */

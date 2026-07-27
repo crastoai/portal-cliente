@@ -64,7 +64,7 @@ export default function VisaoGeral() {
   // e uma linha de "filtros ativos" que espelha o estado. Filtro client-side (lista pequena).
   const [q, setQ] = useState("");
   const [stage, setStage] = useState<string>("todos");              // categoria: prospecto/lead/oportunidade/cliente
-  const [sortKey, setSortKey] = useState<"health" | "acesso" | "nome">("health");
+  const [sortKey, setSortKey] = useState<"health" | "acesso" | "nome" | "mrr" | "mods">("health");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");     // health asc = pior primeiro (triagem)
   const [colF, setColF] = useState<{ health: string[]; agent: string[]; acesso: string[] }>({ health: [], agent: [], acesso: [] });
   const [menu, setMenu] = useState<string | null>(null);            // qual popover de coluna está aberto
@@ -103,6 +103,8 @@ export default function VisaoGeral() {
     .sort((a, b) => {
       const dir = sortDir === "asc" ? 1 : -1;
       if (sortKey === "nome") return a.name.localeCompare(b.name, "pt-BR") * dir;
+      if (sortKey === "mrr") return (Number(a.mrr || 0) - Number(b.mrr || 0)) * dir;
+      if (sortKey === "mods") return ((a.modules?.length || 0) - (b.modules?.length || 0)) * dir;
       if (sortKey === "acesso") { const av = a.last_access ? new Date(a.last_access).getTime() : 0; const bv = b.last_access ? new Date(b.last_access).getTime() : 0; return (av - bv) * dir; }
       return (healthScore(a).score - healthScore(b).score) * dir; // health asc = pior primeiro
     });
@@ -185,7 +187,7 @@ export default function VisaoGeral() {
   // Cabeçalho de coluna: ordena E/OU filtra por buckets, num popover. Um clique no rótulo abre o
   // menu; o filtro escreve no MESMO estado (colF) que os chips de filtros ativos leem.
   const sortArrow = (k: string) => sortKey === k ? (sortDir === "asc" ? <ArrowUp size={11} /> : <ArrowDown size={11} />) : null;
-  const renderTh = (col: string, label: string, sortAs?: "health" | "acesso" | "nome", filterAs?: "health" | "agent" | "acesso", align?: "right") => {
+  const renderTh = (col: string, label: string, sortAs?: "health" | "acesso" | "nome" | "mrr" | "mods", filterAs?: "health" | "agent" | "acesso", align?: "right") => {
     const open = menu === col;
     const active = filterAs ? colF[filterAs].length > 0 : false;
     const clickable = !!(sortAs || filterAs);
@@ -273,8 +275,8 @@ export default function VisaoGeral() {
             {renderTh("nome", t("Cliente"), "nome")}
             {renderTh("health", t("Health"), "health", "health")}
             {renderTh("agent", t("Agente"), undefined, "agent")}
-            {renderTh("mods", t("Módulos"))}
-            {renderTh("mrr", t("MRR"), undefined, undefined, "right")}
+            {renderTh("mods", t("Módulos"), "mods")}
+            {renderTh("mrr", t("MRR"), "mrr", undefined, "right")}
             {renderTh("acesso", t("Últ. acesso"), "acesso", "acesso")}
             <th style={{ textAlign: "right" }}>{t("ação")}</th>
           </tr></thead>

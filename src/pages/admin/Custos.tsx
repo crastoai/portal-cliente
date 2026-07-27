@@ -1,5 +1,5 @@
 import { services } from "../../services";
-import { PageHead, Pill, useAsync, money } from "../../ui/ui";
+import { PageHead, Pill, useAsync, money, useSort, SortTh } from "../../ui/ui";
 import { useSettings } from "../../lib/settings";
 import { fmtRate } from "../../lib/config";
 import { useT } from "../../lib/i18n";
@@ -28,6 +28,32 @@ export default function Custos() {
   const margin = totalSale ? Math.round((totalProfit / totalSale) * 100) : 0;
   const hoursTone = (s: string) => (s === "no_plano" ? "ok" : s === "esgotado" ? "warn" : s === "extra" ? "crit" : "info");
   const hoursLabel = (s: string) => (({ no_plano: t("No plano"), esgotado: t("Esgotado"), extra: t("Extra a cobrar"), antecipado: t("Antecipado") } as any)[s] || s);
+
+  // Plano de contas: padrão custo desc (maior custo primeiro). Accessors devolvem número cru.
+  const pnlSort = useSort("cost", -1);
+  const pnlRows = pnlSort.sorted(pnl, (r, col) => {
+    switch (col) {
+      case "cliente": return r.organization_name;
+      case "cost": return Number(r.total_cost);
+      case "sale": return Number(r.total_sale);
+      case "tax": return Number(r.tax);
+      case "profit": return Number(r.profit);
+      default: return Number(r.total_cost);
+    }
+  });
+
+  // Horas de suporte: padrão cliente asc.
+  const hoursSort = useSort("cliente", 1);
+  const hoursRows = hoursSort.sorted(hours, (h, col) => {
+    switch (col) {
+      case "cliente": return h.org;
+      case "plan": return Number(h.plan_hours);
+      case "used": return Number(h.used_hours);
+      case "balance": return Number(h.balance);
+      case "status": return h.status;
+      default: return h.org;
+    }
+  });
 
   return (
     <div className="custospage">
@@ -61,9 +87,15 @@ export default function Custos() {
       <div className="sec-h"><h2>{t("Plano de contas por cliente")}</h2><Pill tone="info">{t("impostos NF")} {fmtRate(taxRate)}%</Pill></div>
       <div className="tbl-wrap" style={{ marginBottom: 26 }}>
         <table className="tbl">
-          <thead><tr><th>{t("Cliente")}</th><th>{t("Custo (IA+infra+sup.)")}</th><th>{t("Valor de venda")}</th><th>{t("Impostos")} {fmtRate(taxRate)}%</th><th>{t("Lucro")}</th></tr></thead>
+          <thead><tr>
+            <SortTh col="cliente" sort={pnlSort.sort} toggle={pnlSort.toggle}>{t("Cliente")}</SortTh>
+            <SortTh col="cost" sort={pnlSort.sort} toggle={pnlSort.toggle}>{t("Custo (IA+infra+sup.)")}</SortTh>
+            <SortTh col="sale" sort={pnlSort.sort} toggle={pnlSort.toggle}>{t("Valor de venda")}</SortTh>
+            <SortTh col="tax" sort={pnlSort.sort} toggle={pnlSort.toggle}>{t("Impostos")} {fmtRate(taxRate)}%</SortTh>
+            <SortTh col="profit" sort={pnlSort.sort} toggle={pnlSort.toggle}>{t("Lucro")}</SortTh>
+          </tr></thead>
           <tbody>
-            {pnl.length === 0 ? <tr><td colSpan={5} style={{ color: "var(--crasto-text-muted)" }}>{t("Sem dados ainda.")}</td></tr> : pnl.map((r) => (
+            {pnl.length === 0 ? <tr><td colSpan={5} style={{ color: "var(--crasto-text-muted)" }}>{t("Sem dados ainda.")}</td></tr> : pnlRows.map((r) => (
               <tr key={r.organization_name}>
                 <td><div className="cust"><div className="nm">{r.organization_name}</div></div></td>
                 <td className="tnum" style={{ color: "var(--crasto-danger)", fontWeight: 600 }}>{money(r.total_cost)}</td>
@@ -80,9 +112,15 @@ export default function Custos() {
       <div className="sec-h"><h2>{t("Horas de suporte")}</h2><Pill tone="mute">{t("consumo × plano")}</Pill></div>
       <div className="tbl-wrap">
         <table className="tbl">
-          <thead><tr><th>{t("Cliente")}</th><th>{t("Plano")}</th><th>{t("Consumidas")}</th><th>{t("Saldo")}</th><th>{t("Situação")}</th></tr></thead>
+          <thead><tr>
+            <SortTh col="cliente" sort={hoursSort.sort} toggle={hoursSort.toggle}>{t("Cliente")}</SortTh>
+            <SortTh col="plan" sort={hoursSort.sort} toggle={hoursSort.toggle}>{t("Plano")}</SortTh>
+            <SortTh col="used" sort={hoursSort.sort} toggle={hoursSort.toggle}>{t("Consumidas")}</SortTh>
+            <SortTh col="balance" sort={hoursSort.sort} toggle={hoursSort.toggle}>{t("Saldo")}</SortTh>
+            <SortTh col="status" sort={hoursSort.sort} toggle={hoursSort.toggle}>{t("Situação")}</SortTh>
+          </tr></thead>
           <tbody>
-            {hours.length === 0 ? <tr><td colSpan={5} style={{ color: "var(--crasto-text-muted)" }}>{t("Sem contratos de suporte ainda.")}</td></tr> : hours.map((h, i) => (
+            {hours.length === 0 ? <tr><td colSpan={5} style={{ color: "var(--crasto-text-muted)" }}>{t("Sem contratos de suporte ainda.")}</td></tr> : hoursRows.map((h, i) => (
               <tr key={i}>
                 <td><div className="cust"><div className="nm">{h.org}</div></div></td>
                 <td style={{ color: "var(--crasto-text-body)" }}>{t("{n}h/mês", { n: h.plan_hours })}</td>

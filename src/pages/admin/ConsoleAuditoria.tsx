@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Eye, Settings, KeyRound, ShieldCheck, Lock } from "lucide-react";
 import { services } from "../../services";
-import { PageHead, Pill, Empty, useAsync } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, useSort, SortTh } from "../../ui/ui";
 import { useStream } from "../../lib/stream";
 import { useT } from "../../lib/i18n";
 
@@ -66,9 +66,22 @@ export default function ConsoleAuditoria() {
   const loading = !stream.data && stream.live === false;
   const todos = data?.events ?? [];
   const orgs = data?.orgs ?? [];
-  const events = todos.filter((e) =>
-    (!sys || (e.system || "portal") === sys) && (!acao || (GRUPO[acao] || []).includes(e.action)));
   const orgName = (id?: string | null) => (id ? (orgs.find((o: any) => o.id === id)?.name ?? "—") : "—");
+  const { sort, toggle, sorted } = useSort("when", -1);
+  const events = sorted(
+    todos.filter((e) =>
+      (!sys || (e.system || "portal") === sys) && (!acao || (GRUPO[acao] || []).includes(e.action))),
+    (e, col) => {
+      switch (col) {
+        case "when": return e.at; // data/hora bruta (ISO) — não o rótulo formatado
+        case "system": return t(SISTEMA[e.system || "portal"]);
+        case "actor": return e.actor_email || (e.actor_id ? e.actor_id.slice(0, 8) : t("sistema"));
+        case "action": return t(ACTION_LABEL[e.action] || e.action);
+        case "target": return [e.target_type, e.target_type === "org" ? orgName(e.target_id) : e.target_id].filter(Boolean).join(" · ");
+        case "org": return orgName(e.organization_id);
+        default: return e.at;
+      }
+    });
 
   const now = Date.now();
   const k7d = todos.filter((e) => now - new Date(e.at).getTime() < 7 * 86400000).length;
@@ -123,7 +136,14 @@ export default function ConsoleAuditoria() {
 
       <div className="tbl-wrap">
         <table className="tbl">
-          <thead><tr><th>{t("Quando")}</th><th>{t("Sistema")}</th><th>{t("Ator")}</th><th>{t("Ação")}</th><th>{t("Alvo")}</th><th>{t("Cliente")}</th></tr></thead>
+          <thead><tr>
+            <SortTh col="when" sort={sort} toggle={toggle}>{t("Quando")}</SortTh>
+            <SortTh col="system" sort={sort} toggle={toggle}>{t("Sistema")}</SortTh>
+            <SortTh col="actor" sort={sort} toggle={toggle}>{t("Ator")}</SortTh>
+            <SortTh col="action" sort={sort} toggle={toggle}>{t("Ação")}</SortTh>
+            <SortTh col="target" sort={sort} toggle={toggle}>{t("Alvo")}</SortTh>
+            <SortTh col="org" sort={sort} toggle={toggle}>{t("Cliente")}</SortTh>
+          </tr></thead>
           <tbody>
             {loading ? <tr><td colSpan={6} style={{ color: "var(--crasto-text-muted)" }}>{t("Carregando…")}</td></tr>
               : events.length === 0 ? <tr><td colSpan={6}><Empty><p><strong>{t("Sem eventos no período.")}</strong> {t("Entradas, senhas, permissões e mudanças de configuração — do Portal e do WhatsApp CRM — aparecem aqui automaticamente.")}</p></Empty></td></tr>

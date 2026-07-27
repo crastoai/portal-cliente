@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Cpu, KeyRound, DollarSign, Star } from "lucide-react";
 import { Link } from "react-router-dom";
 import { services, errorMessage } from "../../services";
-import { PageHead, Pill, Empty, useAsync, useToast, money } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, useToast, money, useSort, SortTh } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 
 // Modelos LLM (SPEC 3.8) — catálogo + conexão REAL (chave no cofre) + custo + modelo padrão.
@@ -17,6 +17,18 @@ export default function ConsoleModelos() {
   const providers = new Set(models.map((m) => m.provider)).size;
   const [busy, setBusy] = useState("");
   const toast = useToast();
+  const { sort, toggle, sorted } = useSort("label", 1);
+  const rows = sorted(models, (m, col) => {
+    switch (col) {
+      case "label": return m.label;
+      case "provider": return PROVIDER(m.provider);
+      case "capabilities": return (m.capabilities ?? []).join(" ");
+      case "key": return m.has_key ? 1 : 0;
+      case "cost": return Number(m.cost_month || 0);
+      case "default": return m.is_default ? 1 : 0;
+      default: return m.label;
+    }
+  });
 
   async function setDefault(m: any) {
     setBusy(m.provider + m.model);
@@ -38,11 +50,18 @@ export default function ConsoleModelos() {
 
       <div className="tbl-wrap">
         <table className="tbl">
-          <thead><tr><th>{t("Modelo")}</th><th>{t("Provedor")}</th><th>{t("Capacidades")}</th><th>{t("Chave no cofre")}</th><th style={{ textAlign: "right" }}>{t("Custo (mês)")}</th><th>{t("Padrão")}</th></tr></thead>
+          <thead><tr>
+            <SortTh col="label" sort={sort} toggle={toggle}>{t("Modelo")}</SortTh>
+            <SortTh col="provider" sort={sort} toggle={toggle}>{t("Provedor")}</SortTh>
+            <SortTh col="capabilities" sort={sort} toggle={toggle}>{t("Capacidades")}</SortTh>
+            <SortTh col="key" sort={sort} toggle={toggle}>{t("Chave no cofre")}</SortTh>
+            <SortTh col="cost" sort={sort} toggle={toggle} right>{t("Custo (mês)")}</SortTh>
+            <SortTh col="default" sort={sort} toggle={toggle}>{t("Padrão")}</SortTh>
+          </tr></thead>
           <tbody>
             {loading ? <tr><td colSpan={6} style={{ color: "var(--crasto-text-muted)" }}>{t("Carregando…")}</td></tr>
               : models.length === 0 ? <tr><td colSpan={6}><Empty>{t("Nenhum modelo no catálogo.")}</Empty></td></tr>
-                : models.map((m) => (
+                : rows.map((m) => (
                   <tr key={m.provider + m.model}>
                     <td><div className="nm">{m.label}</div><div className="mt tnum">{m.model}</div></td>
                     <td>{PROVIDER(m.provider)}</td>

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Clock } from "lucide-react";
 import { services } from "../services";
-import { Pill, useAsync } from "./ui";
+import { Pill, useAsync, useSort, SortTh } from "./ui";
 import { useT } from "../lib/i18n";
 
 /**
@@ -20,7 +20,17 @@ export default function UsoModulos({ orgId, titulo }: { orgId?: string; titulo?:
   const t = useT();
   const [dias, setDias] = useState(30);
   const { data, loading } = useAsync(() => services.delivery.moduleSessions.summary(dias, orgId), [dias, orgId]);
-  const linhas: any[] = Array.isArray(data) ? data : [];
+  const { sort, toggle, sorted } = useSort("aberturas", -1);
+  const linhas: any[] = sorted(Array.isArray(data) ? data : [], (r, col) => {
+    switch (col) {
+      case "usuario": return r.full_name || r.email || "";
+      case "modulo": return r.modulo;
+      case "aberturas": return r.aberturas;
+      case "tempo": return r.segundos;
+      case "ultimo": return r.ultimo_acesso;
+      default: return r.aberturas;
+    }
+  });
 
   const tempo = (s: number) => {
     const seg = Math.max(0, Number(s) || 0);
@@ -60,10 +70,11 @@ export default function UsoModulos({ orgId, titulo }: { orgId?: string; titulo?:
       ) : (
         <table className="tbl">
           <thead><tr>
-            <th>{t("Usuário")}</th><th>{t("Módulo")}</th>
-            <th style={{ textAlign: "right" }}>{t("Aberturas")}</th>
-            <th style={{ textAlign: "right" }}>{t("Tempo")}</th>
-            <th>{t("Último acesso")}</th>
+            <SortTh col="usuario" sort={sort} toggle={toggle}>{t("Usuário")}</SortTh>
+            <SortTh col="modulo" sort={sort} toggle={toggle}>{t("Módulo")}</SortTh>
+            <SortTh col="aberturas" sort={sort} toggle={toggle} right>{t("Aberturas")}</SortTh>
+            <SortTh col="tempo" sort={sort} toggle={toggle} right>{t("Tempo")}</SortTh>
+            <SortTh col="ultimo" sort={sort} toggle={toggle}>{t("Último acesso")}</SortTh>
           </tr></thead>
           <tbody>
             {linhas.map((r) => (

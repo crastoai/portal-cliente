@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Plus, Pencil, Trash2, } from "lucide-react";
 import { services, errorMessage } from "../../services";
-import { PageHead, Pill, Empty, useAsync, useToast, Field } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, useToast, Field, useSort, SortTh } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 import DocField from "../../ui/DocField";
@@ -18,7 +18,17 @@ export default function ConsoleRegras() {
   const [f, setF] = useState<any>({ ...EMPTY });
   const [busy, setBusy] = useState(false);
   const toast = useToast();
+  const { sort, toggle, sorted } = useSort("rule", 1);
   const typeLabel = (v: string) => TYPES.find((x) => x.v === v)?.l ?? v;
+  const sortedRules = sorted(rules, (r, col) => {
+    switch (col) {
+      case "rule": return r.rule || "";
+      case "type": return typeLabel(r.rule_type);
+      case "enforcement": return r.enforcement === "obrigatoria" ? 1 : 0;
+      case "status": return r.status === "ativa" ? 1 : 0;
+      default: return r.rule || "";
+    }
+  });
 
   async function save() {
     if (!f.rule.trim()) { toast.warn(t("Escreva a regra.")); return; }
@@ -42,11 +52,17 @@ export default function ConsoleRegras() {
 
       <div className="tbl-wrap">
         <table className="tbl">
-          <thead><tr><th>{t("Regra")}</th><th>{t("Tipo")}</th><th>{t("Imposição")}</th><th>{t("Status")}</th><th></th></tr></thead>
+          <thead><tr>
+            <SortTh col="rule" sort={sort} toggle={toggle}>{t("Regra")}</SortTh>
+            <SortTh col="type" sort={sort} toggle={toggle}>{t("Tipo")}</SortTh>
+            <SortTh col="enforcement" sort={sort} toggle={toggle}>{t("Imposição")}</SortTh>
+            <SortTh col="status" sort={sort} toggle={toggle}>{t("Status")}</SortTh>
+            <th></th>
+          </tr></thead>
           <tbody>
             {loading ? <tr><td colSpan={5} style={{ color: "var(--crasto-text-muted)" }}>{t("Carregando…")}</td></tr>
               : rules.length === 0 ? <tr><td colSpan={5}><Empty><p><strong>{t("Nenhuma regra global ainda.")}</strong> {t("Crie a primeira política que todos os agentes devem seguir.")}</p></Empty></td></tr>
-                : rules.map((r) => (
+                : sortedRules.map((r) => (
                   <tr key={r.id}>
                     <td><div className="nm">{r.rule}</div><div className="mt">{[r.source_ref && `${t("fonte")}: ${r.source_ref}`, r.document_name && `${t("anexo")}: ${r.document_name}`].filter(Boolean).join(" · ")}</div></td>
                     <td>{t(typeLabel(r.rule_type))}</td>

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Plus, Upload, Pencil, Trash2, Lock, Search, Filter, ChevronDown, X, Link2 } from "lucide-react";
 import { services as api, errorMessage } from "../../services";
-import { PageHead, Empty, useAsync, money, Field } from "../../ui/ui";
+import { PageHead, Empty, useAsync, money, Field, useSort, SortTh } from "../../ui/ui";
 import { taxOf, fmtRate } from "../../lib/config";
 import { useSettings } from "../../lib/settings";
 import { useT } from "../../lib/i18n";
@@ -39,12 +39,26 @@ export default function Servicos() {
   const filtrosAtivos = !!(fUnidade || fInterno || fComissao);
   function limparFiltros() { setFUnidade(""); setFInterno(""); setFComissao(""); }
   const q = query.trim().toLowerCase();
-  const rows = allRows.filter((r) =>
+  const { sort, toggle, sorted } = useSort("name", 1);
+  const rows = sorted(allRows.filter((r) =>
     (!catFilter || (r.category || "") === catFilter) &&
     (!fUnidade || r.unit === fUnidade) &&
     (!fInterno || (fInterno === "sim" ? r.internal : !r.internal)) &&
     (!fComissao || (fComissao === "com" ? r.base_commission > 0 : r.base_commission === 0)) &&
-    (!q || `${r.name} ${r.category || ""} ${r.notes || ""}`.toLowerCase().includes(q)));
+    (!q || `${r.name} ${r.category || ""} ${r.notes || ""}`.toLowerCase().includes(q))),
+    (r, col) => {
+      switch (col) {
+        case "name": return r.name;
+        case "category": return r.category || "";
+        case "unit": return r.unit;
+        case "price": return r.price_table;
+        case "range": return r.price_min ?? r.price_table;
+        case "tax": return taxOf(r.price_table, taxRate);
+        case "liquid": return r.price_table - taxOf(r.price_table, taxRate);
+        case "commission": return r.base_commission;
+        default: return r.name;
+      }
+    });
 
   function openNew() { setF({ ...EMPTY }); setVariants([]); setErr(""); setOpen(true); }
   function openEdit(s: S) { setF({ id: s.id, name: s.name, category: s.category ?? "", unit: s.unit, price_table: String(s.price_table), price_min: s.price_min != null ? String(s.price_min) : "", price_max: s.price_max != null ? String(s.price_max) : "", base_commission: String(s.base_commission), internal: !!s.internal, notes: s.notes ?? "", business_category: s.business_category ?? "", cost_allocation: s.cost_allocation ?? "absorvido", usage_included: s.usage_included != null ? String(s.usage_included) : "", usage_unit: s.usage_unit ?? "", overage_price: s.overage_price != null ? String(s.overage_price) : "", desconto_max: s.desconto_max != null ? String(s.desconto_max) : "" }); setVariants([]); loadVariants(s.id); setErr(""); setOpen(true); }
@@ -127,7 +141,17 @@ export default function Servicos() {
       {loading ? <Empty>Carregando…</Empty> : rows.length === 0 ? <Empty><p><strong>{catFilter || filtrosAtivos || q ? t("Nenhum serviço com esses filtros.") : t("Nenhum serviço.")}</strong> {catFilter || filtrosAtivos || q ? t("Ajuste ou limpe os filtros.") : t("Clique em \"Novo serviço\".")}</p></Empty> : (
         <div className="tbl-wrap">
           <table className="tbl">
-            <thead><tr><th>{t("Serviço")}</th><th>{t("Categoria")}</th><th>{t("Unidade")}</th><th>{t("Preço-âncora")}</th><th>{t("Faixa")}</th><th title={t("Vinculado à configuração global de imposto")}>{t("Imposto")} ({fmtRate(taxRate)}%) <Link2 size={11} style={{ verticalAlign: -1, opacity: 0.55 }} /></th><th>{t("Líquido")}</th><th>{t("Comissão")}</th><th></th></tr></thead>
+            <thead><tr>
+              <SortTh col="name" sort={sort} toggle={toggle}>{t("Serviço")}</SortTh>
+              <SortTh col="category" sort={sort} toggle={toggle}>{t("Categoria")}</SortTh>
+              <SortTh col="unit" sort={sort} toggle={toggle}>{t("Unidade")}</SortTh>
+              <SortTh col="price" sort={sort} toggle={toggle}>{t("Preço-âncora")}</SortTh>
+              <SortTh col="range" sort={sort} toggle={toggle}>{t("Faixa")}</SortTh>
+              <SortTh col="tax" sort={sort} toggle={toggle} style={{ whiteSpace: "normal" }}><span title={t("Vinculado à configuração global de imposto")}>{t("Imposto")} ({fmtRate(taxRate)}%) <Link2 size={11} style={{ verticalAlign: -1, opacity: 0.55 }} /></span></SortTh>
+              <SortTh col="liquid" sort={sort} toggle={toggle}>{t("Líquido")}</SortTh>
+              <SortTh col="commission" sort={sort} toggle={toggle}>{t("Comissão")}</SortTh>
+              <th></th>
+            </tr></thead>
             <tbody>
               {rows.map((r) => {
                 const imp = taxOf(r.price_table, taxRate);

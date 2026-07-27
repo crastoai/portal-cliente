@@ -2,7 +2,7 @@ import { Fragment, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Plus, Pencil, Trash2, Search, ChevronRight, ChevronDown, CheckCircle2 } from "lucide-react";
 import { services, errorMessage } from "../../services";
-import { PageHead, Pill, Empty, useAsync, money, Field } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, money, Field, useSort, SortTh } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 import CustoIA from "./CustoIA";
@@ -45,6 +45,10 @@ const TABS = [
 
 export default function Financeiro() {
   const t = useT();
+  // Ordenação clicável (regra global de UI). Tesouraria: por data desc (registro financeiro).
+  const { sort: txSort, toggle: txToggle, sorted: txSorted } = useSort("data", -1);
+  // Grupos A Pagar/A Receber: preserva o padrão anterior (maior total primeiro).
+  const { sort: gSort, toggle: gToggle, sorted: gSorted } = useSort("total", -1);
   const { data, loading, reload } = useAsync(async () => {
     const [pay, rec, costs, tx, orgs] = await Promise.all([
       services.finance.accounts.list("payable"), services.finance.accounts.list("receivable"), services.finance.costs.list(), services.finance.transactions.list(), services.identity.organizations.listBrief(),
@@ -280,9 +284,27 @@ export default function Financeiro() {
         {/* movimentos */}
         <div className="tbl-wrap" style={{ marginTop: 6 }}>
           <table className="tbl">
-            <thead><tr><th>{t("Data")}</th><th>{t("Descrição")}</th><th>{t("Categoria")}</th><th>{t("Tipo")}</th><th style={{ textAlign: "right" }}>{t("Valor")}</th><th>{t("Status")}</th><th></th></tr></thead>
+            <thead><tr>
+              <SortTh col="data" sort={txSort} toggle={txToggle}>{t("Data")}</SortTh>
+              <SortTh col="descricao" sort={txSort} toggle={txToggle}>{t("Descrição")}</SortTh>
+              <SortTh col="categoria" sort={txSort} toggle={txToggle}>{t("Categoria")}</SortTh>
+              <SortTh col="tipo" sort={txSort} toggle={txToggle}>{t("Tipo")}</SortTh>
+              <SortTh col="valor" sort={txSort} toggle={txToggle} right>{t("Valor")}</SortTh>
+              <SortTh col="status" sort={txSort} toggle={txToggle}>{t("Status")}</SortTh>
+              <th></th>
+            </tr></thead>
             <tbody>
-              {txFiltered.length === 0 ? <tr><td colSpan={7} style={{ color: "var(--crasto-text-muted)", padding: 14 }}>{t("Nada por aqui ainda.")}</td></tr> : txFiltered.map((r) => (
+              {txFiltered.length === 0 ? <tr><td colSpan={7} style={{ color: "var(--crasto-text-muted)", padding: 14 }}>{t("Nada por aqui ainda.")}</td></tr> : txSorted(txFiltered, (r, col) => {
+                switch (col) {
+                  case "data": return ymd(r.transaction_date);
+                  case "descricao": return r.description || "";
+                  case "categoria": return r.category || "";
+                  case "tipo": return r.type;
+                  case "valor": return Number(r.amount || 0);
+                  case "status": return r.status;
+                  default: return ymd(r.transaction_date);
+                }
+              }).map((r) => (
                 <tr key={r.id}>
                   <td className="tnum">{r.transaction_date ? new Date(ymd(r.transaction_date) + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</td>
                   <td><div className="nm">{r.description}</div>{r.contact_name && <div className="mt">{r.contact_name}</div>}</td>
@@ -337,9 +359,29 @@ export default function Financeiro() {
         {/* tabela agrupada por empresa */}
         <div className="tbl-wrap" style={{ marginTop: 6 }}>
           <table className="tbl fintbl">
-            <thead><tr><th></th><th>{t("Empresa")}</th><th>{t("Tipo")}</th><th>{t("Vencimento")}</th><th style={{ textAlign: "right" }}>{t("Total")}</th><th style={{ textAlign: "right" }}>{t("Já Pago")}</th><th style={{ textAlign: "right" }}>{t("Restante")}</th><th>{t("Status")}</th></tr></thead>
+            <thead><tr>
+              <th></th>
+              <SortTh col="name" sort={gSort} toggle={gToggle}>{t("Empresa")}</SortTh>
+              <SortTh col="tipo" sort={gSort} toggle={gToggle}>{t("Tipo")}</SortTh>
+              <SortTh col="due" sort={gSort} toggle={gToggle}>{t("Vencimento")}</SortTh>
+              <SortTh col="total" sort={gSort} toggle={gToggle} right>{t("Total")}</SortTh>
+              <SortTh col="pago" sort={gSort} toggle={gToggle} right>{t("Já Pago")}</SortTh>
+              <SortTh col="restante" sort={gSort} toggle={gToggle} right>{t("Restante")}</SortTh>
+              <SortTh col="status" sort={gSort} toggle={gToggle}>{t("Status")}</SortTh>
+            </tr></thead>
             <tbody>
-              {groups.length === 0 ? <tr><td colSpan={8} style={{ color: "var(--crasto-text-muted)", padding: 14 }}>{t("Nada por aqui ainda.")}</td></tr> : groups.map((g) => (
+              {groups.length === 0 ? <tr><td colSpan={8} style={{ color: "var(--crasto-text-muted)", padding: 14 }}>{t("Nada por aqui ainda.")}</td></tr> : gSorted(groups, (g, col) => {
+                switch (col) {
+                  case "name": return g.name;
+                  case "tipo": return g.tipo;
+                  case "due": return g.due || "";
+                  case "total": return g.total;
+                  case "pago": return g.pago;
+                  case "restante": return g.restante;
+                  case "status": return g.status;
+                  default: return g.total;
+                }
+              }).map((g) => (
                 <>
                   <tr key={g.name} className="fingroup" onClick={() => setExpanded((s) => ({ ...s, [g.name]: !s[g.name] }))} style={{ cursor: "pointer" }}>
                     <td>{expanded[g.name] ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</td>

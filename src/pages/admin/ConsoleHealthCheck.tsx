@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Activity, CheckCircle, Shield, AlertTriangle, Globe, Server, Lock } from "lucide-react";
 import { services } from "../../services";
-import { PageHead, useAsync } from "../../ui/ui";
+import { PageHead, useAsync, useSort, SortTh } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 
 type Agent = { name: string; status: string };
@@ -42,6 +42,8 @@ export default function ConsoleHealthCheck() {
   const navigate = useNavigate();
   const { data, loading } = useAsync(() => services.analytics.admin.healthCheck<HCData>(), []);
   const clients = data?.clients ?? [];
+  // Ordenação: padrão "pior saúde primeiro" (desc). Coluna de saúde usa a severidade bruta (red>yellow>green).
+  const { sort, toggle, sorted } = useSort("health", -1);
 
   const healthy = clients.filter(c => clientHealth(c) === "green").length;
   const total = clients.length;
@@ -171,19 +173,30 @@ export default function ConsoleHealthCheck() {
       <div className="tbl-wrap" style={{ marginBottom: 18 }}>
         <table className="tbl">
           <thead><tr>
-            <th style={{ width: "22%" }}>{t("Cliente / Agente")}</th>
-            <th>{t("Saúde")}</th>
-            <th>{t("Mensagens chegando")} <Qmark tip={t("Mensagens que o cliente acabou de enviar. O sistema espera alguns segundos ele terminar de digitar antes de a IA responder tudo de uma vez. Back-office: fila message_grouping_queue.")} /></th>
-            <th>{t("Respostas em preparo")} <Qmark tip={t("Respostas que a IA está redigindo agora. Back-office: fila ai_processing_queue.")} /></th>
-            <th>{t("Saindo ao cliente")} <Qmark tip={t("Respostas prontas, sendo entregues no WhatsApp. Back-office: fila send_queue.")} /></th>
-            <th>{t("Falhas a revisar")} <Qmark tip={t("Mensagens que falharam e ficaram guardadas para revisão manual. 0 = tudo certo; acima de 0 acende alerta. Back-office: DLQ / dead-letter.")} /></th>
+            <SortTh col="name" sort={sort} toggle={toggle} style={{ width: "22%" }}>{t("Cliente / Agente")}</SortTh>
+            <SortTh col="health" sort={sort} toggle={toggle}>{t("Saúde")}</SortTh>
+            <SortTh col="q_grouping" sort={sort} toggle={toggle}>{t("Mensagens chegando")} <Qmark tip={t("Mensagens que o cliente acabou de enviar. O sistema espera alguns segundos ele terminar de digitar antes de a IA responder tudo de uma vez. Back-office: fila message_grouping_queue.")} /></SortTh>
+            <SortTh col="q_processing" sort={sort} toggle={toggle}>{t("Respostas em preparo")} <Qmark tip={t("Respostas que a IA está redigindo agora. Back-office: fila ai_processing_queue.")} /></SortTh>
+            <SortTh col="q_send" sort={sort} toggle={toggle}>{t("Saindo ao cliente")} <Qmark tip={t("Respostas prontas, sendo entregues no WhatsApp. Back-office: fila send_queue.")} /></SortTh>
+            <SortTh col="q_dlq" sort={sort} toggle={toggle}>{t("Falhas a revisar")} <Qmark tip={t("Mensagens que falharam e ficaram guardadas para revisão manual. 0 = tudo certo; acima de 0 acende alerta. Back-office: DLQ / dead-letter.")} /></SortTh>
           </tr></thead>
           <tbody>
             {loading ? (
               <tr><td colSpan={6} style={{ color: "var(--crasto-text-muted)" }}>{t("Carregando…")}</td></tr>
             ) : clients.length === 0 ? (
               <tr><td colSpan={6} style={{ color: "var(--crasto-text-muted)" }}>{t("Nenhum cliente cadastrado.")}</td></tr>
-            ) : clients.map(c => {
+            ) : sorted(clients, (c, col) => {
+              switch (col) {
+                case "name": return c.agents.length > 0 ? `${c.name} — ${c.agents.map(a => a.name).join(", ")}` : c.name;
+                // Severidade bruta: vermelho (3) > amarelo (2) > verde (1) — padrão desc mostra o pior primeiro.
+                case "health": { const hh = clientHealth(c); return hh === "red" ? 3 : hh === "yellow" ? 2 : 1; }
+                case "q_grouping": return c.q_grouping;
+                case "q_processing": return c.q_processing;
+                case "q_send": return c.q_send;
+                case "q_dlq": return c.q_dlq;
+                default: return c.name;
+              }
+            }).map(c => {
               const h = clientHealth(c);
               const agentLabel = c.agents.length > 0 ? c.agents.map(a => a.name).join(", ") : "";
               const nameDisplay = agentLabel ? `${c.name} — ${agentLabel}` : c.name;

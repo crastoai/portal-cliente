@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Plus, Pencil, Trash2, Blocks } from "lucide-react";
 import { services, errorMessage } from "../../services";
-import { PageHead, Pill, Empty, useAsync, useToast, Field } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, useToast, Field, useSort, SortTh } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 import DocField from "../../ui/DocField";
@@ -17,6 +17,15 @@ export default function ConsoleSkills() {
   const [f, setF] = useState<any>({ ...EMPTY });
   const [busy, setBusy] = useState(false);
   const toast = useToast();
+  const { sort, toggle, sorted } = useSort("name", 1);
+  const rows = sorted(packs, (p, col) => {
+    switch (col) {
+      case "name": return p.name || "";
+      case "description": return p.description || "";
+      case "enforcement": return p.enforcement === "obrigatoria" ? 1 : 0;
+      default: return p.name || "";
+    }
+  });
 
   async function save() {
     if (!f.name.trim()) { toast.warn(t("Dê um nome ao skill.")); return; }
@@ -34,11 +43,16 @@ export default function ConsoleSkills() {
 
       <div className="tbl-wrap">
         <table className="tbl">
-          <thead><tr><th>{t("Skill")}</th><th>{t("Descrição")}</th><th>{t("Imposição")}</th><th></th></tr></thead>
+          <thead><tr>
+            <SortTh col="name" sort={sort} toggle={toggle}>{t("Skill")}</SortTh>
+            <SortTh col="description" sort={sort} toggle={toggle}>{t("Descrição")}</SortTh>
+            <SortTh col="enforcement" sort={sort} toggle={toggle}>{t("Imposição")}</SortTh>
+            <th></th>
+          </tr></thead>
           <tbody>
             {loading ? <tr><td colSpan={4} style={{ color: "var(--crasto-text-muted)" }}>{t("Carregando…")}</td></tr>
               : packs.length === 0 ? <tr><td colSpan={4}><Empty><p><strong>{t("Catálogo de skills vazio.")}</strong> {t("Cadastre a primeira capacidade que os agentes poderão usar.")}</p></Empty></td></tr>
-                : packs.map((p) => (
+                : rows.map((p) => (
                   <tr key={p.id}>
                     <td><div className="nm"><Blocks size={13} style={{ verticalAlign: -2, marginRight: 5, opacity: .6 }} />{p.name}</div>{p.key && <div className="mt tnum">{p.key}</div>}</td>
                     <td className="mt">{p.description || "—"}{p.document_name && <div style={{ marginTop: 2 }}>{t("anexo")}: {p.document_name}</div>}</td>

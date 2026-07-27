@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { services as api, errorMessage } from "../../services";
-import { PageHead, Pill, Empty, useAsync, initials, money, Field } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, initials, money, Field, useSort, SortTh } from "../../ui/ui";
 import { useSettings } from "../../lib/settings";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
@@ -34,6 +34,32 @@ export default function Conectores() {
   const [f, setF] = useState<any>({ ...EMPTY });
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [toast, setToast] = useState("");
   const editing = !!f.id;
+
+  const { sort: connSort, toggle: connToggle, sorted: connSorted } = useSort("name", 1);
+  const connRows = connSorted(conns, (c, col) => {
+    switch (col) {
+      case "name": return c.name;
+      case "type": return c.agent_type;
+      case "commission": return c.commission_default;
+      case "payment": return c.payment_method;
+      case "nf": return c.issues_invoice ? 1 : 0;
+      case "contract": return c.contract_months;
+      case "status": return c.active ? 1 : 0;
+      default: return c.name;
+    }
+  });
+
+  const { sort: commSort, toggle: commToggle, sorted: commSorted } = useSort("org", 1);
+  const commRows = commSorted(comms, (c, col) => {
+    switch (col) {
+      case "org": return c.org;
+      case "connector": return c.connector;
+      case "sale": return c.sale_amount;
+      case "commission": return c.commission_amount;
+      case "nf": return c.nf_status;
+      default: return c.org;
+    }
+  });
 
   function openNew() { setF({ ...EMPTY, commission_default: String(commissionIndicador) }); setErr(""); setOpen(true); }
   function openEdit(c: C) {
@@ -76,9 +102,18 @@ export default function Conectores() {
         right={<button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={openNew}><span className="crasto-btn__icon"><Plus size={15} /></span><span className="crasto-btn__label">{t("Novo agente")}</span></button>} />
       <div className="tbl-wrap" style={{ marginBottom: 24 }}>
         <table className="tbl">
-          <thead><tr><th>{t("Agente")}</th><th>{t("Tipo")}</th><th>{t("Comissão")}</th><th>{t("Recebimento")}</th><th>{t("NF")}</th><th>{t("Contrato")}</th><th>{t("Status")}</th><th></th></tr></thead>
+          <thead><tr>
+            <SortTh col="name" sort={connSort} toggle={connToggle}>{t("Agente")}</SortTh>
+            <SortTh col="type" sort={connSort} toggle={connToggle}>{t("Tipo")}</SortTh>
+            <SortTh col="commission" sort={connSort} toggle={connToggle}>{t("Comissão")}</SortTh>
+            <SortTh col="payment" sort={connSort} toggle={connToggle}>{t("Recebimento")}</SortTh>
+            <SortTh col="nf" sort={connSort} toggle={connToggle}>{t("NF")}</SortTh>
+            <SortTh col="contract" sort={connSort} toggle={connToggle}>{t("Contrato")}</SortTh>
+            <SortTh col="status" sort={connSort} toggle={connToggle}>{t("Status")}</SortTh>
+            <th></th>
+          </tr></thead>
           <tbody>
-            {conns.length === 0 ? <tr><td colSpan={8} style={{ color: "var(--crasto-text-muted)" }}>{t("Nenhum agente cadastrado.")}</td></tr> : conns.map((c) => (
+            {conns.length === 0 ? <tr><td colSpan={8} style={{ color: "var(--crasto-text-muted)" }}>{t("Nenhum agente cadastrado.")}</td></tr> : connRows.map((c) => (
               <tr key={c.id}>
                 <td><div className="cust"><div className="logo">{initials(c.name)}</div><div><div className="nm">{c.name}</div><div className="em">{c.email || (c.phone ? `${c.phone_country_code} ${c.phone}` : "—")}</div></div></div></td>
                 <td><Pill tone={c.agent_type === "indicador" ? "ok" : "info"}>{c.agent_type === "indicador" ? t("Indicador") : t("Conector")}</Pill></td>
@@ -97,9 +132,15 @@ export default function Conectores() {
       {comms.length === 0 ? <Empty>Nenhuma comissão registrada.</Empty> : (
         <div className="tbl-wrap">
           <table className="tbl">
-            <thead><tr><th>{t("Cliente")}</th><th>{t("Agente")}</th><th>{t("Venda")}</th><th>{t("Comissão")}</th><th>{t("Nota Fiscal")}</th></tr></thead>
+            <thead><tr>
+              <SortTh col="org" sort={commSort} toggle={commToggle}>{t("Cliente")}</SortTh>
+              <SortTh col="connector" sort={commSort} toggle={commToggle}>{t("Agente")}</SortTh>
+              <SortTh col="sale" sort={commSort} toggle={commToggle}>{t("Venda")}</SortTh>
+              <SortTh col="commission" sort={commSort} toggle={commToggle}>{t("Comissão")}</SortTh>
+              <SortTh col="nf" sort={commSort} toggle={commToggle}>{t("Nota Fiscal")}</SortTh>
+            </tr></thead>
             <tbody>
-              {comms.map((c, i) => (
+              {commRows.map((c, i) => (
                 <tr key={i}><td>{c.org}</td><td>{c.connector}</td><td className="tnum">{money(c.sale_amount)}</td><td className="tnum" style={{ fontWeight: 700, color: "var(--crasto-text-primary)" }}>{money(c.commission_amount)}</td><td><Pill tone={c.nf_status === "paid" ? "ok" : "warn"}>{c.nf_status === "paid" ? t("NF emitida · paga") : t("Aguardando NF")}</Pill></td></tr>
               ))}
             </tbody>
