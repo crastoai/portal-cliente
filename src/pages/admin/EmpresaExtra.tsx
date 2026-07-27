@@ -80,27 +80,6 @@ export default function EmpresaExtra({ orgId, org, onSaved, flash }: { orgId: st
         <span className="mt" style={{ fontSize: 11.5 }}>{t("percorre a jornada p/ testar a experiência — fora do BI real")}</span>
       </label>
 
-      {/* Papéis */}
-      <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--crasto-border-soft)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><Tag size={15} style={{ color: "var(--crasto-text-primary)" }} /><b style={{ fontSize: 13 }}>{t("Papéis")}</b><span className="mt" style={{ fontSize: 11.5 }}>{t("além do estágio do funil")}</span></div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {PAPEIS.map((p) => { const on = papeis.includes(p.k); return (
-            <button key={p.k} type="button" className="chip" onClick={() => toggle(p.k)}
-              style={{ cursor: "pointer", border: "1px solid " + (on ? "transparent" : "var(--crasto-border-soft)"), background: on ? "#EEEDFE" : "transparent", color: on ? "#26215C" : "var(--crasto-text-body)" }}>{t(p.l)}</button>
-          ); })}
-        </div>
-        {isIndic && (
-          <div style={{ marginTop: 12, background: "var(--crasto-bg-2)", borderRadius: "var(--crasto-radius-md)", padding: 12 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8 }}>{t("Como o indicador recebe a comissão?")}</div>
-            <div className="grid2">
-              <Field label="Recompensa"><select value={reward} onChange={(e) => setReward(e.target.value)}><option value="desconto_fatura">{t("Desconto na fatura")}</option><option value="dinheiro">{t("Em dinheiro")}</option></select></Field>
-              <Field label="Comissão (% recorrente do MRR indicado)"><input type="number" min="0" max="100" value={comissao} onChange={(e) => setComissao(e.target.value)} /></Field>
-            </div>
-            <div className="mt" style={{ fontSize: 11.5, marginTop: 4 }}>{t("Vira agente conector (aparece em Agentes indicadores).")}</div>
-          </div>
-        )}
-      </div>
-
       {/* Origem & indicação (interno) */}
       <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--crasto-border-soft)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><Lock size={15} style={{ color: "var(--crasto-blue)" }} /><b style={{ fontSize: 13 }}>{t("Origem & indicação")}</b><span className="chip" style={{ background: "var(--crasto-navy-05)", color: "var(--crasto-text-primary)" }}>{t("interno · cliente nunca vê")}</span></div>
@@ -121,6 +100,27 @@ export default function EmpresaExtra({ orgId, org, onSaved, flash }: { orgId: st
           <Field label="Quem captou"><input value={ref.captado_por || ""} onChange={(e) => setR("captado_por", e.target.value)} placeholder={t("ex.: Julie (SDR)")} /></Field>
         </div>
         <Field label="Observação"><input value={ref.obs || ""} onChange={(e) => setR("obs", e.target.value)} placeholder={t("nota interna sobre a origem/indicação")} /></Field>
+      </div>
+
+      {/* Papéis */}
+      <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--crasto-border-soft)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><Tag size={15} style={{ color: "var(--crasto-text-primary)" }} /><b style={{ fontSize: 13 }}>{t("Papéis")}</b><span className="mt" style={{ fontSize: 11.5 }}>{t("além do estágio do funil")}</span></div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {PAPEIS.map((p) => { const on = papeis.includes(p.k); return (
+            <button key={p.k} type="button" className="chip" onClick={() => toggle(p.k)}
+              style={{ cursor: "pointer", border: "1px solid " + (on ? "transparent" : "var(--crasto-border-soft)"), background: on ? "#EEEDFE" : "transparent", color: on ? "#26215C" : "var(--crasto-text-body)" }}>{t(p.l)}</button>
+          ); })}
+        </div>
+        {isIndic && (
+          <div style={{ marginTop: 12, background: "var(--crasto-bg-2)", borderRadius: "var(--crasto-radius-md)", padding: 12 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8 }}>{t("Como o indicador recebe a comissão?")}</div>
+            <div className="grid2">
+              <Field label="Recompensa"><select value={reward} onChange={(e) => setReward(e.target.value)}><option value="desconto_fatura">{t("Desconto na fatura")}</option><option value="dinheiro">{t("Em dinheiro")}</option></select></Field>
+              <Field label="Comissão (% recorrente do MRR indicado)"><input type="number" min="0" max="100" value={comissao} onChange={(e) => setComissao(e.target.value)} /></Field>
+            </div>
+            <div className="mt" style={{ fontSize: 11.5, marginTop: 4 }}>{t("Vira agente conector (aparece em Agentes indicadores).")}</div>
+          </div>
+        )}
       </div>
 
       <div style={{ marginTop: 14 }}>

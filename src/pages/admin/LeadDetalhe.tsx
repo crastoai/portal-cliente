@@ -92,19 +92,6 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
         </div>
       )}
 
-      {/* Cadastro & relação (tipo/NF/oculto + papéis/indicador + origem interno) */}
-      <EmpresaExtra orgId={id!} org={org} onSaved={reload} flash={(m) => toast.ok(m)} />
-
-      {!diag && (
-        <div className="card" style={{ marginBottom: 18 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><MapPin size={16} style={{ color: "var(--crasto-text-primary)" }} /><h3 style={{ margin: 0 }}>{t("Sem diagnóstico do site ainda")}</h3></div>
-          <p className="mt" style={{ marginTop: 8 }}>{t("Este contato ainda não preencheu o Mapa de IA em crasto.ai/mapa. Os dados abaixo são o cadastro manual do CRM.")}</p>
-        </div>
-      )}
-
-      {/* Mapa de IA (reutilizável) */}
-      {diag && <DiagnosticoMapa diag={diag} />}
-
       {/* Perfil */}
       <div className="card" style={{ marginBottom: 18 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}><FileText size={16} style={{ color: "var(--crasto-text-primary)" }} /><h3 style={{ margin: 0 }}>{t("Perfil")}</h3></div>
@@ -136,6 +123,19 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
           ))}
         </>
       )}
+
+      {/* Cadastro & relação (tipo/NF/oculto + papéis/indicador + origem interno) */}
+      <EmpresaExtra orgId={id!} org={org} onSaved={reload} flash={(m) => toast.ok(m)} />
+
+      {!diag && (
+        <div className="card" style={{ marginBottom: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><MapPin size={16} style={{ color: "var(--crasto-text-primary)" }} /><h3 style={{ margin: 0 }}>{t("Sem diagnóstico do site ainda")}</h3></div>
+          <p className="mt" style={{ marginTop: 8 }}>{t("Este contato ainda não preencheu o Mapa de IA em crasto.ai/mapa. Os dados abaixo são o cadastro manual do CRM.")}</p>
+        </div>
+      )}
+
+      {/* Mapa de IA (reutilizável) */}
+      {diag && <DiagnosticoMapa diag={diag} />}
 
       {/* Oportunidade → campos da negociação (progressivo) + gerar proposta */}
       {org.stage === "oportunidade" && (
