@@ -95,7 +95,8 @@ export class IdentityController {
   @Post('org/:id/referral')
   @UseGuards(AdminGuard)
   orgReferralUpsert(@Req() req: any, @Param('id') id: string, @Body() b: any) {
-    const cols = ['origem_canal', 'indicado_por', 'indicado_em', 'comissao_tipo', 'comissao_percent', 'comissao_status', 'captado_por', 'primeiro_contato_em', 'obs'];
+    const cols = ['origem_canal', 'indicado_por', 'indicado_em', 'comissao_tipo', 'comissao_percent', 'comissao_status', 'captado_por', 'primeiro_contato_em', 'obs',
+      'indicado_por_pessoa_nome', 'indicado_por_pessoa_email', 'indicado_por_pessoa_telefone', 'grau_relacao', 'canal', 'rede_social', 'endereco_encontro'];
     const keys = cols.filter((k) => k in (b || {}));
     const vals = keys.map((k) => (b[k] === '' ? null : b[k]));
     return this.db.asUser(this.uid(req), async (c) => {
