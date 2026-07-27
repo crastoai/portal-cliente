@@ -15,6 +15,7 @@ import DiagnosticoCard from "./DiagnosticoCard";
 import EmpresaExtra from "./EmpresaExtra";
 import PessoasEditor from "./PessoasEditor";
 import OrgInline from "./OrgInline";
+import ServicosDeal from "./ServicosDeal";
 
 type Org = any;
 const icon = (cat?: string | null) => { const c = (cat || "").toLowerCase(); return c.includes("atend") ? <MessageCircle size={16} /> : c.includes("market") ? <Send size={16} /> : c.includes("vend") ? <Search size={16} /> : <Grid3x3 size={16} />; };
@@ -518,51 +519,9 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
         );
       })()}
 
-      {/* Serviços contratados */}
-      <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Serviços contratados")}</h2><Pill tone="mute">{tr("o cliente vê em 'Meus serviços' (sem link)")}</Pill></div>
-      {(() => {
-        const q = svcQuery.trim().toLowerCase();
-        const available = svcCat.filter((s: any) => !svcRows.some((c: any) => c.service_id === s.id));
-        const matches = q ? available.filter((s: any) => `${s.name} ${s.category || ""}`.toLowerCase().includes(q)) : available;
-        return (
-          <div className="svcpick">
-            <div className="catsearch" style={{ margin: 0 }}>
-              <Search size={16} />
-              <input value={svcQuery} onChange={(e) => setSvcQuery(e.target.value)} placeholder={tr("Buscar serviço para adicionar…")} />
-              <span className="mt" style={{ whiteSpace: "nowrap" }}>{tr("{n} disponíveis", { n: available.length })}</span>
-            </div>
-            <div className="svcpick-list">
-              {matches.length === 0 ? <div className="svcpick-empty">{tr("Nenhum serviço encontrado.")}</div> : matches.map((s: any) => (
-                <button key={s.id} className="svcpick-item" disabled={busy} onClick={() => addService(s.id)}>
-                  <span className="svcpick-plus"><Plus size={14} /></span>
-                  <span style={{ flex: 1, minWidth: 0 }}><span className="nm">{s.name}</span>{s.category ? <span className="cat"> · {s.category}</span> : null}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
-      {svcRows.length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhum serviço contratado — adicione acima.")}</div> : svcRows.map((c: any) => {
-        const nm = c.service_name || svcCat.find((x: any) => x.id === c.service_id)?.name || tr("Serviço");
-        const stl = c.status === "delivered" ? tr("Concluído") : c.status === "in_progress" ? tr("Em execução") : c.status === "scheduled" ? tr("Agendado") : tr("Ativo");
-        const stt = c.status === "delivered" ? "ok" : c.status === "scheduled" ? "warn" : c.status === "in_progress" ? "info" : "ok";
-        return (
-          <div className="crmrow" key={c.id}>
-            <Pill tone={stt as any}>{stl}</Pill>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="nm">{nm}</div>
-              <div className="mt">{[c.service_category, c.service_unit].filter(Boolean).join(" · ")}</div>
-            </div>
-            <select value={c.status} onChange={(e) => setServiceStatus(c.id, e.target.value)} className="selorg" style={{ width: 150 }}>
-              <option value="active">{tr("Ativo")}</option>
-              <option value="in_progress">{tr("Em execução")}</option>
-              <option value="delivered">{tr("Concluído")}</option>
-              <option value="scheduled">{tr("Agendado")}</option>
-            </select>
-            <button className="icobtn rm" onClick={() => delService(c.id)}><Trash2 size={14} /></button>
-          </div>
-        );
-      })}
+      {/* Serviços — fonte única que evolui (interesse → proposta → contratado); mesmo componente do lead */}
+      <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Serviços")}</h2><Pill tone="mute">{tr("interesse → proposta → contratado · specs por serviço")}</Pill></div>
+      <ServicosDeal orgId={id!} defaultSituacao="contratado" />
 
       {/* Implantação & Saúde (F-D) */}
       <div className="sec-h" style={{ marginTop: 24 }}><h2>{tr("Implantação & saúde")}</h2><Pill tone="mute">{tr("o cliente vê no Gantt e no farol")}</Pill></div>
