@@ -645,3 +645,29 @@
   }
 }
 @keyframes portal-sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+/* ═══ BARRA DE NAVEGAÇÃO INFERIOR DO PORTAL (thumb zone) — só celular, só app do cliente ═══
+   Fixa embaixo (as páginas do Portal rolam normalmente). O CRM em tela cheia (.crm-fs, z-index
+   100) fica POR CIMA dela — dentro do CRM vale a bottom-nav do próprio CRM. */
+.pbottom-nav { display: none; }
+@media (max-width: 900px) {
+  .pbottom-nav {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+    align-items: stretch; justify-content: space-around;
+    background: var(--crasto-glass-card, #fff); border-top: 1px solid var(--crasto-border-soft);
+    backdrop-filter: var(--crasto-blur-md); -webkit-backdrop-filter: var(--crasto-blur-md);
+    padding-bottom: env(safe-area-inset-bottom);
+    box-shadow: 0 -8px 24px -16px var(--crasto-navy-40);
+  }
+  .pbn-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    min-height: 56px; padding: 8px 2px; border: none; background: none; cursor: pointer;
+    color: var(--crasto-text-muted); text-decoration: none; font: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pbn-l { font-size: 10.5px; font-weight: 600; letter-spacing: .01em; }
+  .pbn-item.on { color: var(--crasto-navy); }
+  :root[data-theme="dark"] .pbn-item.on { color: var(--crasto-blue, #6E9CE8); }
+  /* espaço p/ a barra não cobrir o conteúdo (altura + barra de gestos do aparelho) */
+  .canvas { padding-bottom: calc(72px + env(safe-area-inset-bottom)) !important; }
+}

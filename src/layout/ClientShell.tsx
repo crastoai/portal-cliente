@@ -140,6 +140,15 @@ export default function ClientShell() {
     ...telas.filter((s) => s.to !== "/app"),
   ];
 
+  // Barra inferior do CELULAR (thumb zone): prioriza Início, WhatsApp CRM, Suporte, Perfil e
+  // completa com o que houver — até 4 rotas reais + "Menu" (abre o drawer com tudo).
+  const flatNav = nav.filter((n) => n.to);
+  const PREF_BOTTOM = ["/app", "/app/crm", "/app/suporte", "/app/perfil"];
+  const pickedBottom: NavItem[] = [];
+  for (const p of PREF_BOTTOM) { const it = flatNav.find((n) => n.to === p); if (it) pickedBottom.push(it); }
+  for (const n of flatNav) { if (pickedBottom.length >= 4) break; if (!pickedBottom.includes(n)) pickedBottom.push(n); }
+  const bottomNav = pickedBottom.slice(0, 4);
+
   function exitPreview() {
     const oid = preview.orgId();
     preview.clear();
@@ -148,7 +157,7 @@ export default function ClientShell() {
 
   return (
     <>
-      <Shell nav={nav} who={pv.active ? pv.name : (profile?.full_name || "Cliente")} sub={pv.active ? t("Visualização (admin)") : "Portal do Cliente"} logoTone="linear-gradient(145deg,#1F8A5B,#0d5c3a)" />
+      <Shell nav={nav} bottomNav={bottomNav} who={pv.active ? pv.name : (profile?.full_name || "Cliente")} sub={pv.active ? t("Visualização (admin)") : "Portal do Cliente"} logoTone="linear-gradient(145deg,#1F8A5B,#0d5c3a)" />
       {pv.active && (
         <div style={{ position: "fixed", top: 14, left: "50%", transform: "translateX(-50%)", zIndex: 9999, display: "flex", alignItems: "center", gap: 12, background: "var(--crasto-text-primary)", color: "#fff", padding: "10px 8px 10px 16px", borderRadius: 999, boxShadow: "0 10px 34px rgba(1,14,38,.34)", fontSize: 13.5, maxWidth: "92vw" }}>
           <Eye size={15} style={{ flex: "none" }} />

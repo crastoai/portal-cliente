@@ -35,7 +35,7 @@ function Wordmark() {
 // `locked` = módulo não contratado (cadeado + upsell) — o clique chama `onClick`.
 export type NavItem = { to?: string; end?: boolean; icon: LucideIcon; label: string; tag?: string; section?: string; locked?: boolean; onClick?: () => void };
 
-export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who: string; sub: string; logoTone?: string }) {
+export default function Shell({ nav, who, sub, logoTone, bottomNav }: { nav: NavItem[]; who: string; sub: string; logoTone?: string; bottomNav?: NavItem[] }) {
   const { profile, signOut, refreshProfile } = useAuth();
   const t = useT();
   const navigate = useNavigate();
@@ -211,6 +211,21 @@ export default function Shell({ nav, who, sub, logoTone }: { nav: NavItem[]; who
           </div>
         </header>
         <div className="canvas"><Outlet /></div>
+        {/* ── BARRA INFERIOR (só celular, só no app do cliente) — navegação no alcance do polegar ── */}
+        {bottomNav && bottomNav.length > 0 && (
+          <nav className="pbottom-nav" aria-label={t("Navegação")}>
+            {bottomNav.map((n) => (
+              <NavLink key={n.to} to={n.to!} end={n.end} className={({ isActive }) => "pbn-item" + (isActive ? " on" : "")}>
+                <n.icon size={21} />
+                <span className="pbn-l">{t(n.label)}</span>
+              </NavLink>
+            ))}
+            <button type="button" className="pbn-item" onClick={() => setOpen(true)} aria-label={t("Abrir menu")}>
+              <Menu size={21} />
+              <span className="pbn-l">{t("Menu")}</span>
+            </button>
+          </nav>
+        )}
       </main>
     </div>
   );
