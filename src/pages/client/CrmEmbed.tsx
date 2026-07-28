@@ -40,10 +40,17 @@ export default function CrmEmbed() {
           ags = Array.isArray(j?.agents) ? j.agents : [];
         } catch { /* sem lista → entra direto no principal */ }
         setAgents(ags);
+        // Restaura a última escolha (F5 não pode voltar ao seletor). Só honra se ainda for válida.
+        let saved: string | null = null;
+        try { saved = localStorage.getItem(CHOSEN_KEY); } catch { /* storage indisponível */ }
         if (ags.length <= 1) setChosen(ags[0]?.id || "*"); // 0/1 agente → sem tela, entra direto
+        else if (saved && (saved === "*" || ags.some((a) => a.id === saved))) setChosen(saved);
       } catch (e: any) { setErr(e?.message || t("Não foi possível abrir o WhatsApp CRM.")); }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Escolher um agente PERSISTE a escolha — assim o F5 dentro do CRM não volta ao seletor.
+  const pick = (v: string) => { try { localStorage.setItem(CHOSEN_KEY, v); } catch { /* nada */ } setChosen(v); };
 
   const back = (
     <div className="crm-fs-top">
