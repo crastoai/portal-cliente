@@ -86,18 +86,24 @@ export default function ConsolePermissoes() {
   // ao vivo (sync/join/leave) — quem está online aparece na hora, sem recarregar a tela.
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
   useEffect(() => {
-    const ch = supabase.channel("presence:online");
-    const refresh = () => {
-      const st = ch.presenceState() as Record<string, any[]>;
-      const ids = new Set<string>();
-      for (const key of Object.keys(st)) for (const p of st[key]) if (p?.user_id) ids.add(p.user_id);
-      setOnlineIds(ids);
-    };
-    ch.on("presence", { event: "sync" }, refresh)
-      .on("presence", { event: "join" }, refresh)
-      .on("presence", { event: "leave" }, refresh)
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    // Presença é um EXTRA visual — jamais pode derrubar a tela. Tudo blindado em try/catch.
+    let ch: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      ch = supabase.channel("presence:online");
+      const refresh = () => {
+        try {
+          const st = (ch!.presenceState() || {}) as Record<string, any[]>;
+          const ids = new Set<string>();
+          for (const key of Object.keys(st)) for (const p of (st[key] || [])) if (p?.user_id) ids.add(p.user_id);
+          setOnlineIds(ids);
+        } catch { /* ignora */ }
+      };
+      ch.on("presence", { event: "sync" }, refresh)
+        .on("presence", { event: "join" }, refresh)
+        .on("presence", { event: "leave" }, refresh)
+        .subscribe();
+    } catch { /* realtime indisponível — segue sem presença */ }
+    return () => { try { if (ch) supabase.removeChannel(ch); } catch { /* ignora */ } };
   }, []);
 
   // Popup 1 — telas do PORTAL (usuário do Portal)

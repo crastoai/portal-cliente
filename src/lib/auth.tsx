@@ -60,9 +60,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const uid = session?.user?.id;
     if (!uid) return;
-    const ch = supabase.channel("presence:online", { config: { presence: { key: uid } } });
-    ch.subscribe((status) => { if (status === "SUBSCRIBED") ch.track({ user_id: uid, at: Date.now() }); });
-    return () => { supabase.removeChannel(ch); };
+    // Presença é um EXTRA — nunca pode derrubar o app. Tudo blindado.
+    let ch: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      ch = supabase.channel("presence:online", { config: { presence: { key: uid } } });
+      ch.subscribe((status) => { if (status === "SUBSCRIBED") { try { ch!.track({ user_id: uid, at: Date.now() }); } catch { /* ignora */ } } });
+    } catch { /* realtime indisponível */ }
+    return () => { try { if (ch) supabase.removeChannel(ch); } catch { /* ignora */ } };
   }, [session?.user?.id]);
 
   async function signIn(email: string, password: string) {
