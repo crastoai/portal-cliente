@@ -47,6 +47,7 @@ import ConsoleRegras from "./pages/admin/ConsoleRegras";
 import ConsoleSkills from "./pages/admin/ConsoleSkills";
 import Tickets from "./pages/admin/Tickets";
 import Implantacoes from "./pages/admin/Implantacoes";
+import AdminCrm from "./pages/admin/AdminCrm";
 
 import Entregas from "./pages/partner/Entregas";
 import Comissoes from "./pages/partner/Comissoes";
@@ -113,6 +114,7 @@ export default function App() {
 
           <Route path="/admin" element={<AdminShell />}>
             <Route index element={<VisaoGeral />} />
+            <Route path="crm" element={<AdminCrm />} />
             <Route path="clientes" element={<Clientes />} />
             <Route path="cliente/:id" element={<CrmDetalhe />} />
             <Route path="propostas" element={<Propostas />} />

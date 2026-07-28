@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Grid3x3, FileText, Tag, Share2, Coins, TrendingUp, Plug, LifeBuoy, Rocket, DollarSign, Cpu, Activity, BookOpen, ScrollText, Lock, ClipboardList, KeyRound, Blocks } from "lucide-react";
+import { LayoutDashboard, Users, Grid3x3, FileText, Tag, Share2, Coins, TrendingUp, Plug, LifeBuoy, Rocket, DollarSign, Cpu, Activity, BookOpen, ScrollText, Lock, ClipboardList, KeyRound, Blocks, MessageCircle } from "lucide-react";
 import Shell, { type NavItem } from "./Shell";
 import JulieWidget from "../ui/JulieWidget";
 
@@ -6,6 +6,7 @@ const CONSOLE = "Console · IA 🔒";
 const NAV: NavItem[] = [
   { to: "/admin", end: true, icon: LayoutDashboard, label: "Visão geral" },
   { to: "/admin/clientes", icon: Users, label: "Empresas", section: "Operação" },
+  { to: "/admin/crm", icon: MessageCircle, label: "WhatsApp CRM", section: "Operação" },
   { to: "/admin/servicos", icon: Tag, label: "Catálogo de serviços", section: "Operação" },
   { to: "/admin/catalogo", icon: Grid3x3, label: "Catálogo de módulos", section: "Operação" },
   { to: "/admin/propostas", icon: FileText, label: "Gerador de propostas", section: "Operação" },
