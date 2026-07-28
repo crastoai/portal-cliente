@@ -80,7 +80,10 @@ export default function CrmEmbed() {
   }
 
   const agentQS = chosen && chosen !== "*" ? `&agent=${encodeURIComponent(chosen)}` : "";
-  const src = `${crmUrl}/?embedded=1${agentQS}&access_token=${encodeURIComponent(token || "")}`;
+  // Token no FRAGMENTO (#), NUNCA na query: o `#` não é enviado ao servidor, então o JWT do cliente
+  // não vaza no access-log/histórico/Referer do iframe (era um vazamento diário). O CRM já lê do #
+  // (session.ts), com fallback pra ?query durante a transição.
+  const src = `${crmUrl}/?embedded=1${agentQS}#access_token=${encodeURIComponent(token || "")}`;
   return (
     <div className="crm-fs">{back}
       <iframe title="WhatsApp CRM" src={src} className="crm-fs-frame" allow="clipboard-write; microphone; camera; autoplay" />
