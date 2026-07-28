@@ -90,11 +90,29 @@
    que fica VISÍVEL (recolhido por padrão). position:fixed garante altura cheia sem depender da
    cadeia de %height do .canvas (%height dentro de flex+min-height é indefinido e não estica).
    O `left` acompanha a largura do sidebar (recolhido 66px / expandido 248px / mobile 0). */
-/* z-index 25: acima do conteúdo (.canvas ~0) e da topbar (20), mas ABAIXO do sidebar (30) e do
-   seu handle de recolher/expandir (.side-collapse, 31) — assim eles continuam visíveis/clicáveis. */
-.admin-crm-fill { position: fixed; top: 0; right: 0; bottom: 0; left: 248px; z-index: 25; display: flex; flex-direction: column; background: var(--crasto-glass-card, #fff); }
-.shell.collapsed .admin-crm-fill { left: 66px; }
-@media (max-width: 900px) { .admin-crm-fill { left: 0; } }
+/* O CRM interno preenche a ÁREA DE CONTEÚDO (.canvas), que já fica ABAIXO da topbar do Portal
+   (perfil/tema/idioma/sair) e à DIREITA do sidebar — ambos continuam visíveis. `absolute inset:0`
+   preenche 100% da altura do .canvas sem o bug de %height dentro de flex, e acompanha o recolher
+   do sidebar (o .canvas reflui). Cobre o padding do card pra ficar de borda a borda. */
+.admin-crm-fill { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; overflow: hidden; border-radius: var(--crasto-radius-xl); background: var(--crasto-glass-card, #fff); }
+/* Seletor de CLIENTE no topo do CRM interno (admin vê qualquer WhatsApp CRM daqui). O top bar
+   precisa ficar ACIMA do iframe pra o dropdown não sumir atrás dele. */
+.admin-crm-fill .crm-fs-top { position: relative; z-index: 3; }
+.crm-switch { position: relative; }
+.crm-switch-btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--crasto-border-soft); background: var(--crasto-surface, #fff); color: var(--crasto-text-body); border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer; transition: background .15s; }
+.crm-switch-btn:hover { background: var(--crasto-navy-05); }
+.crm-switch-btn b { font-weight: 600; color: var(--crasto-text-primary); max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crm-switch-tag { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--crasto-navy); background: var(--crasto-navy-05); border-radius: 999px; padding: 2px 7px; }
+.crm-switch-ovl { position: fixed; inset: 0; z-index: 1; }
+.crm-switch-panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 2; width: 320px; max-height: 62vh; overflow-y: auto; background: var(--crasto-glass-card, #fff); border: 1px solid var(--crasto-border-soft); border-radius: 14px; box-shadow: 0 30px 60px -30px var(--crasto-navy-18); padding: 8px; }
+.crm-switch-search { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--crasto-border-soft); border-radius: 10px; margin-bottom: 6px; color: var(--crasto-text-muted); }
+.crm-switch-search input { border: 0; outline: 0; background: transparent; width: 100%; font-size: 13px; color: var(--crasto-text-body); }
+.crm-switch-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 9px 10px; border: 0; background: transparent; border-radius: 9px; cursor: pointer; font-size: 13px; color: var(--crasto-text-body); }
+.crm-switch-item:hover { background: var(--crasto-navy-05); }
+.crm-switch-item b { font-weight: 600; color: var(--crasto-text-primary); }
+.crm-switch-sub { font-size: 11px; color: var(--crasto-text-muted); }
+.crm-switch-sep { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--crasto-text-faint); padding: 10px 10px 4px; }
+.crm-switch-empty { padding: 12px 10px; font-size: 13px; color: var(--crasto-text-muted); text-align: center; }
 /* seletor de agente (>1 CRM) */
 .crm-pick { flex: 1; display: grid; place-items: center; padding: 24px; }
 .crm-pick-card { width: 100%; max-width: 460px; background: var(--crasto-glass-card, #fff); border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-xl, 18px); box-shadow: 0 30px 60px -40px var(--crasto-navy-18); padding: 22px; }
@@ -168,6 +186,7 @@
 
 .canvas {
   flex: 1; min-height: 0;
+  position: relative; /* contexto p/ o CRM interno (.admin-crm-fill) preencher via absolute */
   border-radius: var(--crasto-radius-xl);
   border: 1px solid var(--crasto-border-soft);
   background:
