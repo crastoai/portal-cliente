@@ -44,12 +44,15 @@ export default function CrmEmbed() {
         // SEMPRE mostra o seletor ao entrar (o acesso é o que importa; escolher é 1 clique).
         let ags: Agent[] = [];
         try {
-          const r = await fetch(`${WACRM_API}/api/me`, { headers: { Authorization: "Bearer " + tk } });
+          // Timeout curto: se o /api/me pendurar, NÃO deixa o CRM preso em "Abrindo…".
+          const ac = new AbortController();
+          const to = setTimeout(() => ac.abort(), 10000);
+          const r = await fetch(`${WACRM_API}/api/me`, { headers: { Authorization: "Bearer " + tk }, signal: ac.signal }).finally(() => clearTimeout(to));
           const j = await r.json();
           ags = Array.isArray(j?.agents) ? j.agents : [];
-        } catch { /* sem lista → entra direto no principal */ }
+        } catch { /* pendurou/falhou → entra na empresa inteira (não trava a tela) */ }
         setAgents(ags);
-        if (ags.length <= 1) setChosen(ags[0]?.id || "*"); // 0/1 agente → sem seletor
+        if (ags.length <= 1) setChosen(ags[0]?.id || "*"); // 0/1 agente (ou falha) → entra direto
         // >1 agente: chosen fica null → o seletor aparece.
       } catch (e: any) { setErr(e?.message || t("Não foi possível abrir o WhatsApp CRM.")); }
     })();
