@@ -40,13 +40,17 @@ export default function CrmEmbed() {
         const url = String(crm.crm_url).replace(/\/$/, "");
         setCrmUrl(url); setToken(tk);
 
-        // ENTRADA IMEDIATA: se há uma escolha salva válida, já embarca o CRM (o iframe começa a
-        // carregar) enquanto a lista de agentes vem em paralelo — o boot deixa de esperar o /api/me.
+        // CLICOU no menu (navegação normal) → MOSTRA o seletor de agente para ele escolher.
+        // F5 dentro do CRM (reload) → RESTAURA a escolha salva e entra direto (não volta ao seletor).
+        // É o que distingue "entrar" de "recarregar" — ambos montam este componente.
+        const recarregou = (() => {
+          try { const n = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming; return n?.type === "reload" || n?.type === "back_forward"; } catch { return false; }
+        })();
         let saved: string | null = null;
         try { saved = localStorage.getItem(CHOSEN_KEY); } catch { /* storage indisponível */ }
-        if (saved) setChosen(saved);
+        if (saved && recarregou) setChosen(saved); // só no F5: embarca imediato mantendo a escolha
 
-        // Agentes (fonte = wacrm) — só decidem se PRECISA do seletor; não bloqueiam o embarque.
+        // Agentes (fonte = wacrm) — decidem se aparece o seletor.
         let ags: Agent[] = [];
         try {
           const r = await fetch(`${WACRM_API}/api/me`, { headers: { Authorization: "Bearer " + tk } });
@@ -54,8 +58,9 @@ export default function CrmEmbed() {
           ags = Array.isArray(j?.agents) ? j.agents : [];
         } catch { /* sem lista → entra direto no principal */ }
         setAgents(ags);
-        if (ags.length <= 1) setChosen(ags[0]?.id || "*"); // 0/1 agente → sem tela, entra direto
-        else if (saved && !ags.some((a) => a.id === saved) && saved !== "*") setChosen(null); // escolha salva inválida → seletor
+        if (ags.length <= 1) setChosen(ags[0]?.id || "*"); // 0/1 agente → sem seletor, entra direto
+        else if (recarregou && saved && !ags.some((a) => a.id === saved) && saved !== "*") setChosen(null); // F5 com escolha inválida → seletor
+        // Clique normal (não-reload) em org com >1 agente: chosen fica null → o seletor aparece.
       } catch (e: any) { setErr(e?.message || t("Não foi possível abrir o WhatsApp CRM.")); }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
