@@ -40,20 +40,27 @@ export default function CrmEmbed() {
         const url = String(crm.crm_url).replace(/\/$/, "");
         setCrmUrl(url); setToken(tk);
 
-        // Agentes (fonte = wacrm). REGRA SIMPLES E ROBUSTA: 0/1 agente entra direto; >1 agente
-        // SEMPRE mostra o seletor ao entrar (o acesso é o que importa; escolher é 1 clique).
+        // Agentes (fonte = wacrm). REGRA: 0/1 agente entra direto; >1 agente SEMPRE mostra o
+        // seletor. É CRÍTICO ter o nº REAL de agentes — por isso o /api/me tem RETRY: só caímos no
+        // fallback "empresa inteira" se ele falhar de verdade (3x). Assim o seletor não some por
+        // uma lentidão passageira (era o que abria "sem agente").
         let ags: Agent[] = [];
-        try {
-          // Timeout curto: se o /api/me pendurar, NÃO deixa o CRM preso em "Abrindo…".
-          const ac = new AbortController();
-          const to = setTimeout(() => ac.abort(), 10000);
-          const r = await fetch(`${WACRM_API}/api/me`, { headers: { Authorization: "Bearer " + tk }, signal: ac.signal }).finally(() => clearTimeout(to));
-          const j = await r.json();
-          ags = Array.isArray(j?.agents) ? j.agents : [];
-        } catch { /* pendurou/falhou → entra na empresa inteira (não trava a tela) */ }
+        let ok = false;
+        for (let tentativa = 0; tentativa < 3 && !ok; tentativa++) {
+          try {
+            const ac = new AbortController();
+            const to = setTimeout(() => ac.abort(), 9000);
+            const r = await fetch(`${WACRM_API}/api/me`, { headers: { Authorization: "Bearer " + tk }, signal: ac.signal }).finally(() => clearTimeout(to));
+            if (!r.ok) throw new Error("me " + r.status);
+            const j = await r.json();
+            ags = Array.isArray(j?.agents) ? j.agents : [];
+            ok = true;
+          } catch { await new Promise((res) => setTimeout(res, 700)); }
+        }
         setAgents(ags);
-        if (ags.length <= 1) setChosen(ags[0]?.id || "*"); // 0/1 agente (ou falha) → entra direto
-        // >1 agente: chosen fica null → o seletor aparece.
+        if (ok && ags.length <= 1) setChosen(ags[0]?.id || "*"); // temos o nº real → 0/1 entra direto
+        else if (!ok) setChosen("*"); // 3 falhas → não trava a tela (entra na empresa inteira)
+        // ok && >1 agente: chosen fica null → o seletor APARECE.
       } catch (e: any) { setErr(e?.message || t("Não foi possível abrir o WhatsApp CRM.")); }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
