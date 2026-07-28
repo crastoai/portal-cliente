@@ -13,6 +13,9 @@ type Agent = { id: string; name: string; slug?: string; status?: string };
 // FASE 3 — WhatsApp CRM embarcado (tela cheia). Se o usuário tem >1 agente, o Portal mostra
 // o SELETOR (cada agente = um CRM próprio) e embarca o escolhido (?agent=<id>). Sessão por
 // handoff de token (mesmo IdP). Cada usuário abre com o próprio token → atividade atribuída a ele.
+// Onde guardamos a última escolha de agente (p/ F5 não voltar ao seletor).
+const CHOSEN_KEY = "crm_agent_choice";
+
 export default function CrmEmbed() {
   const t = useT();
   const navigate = useNavigate();
@@ -71,13 +74,13 @@ export default function CrmEmbed() {
                 <div><h3>{t("Entrar no WhatsApp CRM")}</h3><p>{t("Escolha o agente — cada um tem o próprio CRM.")}</p></div>
               </div>
               {agents.map((a) => (
-                <button key={a.id} className="crm-pick-item" onClick={() => setChosen(a.id)}>
+                <button key={a.id} className="crm-pick-item" onClick={() => pick(a.id)}>
                   <span className={"crm-pick-dot" + (a.status === "live" || a.status === "active" ? " on" : "")} />
                   <b>{a.name}</b>{a.slug && <span className="crm-pick-sub">{a.slug}</span>}
                   <ChevronRight size={16} style={{ marginLeft: "auto", opacity: .6 }} />
                 </button>
               ))}
-              <button className="crm-pick-all" onClick={() => setChosen("*")}>{t("Ver a empresa inteira ({n} agentes juntos)", { n: agents.length })}</button>
+              <button className="crm-pick-all" onClick={() => pick("*")}>{t("Ver a empresa inteira ({n} agentes juntos)", { n: agents.length })}</button>
             </div>
           </div>
         </div>
