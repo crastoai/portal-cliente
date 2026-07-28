@@ -612,3 +612,36 @@
 .kpis--5 { grid-template-columns: repeat(5, 1fr); }
 @media (max-width: 1200px) { .kpis--5 { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 680px) { .kpis--5 { grid-template-columns: repeat(2, 1fr); } }
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   CAMADA MOBILE GLOBAL DO PORTAL — só afeta o celular (≤900px = o ponto em que vira drawer).
+   `!important` porque esta camada carrega antes de screens.css e precisa vencer a cascata.
+   Boas práticas: sem zoom no iOS + alvos de toque ≥44px + respeito ao notch/barra (safe-area).
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  /* iOS dá zoom ao focar campo com fonte < 16px — trava em 16px em TODOS os campos do app. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select, textarea { font-size: 16px !important; }
+
+  /* Alvos de toque ≥44px (Apple HIG). Inclui o hambúrguer REAL (.tb-burger) e os ícones do topo. */
+  .tb-burger, .iconbtn, .icobtn, .tb-av, .tb-bell, .theme-toggle,
+  .su-out, .side-close, .side-collapse, .langdd-btn {
+    min-width: 44px !important; min-height: 44px !important;
+  }
+
+  /* Safe-area (notch / ilha dinâmica / barra de gestos): back-bar do CRM, topo do drawer e toast. */
+  .crm-fs-top { padding-top: max(0px, env(safe-area-inset-top)); height: calc(46px + env(safe-area-inset-top)); box-sizing: content-box; }
+  .side { padding-top: env(safe-area-inset-top); }
+  .toast { bottom: max(16px, env(safe-area-inset-bottom)) !important; }
+
+  /* Modal: usa altura dinâmica (dvh) para o rodapé não sumir atrás da barra do Safari,
+     e ancora embaixo como bottom-sheet (padrão mobile, mais alcançável pelo polegar). */
+  .modal-overlay { place-items: end center !important; padding: 0 !important; }
+  .modal {
+    width: 100% !important; max-width: 100% !important;
+    max-height: 92dvh !important; border-radius: 20px 20px 0 0 !important;
+    padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
+    animation: portal-sheet-up .2s ease-out;
+  }
+}
+@keyframes portal-sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
