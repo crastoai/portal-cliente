@@ -24,6 +24,65 @@ export class SupportInternalController {
     if (a.length !== b.length || !timingSafeEqual(a, b)) throw new ForbiddenException('chave de serviço inválida');
   }
 
+  /**
+   * IDENTIFICAÇÃO AUTORITATIVA de cliente/funcionário (fonte de verdade = base do Portal).
+   * Cobre quem o CRM não enxerga: usuários só-Portal, contatos (crm.people), sócios e os
+   * arrays de e-mail/telefone da própria empresa. Busca por e-mail, telefone (sufixo) ou nome.
+   */
+  @Post('lookup')
+  async lookup(@Headers('x-service-key') chave: string, @Body() b: any) {
+    this.autorizar(chave);
+    const email = String(b?.email || '').trim();
+    const suf = String(b?.phone || '').replace(/\D/g, '').slice(-9); // sufixo do telefone (ignora DDI/DDD)
+    const nome = String(b?.name || '').trim();
+    if (!email && suf.length < 8 && nome.length < 3) return { ok: true, achados: [] };
+    const fone = suf.length >= 8 ? suf : '';
+
+    const rows = await this.db.asService(async (c) => (await c.query(
+      `with hits as (
+         select p.organization_id org, p.full_name nome, p.email, p.role::text papel, 'usuario' tipo, 'email' por
+           from public.profiles p where $1<>'' and lower(p.email)=lower($1)
+         union all
+         select pe.organization_id, pe.full_name, pe.email, pe.funcao, 'contato', 'email'
+           from crm.people pe where $1<>'' and (lower(pe.email)=lower($1) or exists(select 1 from unnest(pe.emails) e where lower(e)=lower($1)))
+         union all
+         select cp.organization_id, cp.full_name, cp.email, cp.role_title, 'socio', 'email'
+           from crm.company_partners cp where $1<>'' and lower(cp.email)=lower($1)
+         union all
+         select o.id, o.name, null, 'empresa', 'empresa', 'email'
+           from public.organizations o where $1<>'' and exists(select 1 from unnest(o.emails) e where lower(e)=lower($1))
+         union all
+         select ph.organization_id, pe.full_name, pe.email, pe.funcao, 'contato', 'telefone'
+           from crm.phones ph left join crm.people pe on pe.id=ph.person_id
+          where $2<>'' and regexp_replace(coalesce(ph.country_code,'')||ph.number,'\\D','','g') like '%'||$2
+         union all
+         select cp.organization_id, cp.full_name, cp.email, cp.role_title, 'socio', 'telefone'
+           from crm.company_partners cp where $2<>'' and regexp_replace(coalesce(cp.mobile_phone,''),'\\D','','g') like '%'||$2
+         union all
+         select o.id, o.name, null, 'empresa', 'empresa', 'telefone'
+           from public.organizations o where $2<>'' and exists(select 1 from unnest(o.phones) e where regexp_replace(e,'\\D','','g') like '%'||$2)
+         union all
+         select p.organization_id, p.full_name, p.email, p.role::text, 'usuario', 'nome'
+           from public.profiles p where $3<>'' and p.full_name ilike '%'||$3||'%'
+         union all
+         select pe.organization_id, pe.full_name, pe.email, pe.funcao, 'contato', 'nome'
+           from crm.people pe where $3<>'' and pe.full_name ilike '%'||$3||'%'
+         union all
+         select cp.organization_id, cp.full_name, cp.email, cp.role_title, 'socio', 'nome'
+           from crm.company_partners cp where $3<>'' and cp.full_name ilike '%'||$3||'%'
+         union all
+         select o.id, o.name, null, 'empresa', 'empresa', 'nome'
+           from public.organizations o where $3<>'' and (o.name ilike '%'||$3||'%' or o.owner_name ilike '%'||$3||'%')
+       )
+       select distinct h.org, h.nome, h.email, h.papel, h.tipo, h.por,
+              o.name org_nome, o.status org_status, o.stage, o.plan
+         from hits h left join public.organizations o on o.id=h.org
+        limit 40`, [email, fone, nome])).rows);
+
+    const achados = rows.map((r: any) => ({ org_id: r.org, empresa: r.org_nome, status: r.org_status, stage: r.stage, plan: r.plan, tipo: r.tipo, nome: r.nome, email: r.email, papel: r.papel, por: r.por }));
+    return { ok: true, achados };
+  }
+
   /** Reenvia o link de acesso (define/nova senha) para o e-mail. Reaproveita o fluxo `forgot`. */
   @Post('resend-access')
   async resendAccess(@Headers('x-service-key') chave: string, @Body() b: any) {
