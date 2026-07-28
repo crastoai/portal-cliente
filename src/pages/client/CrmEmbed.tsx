@@ -13,9 +13,6 @@ type Agent = { id: string; name: string; slug?: string; status?: string };
 // FASE 3 — WhatsApp CRM embarcado (tela cheia). Se o usuário tem >1 agente, o Portal mostra
 // o SELETOR (cada agente = um CRM próprio) e embarca o escolhido (?agent=<id>). Sessão por
 // handoff de token (mesmo IdP). Cada usuário abre com o próprio token → atividade atribuída a ele.
-// Onde guardamos a última escolha de agente (p/ F5 não voltar ao seletor).
-const CHOSEN_KEY = "crm_agent_choice";
-
 export default function CrmEmbed() {
   const t = useT();
   const navigate = useNavigate();
@@ -28,45 +25,25 @@ export default function CrmEmbed() {
   useEffect(() => {
     (async () => {
       try {
-        // PARALELIZA o que é independente (módulos + sessão) — antes eram 2 esperas em série.
-        const [cms, sess] = await Promise.all([
-          services.delivery.clientModules.listMine() as Promise<any[]>,
-          supabase.auth.getSession(),
-        ]);
+        const cms = (await services.delivery.clientModules.listMine()) as any[];
         const crm = (cms || []).find((c) => c.crm_url);
         if (!crm?.crm_url) { setErr(t("O WhatsApp CRM não está liberado para o seu acesso.")); return; }
-        const tk = sess.data.session?.access_token;
+        const { data } = await supabase.auth.getSession();
+        const tk = data.session?.access_token;
         if (!tk) { setErr(t("Sessão expirada — recarregue a página.")); return; }
-        const url = String(crm.crm_url).replace(/\/$/, "");
-        setCrmUrl(url); setToken(tk);
-
-        // Agentes (fonte = wacrm). REGRA: 0/1 agente entra direto; >1 agente SEMPRE mostra o
-        // seletor. É CRÍTICO ter o nº REAL de agentes — por isso o /api/me tem RETRY: só caímos no
-        // fallback "empresa inteira" se ele falhar de verdade (3x). Assim o seletor não some por
-        // uma lentidão passageira (era o que abria "sem agente").
+        setCrmUrl(String(crm.crm_url).replace(/\/$/, "")); setToken(tk);
+        // Agentes que este usuário pode entrar (fonte = wacrm).
         let ags: Agent[] = [];
-        let ok = false;
-        for (let tentativa = 0; tentativa < 3 && !ok; tentativa++) {
-          try {
-            const ac = new AbortController();
-            const to = setTimeout(() => ac.abort(), 9000);
-            const r = await fetch(`${WACRM_API}/api/me`, { headers: { Authorization: "Bearer " + tk }, signal: ac.signal }).finally(() => clearTimeout(to));
-            if (!r.ok) throw new Error("me " + r.status);
-            const j = await r.json();
-            ags = Array.isArray(j?.agents) ? j.agents : [];
-            ok = true;
-          } catch { await new Promise((res) => setTimeout(res, 700)); }
-        }
+        try {
+          const r = await fetch(`${WACRM_API}/api/me`, { headers: { Authorization: "Bearer " + tk } });
+          const j = await r.json();
+          ags = Array.isArray(j?.agents) ? j.agents : [];
+        } catch { /* sem lista → entra direto no principal */ }
         setAgents(ags);
-        if (ok && ags.length <= 1) setChosen(ags[0]?.id || "*"); // temos o nº real → 0/1 entra direto
-        else if (!ok) setChosen("*"); // 3 falhas → não trava a tela (entra na empresa inteira)
-        // ok && >1 agente: chosen fica null → o seletor APARECE.
+        if (ags.length <= 1) setChosen(ags[0]?.id || "*"); // 0/1 agente → sem tela, entra direto
       } catch (e: any) { setErr(e?.message || t("Não foi possível abrir o WhatsApp CRM.")); }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Escolher um agente PERSISTE a escolha — assim o F5 dentro do CRM não volta ao seletor.
-  const pick = (v: string) => { try { localStorage.setItem(CHOSEN_KEY, v); } catch { /* nada */ } setChosen(v); };
 
   const back = (
     <div className="crm-fs-top">
@@ -76,10 +53,8 @@ export default function CrmEmbed() {
   );
 
   if (err) return <div className="crm-fs">{back}<div className="crm-fs-msg">{err}</div></div>;
-  // Embarca assim que tiver a URL e a escolha do agente — NÃO espera mais a lista de agentes
-  // (/api/me). Quem já tem escolha salva (o normal) entra na hora; só mostra o seletor quando de
-  // fato há mais de um agente e nenhuma escolha.
-  if (!crmUrl || !chosen) {
+  if (!crmUrl || agents === null || (agents.length > 1 && !chosen)) {
+    // Carregando OU aguardando escolha do agente.
     if (agents && agents.length > 1 && !chosen) {
       return (
         <div className="crm-fs">{back}
@@ -89,13 +64,13 @@ export default function CrmEmbed() {
                 <div><h3>{t("Entrar no WhatsApp CRM")}</h3><p>{t("Escolha o agente — cada um tem o próprio CRM.")}</p></div>
               </div>
               {agents.map((a) => (
-                <button key={a.id} className="crm-pick-item" onClick={() => pick(a.id)}>
+                <button key={a.id} className="crm-pick-item" onClick={() => setChosen(a.id)}>
                   <span className={"crm-pick-dot" + (a.status === "live" || a.status === "active" ? " on" : "")} />
                   <b>{a.name}</b>{a.slug && <span className="crm-pick-sub">{a.slug}</span>}
                   <ChevronRight size={16} style={{ marginLeft: "auto", opacity: .6 }} />
                 </button>
               ))}
-              <button className="crm-pick-all" onClick={() => pick("*")}>{t("Ver a empresa inteira ({n} agentes juntos)", { n: agents.length })}</button>
+              <button className="crm-pick-all" onClick={() => setChosen("*")}>{t("Ver a empresa inteira ({n} agentes juntos)", { n: agents.length })}</button>
             </div>
           </div>
         </div>
