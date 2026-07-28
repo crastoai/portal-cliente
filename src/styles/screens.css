@@ -201,7 +201,11 @@
 /* MODAL */
 .modal-overlay { position: fixed; inset: 0; background: rgba(1,14,38,.5); backdrop-filter: blur(3px); display: grid; place-items: center; z-index: 100; padding: 20px; }
 .modal { background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-lg); width: 100%; max-width: 460px; box-shadow: var(--crasto-shadow-xl); max-height: 90vh; overflow-y: auto; }
-.modal--wide { max-width: 840px; }
+.modal--wide { max-width: 920px; }
+/* No convite largo, as telas ficam em 3 colunas → cabe sem scroll. Colapsa em telas menores. */
+.modal--wide .screengrid { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 760px) { .modal--wide .screengrid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 520px) { .modal--wide .screengrid { grid-template-columns: 1fr !important; } }
 /* seções do lançamento financeiro rico */
 .finsec { border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md, 12px); padding: 14px 16px; margin-bottom: 14px; background: var(--crasto-surface-muted, #F7F9FC); }
 .finsec-h { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--crasto-text-muted); margin-bottom: 10px; }

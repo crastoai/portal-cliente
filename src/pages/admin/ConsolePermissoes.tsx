@@ -481,7 +481,7 @@ export default function ConsolePermissoes() {
           )}
         </>)}
       </Modal>
-      <Modal title={convite ? t("Convidar para {n}", { n: convite.orgName }) : t("Convidar")} open={!!convite} onClose={() => setConvite(null)}
+      <Modal wide title={convite ? t("Convidar para {n}", { n: convite.orgName }) : t("Convidar")} open={!!convite} onClose={() => setConvite(null)}
         footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setConvite(null)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={convidar}><span className="crasto-btn__label">{busy ? t("Enviando…") : t("Enviar convite")}</span></button></>}>
         {cErr && <div className="formerr">{cErr}</div>}
         <Field label="E-mail *"><input type="email" value={cf.email} onChange={(e) => setCf({ ...cf, email: e.target.value })} placeholder="pessoa@empresa.com" /></Field>
