@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * — na prática a sessão nunca morria. Quem esquece o portal aberto num computador
  * compartilhado fica logado para sempre.
  *
- * Regras (decisão do Crasto): 10 min parado → aviso "Ainda está aí?" com 30s para
+ * Regras (decisão do Crasto): 30 min parado → aviso "Ainda está aí?" com 30s para
  * escolher; sem escolha, volta para a tela de entrada.
  *
  * Decisões que valem explicar:
@@ -20,7 +20,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
  *   escolher. Senão um esbarrão no mouse "responderia" por ela.
  */
 const KEY = "crasto.lastActivity";
-export const IDLE_MS = 10 * 60 * 1000; // 10 min parado → pergunta
+export const IDLE_MS = 30 * 60 * 1000; // 30 min parado → pergunta
 export const WARN_MS = 30 * 1000;      // 30s para responder → sai
 
 const agora = () => Date.now();

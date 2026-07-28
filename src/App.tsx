@@ -62,7 +62,7 @@ export default function App() {
   const isAdmin = !!session && profile?.role === "crasto_admin";
   // Segurança: "Ver como cliente" é só para admin — qualquer outro papel (ou sem sessão) limpa o preview.
   useEffect(() => { if (!isAdmin) preview.clear(); }, [isAdmin]);
-  // Sessão não fica aberta para sempre: 10 min parado → pergunta; 30s sem resposta → sai.
+  // Sessão não fica aberta para sempre: 30 min parado → pergunta; 30s sem resposta → sai.
   const idle = useIdleGuard(!!session, (motivo) => { void signOut(motivo); });
   if (loading || (session && !profile)) {
     return <Splash />;
