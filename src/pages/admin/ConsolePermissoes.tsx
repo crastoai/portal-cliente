@@ -5,6 +5,7 @@ import { services, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, useToast, initials, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
+import { supabase } from "../../lib/supabase";
 import { CLIENT_SCREENS, ALL_SCREEN_KEYS, BASE_SCREEN, allowedScreens } from "../../lib/screens";
 import type { CrmUser } from "../../services/crmAccess.service";
 
@@ -80,6 +81,24 @@ export default function ConsolePermissoes() {
   const [q, setQ] = useState("");
   const [crmUsers, setCrmUsers] = useState<Record<string, CrmBucket>>({});
   const toast = useToast();
+
+  // PRESENÇA EM TEMPO REAL: lê o canal onde os usuários logados se anunciam (auth.tsx). Atualiza
+  // ao vivo (sync/join/leave) — quem está online aparece na hora, sem recarregar a tela.
+  const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const ch = supabase.channel("presence:online");
+    const refresh = () => {
+      const st = ch.presenceState() as Record<string, any[]>;
+      const ids = new Set<string>();
+      for (const key of Object.keys(st)) for (const p of st[key]) if (p?.user_id) ids.add(p.user_id);
+      setOnlineIds(ids);
+    };
+    ch.on("presence", { event: "sync" }, refresh)
+      .on("presence", { event: "join" }, refresh)
+      .on("presence", { event: "leave" }, refresh)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
 
   // Popup 1 — telas do PORTAL (usuário do Portal)
   const [cfg, setCfg] = useState<{ user: U; orgName: string; orgId: string } | null>(null);
@@ -303,7 +322,7 @@ export default function ConsolePermissoes() {
       {loading ? <Empty>{t("Carregando…")}</Empty> : platform.map((u) => (
         <div className="crmrow" key={u.id}>
           <div className="logo" style={{ width: 34, height: 34, fontSize: 12 }}>{initials(u.full_name || u.email || "?")}</div>
-          <div style={{ flex: 1, minWidth: 0 }}><div className="nm">{u.full_name || "—"}</div><div className="mt">{u.email} · {lastLogin(u.last_login, t)}</div></div>
+          <div style={{ flex: 1, minWidth: 0 }}><div className="nm">{u.full_name || "—"}{onlineIds.has(u.id) ? <span className="dot-online" title={t("online agora")} /> : null}</div><div className="mt">{u.email} · {onlineIds.has(u.id) ? t("online agora") : lastLogin(u.last_login, t)}</div></div>
           <Pill tone="info">{t(roleLabel(u.role))}</Pill>
         </div>
       ))}
@@ -346,7 +365,8 @@ export default function ConsolePermissoes() {
                 const c = cliente;
                 const bucket = crmUsers[c.organization_id];
                 const pessoas = unirPessoas(c.users, bucket?.enabled ? (bucket.users ?? []) : [])
-                  .filter((pe) => !query || `${pe.nome} ${pe.email}`.toLowerCase().includes(query));
+                  .filter((pe) => !query || `${pe.nome} ${pe.email}`.toLowerCase().includes(query))
+                  .map((pe) => ({ ...pe, online: onlineIds.has(pe.portal?.id || "") }));
                 return (<>
                   <div className="permdetail-h">
                     <div className="logo" style={{ width: 34, height: 34, fontSize: 12 }}>{initials(c.name)}</div>
@@ -366,7 +386,7 @@ export default function ConsolePermissoes() {
                       <div className="logo" style={{ width: 32, height: 32, fontSize: 12 }}>{initials(pe.nome)}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div className="nm">{pe.nome}{pe.online ? <span className="dot-online" title={t("online")} /> : null}</div>
-                        <div className="mt">{pe.email}{pe.portal ? ` · ${lastLogin(pe.ultimo ?? null, t)}` : ""}</div>
+                        <div className="mt">{pe.email}{pe.portal ? ` · ${pe.online ? t("online agora") : lastLogin(pe.ultimo ?? null, t)}` : ""}</div>
                       </div>
                       {!pe.portal
                         ? <Pill tone="warn">{t("sem acesso ao Portal")}</Pill>

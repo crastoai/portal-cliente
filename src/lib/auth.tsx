@@ -54,6 +54,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  // PRESENÇA EM TEMPO REAL: enquanto logado (em qualquer tela do Portal, inclusive com o CRM
+  // embarcado por cima), a pessoa "se anuncia" online via Supabase Realtime Presence. A tela de
+  // Permissões (admin) lê este canal e mostra quem está online AGORA, sem recarregar.
+  useEffect(() => {
+    const uid = session?.user?.id;
+    if (!uid) return;
+    const ch = supabase.channel("presence:online", { config: { presence: { key: uid } } });
+    ch.subscribe((status) => { if (status === "SUBSCRIBED") ch.track({ user_id: uid, at: Date.now() }); });
+    return () => { supabase.removeChannel(ch); };
+  }, [session?.user?.id]);
+
   async function signIn(email: string, password: string) {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (!error) marcarAtividade(); // entrar É interagir — zera o relógio da inatividade
