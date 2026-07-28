@@ -19,7 +19,12 @@ export class RlsDbService implements OnModuleDestroy {
   private pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false }, // pooler do Supabase exige TLS
-    max: 10,
+    // PICO DE ACESSO: o dashboard de cada usuário dispara VÁRIOS /mine em paralelo
+    // (client-modules, tarefas, reuniões, impl-events, health…). Com poucos usuários
+    // simultâneos, max:10 estourava e as consultas ficavam na fila. 30 dá folga; o
+    // pooler de transação do Supabase (:6543) multiplexa para os backends reais.
+    max: Number(process.env.DB_POOL_MAX) || 30,
+    connectionTimeoutMillis: 8000, // falha rápida e clara em vez de pendurar a requisição
   });
 
   /** Executa fn como o USUÁRIO (RLS ativa). */
