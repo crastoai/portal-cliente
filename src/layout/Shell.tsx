@@ -43,14 +43,8 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav }: { nav: Nav
   const [open, setOpen] = useState(false);
   // Recolher/expandir a sidebar (seta). Auto-recolhe ao abrir um módulo embarcado (ex.: CRM),
   // dando a tela cheia; ao sair do CRM, restaura a preferência manual do usuário.
-  const isCrm = pathname === "/app/crm" || pathname === "/admin/crm";
-  const [manualCollapsed, setManualCollapsed] = useState<boolean>(() => localStorage.getItem("portal.collapsed") === "1");
-  const collapsed = isCrm || manualCollapsed;
-  const setCollapsed = (v: boolean | ((prev: boolean) => boolean)) => {
-    const next = typeof v === "function" ? v(manualCollapsed) : v;
-    setManualCollapsed(next);
-    localStorage.setItem("portal.collapsed", next ? "1" : "0");
-  };
+  const [collapsed, setCollapsed] = useState<boolean>(() => localStorage.getItem("portal.collapsed") === "1");
+  useEffect(() => { localStorage.setItem("portal.collapsed", collapsed ? "1" : "0"); }, [collapsed]);
   const [avBusy, setAvBusy] = useState(false);
   const avInput = useRef<HTMLInputElement>(null);
   const ini = initials(profile?.full_name || profile?.email);
