@@ -1,6 +1,4 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { ChevronLeft } from "lucide-react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { supabase } from "../../lib/supabase";
 import { services } from "../../services";
 import { useT } from "../../lib/i18n";
@@ -24,7 +22,6 @@ const JULIE_NOME = "Julie, Comercial";
 
 export default function AdminCrm() {
   const t = useT();
-  const navigate = useNavigate();
   const [src, setSrc] = useState<string | null>(null);
   const [err, setErr] = useState("");
 
@@ -53,18 +50,24 @@ export default function AdminCrm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const back = (
-    <div className="crm-fs-top">
-      <button className="crm-back" onClick={() => navigate("/admin")}><ChevronLeft size={16} /> {t("Voltar ao Admin")}</button>
-      <span className="crm-fs-title">WhatsApp CRM · Crasto.AI</span>
+  // Embarcado DENTRO do admin (não em tela cheia): preenche o conteúdo e mantém o sidebar do
+  // Portal visível. O container ocupa toda a altura do .canvas (flex:1) e o iframe ocupa o resto.
+  const wrap: CSSProperties = { display: "flex", flexDirection: "column", height: "100%", minHeight: "70vh", gap: 10 };
+  const msg = (texto: string) => (
+    <div style={wrap}>
+      <div style={{ flex: 1, display: "grid", placeItems: "center", color: "var(--crasto-text-muted)", fontSize: 14 }}>{texto}</div>
     </div>
   );
-
-  if (err) return <div className="crm-fs">{back}<div className="crm-fs-msg">{err}</div></div>;
-  if (!src) return <div className="crm-fs">{back}<div className="crm-fs-msg">{t("Abrindo o WhatsApp CRM…")}</div></div>;
+  if (err) return msg(err);
+  if (!src) return msg(t("Abrindo o WhatsApp interno da Crasto (Julie)…"));
   return (
-    <div className="crm-fs">{back}
-      <iframe title="WhatsApp CRM" src={src} className="crm-fs-frame" allow="clipboard-write; microphone; camera; autoplay" />
+    <div style={wrap}>
+      <iframe
+        title="WhatsApp CRM"
+        src={src}
+        style={{ flex: 1, width: "100%", border: 0, borderRadius: 12, minHeight: 0, background: "#fff" }}
+        allow="clipboard-write; microphone; camera; autoplay"
+      />
     </div>
   );
 }
