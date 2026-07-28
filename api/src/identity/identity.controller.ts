@@ -123,10 +123,19 @@ export class IdentityController {
   profilesByOrg(@Req() req: any, @Query('org') org: string) {
     return this.db.asUser(this.uid(req), async (c) => (await c.query('select id,full_name,email,role,avatar_url from public.profiles where organization_id=$1', [org])).rows);
   }
+  // Auto-edição do próprio perfil (tela "Meu perfil"). ALLOWLIST DURA: só as colunas que a
+  // pessoa realmente edita. NUNCA role/organization_id/id/crm_screens/connector_id — senão
+  // qualquer usuário faria PATCH do próprio perfil com role='crasto_admin' e viraria admin da
+  // plataforma (a RLS profiles_self_update libera a própria linha, mas não restringe COLUNA).
+  // Papéis/permissões: só pela rota admin (updateUser, com AdminGuard). Campos fora da lista são
+  // ignorados em silêncio (a UI só manda full_name/avatar_url hoje).
+  private static readonly PROFILE_SELF_COLS = new Set(['full_name', 'avatar_url', 'phone', 'locale']);
   @Patch('profiles/:uid')
   profileUpdate(@Req() req: any, @Param('uid') puid: string, @Body() b: any) {
+    const patch: Record<string, any> = {};
+    for (const k of Object.keys(b || {})) if (IdentityController.PROFILE_SELF_COLS.has(k)) patch[k] = b[k];
     return this.db.asUser(this.uid(req), async (c) => {
-      const { sets, vals, ok } = this.setClause(b, 2);
+      const { sets, vals, ok } = this.setClause(patch, 2);
       if (!ok) return { ok: true };
       await c.query(`update public.profiles set ${sets} where id=$1`, [puid, ...vals]);
       return { ok: true };
