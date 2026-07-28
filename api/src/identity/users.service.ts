@@ -70,7 +70,7 @@ export class UsersService {
       targetType: 'user', targetId: acc.id, org: orgId,
       ctx: { email, papel: role, conta_nova: acc.isNew, email_enviado: sent.ok },
     });
-    return { ok: true, email, invited: true, email_sent: sent.ok, email_error: sent.error };
+    return { ok: true, id: acc.id, email, invited: true, email_sent: sent.ok, email_error: sent.error };
   }
 
   /** Admin cria o login de um cliente qualquer (tela ClienteDetalhe). */

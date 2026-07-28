@@ -97,7 +97,7 @@ const failed = (e: unknown) => ({ ok: false as const, error: errorMessage(e) });
 
 export const users = {
   /** Admin cria o login do responsável de um cliente (+ e-mail com link de senha). */
-  create: async (body: { email: string; full_name: string; organization_id: string; role: string }): Promise<{ ok: boolean; email?: string; error?: string; email_sent?: boolean; email_error?: string }> => {
+  create: async (body: { email: string; full_name: string; organization_id: string; role: string }): Promise<{ ok: boolean; id?: string; email?: string; error?: string; email_sent?: boolean; email_error?: string }> => {
     try { return await api.post(`/api/identity/users`, body); } catch (e) { return failed(e); }
   },
   /** Cliente-dono convida alguém da própria empresa (o servidor confere o papel). */

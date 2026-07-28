@@ -92,8 +92,11 @@ export default function ConsolePermissoes() {
   const [alvo, setAlvo] = useState<{ pessoa: Pessoa; orgName: string; orgId: string } | null>(null);
   const [busy, setBusy] = useState(false);
   // Convite de pessoa POR CLIENTE — pessoas moram aqui agora (antes: no detalhe do cliente).
-  const [convite, setConvite] = useState<{ orgId: string; orgName: string } | null>(null);
-  const [cf, setCf] = useState({ email: "", full_name: "", role: "client_member" });
+  const [convite, setConvite] = useState<{ orgId: string; orgName: string; ownerId?: string } | null>(null);
+  // Convite já com as TELAS (Portal + CRM): o admin define tudo aqui, sem ir depois em Permissões.
+  type CF = { email: string; full_name: string; role: string; portalScreens: Set<string>; crmOn: boolean; crmScreens: Set<string>; crmCatalog: { key: string; label: string }[]; crmLoaded: boolean };
+  const cfNovo = (): CF => ({ email: "", full_name: "", role: "client_member", portalScreens: new Set(ALL_SCREEN_KEYS), crmOn: false, crmScreens: new Set(), crmCatalog: [], crmLoaded: false });
+  const [cf, setCf] = useState<CF>(cfNovo());
   // Edição do e-mail (login) direto no popup de Permissões.
   const [emailEd, setEmailEd] = useState<{ on: boolean; val: string; busy: boolean }>({ on: false, val: "", busy: false });
   const [cErr, setCErr] = useState<string | null>(null);
@@ -109,6 +112,32 @@ export default function ConsolePermissoes() {
     if (focoOrg && !loading) selecionar(focoOrg);
   }, [focoOrg, loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Abre o convite JÁ com as telas: guarda o dono do org (p/ buscar o catálogo de telas do CRM).
+  function abrirConvite(c: Client) {
+    setCErr(null); setCf(cfNovo());
+    const owner = c.users.find((u) => u.role === "client_owner");
+    setConvite({ orgId: c.organization_id, orgName: c.name, ownerId: owner?.id });
+  }
+  function toggleConvitePortal(k: string) {
+    if (k === BASE_SCREEN) return;
+    setCf((f) => { const s = new Set(f.portalScreens); s.has(k) ? s.delete(k) : s.add(k); return { ...f, portalScreens: s }; });
+  }
+  function toggleConviteCrm(k: string) {
+    if (k === "mesa") return;
+    setCf((f) => { const s = new Set(f.crmScreens); s.has(k) ? s.delete(k) : s.add(k); return { ...f, crmScreens: s }; });
+  }
+  // Liga o CRM no convite e busca o catálogo de telas do módulo (via o dono do org).
+  async function ligarConviteCrm(on: boolean) {
+    setCf((f) => ({ ...f, crmOn: on }));
+    if (!on || cf.crmLoaded) return;
+    if (!convite?.ownerId) { setCf((f) => ({ ...f, crmLoaded: true })); return; }
+    try {
+      const r: any = await services.crmAccess.crmScreens(convite.orgId, convite.ownerId);
+      const cat = (r?.catalog || []) as { key: string; label: string }[];
+      setCf((f) => ({ ...f, crmCatalog: cat, crmScreens: new Set(cat.map((x) => x.key)), crmLoaded: true }));
+    } catch { setCf((f) => ({ ...f, crmLoaded: true })); }
+  }
+
   async function convidar() {
     if (!convite) return;
     setCErr(null);
@@ -117,7 +146,19 @@ export default function ConsolePermissoes() {
     try {
       const r = await services.identity.users.create({ email: cf.email.trim(), full_name: cf.full_name.trim(), organization_id: convite.orgId, role: cf.role });
       if (!r.ok) throw new Error(r.error || t("Não foi possível convidar."));
-      setConvite(null); setCf({ email: "", full_name: "", role: "client_member" });
+      const uid = r.id;
+      // 1) Telas do PORTAL — definidas aqui no convite.
+      if (uid) {
+        if (cf.role === "client_member") await services.analytics.admin.setUserAccess(uid, "client_member", Array.from(new Set([BASE_SCREEN, ...cf.portalScreens])));
+        else await services.analytics.admin.setUserAccess(uid, "client_owner", []);
+      }
+      // 2) Acesso + telas do WhatsApp CRM — se marcado no convite.
+      if (cf.crmOn) {
+        const gi: any = await services.crmAccess.invite(convite.orgId, { email: cf.email.trim(), full_name: cf.full_name.trim(), role: cf.role });
+        if (gi?.error) throw new Error(gi.error);
+        if (uid && cf.role === "client_member") { const rs: any = await services.crmAccess.setCrmScreens(convite.orgId, uid, Array.from(cf.crmScreens)); if (rs?.error) throw new Error(rs.error); }
+      }
+      setConvite(null); setCf(cfNovo());
       await reload(); if (crmUsers[convite.orgId]) loadCrmUsers(convite.orgId);
       toast.ok(r.email_sent ? t("Convite enviado ✓") : t("Usuário criado (o e-mail não saiu)."));
     } catch (e) { setCErr(errorMessage(e)); } finally { setBusy(false); }
@@ -314,7 +355,7 @@ export default function ConsolePermissoes() {
                       <div className="mt">{t("{n} no Portal", { n: c.users.length })}{bucket?.enabled ? ` · ${t("{n} no CRM", { n: bucket.users.length })}` : ""}</div>
                     </div>
                     <button className="crasto-btn crasto-btn--primary crasto-btn--sm"
-                      onClick={() => { setCErr(null); setCf({ email: "", full_name: "", role: "client_member" }); setConvite({ orgId: c.organization_id, orgName: c.name }); }}>
+                      onClick={() => abrirConvite(c)}>
                       <span className="crasto-btn__icon"><UserPlus size={14} /></span><span className="crasto-btn__label">{t("Convidar")}</span>
                     </button>
                   </div>
@@ -446,8 +487,55 @@ export default function ConsolePermissoes() {
         <Field label="E-mail *"><input type="email" value={cf.email} onChange={(e) => setCf({ ...cf, email: e.target.value })} placeholder="pessoa@empresa.com" /></Field>
         <Field label={t("Nome")}><input value={cf.full_name} onChange={(e) => setCf({ ...cf, full_name: e.target.value })} /></Field>
         <Field label={t("Papel")}><select value={cf.role} onChange={(e) => setCf({ ...cf, role: e.target.value })}><option value="client_member">{t("Membro")}</option><option value="client_owner">{t("Dono — acesso total")}</option></select></Field>
-        <p className="mt" style={{ margin: "10px 2px 0", lineHeight: 1.6 }}>
-          {t("A pessoa entra pelo Portal com a própria senha. O acesso ao WhatsApp CRM é liberado nas Permissões dela (módulo + telas).")}
+
+        {cf.role === "client_owner" ? (
+          <div className="note" style={{ marginTop: 14 }}><Check size={15} /><div>{t("Dono vê TODAS as telas do Portal e do WhatsApp CRM e gerencia a empresa.")}</div></div>
+        ) : (<>
+          {/* Telas do PORTAL — já no convite (antes só em Permissões). */}
+          <div className="permsub-h" style={{ margin: "18px 0 10px" }}><LayoutGrid size={14} /><span>{t("Telas do Portal")}</span></div>
+          <div className="screengrid">
+            {CLIENT_SCREENS.map((s) => {
+              const on = s.key === BASE_SCREEN || cf.portalScreens.has(s.key);
+              const base = s.key === BASE_SCREEN;
+              return (
+                <button key={s.key} type="button" className={"screenpick" + (on ? " on" : "") + (base ? " base" : "")} onClick={() => toggleConvitePortal(s.key)} disabled={base} title={base ? t("Tela base — sempre visível") : ""}>
+                  <span className="box">{on && <Check size={13} />}</span>
+                  <span className="lb">{t(s.label)}{base && <em> · {t("base")}</em>}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Módulo WhatsApp CRM — liberar acesso + telas, já no convite. */}
+          <div className="permsub-h" style={{ margin: "20px 0 10px" }}><MessageSquare size={14} /><span>{t("Módulo · WhatsApp CRM")}</span></div>
+          <div className="accseg">
+            <button type="button" className={"accseg-b" + (!cf.crmOn ? " on" : "")} onClick={() => ligarConviteCrm(false)}>
+              <div className="t">{t("Sem acesso ao CRM")}</div><div className="s">{t("só o Portal")}</div>
+            </button>
+            <button type="button" className={"accseg-b" + (cf.crmOn ? " on" : "")} onClick={() => ligarConviteCrm(true)}>
+              <div className="t">{t("Liberar WhatsApp CRM")}</div><div className="s">{t("escolha as telas abaixo")}</div>
+            </button>
+          </div>
+          {cf.crmOn && (cf.crmCatalog.length ? (
+            <div className="screengrid" style={{ marginTop: 10 }}>
+              {cf.crmCatalog.map((sc) => {
+                const on = sc.key === "mesa" || cf.crmScreens.has(sc.key);
+                const base = sc.key === "mesa";
+                return (
+                  <button key={sc.key} type="button" className={"screenpick" + (on ? " on" : "") + (base ? " base" : "")} onClick={() => toggleConviteCrm(sc.key)} disabled={base} title={base ? t("Minhas Tarefas é a tela base — sempre visível") : ""}>
+                    <span className="box">{on && <Check size={13} />}</span>
+                    <span className="lb">{t(sc.label)}{base && <em> · {t("base")}</em>}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mt" style={{ marginTop: 8, color: "var(--crasto-text-muted)" }}>{t("Acesso ao WhatsApp CRM será liberado com todas as telas (ajuste fino depois em Permissões).")}</div>
+          ))}
+        </>)}
+
+        <p className="mt" style={{ margin: "14px 2px 0", lineHeight: 1.6 }}>
+          {t("A pessoa entra pelo Portal com a própria senha. As telas escolhidas aqui já valem no convite.")}
         </p>
       </Modal>
 
