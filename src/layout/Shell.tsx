@@ -45,7 +45,7 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav }: { nav: Nav
   // dando a tela cheia; o usuário reabre pela seta.
   const [collapsed, setCollapsed] = useState<boolean>(() => localStorage.getItem("portal.collapsed") === "1");
   useEffect(() => { localStorage.setItem("portal.collapsed", collapsed ? "1" : "0"); }, [collapsed]);
-  useEffect(() => { if (pathname === "/app/crm") setCollapsed(true); }, [pathname]);
+  useEffect(() => { if (pathname === "/app/crm" || pathname === "/admin/crm") setCollapsed(true); }, [pathname]);
   const [avBusy, setAvBusy] = useState(false);
   const avInput = useRef<HTMLInputElement>(null);
   const ini = initials(profile?.full_name || profile?.email);

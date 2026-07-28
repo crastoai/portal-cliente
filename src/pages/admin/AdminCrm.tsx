@@ -50,10 +50,12 @@ export default function AdminCrm() {
     </div>
   );
 
-  if (err) return <div className="crm-fs">{back}<div className="crm-fs-msg">{err}</div></div>;
-  if (!src) return <div className="crm-fs">{back}<div className="crm-fs-msg">{t("Abrindo o WhatsApp interno da Crasto (Julie)…")}</div></div>;
+  // .admin-crm-fill = embarcado à direita do sidebar do Portal (que fica visível, recolhido por
+  // padrão). Preenche a altura toda (position:fixed) — sem a "janelinha" limitada de antes.
+  if (err) return <div className="admin-crm-fill">{back}<div className="crm-fs-msg">{err}</div></div>;
+  if (!src) return <div className="admin-crm-fill">{back}<div className="crm-fs-msg">{t("Abrindo o WhatsApp interno da Crasto (Julie)…")}</div></div>;
   return (
-    <div className="crm-fs">{back}
+    <div className="admin-crm-fill">{back}
       <iframe title="WhatsApp CRM" src={src} className="crm-fs-frame" allow="clipboard-write; microphone; camera; autoplay" />
     </div>
   );

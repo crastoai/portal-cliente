@@ -86,6 +86,13 @@
 .crm-fs-title { font-size: 13px; font-weight: 700; color: var(--crasto-text-muted); letter-spacing: .01em; }
 .crm-fs-frame { flex: 1; width: 100%; border: 0; background: #fff; }
 .crm-fs-msg { flex: 1; display: grid; place-items: center; color: var(--crasto-text-muted); font-size: 14px; }
+/* CRM interno embarcado no ADMIN: preenche a área de conteúdo à DIREITA do sidebar do Portal,
+   que fica VISÍVEL (recolhido por padrão). position:fixed garante altura cheia sem depender da
+   cadeia de %height do .canvas (%height dentro de flex+min-height é indefinido e não estica).
+   O `left` acompanha a largura do sidebar (recolhido 66px / expandido 248px / mobile 0). */
+.admin-crm-fill { position: fixed; top: 0; right: 0; bottom: 0; left: 248px; z-index: 90; display: flex; flex-direction: column; background: var(--crasto-glass-card, #fff); }
+.shell.collapsed .admin-crm-fill { left: 66px; }
+@media (max-width: 900px) { .admin-crm-fill { left: 0; } }
 /* seletor de agente (>1 CRM) */
 .crm-pick { flex: 1; display: grid; place-items: center; padding: 24px; }
 .crm-pick-card { width: 100%; max-width: 460px; background: var(--crasto-glass-card, #fff); border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-xl, 18px); box-shadow: 0 30px 60px -40px var(--crasto-navy-18); padding: 22px; }
