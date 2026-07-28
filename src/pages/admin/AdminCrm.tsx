@@ -1,6 +1,4 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { ChevronLeft } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { services } from "../../services";
 import { useT } from "../../lib/i18n";
@@ -20,7 +18,6 @@ const JULIE_ID = "5acfe775-1f15-46d2-9393-20a5e2ba5b78";
 
 export default function AdminCrm() {
   const t = useT();
-  const navigate = useNavigate();
   const [src, setSrc] = useState<string | null>(null);
   const [err, setErr] = useState("");
 
@@ -43,19 +40,13 @@ export default function AdminCrm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const back = (
-    <div className="crm-fs-top">
-      <button className="crm-back" onClick={() => navigate("/admin")}><ChevronLeft size={16} /> {t("Voltar ao Admin")}</button>
-      <span className="crm-fs-title">WhatsApp CRM · Crasto.AI</span>
-    </div>
-  );
-
   // .admin-crm-fill = embarcado à direita do sidebar do Portal (que fica visível, recolhido por
-  // padrão). Preenche a altura toda (position:fixed) — sem a "janelinha" limitada de antes.
-  if (err) return <div className="admin-crm-fill">{back}<div className="crm-fs-msg">{err}</div></div>;
-  if (!src) return <div className="admin-crm-fill">{back}<div className="crm-fs-msg">{t("Abrindo o WhatsApp interno da Crasto (Julie)…")}</div></div>;
+  // padrão, com o handle de recolher clicável). Preenche a altura toda (position:fixed). Sem barra
+  // "Voltar ao Admin": a navegação é o próprio sidebar do Portal.
+  if (err) return <div className="admin-crm-fill"><div className="crm-fs-msg">{err}</div></div>;
+  if (!src) return <div className="admin-crm-fill"><div className="crm-fs-msg">{t("Abrindo o WhatsApp interno da Crasto (Julie)…")}</div></div>;
   return (
-    <div className="admin-crm-fill">{back}
+    <div className="admin-crm-fill">
       <iframe title="WhatsApp CRM" src={src} className="crm-fs-frame" allow="clipboard-write; microphone; camera; autoplay" />
     </div>
   );
