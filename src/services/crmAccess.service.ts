@@ -30,7 +30,7 @@ export const crmAccess = {
   // sessão na origem dele. Nunca devolve/transporta o bearer.
   enter: () => api.post<{ token: string; type: string }>(`/api/crm-access/enter`),
   linkAgent: (orgId: string, agentId: string | null) => api.put(`/api/crm-access/${orgId}/agent`, { agent_id: agentId }),
-  invite: (orgId: string, b: { email: string; full_name?: string; role?: string }) =>
+  invite: (orgId: string, b: { email: string; full_name?: string; role?: string; notify?: boolean }) =>
     api.post<{ user: CrmUser; email_sent: boolean; email_error?: string; password_link_sent: boolean }>(`/api/crm-access/${orgId}/users`, b),
   // Telas do WhatsApp CRM de um usuário (o dono vê tudo e não é configurável).
   crmScreens: (orgId: string, userId: string) =>

@@ -542,7 +542,20 @@ export default function ConsolePermissoes() {
 
           {/* ---- Bloco 2: o módulo WhatsApp CRM (as telas DELE) ---- */}
           <div className="permsub-h" style={{ margin: "20px 0 10px" }}><MessageSquare size={14} /><span>{t("Módulo · WhatsApp CRM")}</span></div>
-          {!cfgCrm && <div className="mt" style={{ color: "var(--crasto-text-muted)" }}>{t("Sem acesso ao WhatsApp CRM.")}</div>}
+          {!cfgCrm && alvo && (<div style={{ marginTop: 6 }}>
+            <div className="mt" style={{ color: "var(--crasto-text-muted)", marginBottom: 8 }}>{t("Sem acesso ao WhatsApp CRM.")}</div>
+            <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={async () => {
+              setBusy(true);
+              try {
+                const pe = alvo.pessoa;
+                const gi: any = await services.crmAccess.invite(alvo.orgId, { email: pe.email, full_name: pe.nome || undefined, role: cfg ? (pf.owner ? "client_owner" : "client_member") : "client_member", notify: false });
+                if (gi?.error) throw new Error(gi.error);
+                if (gi?.user) { configureCrm(gi.user, alvo.orgName, alvo.orgId); }
+                await reload(); loadCrmUsers(alvo.orgId);
+                toast.ok(t("Acesso ao WhatsApp CRM liberado ✓"));
+              } catch (e) { toast.err(errorMessage(e)); } finally { setBusy(false); }
+            }}><MessageSquare size={13} style={{ marginRight: 4, verticalAlign: -2 }} /><span className="crasto-btn__label">{busy ? t("Liberando…") : t("Liberar WhatsApp CRM")}</span></button>
+          </div>)}
           {crm?.loading && <div className="mt">{t("Carregando…")}</div>}
           {cfgCrm && crm && !crm.loading && !crm.hasAccess && (
             <div className="mt" style={{ color: "var(--crasto-text-muted)" }}>{t("Este usuário não tem acesso ao WhatsApp CRM.")}</div>

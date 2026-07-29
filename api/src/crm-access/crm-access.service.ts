@@ -155,7 +155,7 @@ export class CrmAccessService {
    * 1) identidade no Portal → 2) acesso no CRM → 3) e-mail.
    * Se o e-mail falhar o acesso continua válido (o admin reenvia) — nunca o contrário.
    */
-  async invite(req: any, orgId: string, auth: string, b: { email?: string; full_name?: string; role?: string }) {
+  async invite(req: any, orgId: string, auth: string, b: { email?: string; full_name?: string; role?: string; notify?: boolean }) {
     await this.requireModule(orgId);
     const email = String(b.email || '').trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new BadRequestException('E-mail inválido.');
@@ -179,8 +179,9 @@ export class CrmAccessService {
       body: JSON.stringify({ id: uid, email, full_name: b.full_name || null, role }),
     });
 
-    // 3) aviso
-    const sent = await this.notify(email, b.full_name || user?.full_name, await this.orgName(orgId), link);
+    // 3) aviso (skip se notify=false — ex.: usuário já no Portal, sem reenviar convite)
+    const skip = b.notify === false;
+    const sent = skip ? { ok: true, error: null } : await this.notify(email, b.full_name || user?.full_name, await this.orgName(orgId), link);
     await this.audit.log(req, 'crm_access_granted', {
       targetType: 'user', targetId: uid, org: orgId, system: 'crm',
       ctx: { email, papel: role, link_de_senha: !!link, email_enviado: sent.ok },
