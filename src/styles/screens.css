@@ -199,7 +199,7 @@
 .selorg { width: 100%; border: 1px solid var(--crasto-border); border-radius: var(--crasto-radius-sm); padding: 10px 13px; font-size: 13px; color: var(--crasto-text-primary); background: var(--crasto-surface); }
 
 /* MODAL */
-.modal-overlay { position: fixed; inset: 0; background: rgba(1,14,38,.5); backdrop-filter: blur(3px); display: grid; place-items: center; z-index: 100; padding: 20px; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(1,14,38,.5); backdrop-filter: blur(3px); display: grid; place-items: center; z-index: 200; padding: 20px; }
 .modal { background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-lg); width: 100%; max-width: 460px; box-shadow: var(--crasto-shadow-xl); max-height: 90vh; overflow-y: auto; }
 .modal--wide { max-width: 920px; }
 /* No convite largo, as telas ficam em 3 colunas → cabe sem scroll. Colapsa em telas menores. */

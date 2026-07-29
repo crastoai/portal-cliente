@@ -66,7 +66,7 @@ export function useIdleGuard(ativo: boolean, sair: (motivo: "inatividade" | "esc
       ultimoToque = t;
       marcarAtividade();
     };
-    const eventos = ["pointerdown", "keydown", "wheel", "touchstart", "scroll", "mousemove"];
+    const eventos = ["pointerdown", "keydown", "wheel", "touchstart", "scroll"];
     eventos.forEach((e) => window.addEventListener(e, aoInteragir, { passive: true }));
 
     const tick = () => {
