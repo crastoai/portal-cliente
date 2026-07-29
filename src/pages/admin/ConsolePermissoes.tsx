@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Shield, Users, Building2, Lock, Search, ChevronRight, SlidersHorizontal, Check, MessageSquare, LayoutGrid, UserPlus, RefreshCw } from "lucide-react";
+import { Shield, Users, Building2, Lock, Search, ChevronRight, SlidersHorizontal, Check, MessageSquare, LayoutGrid, UserPlus, RefreshCw, Trash2, Pencil } from "lucide-react";
 import { services, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, useToast, initials, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
@@ -124,6 +124,7 @@ export default function ConsolePermissoes() {
   const [cf, setCf] = useState<CF>(cfNovo());
   // Edição do e-mail (login) direto no popup de Permissões.
   const [emailEd, setEmailEd] = useState<{ on: boolean; val: string; busy: boolean }>({ on: false, val: "", busy: false });
+  const [nameEd, setNameEd] = useState<{ on: boolean; val: string; busy: boolean }>({ on: false, val: "", busy: false });
   const [cErr, setCErr] = useState<string | null>(null);
   // Master-detail: um cliente selecionado por vez (escala a 100+ — a lista faz scroll e só
   // o CRM do selecionado carrega). `fchip` = filtro rápido por situação de acesso.
@@ -236,7 +237,7 @@ export default function ConsolePermissoes() {
     else { setCfgCrm(null); setCrm(null); }
     setAlvo({ pessoa: pe, orgName, orgId });
   }
-  function fecharPermissoes() { setAlvo(null); setCfg(null); setCfgCrm(null); setCrm(null); setEmailEd({ on: false, val: "", busy: false }); }
+  function fecharPermissoes() { setAlvo(null); setCfg(null); setCfgCrm(null); setCrm(null); setEmailEd({ on: false, val: "", busy: false }); setNameEd({ on: false, val: "", busy: false }); }
 
   // Troca o E-MAIL (que é o LOGIN). Usa o IdP do Portal (updateByAdmin: muda o auth + espelha no
   // perfil, com trava anti-colisão). Se for pessoa só do CRM, usa a ponte do CRM (mesmo idp por baixo).
@@ -252,11 +253,54 @@ export default function ConsolePermissoes() {
         ? await services.identity.users.update(portalId, { email: novo })
         : await services.crmAccess.update(alvo.orgId, alvo.pessoa.crm!.id, { email: novo });
       if (r?.error) throw new Error(r.error);
+      if (portalId && alvo.pessoa.crm) {
+        await services.crmAccess.update(alvo.orgId, portalId, { email: novo }).catch(() => {});
+      }
       setAlvo((a) => (a ? { ...a, pessoa: { ...a.pessoa, email: novo } } : a));
       setEmailEd({ on: false, val: "", busy: false });
-      await reload();
+      await reload(); if (crmUsers[alvo.orgId]) loadCrmUsers(alvo.orgId);
       toast.ok(t("E-mail (login) atualizado ✓ — reenvie o acesso se a pessoa ainda não definiu a senha."));
     } catch (e) { toast.err(errorMessage(e)); setEmailEd((s) => ({ ...s, busy: false })); }
+  }
+
+  async function salvarNome() {
+    if (!alvo) return;
+    const novo = nameEd.val.trim();
+    if (!novo) { toast.err(t("Nome não pode ficar vazio.")); return; }
+    if (novo === (alvo.pessoa.nome || "")) { setNameEd({ on: false, val: "", busy: false }); return; }
+    setNameEd((e) => ({ ...e, busy: true }));
+    try {
+      const portalId = alvo.pessoa.portal?.id;
+      const r: any = portalId
+        ? await services.identity.users.update(portalId, { full_name: novo })
+        : await services.crmAccess.update(alvo.orgId, alvo.pessoa.crm!.id, { full_name: novo });
+      if (r?.error) throw new Error(r.error);
+      if (portalId && alvo.pessoa.crm) {
+        await services.crmAccess.update(alvo.orgId, portalId, { full_name: novo }).catch(() => {});
+      }
+      setAlvo((a) => (a ? { ...a, pessoa: { ...a.pessoa, nome: novo } } : a));
+      setNameEd({ on: false, val: "", busy: false });
+      await reload(); if (crmUsers[alvo.orgId]) loadCrmUsers(alvo.orgId);
+      toast.ok(t("Nome atualizado ✓"));
+    } catch (e) { toast.err(errorMessage(e)); setNameEd((s) => ({ ...s, busy: false })); }
+  }
+
+  async function excluirUsuario() {
+    if (!alvo) return;
+    const pe = alvo.pessoa;
+    if (!confirm(t("Excluir {nome} ({email})? Esta ação remove o acesso ao Portal e ao WhatsApp CRM.", { nome: pe.nome, email: pe.email }))) return;
+    setBusy(true);
+    try {
+      if (pe.crm) await services.crmAccess.revoke(alvo.orgId, pe.crm.id).catch(() => {});
+      if (pe.portal) {
+        const r: any = await services.identity.users.remove(pe.portal.id);
+        if (r?.error) throw new Error(r.error);
+      }
+      const orgId = alvo.orgId;
+      fecharPermissoes();
+      await reload(); if (crmUsers[orgId]) loadCrmUsers(orgId);
+      toast.ok(t("Usuário excluído ✓"));
+    } catch (e) { toast.err(errorMessage(e)); } finally { setBusy(false); }
   }
 
   async function salvarPermissoes() {
@@ -428,7 +472,21 @@ export default function ConsolePermissoes() {
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
             <div className="logo" style={{ width: 36, height: 36, fontSize: 12 }}>{initials(alvo.pessoa.nome)}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="nm">{alvo.pessoa.nome}</div>
+              {nameEd.on ? (
+                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                  <input autoFocus value={nameEd.val} onChange={(e) => setNameEd({ ...nameEd, val: e.target.value })} onKeyDown={(e) => e.key === "Enter" && salvarNome()} placeholder={t("Nome completo")} style={{ flex: 1, minWidth: 170 }} />
+                  <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={nameEd.busy} onClick={salvarNome}><span className="crasto-btn__label">{nameEd.busy ? t("Salvando…") : t("Salvar nome")}</span></button>
+                  <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={nameEd.busy} onClick={() => setNameEd({ on: false, val: "", busy: false })}><span className="crasto-btn__label">{t("Cancelar")}</span></button>
+                </div>
+              ) : (
+                <div className="nm" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {alvo.pessoa.nome}
+                  <button type="button" onClick={() => setNameEd({ on: true, val: alvo.pessoa.nome || "", busy: false })}
+                    style={{ border: 0, background: "transparent", color: "var(--crasto-blue, #6E9CE8)", cursor: "pointer", padding: 0, display: "inline-flex" }} title={t("Editar nome")}>
+                    <Pencil size={13} />
+                  </button>
+                </div>
+              )}
               {emailEd.on ? (
                 <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 5, flexWrap: "wrap" }}>
                   <input type="email" autoFocus value={emailEd.val} onChange={(e) => setEmailEd({ ...emailEd, val: e.target.value })} onKeyDown={(e) => e.key === "Enter" && salvarEmail()} placeholder="novo@email.com" style={{ flex: 1, minWidth: 170 }} />
@@ -445,6 +503,9 @@ export default function ConsolePermissoes() {
                 </div>
               )}
             </div>
+            <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} onClick={excluirUsuario} title={t("Excluir usuário")} style={{ color: "var(--crasto-red, #E74C3C)" }}>
+              <span className="crasto-btn__icon"><Trash2 size={14} /></span><span className="crasto-btn__label">{t("Excluir")}</span>
+            </button>
           </div>
 
           {/* ---- Bloco 1: o Portal (papel + telas) ---- */}

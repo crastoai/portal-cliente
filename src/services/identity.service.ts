@@ -112,6 +112,10 @@ export const users = {
   update: async (id: string, body: { email?: string; full_name?: string; role?: string }): Promise<{ ok: boolean; error?: string }> => {
     try { return await api.patch(`/api/identity/users/${id}`, body); } catch (e) { return failed(e); }
   },
+  /** Admin exclui um usuário do Portal (Auth + profiles). */
+  remove: async (id: string): Promise<{ ok: boolean; error?: string }> => {
+    try { return await api.del(`/api/identity/users/${id}`); } catch (e) { return failed(e); }
+  },
 };
 
 export const clients = {

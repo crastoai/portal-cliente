@@ -87,6 +87,19 @@ export class IdpService {
     }
   }
 
+  async deleteUser(id: string): Promise<void> {
+    if (!this.svcKey) throw new BadRequestException('PORTAL_SERVICE_KEY ausente na API.');
+    const r = await fetch(`${this.gotrue}/admin/users/${id}`, {
+      method: 'DELETE',
+      headers: { apikey: this.svcKey, Authorization: 'Bearer ' + this.svcKey },
+    });
+    if (!r.ok && r.status !== 404) {
+      const j: any = await r.json().catch(() => ({}));
+      this.log.warn(`admin delete user ${r.status}: ${j?.msg || j?.message || ''}`);
+      throw new BadRequestException(j?.msg || j?.message || `Falha ao excluir a identidade (${r.status}).`);
+    }
+  }
+
   async accessLink(email: string, base: string, fullName?: string | null): Promise<{ id: string; url: string; isNew: boolean }> {
     const found = await this.lookup(email);
     const type = found ? 'recovery' : 'invite';

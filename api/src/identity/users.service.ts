@@ -127,6 +127,28 @@ export class UsersService {
     }
   }
 
+  /** Admin exclui um usuário do Portal (Auth + profiles). */
+  async deleteByAdmin(req: any, userId: string) {
+    const cur = await this.db.asService(async (c) =>
+      (await c.query(`select email, full_name, role, organization_id from public.profiles where id=$1`, [userId])).rows[0]);
+    if (!cur) throw new BadRequestException('Usuário não encontrado.');
+    if (cur.role === 'crasto_admin') throw new BadRequestException('Não se exclui um administrador da Crasto.AI por aqui.');
+
+    try {
+      await this.db.asService((c) => c.query(`delete from public.profiles where id=$1`, [userId]));
+      await this.idp.deleteUser(userId);
+      await this.audit.log(req, 'portal_user_deleted', {
+        targetType: 'user', targetId: userId, org: cur.organization_id,
+        ctx: { email: cur.email, nome: cur.full_name },
+      });
+      return { ok: true };
+    } catch (e: any) {
+      if (e?.status) throw e;
+      this.log.error(`deleteByAdmin ${userId}: ${e?.message}`, e?.stack);
+      throw new BadRequestException('Falha ao excluir o usuário: ' + (e?.message || 'erro inesperado'));
+    }
+  }
+
   /** Cliente-dono convida alguém da PRÓPRIA empresa (tela Usuários do cliente). */
   async inviteByOwner(req: any, uid: string, b: { email?: string; full_name?: string; role?: string }) {
     const me = await this.db.asService(async (c) =>

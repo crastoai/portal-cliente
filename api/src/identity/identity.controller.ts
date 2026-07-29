@@ -37,6 +37,11 @@ export class IdentityController {
   @UseGuards(AdminGuard)
   resendUser(@Req() req: any, @Param('id') id: string) { return this.users.resend(req, id); }
 
+  /** Admin exclui um usuário do Portal (Auth + profiles). */
+  @Delete('users/:id')
+  @UseGuards(AdminGuard)
+  deleteUser(@Req() req: any, @Param('id') id: string) { return this.users.deleteByAdmin(req, id); }
+
   // UPDATE dinâmico seguro: colunas validadas (só [a-z0-9_]) + valores parametrizados.
   private setClause(patch: Record<string, any>, startAt: number) {
     const keys = Object.keys(patch || {}).filter((k) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k));

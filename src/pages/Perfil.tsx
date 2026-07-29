@@ -23,9 +23,10 @@ export default function Perfil() {
   // --- Meu perfil (usuário) ---
   const avInput = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(profile?.full_name || "");
+  const [email, setEmail] = useState(profile?.email || "");
   const [avBusy, setAvBusy] = useState(false);
   const [busyU, setBusyU] = useState(false);
-  useEffect(() => { setName(profile?.full_name || ""); }, [profile?.full_name]);
+  useEffect(() => { setName(profile?.full_name || ""); setEmail(profile?.email || ""); }, [profile?.full_name, profile?.email]);
   async function onAvatar(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; e.target.value = "";
     if (!file || !profile?.id || !file.type.startsWith("image/")) return;
@@ -35,8 +36,20 @@ export default function Perfil() {
   }
   async function saveUser() {
     if (!profile?.id) return;
+    const novoNome = name.trim() || null;
+    const novoEmail = email.trim().toLowerCase();
+    const emailMudou = novoEmail && novoEmail !== (profile.email || "").toLowerCase();
+    if (emailMudou && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(novoEmail)) { flash(t("E-mail inválido.")); return; }
     setBusyU(true);
-    try { await services.identity.profiles.update(profile.id, { full_name: name.trim() || null }); await refreshProfile(); flash(t("Perfil salvo ✓")); }
+    try {
+      await services.identity.profiles.update(profile.id, { full_name: novoNome });
+      if (emailMudou) {
+        const { error } = await supabase.auth.updateUser({ email: novoEmail });
+        if (error) throw new Error(error.message);
+      }
+      await refreshProfile();
+      flash(emailMudou ? t("Perfil salvo ✓ — confirme o novo e-mail na sua caixa de entrada.") : t("Perfil salvo ✓"));
+    }
     catch (e) { flash(errorMessage(e)); } finally { setBusyU(false); }
   }
 
@@ -202,7 +215,7 @@ export default function Perfil() {
           <input ref={avInput} type="file" accept="image/*" hidden onChange={onAvatar} />
           <div className="grid2" style={{ flex: 1, minWidth: 260 }}>
             <Field label="Nome completo"><input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("Seu nome")} /></Field>
-            <Field label="E-mail (login)"><input value={profile?.email || ""} disabled /></Field>
+            <Field label="E-mail (login)"><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" /></Field>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busyU} onClick={saveUser}><span className="crasto-btn__label">{busyU ? t("Salvando…") : t("Salvar")}</span></button>
