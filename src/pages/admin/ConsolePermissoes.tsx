@@ -239,8 +239,8 @@ export default function ConsolePermissoes() {
   }
   function fecharPermissoes() { setAlvo(null); setCfg(null); setCfgCrm(null); setCrm(null); setEmailEd({ on: false, val: "", busy: false }); setNameEd({ on: false, val: "", busy: false }); }
 
-  // Troca o E-MAIL (que é o LOGIN). Usa o IdP do Portal (updateByAdmin: muda o auth + espelha no
-  // perfil, com trava anti-colisão). Se for pessoa só do CRM, usa a ponte do CRM (mesmo idp por baixo).
+  // Troca o E-MAIL (que é o LOGIN). O backend (PATCH /identity/users/:id) atualiza Auth + Portal
+  // profiles + sincroniza com o CRM automaticamente. Se for pessoa só do CRM, usa a ponte direta.
   async function salvarEmail() {
     if (!alvo) return;
     const novo = emailEd.val.trim().toLowerCase();
@@ -253,13 +253,13 @@ export default function ConsolePermissoes() {
         ? await services.identity.users.update(portalId, { email: novo })
         : await services.crmAccess.update(alvo.orgId, alvo.pessoa.crm!.id, { email: novo });
       if (r?.error) throw new Error(r.error);
-      if (portalId && alvo.pessoa.crm) {
-        await services.crmAccess.update(alvo.orgId, portalId, { email: novo }).catch(() => {});
-      }
       setAlvo((a) => (a ? { ...a, pessoa: { ...a.pessoa, email: novo } } : a));
       setEmailEd({ on: false, val: "", busy: false });
       await reload(); if (crmUsers[alvo.orgId]) loadCrmUsers(alvo.orgId);
-      toast.ok(t("E-mail (login) atualizado ✓ — reenvie o acesso se a pessoa ainda não definiu a senha."));
+      const msg = r?.crm_sync_error
+        ? t("E-mail atualizado no Portal, mas FALHOU no CRM: {err}. Tente novamente.", { err: r.crm_sync_error })
+        : t("E-mail (login) atualizado ✓ — reenvie o acesso se a pessoa ainda não definiu a senha.");
+      r?.crm_sync_error ? toast.err(msg) : toast.ok(msg);
     } catch (e) { toast.err(errorMessage(e)); setEmailEd((s) => ({ ...s, busy: false })); }
   }
 
@@ -275,13 +275,13 @@ export default function ConsolePermissoes() {
         ? await services.identity.users.update(portalId, { full_name: novo })
         : await services.crmAccess.update(alvo.orgId, alvo.pessoa.crm!.id, { full_name: novo });
       if (r?.error) throw new Error(r.error);
-      if (portalId && alvo.pessoa.crm) {
-        await services.crmAccess.update(alvo.orgId, portalId, { full_name: novo }).catch(() => {});
-      }
       setAlvo((a) => (a ? { ...a, pessoa: { ...a.pessoa, nome: novo } } : a));
       setNameEd({ on: false, val: "", busy: false });
       await reload(); if (crmUsers[alvo.orgId]) loadCrmUsers(alvo.orgId);
-      toast.ok(t("Nome atualizado ✓"));
+      const msg = r?.crm_sync_error
+        ? t("Nome atualizado no Portal, mas FALHOU no CRM: {err}.", { err: r.crm_sync_error })
+        : t("Nome atualizado ✓");
+      r?.crm_sync_error ? toast.err(msg) : toast.ok(msg);
     } catch (e) { toast.err(errorMessage(e)); setNameEd((s) => ({ ...s, busy: false })); }
   }
 

@@ -1,8 +1,9 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Logger, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { JwtOrgGuard } from '../common/jwt-org.guard';
 import { AdminGuard } from '../common/admin.guard';
 import { RlsDbService } from '../common/rls-db.service';
 import { UsersService } from './users.service';
+import { CrmAccessService } from '../crm-access/crm-access.service';
 
 // Bounded context IDENTITY (schema public + RPCs). TUDO roda em asUser → a RLS do Portal
 // decide exatamente o que decidia via PostgREST; a diferença é que o cliente fala com ESTA API,
@@ -10,7 +11,8 @@ import { UsersService } from './users.service';
 @Controller('identity')
 @UseGuards(JwtOrgGuard)
 export class IdentityController {
-  constructor(private readonly db: RlsDbService, private readonly users: UsersService) {}
+  private readonly log = new Logger('Identity');
+  constructor(private readonly db: RlsDbService, private readonly users: UsersService, private readonly crmAccess: CrmAccessService) {}
   private uid(req: any): string { return req.user.id; }
 
   // ── acesso de pessoas ao Portal (substitui as Edge Functions de convite) ──
@@ -25,11 +27,23 @@ export class IdentityController {
   @Post('users/invite')
   inviteUser(@Req() req: any, @Body() b: any) { return this.users.inviteByOwner(req, this.uid(req), b); }
 
-  /** Admin edita nome / e-mail / papel de um usuário do Portal. */
+  /** Admin edita nome / e-mail / papel de um usuário do Portal.
+   *  Sincroniza automaticamente com o CRM se a pessoa tem acesso lá. */
   @Patch('users/:id')
   @UseGuards(AdminGuard)
-  updateUser(@Req() req: any, @Param('id') id: string, @Body() b: any) {
-    return this.users.updateByAdmin(req, id, { email: b?.email, full_name: b?.full_name, role: b?.role });
+  async updateUser(@Req() req: any, @Param('id') id: string, @Body() b: any) {
+    const result = await this.users.updateByAdmin(req, id, { email: b?.email, full_name: b?.full_name, role: b?.role });
+    if (!result.ok || (!b?.email && !b?.full_name)) return result;
+    const orgId = result.organization_id;
+    if (orgId) {
+      try {
+        await this.crmAccess.updateUser(req, orgId, req.headers.authorization, id, { email: b?.email, full_name: b?.full_name });
+      } catch (e: any) {
+        this.log.warn(`CRM sync for user ${id}: ${e?.message}`);
+        (result as any).crm_sync_error = e?.message || 'Falha ao sincronizar com o CRM';
+      }
+    }
+    return result;
   }
 
   /** Admin reenvia o acesso — manda link novo, NÃO redefine a senha da pessoa. */
@@ -136,15 +150,23 @@ export class IdentityController {
   // ignorados em silêncio (a UI só manda full_name/avatar_url hoje).
   private static readonly PROFILE_SELF_COLS = new Set(['full_name', 'avatar_url', 'phone', 'locale']);
   @Patch('profiles/:uid')
-  profileUpdate(@Req() req: any, @Param('uid') puid: string, @Body() b: any) {
+  async profileUpdate(@Req() req: any, @Param('uid') puid: string, @Body() b: any) {
     const patch: Record<string, any> = {};
     for (const k of Object.keys(b || {})) if (IdentityController.PROFILE_SELF_COLS.has(k)) patch[k] = b[k];
-    return this.db.asUser(this.uid(req), async (c) => {
+    const result = await this.db.asUser(this.uid(req), async (c) => {
       const { sets, vals, ok } = this.setClause(patch, 2);
       if (!ok) return { ok: true };
       await c.query(`update public.profiles set ${sets} where id=$1`, [puid, ...vals]);
       return { ok: true };
     });
+    if (patch.full_name != null && this.uid(req) === puid) {
+      try { await this.users.syncNameToAuth(puid, patch.full_name); } catch (e: any) { this.log.warn(`Auth sync name ${puid}: ${e?.message}`); }
+      const orgId = await this.db.asService(async (c) => (await c.query('select organization_id from public.profiles where id=$1', [puid])).rows[0]?.organization_id);
+      if (orgId) {
+        try { await this.crmAccess.updateUser(req, orgId, req.headers.authorization, puid, { full_name: patch.full_name }); } catch (e: any) { this.log.warn(`CRM sync name ${puid}: ${e?.message}`); }
+      }
+    }
+    return result;
   }
 
   // ── CNPJs (matriz+filiais): cliente via RPC (owner-only), admin lê a tabela crm ──

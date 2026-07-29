@@ -7,5 +7,6 @@ import { CrmAccessService } from './crm-access.service';
   imports: [CommonModule],
   controllers: [CrmAccessController],
   providers: [CrmAccessService],
+  exports: [CrmAccessService],
 })
 export class CrmAccessModule {}

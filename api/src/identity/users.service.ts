@@ -118,13 +118,17 @@ export class UsersService {
         targetType: 'user', targetId: userId, org: cur.organization_id,
         ctx: { email: authPatch.email, nome: authPatch.full_name, papel: role },
       });
-      return { ok: true };
+      return { ok: true, organization_id: cur.organization_id };
     } catch (e: any) {
       if (e?.status) throw e; // já é HttpException (400 e-mail em uso, etc.) — mantém a mensagem clara
       // Nunca deixa virar "Internal server error" opaco: loga e devolve a causa real.
       this.log.error(`updateByAdmin ${userId}: ${e?.message}`, e?.stack);
       throw new BadRequestException('Falha ao atualizar o usuário: ' + (e?.message || 'erro inesperado'));
     }
+  }
+
+  async syncNameToAuth(userId: string, fullName: string) {
+    await this.idp.updateUser(userId, { full_name: fullName });
   }
 
   /** Admin exclui um usuário do Portal (Auth + profiles). */
