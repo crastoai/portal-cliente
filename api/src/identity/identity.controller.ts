@@ -23,9 +23,26 @@ export class IdentityController {
   @UseGuards(AdminGuard)
   createUser(@Req() req: any, @Body() b: any) { return this.users.createByAdmin(req, b); }
 
-  /** Cliente-dono convida alguém da própria empresa (o serviço confere o papel). */
+  /** Cliente-dono convida alguém da própria empresa (o serviço confere o papel).
+   *  Se a org tiver módulo CRM ativo, concede acesso ao CRM automaticamente. */
   @Post('users/invite')
-  inviteUser(@Req() req: any, @Body() b: any) { return this.users.inviteByOwner(req, this.uid(req), b); }
+  async inviteUser(@Req() req: any, @Body() b: any) {
+    const result = await this.users.inviteByOwner(req, this.uid(req), b);
+    if (result?.ok && result?.id) {
+      const orgId = await this.db.asService(async (c) =>
+        (await c.query('select organization_id from public.profiles where id=$1', [this.uid(req)])).rows[0]?.organization_id);
+      if (orgId) {
+        try {
+          const crm = await this.crmAccess.grantCrmForOwner(req, orgId, result.id, b.email, b.full_name, b.role);
+          if (crm) (result as any).crm_granted = true;
+        } catch (e: any) {
+          this.log.warn(`CRM grant for invited user ${result.id}: ${e?.message}`);
+          (result as any).crm_grant_error = e?.message;
+        }
+      }
+    }
+    return result;
+  }
 
   /** Admin edita nome / e-mail / papel de um usuário do Portal.
    *  Sincroniza automaticamente com o CRM se a pessoa tem acesso lá. */

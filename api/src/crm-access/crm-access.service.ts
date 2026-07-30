@@ -50,6 +50,51 @@ export class CrmAccessService {
     } finally { clearTimeout(t); }
   }
 
+  /** Chama o endpoint interno do CRM (service-to-service, sem JWT). */
+  private async crmInternal(path: string, body: any): Promise<any> {
+    if (!this.crmApi) throw new BadRequestException('CRM_API_URL não configurada na API do Portal.');
+    const key = process.env.INTERNAL_SERVICE_KEY;
+    if (!key) throw new BadRequestException('INTERNAL_SERVICE_KEY não configurada.');
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 15000);
+    try {
+      const r = await fetch(`${this.crmApi.replace(/\/$/, '')}/api${path}`, {
+        method: 'POST', signal: ctrl.signal,
+        headers: { 'X-Service-Key': key, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new BadRequestException(j?.message || j?.error || `CRM respondeu ${r.status}`);
+      if (j?.error) throw new BadRequestException(j.error);
+      return j;
+    } catch (e: any) {
+      if (e?.status) throw e;
+      this.log.warn(`CRM internal ${path}: ${e.message}`);
+      throw new BadRequestException(e.name === 'AbortError' ? 'CRM não respondeu (timeout).' : `CRM indisponível: ${e.message}`);
+    } finally { clearTimeout(t); }
+  }
+
+  /** Concede acesso ao CRM via service key (chamado pelo owner que convida alguém). */
+  async grantCrmForOwner(req: any, orgId: string, userId: string, email: string, fullName?: string, role?: string) {
+    const hasModule = await this.hasModule(orgId);
+    if (!hasModule) return null;
+    try {
+      const result = await this.crmInternal('/internal/grant-user', {
+        id: userId, organization_id: orgId, email,
+        full_name: fullName || null,
+        role: role === 'client_owner' ? 'client_owner' : 'client_member',
+      });
+      await this.audit.log(req, 'crm_access_granted_by_owner', {
+        targetType: 'user', targetId: userId, org: orgId, system: 'crm',
+        ctx: { email, papel: role || 'client_member' },
+      });
+      return result;
+    } catch (e: any) {
+      this.log.warn(`grantCrmForOwner ${userId}: ${e?.message}`);
+      return null;
+    }
+  }
+
   /**
    * Resumo dos agentes de TODOS os clientes, federado do wacrm em UMA chamada. Devolve, por
    * organização, quantos agentes existem e quantos estão no ar — o que a Visão Geral usa para
@@ -79,6 +124,8 @@ export class CrmAccessService {
         where cm.organization_id = $1 and m.crm_solution and cm.status = 'active'
         order by cm.created_at limit 1`, [orgId])).rows[0] || null);
   }
+
+  private async hasModule(orgId: string): Promise<boolean> { return !!(await this.activeModule(orgId)); }
 
   private async requireModule(orgId: string) {
     const mod = await this.activeModule(orgId);
