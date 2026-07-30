@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * — na prática a sessão nunca morria. Quem esquece o portal aberto num computador
  * compartilhado fica logado para sempre.
  *
- * Regras (decisão do Crasto): 30 min parado → aviso "Ainda está aí?" com 30s para
+ * Regras (decisão do Crasto): 1 hora parado → aviso "Ainda está aí?" com 30s para
  * escolher; sem escolha, volta para a tela de entrada.
  *
  * Decisões que valem explicar:
@@ -20,7 +20,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
  *   escolher. Senão um esbarrão no mouse "responderia" por ela.
  */
 const KEY = "crasto.lastActivity";
-export const IDLE_MS = 30 * 60 * 1000; // 30 min parado → pergunta
+export const IDLE_MS = 60 * 60 * 1000; // 1 hora parado → pergunta
 export const WARN_MS = 30 * 1000;      // 30s para responder → sai
 
 const agora = () => Date.now();
@@ -69,6 +69,13 @@ export function useIdleGuard(ativo: boolean, sair: (motivo: "inatividade" | "esc
     const eventos = ["pointerdown", "keydown", "wheel", "touchstart", "scroll"];
     eventos.forEach((e) => window.addEventListener(e, aoInteragir, { passive: true }));
 
+    // Bridge: o CRM embarcado em iframe cross-origin posta 'crasto-activity' quando
+    // o usuário interage lá. Sem isso o Portal conta inatividade enquanto o CRM é usado.
+    const aoMensagem = (ev: MessageEvent) => {
+      if (ev.data?.type === "crasto-activity") aoInteragir();
+    };
+    window.addEventListener("message", aoMensagem);
+
     const tick = () => {
       const ultima = ultimaAtividade();
       if (ultima === null) return;
@@ -96,6 +103,7 @@ export function useIdleGuard(ativo: boolean, sair: (motivo: "inatividade" | "esc
       clearInterval(id);
       eventos.forEach((e) => window.removeEventListener(e, aoInteragir));
       document.removeEventListener("visibilitychange", aoVoltar);
+      window.removeEventListener("message", aoMensagem);
     };
   }, [ativo]);
 
