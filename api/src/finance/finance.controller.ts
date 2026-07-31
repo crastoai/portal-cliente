@@ -67,4 +67,14 @@ export class FinanceController {
   aiCostSave(@Req() req: any, @Body() b: any) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select public.fin_ai_cost_upsert($1) as r', [b])).rows[0]?.r); }
   @Delete('ai-cost/:id')
   aiCostDelete(@Req() req: any, @Param('id') id: string) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select public.fin_ai_cost_delete($1) as r', [id])).rows[0]?.r); }
+
+  // ── mapa project_id GCP → organização (custo real do Gemini por-cliente) ──
+  // O admin cadastra 1× por projeto e o sync automaticamente separa os custos. Sem mapa,
+  // o custo do projeto cai em "Interno / plataforma".
+  @Get('gcp-map')
+  gcpMap(@Req() req: any) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select * from public.admin_gcp_project_map()')).rows); }
+  @Post('gcp-map')
+  gcpMapSave(@Req() req: any, @Body() b: any) { return this.db.asUser(this.uid(req), async (c) => { await c.query('select public.admin_gcp_project_map_upsert($1)', [b]); return { ok: true }; }); }
+  @Delete('gcp-map/:projectId')
+  gcpMapDelete(@Req() req: any, @Param('projectId') id: string) { return this.db.asUser(this.uid(req), async (c) => { await c.query('select public.admin_gcp_project_map_delete($1)', [id]); return { ok: true }; }); }
 }

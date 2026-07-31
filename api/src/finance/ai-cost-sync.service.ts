@@ -39,15 +39,19 @@ export class AiCostSyncService {
     return { start, end };
   }
 
-  // Grava/atualiza UMA linha por provedor+mês (marca purpose='auto-sync' p/ não duplicar no re-sync).
-  private async gravar(uid: string, provider: string, platform: string, cost: number, start: string, end: string): Promise<number> {
+  // Grava/atualiza UMA linha por (provider, purpose, organization_id, mês).
+  // organization_id = null → linha "interno/plataforma" (fallback, ex.: chave global do Portal).
+  // organization_id preenchido → linha "cliente" (custo do cliente X naquele provedor/mês).
+  // O `purpose='auto-sync'` distingue do lançamento manual do operador.
+  private async gravar(uid: string, provider: string, platform: string, cost: number, start: string, end: string, organizationId?: string | null): Promise<number> {
     return this.db.asUser(uid, async (c) => {
       // O schema `finance` não é acessível direto pelo authenticated → dedup pela RPC do painel
       // (admin_ai_cost) e escrita pela RPC (fin_ai_cost_upsert, que revalida admin). Nada de
       // SELECT direto em finance.* (era o "permission denied for schema finance").
       const panel = (await c.query(`select public.admin_ai_cost($1,$2) as r`, [start, end])).rows[0]?.r || {};
-      const ex = (panel.rows || []).find((x: any) => x.provider === provider && x.purpose === 'auto-sync');
-      const row: any = { provider, platform, purpose: 'auto-sync', kind: 'interno', status: 'active', cost: +cost.toFixed(2), period_start: start, period_end: end };
+      const orgKey = organizationId || null;
+      const ex = (panel.rows || []).find((x: any) => x.provider === provider && x.purpose === 'auto-sync' && (x.organization_id || null) === orgKey);
+      const row: any = { provider, platform, purpose: 'auto-sync', kind: orgKey ? 'cliente' : 'interno', status: 'active', cost: +cost.toFixed(2), period_start: start, period_end: end, organization_id: orgKey };
       if (ex?.id) row.id = ex.id;
       await c.query(`select public.fin_ai_cost_upsert($1)`, [row]);
       return 1;
@@ -100,6 +104,21 @@ export class AiCostSyncService {
   private googleMeta(): Promise<any> {
     return this.db.asService(async (c) => { try { return (await c.query(`select meta from automation.integration_configs where key='google_billing'`)).rows[0]?.meta || {}; } catch { return {}; } });
   }
+  // Lê o mapa project_id → organization_id (registrado pelo admin em /financeiro/custo-ia).
+  // Cache implícito: chamado 1× por sync. Se o project_id vier do BQ e não estiver mapeado,
+  // o custo daquele projeto vira "Interno / plataforma" (organization_id=null) — visível na UI
+  // p/ o operador saber que falta cadastrar.
+  private async projectMap(): Promise<Record<string, string | null>> {
+    return this.db.asService(async (c) => {
+      try {
+        const rs = (await c.query(`select project_id, organization_id from automation.gcp_project_map`)).rows;
+        const m: Record<string, string | null> = {};
+        for (const r of rs) m[r.project_id] = r.organization_id || null;
+        return m;
+      } catch { return {}; }
+    });
+  }
+
   private async google(uid: string, start: string, end: string): Promise<Resultado> {
     const raw = await this.revealKey('google_billing');
     if (!raw) return { provider: 'google', ok: false, erro: 'falta a Service Account (JSON) do Google no cofre — integração "Google Cloud Billing (Gemini)".' };
@@ -111,19 +130,34 @@ export class AiCostSyncService {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) return { provider: 'google', ok: false, erro: 'período inválido.' };
     const token = await this.googleToken(sa);
     if (!token) return { provider: 'google', ok: false, erro: 'não autentiquei a Service Account no Google (verifique o JSON e os papéis BigQuery).' };
-    const sql = `SELECT SUM(cost) + SUM(IFNULL((SELECT SUM(c.amount) FROM UNNEST(credits) c),0)) AS total
+    // Quebra por project.id — cada projeto GCP é 1 cliente (chave própria do AI Studio). Antes
+    // vinha agregado ("Interno / plataforma"): impossível separar custo por cliente.
+    const sql = `SELECT project.id AS project_id, project.name AS project_name,
+                        SUM(cost) + SUM(IFNULL((SELECT SUM(c.amount) FROM UNNEST(credits) c),0)) AS total
       FROM \`${proj}.${ds}.gcp_billing_export_v1_${ba}\`
       WHERE (LOWER(service.description) LIKE '%gemini%' OR LOWER(service.description) LIKE '%generative language%')
-        AND DATE(usage_start_time) BETWEEN '${start}' AND '${end}'`;
+        AND DATE(usage_start_time) BETWEEN '${start}' AND '${end}'
+      GROUP BY project_id, project_name`;
     const r = await fetch(`https://bigquery.googleapis.com/bigquery/v2/projects/${proj}/queries`, {
       method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: sql, useLegacySql: false, timeoutMs: 30000 }),
     });
     const j: any = await r.json().catch(() => ({}));
     if (!r.ok) return { provider: 'google', ok: false, erro: `BigQuery ${r.status}: ${String(j?.error?.message || '').slice(0, 140)}` };
-    const total = Number(j?.rows?.[0]?.f?.[0]?.v || 0);
-    const linhas = await this.gravar(uid, 'google', 'gemini', total, start, end);
-    return { provider: 'google', ok: true, cost: total, linhas };
+    const rows: any[] = j?.rows || [];
+    if (!rows.length) return { provider: 'google', ok: true, cost: 0, linhas: 0 };
+    const map = await this.projectMap();
+    let totalGeral = 0, linhas = 0, semMap = 0;
+    for (const row of rows) {
+      const pid = String(row?.f?.[0]?.v || '');
+      const total = Number(row?.f?.[2]?.v || 0);
+      if (!pid || !isFinite(total)) continue;
+      const orgId = map[pid] ?? null;
+      if (!orgId) semMap++;
+      await this.gravar(uid, 'google', 'gemini', total, start, end, orgId);
+      totalGeral += total; linhas++;
+    }
+    return { provider: 'google', ok: true, cost: totalGeral, linhas, ...(semMap > 0 ? { erro: `${semMap} projeto(s) sem mapeamento — abra a UI de "Projetos GCP" e vincule à organização.` } : {}) };
   }
 
   /** Sincroniza os provedores com custo real. Nunca lança: devolve status por provedor. */

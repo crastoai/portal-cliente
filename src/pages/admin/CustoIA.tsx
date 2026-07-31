@@ -38,13 +38,14 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
   const [ref, setRef] = useState(() => new Date());
   const from = monthISO(ref), to = monthEndISO(ref);
   const { data, loading, reload } = useAsync(async () => {
-    const [panel, orgs] = await Promise.all([
+    const [panel, orgs, gcpMap] = await Promise.all([
       services.finance.aiCost.panel(from, to),
       services.identity.organizations.listBrief(),
+      services.finance.aiCost.gcpMap().catch(() => [] as any[]),
     ]);
-    return { panel: panel ?? {}, orgs: (orgs as any[]) ?? [] };
+    return { panel: panel ?? {}, orgs: (orgs as any[]) ?? [], gcpMap: (gcpMap as any[]) ?? [] };
   }, [from, to]);
-  const panel = data?.panel ?? {}, orgs = data?.orgs ?? [];
+  const panel = data?.panel ?? {}, orgs = data?.orgs ?? [], gcpMap = data?.gcpMap ?? [];
   const s = panel.summary ?? { total: 0, prev_total: 0, platforms: 0, clients: 0, client_cost: 0 };
   const byPlatform: any[] = panel.by_platform ?? [];
   const byClient: any[] = panel.by_client ?? [];
@@ -78,6 +79,22 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
     catch (e) { toast.err(errorMessage(e)); } finally { setBusy(false); }
   }
   async function del(r: any) { if (!confirm(t("Excluir este registro de custo?"))) return; await services.finance.aiCost.remove(r.id); reload(); }
+  // --- Mapeamento GCP project → cliente (custo real do Gemini por-cliente) ---
+  const [newProjId, setNewProjId] = useState(""); const [newProjOrg, setNewProjOrg] = useState(""); const [newProjName, setNewProjName] = useState("");
+  async function saveGcpMap(project_id: string, organization_id: string, project_name?: string | null) {
+    if (!project_id.trim()) { toast.warn(t("Informe o project_id do GCP.")); return; }
+    try { await services.finance.aiCost.gcpMapSave({ project_id: project_id.trim(), organization_id: organization_id || null, project_name: project_name || null }); reload(); toast.ok(t("Projeto GCP vinculado ✓")); }
+    catch (e) { toast.err(errorMessage(e)); }
+  }
+  async function delGcpMap(project_id: string) {
+    if (!confirm(t("Remover este mapeamento? O custo desse projeto volta a aparecer como \"Interno / plataforma\" no próximo sync."))) return;
+    try { await services.finance.aiCost.gcpMapDelete(project_id); reload(); }
+    catch (e) { toast.err(errorMessage(e)); }
+  }
+  async function addGcpMap() {
+    await saveGcpMap(newProjId, newProjOrg, newProjName);
+    setNewProjId(""); setNewProjOrg(""); setNewProjName("");
+  }
   // As Admin keys de billing são cadastradas em Console → APIs & Chaves. Aqui só mostramos o status.
   const [bkStatus, setBkStatus] = useState<{ anthropic_admin: boolean; openai_admin: boolean; google_billing?: boolean } | null>(null);
   useEffect(() => { services.finance.aiCost.billingStatus().then(setBkStatus).catch(() => {}); }, []);
@@ -234,6 +251,51 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
           </div>
         </>)}
       </>)}
+
+      {/* Mapa GCP project → cliente — usado pelo sync do Gemini para separar o custo por cliente.
+          Sem mapeamento, o custo do projeto cai como "Interno / plataforma". */}
+      <div className="sec-h" style={{ marginTop: 20 }}><h2>{t("Projetos GCP (Gemini) — mapeamento por cliente")}</h2></div>
+      <div className="tbl-wrap" style={{ marginBottom: 12 }}>
+        <table className="tbl">
+          <thead><tr>
+            <th>{t("Project ID (GCP)")}</th>
+            <th>{t("Nome do projeto")}</th>
+            <th>{t("Cliente (organização)")}</th>
+            <th style={{ width: 90 }}></th>
+          </tr></thead>
+          <tbody>
+            {gcpMap.map((m: any) => (
+              <tr key={m.project_id}>
+                <td className="mono" style={{ fontSize: 12 }}>{m.project_id}</td>
+                <td>{m.project_name || "—"}</td>
+                <td>
+                  <select defaultValue={m.organization_id || ""} onChange={(e) => saveGcpMap(m.project_id, e.target.value, m.project_name)}>
+                    <option value="">{t("Interno / plataforma")}</option>
+                    {orgs.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                  </select>
+                </td>
+                <td><button className="icobtn rm" title={t("Remover mapeamento")} onClick={() => delGcpMap(m.project_id)}><Trash2 size={13} /></button></td>
+              </tr>
+            ))}
+            {gcpMap.length === 0 && <tr><td colSpan={4}><div className="muted" style={{ padding: 8 }}>{t("Nenhum projeto mapeado ainda. Cadastre o project_id do GCP (ex.: gen-lang-client-0916045718) e vincule ao cliente correspondente para separar os custos.")}</div></td></tr>}
+            {/* Linha para adicionar novo */}
+            <tr>
+              <td><input className="inp mono" style={{ fontSize: 12, width: "100%" }} value={newProjId} onChange={(e) => setNewProjId(e.target.value)} placeholder="gen-lang-client-…" /></td>
+              <td><input className="inp" style={{ width: "100%" }} value={newProjName} onChange={(e) => setNewProjName(e.target.value)} placeholder={t("Ex.: SR BRASIL CORRETORA E SEGUROS")} /></td>
+              <td>
+                <select value={newProjOrg} onChange={(e) => setNewProjOrg(e.target.value)}>
+                  <option value="">{t("Interno / plataforma")}</option>
+                  {orgs.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
+              </td>
+              <td><button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={addGcpMap} disabled={!newProjId.trim()}><span className="crasto-btn__icon"><Plus size={12} /></span></button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="note" style={{ marginBottom: 14 }}>
+        <span>{t("Como funciona:")} {t("cada chave criada no AI Studio pertence a 1 projeto GCP. O sync agrupa o custo do Gemini por projeto e usa este mapa para saber o cliente. Cadastre 1× por projeto — o resto é automático a cada \"Sincronizar custos\".")}</span>
+      </div>
 
       <div className="note" style={{ marginTop: 18, display: "flex", gap: 10, alignItems: "flex-start" }}>
         <div><strong>{t("Causa raiz financeira:")}</strong> {t("cada valor vem do consumo real (tokens/uso) por plataforma, registrado por cliente. A ingestão automática das APIs (Anthropic, OpenAI, Google, ElevenLabs) entra numa próxima fase; por ora o lançamento é manual por período.")}</div>
