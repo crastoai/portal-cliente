@@ -108,12 +108,12 @@ export class AiCostSyncService {
   // Cache implícito: chamado 1× por sync. Se o project_id vier do BQ e não estiver mapeado,
   // o custo daquele projeto vira "Interno / plataforma" (organization_id=null) — visível na UI
   // p/ o operador saber que falta cadastrar.
-  private async projectMap(): Promise<Record<string, string | null>> {
+  private async projectMap(): Promise<Record<string, { orgId: string | null; ignore: boolean }>> {
     return this.db.asService(async (c) => {
       try {
-        const rs = (await c.query(`select project_id, organization_id from automation.gcp_project_map`)).rows;
-        const m: Record<string, string | null> = {};
-        for (const r of rs) m[r.project_id] = r.organization_id || null;
+        const rs = (await c.query(`select project_id, organization_id, ignore from automation.gcp_project_map`)).rows;
+        const m: Record<string, { orgId: string | null; ignore: boolean }> = {};
+        for (const r of rs) m[r.project_id] = { orgId: r.organization_id || null, ignore: !!r.ignore };
         return m;
       } catch { return {}; }
     });
@@ -151,17 +151,22 @@ export class AiCostSyncService {
     // porque o dedup do gravar() é (provider,purpose,org), não sabe reconciliar).
     await this.db.asUser(uid, async (c) => { await c.query(`select public.fin_ai_cost_delete_auto_sync('google', $1, $2)`, [start, end]); });
     const map = await this.projectMap();
-    let totalGeral = 0, linhas = 0, semMap = 0;
+    let totalGeral = 0, linhas = 0, semMap = 0, ignorados = 0;
     for (const row of rows) {
       const pid = String(row?.f?.[0]?.v || '');
       const total = Number(row?.f?.[2]?.v || 0);
       if (!pid || !isFinite(total)) continue;
-      const orgId = map[pid] ?? null;
+      const entry = map[pid];
+      if (entry?.ignore) { ignorados++; continue; } // chave global antiga, projetos pessoais, etc.
+      const orgId = entry?.orgId ?? null;
       if (!orgId) semMap++;
       await this.gravar(uid, 'google', 'gemini', total, start, end, orgId);
       totalGeral += total; linhas++;
     }
-    return { provider: 'google', ok: true, cost: totalGeral, linhas, ...(semMap > 0 ? { erro: `${semMap} projeto(s) sem mapeamento — cadastre em Financeiro > Custo IA > "Projetos GCP".` } : {}) };
+    const notas: string[] = [];
+    if (semMap > 0) notas.push(`${semMap} projeto(s) sem mapeamento — cadastre em Financeiro > Custo IA > "Projetos GCP".`);
+    if (ignorados > 0) notas.push(`${ignorados} projeto(s) ignorado(s).`);
+    return { provider: 'google', ok: true, cost: totalGeral, linhas, ...(notas.length ? { erro: notas.join(' ') } : {}) };
   }
 
   /** Sincroniza os provedores com custo real. Nunca lança: devolve status por provedor. */

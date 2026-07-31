@@ -81,9 +81,9 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
   async function del(r: any) { if (!confirm(t("Excluir este registro de custo?"))) return; await services.finance.aiCost.remove(r.id); reload(); }
   // --- Mapeamento GCP project → cliente (custo real do Gemini por-cliente) ---
   const [newProjId, setNewProjId] = useState(""); const [newProjOrg, setNewProjOrg] = useState(""); const [newProjName, setNewProjName] = useState("");
-  async function saveGcpMap(project_id: string, organization_id: string, project_name?: string | null) {
+  async function saveGcpMap(project_id: string, organization_id: string, project_name?: string | null, ignore?: boolean) {
     if (!project_id.trim()) { toast.warn(t("Informe o project_id do GCP.")); return; }
-    try { await services.finance.aiCost.gcpMapSave({ project_id: project_id.trim(), organization_id: organization_id || null, project_name: project_name || null }); reload(); toast.ok(t("Projeto GCP vinculado ✓")); }
+    try { await services.finance.aiCost.gcpMapSave({ project_id: project_id.trim(), organization_id: organization_id || null, project_name: project_name || null, ignore: ignore ?? undefined }); reload(); toast.ok(t("Projeto GCP salvo ✓")); }
     catch (e) { toast.err(errorMessage(e)); }
   }
   async function delGcpMap(project_id: string) {
@@ -197,22 +197,36 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
               <SortTh col="pct" sort={sortC} toggle={toggleC} right>{t("% do total")}</SortTh>
             </tr></thead>
             <tbody>
-              {sortedC(byClient, (r, col) => {
-                switch (col) {
-                  case "client": return r.organization_name || "";
-                  case "kind": return r.kind || "";
-                  case "usage": return Number(r.tokens_in || 0) + Number(r.tokens_out || 0);
-                  default: return Number(r.cost || 0);
-                }
-              }).map((r, i) => (
-                <tr key={i}>
-                  <td className="nm" style={{ fontWeight: 600 }}>{r.organization_name}</td>
-                  <td>{kindPill(r.kind)}</td>
-                  <td className="tnum">{fmtTokens(Number(r.tokens_in || 0) + Number(r.tokens_out || 0))} {t("tokens")}</td>
-                  <td className="tnum" style={{ textAlign: "right", fontWeight: 700 }}>{money(Number(r.cost || 0))}</td>
-                  <td className="tnum" style={{ textAlign: "right" }}>{total > 0 ? Math.round((Number(r.cost || 0) / total) * 100) : 0}%</td>
-                </tr>
-              ))}
+              {(() => {
+                // MERGE: clientes com custo no período + clientes com mapeamento GCP mas SEM custo ainda
+                // (aguardando billing export do Google — janela ~24-48h). Assim a tela mostra os 5
+                // clientes esperando em vez de ficar vazia.
+                const orgsComCusto = new Set(byClient.filter((r: any) => r.organization_id).map((r: any) => r.organization_id));
+                const esperando = gcpMap
+                  .filter((m: any) => m.organization_id && !m.ignore && !orgsComCusto.has(m.organization_id))
+                  .map((m: any) => ({ organization_id: m.organization_id, organization_name: m.organization_name || m.project_name, kind: "cliente", tokens_in: 0, tokens_out: 0, cost: 0, _waiting: true }));
+                const linhas = [...byClient, ...esperando];
+                return sortedC(linhas, (r, col) => {
+                  switch (col) {
+                    case "client": return r.organization_name || "";
+                    case "kind": return r.kind || "";
+                    case "usage": return Number(r.tokens_in || 0) + Number(r.tokens_out || 0);
+                    default: return Number(r.cost || 0);
+                  }
+                }).map((r: any, i: number) => (
+                  <tr key={i} style={r._waiting ? { opacity: 0.65 } : undefined}>
+                    <td className="nm" style={{ fontWeight: 600 }}>{r.organization_name}</td>
+                    <td>{kindPill(r.kind)}</td>
+                    <td className="tnum">
+                      {r._waiting
+                        ? <span className="muted" style={{ fontSize: 12 }}>{t("aguardando billing export do Google (~24–48h)")}</span>
+                        : <>{fmtTokens(Number(r.tokens_in || 0) + Number(r.tokens_out || 0))} {t("tokens")}</>}
+                    </td>
+                    <td className="tnum" style={{ textAlign: "right", fontWeight: 700 }}>{r._waiting ? "—" : money(Number(r.cost || 0))}</td>
+                    <td className="tnum" style={{ textAlign: "right" }}>{r._waiting ? "—" : (total > 0 ? Math.round((Number(r.cost || 0) / total) * 100) : 0) + "%"}</td>
+                  </tr>
+                ));
+              })()}
             </tbody>
           </table>
         </div>
@@ -261,23 +275,27 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
             <th>{t("Project ID (GCP)")}</th>
             <th>{t("Nome do projeto")}</th>
             <th>{t("Cliente (organização)")}</th>
-            <th style={{ width: 90 }}></th>
+            <th style={{ width: 80, textAlign: "center" }} title={t("Se marcado, o sync ignora este projeto (útil para chave global antiga ou projeto pessoal)")}>{t("Ignorar")}</th>
+            <th style={{ width: 60 }}></th>
           </tr></thead>
           <tbody>
             {gcpMap.map((m: any) => (
-              <tr key={m.project_id}>
+              <tr key={m.project_id} style={m.ignore ? { opacity: 0.6 } : undefined}>
                 <td className="mono" style={{ fontSize: 12 }}>{m.project_id}</td>
                 <td>{m.project_name || "—"}</td>
                 <td>
-                  <select defaultValue={m.organization_id || ""} onChange={(e) => saveGcpMap(m.project_id, e.target.value, m.project_name)}>
+                  <select defaultValue={m.organization_id || ""} disabled={m.ignore} onChange={(e) => saveGcpMap(m.project_id, e.target.value, m.project_name)}>
                     <option value="">{t("Interno / plataforma")}</option>
                     {orgs.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
                   </select>
                 </td>
+                <td style={{ textAlign: "center" }}>
+                  <input type="checkbox" checked={!!m.ignore} onChange={(e) => saveGcpMap(m.project_id, m.organization_id || "", m.project_name, e.target.checked)} />
+                </td>
                 <td><button className="icobtn rm" title={t("Remover mapeamento")} onClick={() => delGcpMap(m.project_id)}><Trash2 size={13} /></button></td>
               </tr>
             ))}
-            {gcpMap.length === 0 && <tr><td colSpan={4}><div className="muted" style={{ padding: 8 }}>{t("Nenhum projeto mapeado ainda. Cadastre o project_id do GCP (ex.: gen-lang-client-0916045718) e vincule ao cliente correspondente para separar os custos.")}</div></td></tr>}
+            {gcpMap.length === 0 && <tr><td colSpan={5}><div className="muted" style={{ padding: 8 }}>{t("Nenhum projeto mapeado ainda. Cadastre o project_id do GCP (ex.: gen-lang-client-0916045718) e vincule ao cliente correspondente para separar os custos.")}</div></td></tr>}
             {/* Linha para adicionar novo */}
             <tr>
               <td><input className="inp mono" style={{ fontSize: 12, width: "100%" }} value={newProjId} onChange={(e) => setNewProjId(e.target.value)} placeholder="gen-lang-client-…" /></td>
@@ -288,6 +306,7 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
                   {orgs.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
                 </select>
               </td>
+              <td></td>
               <td><button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={addGcpMap} disabled={!newProjId.trim()}><span className="crasto-btn__icon"><Plus size={12} /></span></button></td>
             </tr>
           </tbody>

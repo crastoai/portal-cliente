@@ -40,8 +40,8 @@ export const aiCost = {
   setBillingKey: async (provider: string, secret: string) => api.post<{ ok: boolean; error?: string }>(`/api/finance/ai-cost/billing-key`, { provider, secret }),
   billingStatus: async () => api.get<{ anthropic_admin: boolean; openai_admin: boolean }>(`/api/finance/ai-cost/billing-status`),
   // Mapa project_id GCP → organização — 1× por projeto; o sync separa custo por cliente automaticamente.
-  gcpMap: async (): Promise<{ project_id: string; organization_id: string | null; organization_name: string | null; project_name: string | null; note: string | null; updated_at: string }[]> => api.get(`/api/finance/gcp-map`),
-  gcpMapSave: async (p: { project_id: string; organization_id?: string | null; project_name?: string | null; note?: string | null }) => api.post(`/api/finance/gcp-map`, p),
+  gcpMap: async (): Promise<{ project_id: string; organization_id: string | null; organization_name: string | null; project_name: string | null; note: string | null; ignore: boolean; updated_at: string }[]> => api.get(`/api/finance/gcp-map`),
+  gcpMapSave: async (p: { project_id: string; organization_id?: string | null; project_name?: string | null; note?: string | null; ignore?: boolean }) => api.post(`/api/finance/gcp-map`, p),
   gcpMapDelete: async (project_id: string) => api.del(`/api/finance/gcp-map/${encodeURIComponent(project_id)}`),
 };
 
