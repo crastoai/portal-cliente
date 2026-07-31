@@ -146,6 +146,10 @@ export class AiCostSyncService {
     if (!r.ok) return { provider: 'google', ok: false, erro: `BigQuery ${r.status}: ${String(j?.error?.message || '').slice(0, 140)}` };
     const rows: any[] = j?.rows || [];
     if (!rows.length) return { provider: 'google', ok: true, cost: 0, linhas: 0 };
+    // O sync é a fonte da verdade do Gemini no período — apaga e regrava, evita duplicata
+    // quando o admin cadastra o mapa DEPOIS do 1º sync (antes: 1 linha sem org + 1 com org,
+    // porque o dedup do gravar() é (provider,purpose,org), não sabe reconciliar).
+    await this.db.asUser(uid, async (c) => { await c.query(`select public.fin_ai_cost_delete_auto_sync('google', $1, $2)`, [start, end]); });
     const map = await this.projectMap();
     let totalGeral = 0, linhas = 0, semMap = 0;
     for (const row of rows) {
@@ -157,7 +161,7 @@ export class AiCostSyncService {
       await this.gravar(uid, 'google', 'gemini', total, start, end, orgId);
       totalGeral += total; linhas++;
     }
-    return { provider: 'google', ok: true, cost: totalGeral, linhas, ...(semMap > 0 ? { erro: `${semMap} projeto(s) sem mapeamento — abra a UI de "Projetos GCP" e vincule à organização.` } : {}) };
+    return { provider: 'google', ok: true, cost: totalGeral, linhas, ...(semMap > 0 ? { erro: `${semMap} projeto(s) sem mapeamento — cadastre em Financeiro > Custo IA > "Projetos GCP".` } : {}) };
   }
 
   /** Sincroniza os provedores com custo real. Nunca lança: devolve status por provedor. */
