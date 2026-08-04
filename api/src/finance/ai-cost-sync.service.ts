@@ -371,12 +371,56 @@ export class AiCostSyncService {
     }).filter((r) => r.custo_ia > 0 || r.leads > 0 || r.conversas > 0 || (r.mrr || 0) > 0)
       .sort((a, b) => (b.mrr || 0) - (a.mrr || 0) || b.custo_ia - a.custo_ia);
 
+    // AVALIAÇÃO POR IA (DeepSeek) — o farol NÃO é regra fixa: a IA (como um CFO) julga a saúde
+    // de cada cliente olhando receita × custo de IA × margem × uso, e devolve farol + motivo.
+    // O `farol` determinístico acima fica de FALLBACK (se a IA falhar/estiver fora, a tela não quebra).
+    await this.avaliarComIA(porCliente).catch(() => { /* mantém o farol determinístico */ });
+
     return {
       periodo: { start, end },
       economia_deepseek: { brl: Math.round(economiaBrl * 100) / 100, seria_gemini: Math.round(ttGemBrl * 100) / 100, custa_deepseek: Math.round(ttDsBrl * 100) / 100, pct: ttGemBrl > 0 ? Math.round((economiaBrl / ttGemBrl) * 100) : 0 },
       run_rate: { atual: Math.round(custoTotal * 100) / 100, projetado_mes: Math.round(projetado * 100) / 100, dia_hoje: diaHoje, dias_mes: diasMes },
       por_cliente: porCliente,
     };
+  }
+
+  /**
+   * A IA (DeepSeek) avalia a saúde financeira de cada cliente e define o farol + o MOTIVO.
+   * Recebe o snapshot (receita, custo IA, margem, uso) e devolve, por cliente, um julgamento de
+   * CFO — não um corte fixo de %. Muta o `porCliente` (adiciona `farol` e `motivo_ia`). Uma
+   * chamada só (batch) pra todos os clientes. Sem chave/erro → não muta (mantém o determinístico).
+   */
+  private async avaliarComIA(porCliente: any[]): Promise<void> {
+    const key = process.env.DEEPSEEK_API_KEY;
+    const avaliaveis = porCliente.filter((r) => (r.mrr || 0) > 0 || r.custo_ia > 0);
+    if (!key || !avaliaveis.length) return;
+    const dados = avaliaveis.map((r, i) => ({
+      i, cliente: r.cliente,
+      receita_mensal: r.mrr, custo_ia_mensal: r.custo_ia,
+      pct_receita_consumida_pela_ia: r.pct_receita_ia,
+      margem_apos_ia: r.margem_apos_ia, leads: r.leads, conversas: r.conversas,
+      custo_por_conversa: r.custo_por_conversa,
+    }));
+    const system = 'Você é o CFO da Crasto.AI. Avalie a saúde financeira de cada cliente com base no quanto o custo de IA compromete a receita e a margem. Classifique o farol: "verde" (saudável — a IA custa pouco perto da receita, margem confortável), "laranja" (atenção — a IA já pesa ou a margem aperta), "vermelho" (crítico — a IA come demais da receita ou a margem é baixa/negativa), "cinza" (sem receita cadastrada, não dá pra avaliar). Considere o CONTEXTO (tamanho da receita, proporção, uso). Seja um CFO criterioso, não um robô de corte fixo. Responda SOMENTE um JSON array, um objeto por cliente na MESMA ordem/índice, no formato: [{"i":0,"farol":"verde|laranja|vermelho|cinza","motivo":"frase curta e direta em pt-BR"}].';
+    const body = { model: 'deepseek-v4-flash', messages: [{ role: 'system', content: system }, { role: 'user', content: JSON.stringify(dados) }], max_tokens: 900, temperature: 0.2, response_format: { type: 'json_object' } };
+    const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 20000);
+    let txt = '';
+    try {
+      const r = await fetch('https://api.deepseek.com/v1/chat/completions', { method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctrl.signal });
+      if (!r.ok) { this.log.warn(`DeepSeek farol ${r.status}`); return; }
+      const j: any = await r.json();
+      txt = j?.choices?.[0]?.message?.content || '';
+    } finally { clearTimeout(to); }
+    // O modelo pode devolver { "clientes": [...] } ou [...] direto — extrai o array.
+    let arr: any[] = [];
+    try { const p = JSON.parse(txt); arr = Array.isArray(p) ? p : (p.clientes || p.avaliacoes || p.resultado || Object.values(p).find(Array.isArray) || []); } catch { return; }
+    const cores = new Set(['verde', 'laranja', 'vermelho', 'cinza']);
+    for (const a of arr) {
+      const alvo = avaliaveis[Number(a?.i)];
+      if (!alvo) continue;
+      if (cores.has(String(a?.farol))) alvo.farol = a.farol;
+      if (a?.motivo) alvo.motivo_ia = String(a.motivo).slice(0, 160);
+    }
   }
 
   /** Sincroniza os provedores com custo real. Nunca lança: devolve status por provedor. */

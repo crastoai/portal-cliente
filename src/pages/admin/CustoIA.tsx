@@ -227,8 +227,8 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
                 <tbody>
                   {(insights.por_cliente as any[]).map((r) => { const f = farol[r.farol] || farol.cinza; return (
                     <tr key={r.organization_id}>
-                      <td style={{ textAlign: "center", fontSize: 15 }} title={f.label}>{f.emoji}</td>
-                      <td className="nm" style={{ fontWeight: 600 }}>{r.cliente}</td>
+                      <td style={{ textAlign: "center", fontSize: 15 }} title={r.motivo_ia || f.label}>{f.emoji}</td>
+                      <td className="nm" style={{ fontWeight: 600 }}>{r.cliente}{r.motivo_ia && <div className="muted" style={{ fontWeight: 400, fontSize: 11, marginTop: 2 }}>{r.motivo_ia}</div>}</td>
                       <td className="tnum" style={{ textAlign: "right" }}>{r.mrr != null ? money(r.mrr) : <span className="muted" style={{ fontSize: 12 }}>{t("cadastrar")}</span>}</td>
                       <td className="tnum" style={{ textAlign: "right", fontWeight: 700 }}>{money(r.custo_ia)}</td>
                       <td className="tnum" style={{ textAlign: "right", color: f.cor, fontWeight: 600 }}>{r.pct_receita_ia != null ? r.pct_receita_ia + "%" : "—"}</td>
@@ -242,7 +242,7 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
             );
           })()}
           <div className="note" style={{ marginTop: 10 }}>
-            <span><strong>{t("Farol de margem:")}</strong> 🟢 {t("IA < 5% da receita (saudável)")} · 🟠 {t("5–15% (atenção)")} · 🔴 {t("> 15% ou margem negativa (crítico)")} · ⚪ {t("sem contrato cadastrado")}. {t("Tudo automático: ao registrar/editar o contrato do cliente e sincronizar o custo de IA, o farol recalcula sozinho.")}</span>
+            <span><strong>{t("Farol avaliado por IA (DeepSeek):")}</strong> {t("uma IA no papel de CFO julga a saúde de cada cliente (receita × custo de IA × margem) e explica o motivo — 🟢 saudável · 🟠 atenção · 🔴 crítico · ⚪ sem contrato. Não é regra fixa: a IA considera o contexto. Recalcula sozinho a cada abertura, com o custo de IA e os contratos atualizados.")}</span>
           </div>
         </div>
       )}
