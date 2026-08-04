@@ -90,6 +90,23 @@ export function passwordReset(p: { name?: string | null; org: string; url: strin
   };
 }
 
+/** Relatório da Crasto.AI (gerado pelo Jorge) — casca branded do DS + anexo. */
+export function relatorioEmail(p: { nome?: string | null; corpo?: string; filename: string }): Mail {
+  return {
+    subject: 'Relatório Crasto.AI',
+    html: layout({
+      preview: 'Segue o relatório solicitado, em anexo.',
+      eyebrow: 'Relatório',
+      title: 'Seu relatório está pronto',
+      reason: 'Você recebeu este e-mail porque solicitou (ou agendou) este relatório na Crasto.AI.',
+      body:
+        lede(`Olá${first(p.nome)}, ${p.corpo && p.corpo.trim() ? esc(p.corpo.trim()) : 'segue o relatório solicitado, em anexo neste e-mail.'}`) +
+        callout(`<p style="margin:0;font-family:${FONT};font-size:14px;color:${color.ink}">📎 Anexo: <strong style="color:${color.ink}">${esc(p.filename)}</strong></p>`) +
+        para(`<span style="font-size:13px;color:${color.muted}">Relatório gerado automaticamente pela Crasto.AI com dados reais da operação.</span>`, 'margin:16px 0 0'),
+    }),
+  };
+}
+
 // ---- chamados ---------------------------------------------------------------
 
 const ticketBox = (code: string, subject: string) =>

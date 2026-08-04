@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Headers, Post } from '@nestjs/common';
 import { timingSafeEqual } from 'crypto';
 import { EmailService } from './email.service';
-import { leadRoteado } from './email-templates';
+import { leadRoteado, relatorioEmail } from './email-templates';
 
 /**
  * Porta de serviço: o WhatsApp CRM pede ao Portal para MANDAR e-mail.
@@ -65,18 +65,10 @@ export class InternalController {
     if (!para.length) throw new BadRequestException('sem destinatário');
     if (!b?.url || !b?.filename) throw new BadRequestException('faltam url/filename do relatório');
     const assunto = String(b.assunto || 'Relatório Crasto.AI').slice(0, 160);
-    const corpo = String(b.corpo || 'Segue em anexo o relatório solicitado.').slice(0, 1200);
-    // HTML simples branded (assinatura oficial no rodapé); o conteúdo real vai no anexo.
-    const html = `<div style="font-family:'Montserrat',system-ui,Arial,sans-serif;color:#333A46;line-height:1.6;max-width:560px">
-      <p style="font-weight:700;color:#0B0F1A;font-size:16px;margin:0 0 12px">CRASTO.AI</p>
-      <p style="margin:0 0 14px">${corpo.replace(/[<>]/g, '')}</p>
-      <p style="margin:0 0 4px;color:#6B7484;font-size:13px">📎 Anexo: <b>${String(b.filename).replace(/[<>]/g, '')}</b></p>
-      <hr style="border:0;border-top:1px solid #E2E7EE;margin:20px 0 10px">
-      <p style="font-weight:600;color:#1B3A5C;font-size:12px;margin:0">A IA é o veículo, os KPIs orientam a rota e o resultado é o destino.</p>
-      <p style="color:#6B7484;font-size:11px;margin:2px 0 0">Método Evolution — do Mapa à Operação · Gestão guia · Comportamento move · Resultado escala.</p>
-    </div>`;
+    // Casca branded OFICIAL do DS (layout com logo/hero/rodapé) — a MESMA dos outros e-mails.
+    const mail = relatorioEmail({ nome: b.nome, corpo: String(b.corpo || '').slice(0, 1200), filename: String(b.filename) });
     const anexos = [{ filename: String(b.filename), path: String(b.url) }];
-    const r = await Promise.all(para.map(async (to) => ({ to, ...(await this.email.send(to, assunto, html, anexos)) })));
+    const r = await Promise.all(para.map(async (to) => ({ to, ...(await this.email.send(to, assunto, mail.html, anexos)) })));
     return { enviados: r.filter((x) => x.ok).length, total: r.length, detalhe: r };
   }
 }
