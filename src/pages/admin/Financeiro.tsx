@@ -15,23 +15,28 @@ const A_EMPTY = {
   contact_name: "", contact_reference: "", organization_id: "", cnpj: "",
   description: "", services: [] as any[],
   contract_validity_value: "", contract_validity_unit: "months", contract_total: "",
-  payment_installments: "", installment_amount: "", due_date: "", payment_day_of_month: "", payment_method: "PIX",
+  payment_installments: "", installment_amount: "", due_date: "", payment_day_of_month: "", payment_method: "PIX", payment_schedule: [] as any[],
   expense_type: "consumo", category: "", status: "pending", payment_reason: "",
   amount: "", amount_paid: "", payment_date: "", recurrence: "", invoice_number: "", notes: "",
 };
 const UNITS = [{ v: "days", l: "Dias" }, { v: "months", l: "Meses" }, { v: "years", l: "Anos" }];
 const PAYMETHODS = ["PIX", "Boleto", "Cartão de crédito", "Cartão de débito", "Transferência", "Dinheiro", "Outro"];
-// gera as parcelas (payment_schedule) a partir de nº parcelas + 1ª data + dia de vencimento + valor
+// gera as parcelas (payment_schedule) a partir de nº parcelas + 1ª data + dia de vencimento + valor.
+// Cada parcela guarda a ORIGEM (origin_date/origin_amount) = o que foi gerado/veio do contrato.
+// Quando o operador editar date/amount à mão, a origem fica intacta → dá pra mostrar o "log".
 function buildSchedule(n: number, first: string, day: any, val: number) {
   const out: any[] = [];
   if (!n || n < 1 || !first) return out;
   const base = new Date(first + "T00:00:00");
   for (let i = 0; i < n; i++) {
     const d = new Date(base.getFullYear(), base.getMonth() + i, day ? Number(day) : base.getDate());
-    out.push({ installment: i + 1, date: d.toISOString().slice(0, 10), amount: Number(val || 0), status: "pending" });
+    const iso = d.toISOString().slice(0, 10), amt = Number(val || 0);
+    out.push({ installment: i + 1, date: iso, amount: amt, status: "pending", origin_date: iso, origin_amount: amt, origin: "contrato" });
   }
   return out;
 }
+// dd/mm/aaaa a partir de ISO (yyyy-mm-dd)
+function brDate(iso?: string) { if (!iso) return "—"; const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; }
 const C_EMPTY = { id: "", vendor_name: "", description: "", category: "", currency: "BRL", amount_original: "", exchange_rate: "1", amount_brl: "", recurrence: "mensal", cost_type: "fixo", cost_nature: "recorrente", next_payment_date: "", is_active: true, notes: "" };
 const T_EMPTY = { id: "", type: "income", category: "", amount: "", description: "", status: "completed", transaction_date: "", contact_name: "", payment_method: "", notes: "" };
 
@@ -182,6 +187,7 @@ export default function Financeiro() {
       description: i.description || "", services: Array.isArray(i.services) ? i.services : [],
       contract_validity_value: String(i.contract_validity_value ?? ""), contract_validity_unit: i.contract_validity_unit || "months", contract_total: String(i.contract_total ?? i.amount ?? ""),
       payment_installments: String(i.payment_installments ?? ""), installment_amount: String(Array.isArray(i.payment_schedule) && i.payment_schedule[0] ? i.payment_schedule[0].amount : ""),
+      payment_schedule: Array.isArray(i.payment_schedule) ? i.payment_schedule.map((p: any) => ({ ...p, date: ymd(p.date), origin_date: p.origin_date ? ymd(p.origin_date) : ymd(p.date) })) : [],
       due_date: ymd(i.due_date) || (Array.isArray(i.payment_schedule) && i.payment_schedule[0] ? ymd(i.payment_schedule[0].date) : ""), payment_day_of_month: String(i.payment_day_of_month ?? ""), payment_method: i.payment_method || "PIX",
       expense_type: i.expense_type || "consumo", category: i.category || "", status: i.status || "pending", payment_reason: i.payment_reason || "",
       amount: String(i.amount ?? ""), amount_paid: String(i.amount_paid ?? ""), payment_date: i.payment_date || "", recurrence: i.recurrence || "", invoice_number: i.invoice_number || "", notes: i.notes || "",
@@ -198,16 +204,29 @@ export default function Financeiro() {
       const tot = Number(next.contract_total || 0), n = Number(next.payment_installments || 0);
       if (tot > 0 && n > 0) next.installment_amount = (tot / n).toFixed(2);
     }
+    // Mexeu em algo que define as parcelas → REGERA a tabela editável (baseline = "contrato").
+    if ("payment_installments" in patch || "installment_amount" in patch || "due_date" in patch || "payment_day_of_month" in patch || "contract_total" in patch) {
+      next.payment_schedule = buildSchedule(Number(next.payment_installments || 0), next.due_date, next.payment_day_of_month, Number(next.installment_amount || 0));
+    }
     return next;
   });
+  // Edita UMA parcela à mão (data/valor/status). A origem (origin_date/origin_amount) fica intacta.
+  const setSchedRow = (idx: number, patch: any) => setAf((s: any) => ({
+    ...s, payment_schedule: (s.payment_schedule || []).map((p: any, i: number) => i === idx ? { ...p, ...patch } : p),
+  }));
   const previewSchedule = buildSchedule(Number(af.payment_installments || 0), af.due_date, af.payment_day_of_month, Number(af.installment_amount || 0));
   async function saveAccount() {
     if (!af.contact_name.trim() && !af.description.trim()) { flash(t("Informe a empresa ou a descrição.")); return; }
     const inst = Number(af.payment_installments || 0), val = Number(af.installment_amount || 0);
     const total = Number(af.contract_total || 0) || (inst > 0 ? inst * val : val) || Number(af.amount || 0);
     if (!total) { flash(t("Informe o total do contrato ou o valor da parcela.")); return; }
-    const schedule = buildSchedule(inst, af.due_date, af.payment_day_of_month, val);
-    const paid = af.status === "paid" ? total : Number(af.amount_paid || 0);
+    // Usa a tabela EDITADA (com as origens do contrato) se houver; senão gera do gerador.
+    const schedule = (Array.isArray(af.payment_schedule) && af.payment_schedule.length)
+      ? af.payment_schedule.map((p: any) => ({ ...p, amount: Number(p.amount || 0) }))
+      : buildSchedule(inst, af.due_date, af.payment_day_of_month, val);
+    // "Pago" = soma das parcelas marcadas pagas (se a tabela existe); senão o campo status.
+    const paidFromSchedule = schedule.filter((p: any) => p.status === "paid").reduce((a: number, p: any) => a + Number(p.amount || 0), 0);
+    const paid = schedule.length ? paidFromSchedule : (af.status === "paid" ? total : Number(af.amount_paid || 0));
     setBusy(true);
     try {
       await services.finance.accounts.save({
@@ -540,7 +559,57 @@ export default function Financeiro() {
             <Field label={t("Dia de vencimento")}><input type="number" min="1" max="31" value={af.payment_day_of_month} onChange={(e) => setAf({ ...af, payment_day_of_month: e.target.value })} placeholder="Ex: 10" /></Field>
             <Field label={t("Forma de Pagamento")}><select value={af.payment_method} onChange={(e) => setAf({ ...af, payment_method: e.target.value })}>{PAYMETHODS.map((m) => <option key={m} value={m}>{t(m)}</option>)}</select></Field>
           </div>
-          {previewSchedule.length > 0 && <div className="fhint" style={{ paddingTop: 2 }}>{t("{n} parcelas", { n: previewSchedule.length })} · {money(previewSchedule.reduce((a, p) => a + Number(p.amount || 0), 0))} · {t("1º venc.")} {previewSchedule[0] ? new Date(previewSchedule[0].date + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</div>}
+          {/* TABELA DE PARCELAS — editável linha a linha. Cada parcela guarda a ORIGEM (o que veio
+              do contrato); ao mudar data/valor à mão, aparece o "veio do contrato: X" (log). */}
+          {(af.payment_schedule || []).length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <div className="finsec-h" style={{ fontSize: 13 }}>{t("Parcelas")} <span className="fhint" style={{ fontWeight: 400 }}>· {t("edite data, valor ou status de cada parcela. O que veio do contrato fica registrado.")}</span></div>
+              <div className="tbl-wrap">
+                <table className="tbl">
+                  <thead><tr>
+                    <th style={{ width: 44 }}>#</th>
+                    <th>{t("Vencimento")}</th>
+                    <th style={{ textAlign: "right" }}>{t("Valor (R$)")}</th>
+                    <th>{t("Status")}</th>
+                    <th>{t("Origem / ajuste")}</th>
+                  </tr></thead>
+                  <tbody>
+                    {(af.payment_schedule as any[]).map((p, idx) => {
+                      const dataMudou = p.origin_date && p.date && p.date !== p.origin_date;
+                      const valorMudou = p.origin_amount != null && Number(p.amount) !== Number(p.origin_amount);
+                      const editado = dataMudou || valorMudou;
+                      return (
+                        <tr key={idx} style={editado ? { background: "rgba(181,71,8,.05)" } : undefined}>
+                          <td className="tnum">{p.installment ?? idx + 1}ª</td>
+                          <td><input type="date" value={p.date || ""} onChange={(e) => setSchedRow(idx, { date: e.target.value })} style={{ width: 150 }} /></td>
+                          <td style={{ textAlign: "right" }}><input type="number" step="0.01" value={p.amount ?? ""} onChange={(e) => setSchedRow(idx, { amount: e.target.value })} style={{ width: 110, textAlign: "right" }} /></td>
+                          <td>
+                            <select value={p.status || "pending"} onChange={(e) => setSchedRow(idx, { status: e.target.value })}>
+                              <option value="pending">{t("Pendente")}</option>
+                              <option value="paid">{t("Pago")}</option>
+                              <option value="cancelled">{t("Cancelada")}</option>
+                            </select>
+                          </td>
+                          <td style={{ fontSize: 11 }}>
+                            {editado ? (
+                              <span style={{ color: "#B54708" }}>
+                                ✏️ {t("ajustado à mão")}. {t("Contrato:")} {dataMudou ? brDate(p.origin_date) : ""}{dataMudou && valorMudou ? " · " : ""}{valorMudou ? money(Number(p.origin_amount)) : ""}
+                              </span>
+                            ) : (
+                              <span className="muted">📄 {t("conforme o contrato")}</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="fhint" style={{ paddingTop: 4 }}>
+                {t("{n} parcelas", { n: af.payment_schedule.length })} · {t("total")} {money((af.payment_schedule as any[]).reduce((a, p) => a + Number(p.amount || 0), 0))} · {t("pagas")} {(af.payment_schedule as any[]).filter((p) => p.status === "paid").length}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Classificação */}
