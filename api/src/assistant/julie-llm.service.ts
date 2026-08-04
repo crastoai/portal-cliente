@@ -34,6 +34,22 @@ export class JulieLlmService {
     return { provider: rt?.provider, model: rt?.model, hasKey: !!rt?.api_key };
   }
 
+  /**
+   * Texto puro (sem ferramentas). Sem `provider` → usa o modelo default do cofre. Com
+   * `provider` → FORÇA o provedor pegando a chave dele no cofre (reveal_provider_key), caindo
+   * pro env só como último recurso. Usado pela Psiquê (extrator de baseline / narrativa) — a
+   * garantia do Crasto é rodar no DeepSeek.
+   */
+  async complete(system: string, userText: string, opts?: { provider?: 'deepseek' | 'google'; model?: string }): Promise<JulieTurn> {
+    const messages: JulieMsg[] = [{ role: 'user', text: userText }];
+    if (!opts?.provider) return this.completeTools(system, messages, []);
+    let key = await this.db.asService(async (c) => (await c.query(`select public.reveal_provider_key($1) as k`, [opts!.provider])).rows[0]?.k).catch(() => null);
+    if (!key && opts.provider === 'deepseek') key = process.env.DEEPSEEK_API_KEY || null;
+    if (!key) throw new Error(`Sem chave "${opts.provider}" no cofre do Portal.`);
+    const rt = { provider: opts.provider, model: opts.model || (opts.provider === 'deepseek' ? 'deepseek-v4-flash' : 'gemini-2.5-pro'), api_key: key };
+    return opts.provider === 'deepseek' ? this.deepseek(rt, system, messages, []) : this.gemini(rt, system, messages, []);
+  }
+
   async completeTools(system: string, messages: JulieMsg[], tools: JulieTool[]): Promise<JulieTurn> {
     const rt = await this.runtime();
     if (rt.provider === 'google') return this.gemini(rt, system, messages, tools);
