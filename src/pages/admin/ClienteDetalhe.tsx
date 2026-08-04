@@ -23,6 +23,13 @@ const icon = (cat?: string | null) => { const c = (cat || "").toLowerCase(); ret
 const DOC_KINDS = [{ v: "contrato_servico", l: "Contrato de prestação de serviço" }, { v: "cnpj_card", l: "Cartão CNPJ" }, { v: "contrato_social", l: "Contrato Social" }, { v: "plano_diretor", l: "Plano Diretor" }, { v: "socios", l: "Sócios" }, { v: "outro", l: "Outro" }];
 const fmtDate = (s?: string | null) => (s ? new Date(s + (s.length === 10 ? "T00:00:00" : "")).toLocaleDateString("pt-BR") : "—");
 
+// ISO (timestamptz) → "YYYY-MM-DDTHH:MM" local, p/ o input datetime-local da entrega real.
+function dtLocal(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso); const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: string) => void } = {}) {
   const { id } = useParams();
   const nav = useNavigate();
@@ -85,7 +92,7 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
   async function delReg(c: any) { if (!confirm(tr("Excluir este registro?"))) return; await api.identity.cnpjs.adminRemove(c.id); reload(); }
   async function delPartner(p: any) { if (!confirm(tr("Excluir o sócio \"{n}\"?", { n: p.full_name || "sócio" }))) return; try { await api.identity.partners.remove(p.id); reload(); } catch (e) { alert(errorMessage(e)); } }
   // F-D: implantação, saúde, tarefas, credenciais
-  const [rolloutForm, setRolloutForm] = useState<Record<string, { label: string; blurb: string; progress: string; due: string; status: string; monthly: string; setup: string; contract: string; cost_allocation: string }>>({});
+  const [rolloutForm, setRolloutForm] = useState<Record<string, { label: string; blurb: string; progress: string; start: string; due: string; delivered: string; status: string; monthly: string; setup: string; contract: string; cost_allocation: string }>>({});
   const [healthForm, setHealthForm] = useState({ status: "green", message: "" });
   const [taskf, setTaskf] = useState({ name: "", start: "", end: "" });
   const [credf, setCredf] = useState({ cmId: "", label: "", url: "", login: "", secret: "", sso: false, mode: "link" });
@@ -97,8 +104,8 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
     const h = (data as any)?.healthObj;
     if (h) setHealthForm({ status: h.status ?? "green", message: h.message ?? "" });
     const cms = ((data as any)?.cm ?? []) as any[];
-    const rf: Record<string, { label: string; blurb: string; progress: string; due: string; status: string; monthly: string; setup: string; contract: string; cost_allocation: string }> = {};
-    cms.forEach((c) => { rf[c.id] = { label: c.label ?? "", blurb: c.blurb ?? "", progress: String(c.rollout_progress ?? 0), due: c.rollout_due ?? "", status: c.rollout_status ?? "in_progress", monthly: c.monthly_cost != null ? String(c.monthly_cost) : "", setup: c.setup_cost != null ? String(c.setup_cost) : "", contract: c.contract_date ?? "", cost_allocation: c.cost_allocation ?? "" }; });
+    const rf: Record<string, { label: string; blurb: string; progress: string; start: string; due: string; delivered: string; status: string; monthly: string; setup: string; contract: string; cost_allocation: string }> = {};
+    cms.forEach((c) => { rf[c.id] = { label: c.label ?? "", blurb: c.blurb ?? "", progress: String(c.rollout_progress ?? 0), start: c.rollout_start ?? "", due: c.rollout_due ?? "", delivered: dtLocal(c.delivered_at), status: c.rollout_status ?? "in_progress", monthly: c.monthly_cost != null ? String(c.monthly_cost) : "", setup: c.setup_cost != null ? String(c.setup_cost) : "", contract: c.contract_date ?? "", cost_allocation: c.cost_allocation ?? "" }; });
     setRolloutForm(rf);
     setSvcRows(((data as any)?.csvc ?? []) as any[]);
   }, [data]);
@@ -208,12 +215,12 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
     setBusy(true);
     try {
       const num = (v: string) => { const n = Number(String(v).replace(",", ".")); return v.trim() === "" || Number.isNaN(n) ? null : n; };
-      await api.delivery.clientModules.updateRollout(cmId, { label: rf.label.trim() || null, blurb: rf.blurb.trim() || null, rollout_progress: Math.max(0, Math.min(100, Number(rf.progress) || 0)), rollout_due: rf.due || null, rollout_status: rf.status, monthly_cost: num(rf.monthly), setup_cost: num(rf.setup), contract_date: rf.contract || null, cost_allocation: rf.cost_allocation || null });
+      await api.delivery.clientModules.updateRollout(cmId, { label: rf.label.trim() || null, blurb: rf.blurb.trim() || null, rollout_progress: Math.max(0, Math.min(100, Number(rf.progress) || 0)), rollout_start: rf.start || null, rollout_due: rf.due || null, delivered_at: rf.delivered ? new Date(rf.delivered).toISOString() : null, rollout_status: rf.status, monthly_cost: num(rf.monthly), setup_cost: num(rf.setup), contract_date: rf.contract || null, cost_allocation: rf.cost_allocation || null });
       reload(); flash(tr("Instância salva ✓"));
     }
     catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); } finally { setBusy(false); }
   }
-  const setRf = (cmId: string, patch: Partial<{ label: string; blurb: string; progress: string; due: string; status: string; monthly: string; setup: string; contract: string; cost_allocation: string }>) =>
+  const setRf = (cmId: string, patch: Partial<{ label: string; blurb: string; progress: string; start: string; due: string; delivered: string; status: string; monthly: string; setup: string; contract: string; cost_allocation: string }>) =>
     setRolloutForm((s) => ({ ...s, [cmId]: { label: "", blurb: "", progress: "0", due: "", status: "in_progress", monthly: "", setup: "", contract: "", cost_allocation: "", ...s[cmId], ...patch } }));
   async function dupInstance(c: any) { setBusy(true); try { await api.delivery.clientModules.addInstance(id!, c.vdi_module_id, ""); reload(); flash(tr("Instância duplicada ✓ Dê um apelido para diferenciar.")); } catch (e) { flash(tr("Erro:") + " " + errorMessage(e)); } finally { setBusy(false); } }
   async function delInstance(cmId: string) { if (!confirm(tr("Excluir esta instância? O acesso e o andamento dela serão removidos."))) return; await api.delivery.clientModules.removeInstance(cmId); reload(); }
@@ -541,14 +548,16 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
       <div className="sec-h"><h2>{tr("Instâncias & andamento")}</h2><Pill tone="mute">{tr("apelido, acesso e progresso por instância — o cliente vê o apelido")}</Pill></div>
       {cm.length === 0 ? <Empty>{tr("Nenhum módulo contratado — libere módulos acima para acompanhar a implantação.")}</Empty> : cm.map((c: any) => {
         const name = mods.find((m) => m.id === c.vdi_module_id)?.name || tr("Módulo");
-        const rf = rolloutForm[c.id] || { label: "", blurb: "", progress: "0", due: "", status: "in_progress", monthly: "", setup: "", contract: "" };
+        const rf = rolloutForm[c.id] || { label: "", blurb: "", progress: "0", start: "", due: "", delivered: "", status: "in_progress", monthly: "", setup: "", contract: "" };
         return (
           <div className="rollrow" key={c.id}>
             <label className="rollf" style={{ flex: "1 1 200px" }}><span>{name}</span><input placeholder={tr("Apelido p/ o cliente (ex.: WhatsApp CRM Comercial)")} value={rf.label} onChange={(e) => setRf(c.id, { label: e.target.value })} /></label>
             <label className="rollf" style={{ flex: "1 1 240px" }}><span>{tr("Descrição p/ o cliente")}</span><input placeholder={tr("ex.: Atendimento e vendas no WhatsApp com IA")} value={rf.blurb} onChange={(e) => setRf(c.id, { blurb: e.target.value })} /></label>
             <label className="rollf"><span>{tr("Progresso (%)")}</span><input type="number" min={0} max={100} value={rf.progress} onChange={(e) => setRf(c.id, { progress: e.target.value })} /></label>
+            <label className="rollf"><span>{tr("Início")}</span><input type="date" value={rf.start} onChange={(e) => setRf(c.id, { start: e.target.value })} /></label>
             <label className="rollf"><span>{tr("Prazo de entrega")}</span><input type="date" value={rf.due} onChange={(e) => setRf(c.id, { due: e.target.value })} /></label>
             <label className="rollf"><span>{tr("Status")}</span><select value={rf.status} onChange={(e) => setRf(c.id, { status: e.target.value })}><option value="in_progress">{tr("Em andamento")}</option><option value="delivered">{tr("Entregue")}</option><option value="on_hold">{tr("Em espera")}</option></select></label>
+            <label className="rollf" title={tr("Quando a solução ficou pronta (data e hora)")}><span>{tr("Entrega real")}</span><input type="datetime-local" value={rf.delivered} onChange={(e) => setRf(c.id, { delivered: e.target.value })} /></label>
             <label className="rollf"><span>{tr("Custo mensal (R$)")}</span><input type="number" min={0} step="0.01" placeholder="—" value={rf.monthly} onChange={(e) => setRf(c.id, { monthly: e.target.value })} /></label>
             <label className="rollf"><span>{tr("Custo de implantação (R$)")}</span><input type="number" min={0} step="0.01" placeholder="—" value={rf.setup} onChange={(e) => setRf(c.id, { setup: e.target.value })} /></label>
             <label className="rollf" title={tr("Quem paga o custo de IA deste processo")}><span>{tr("Custo de IA")}</span><select value={rf.cost_allocation} onChange={(e) => setRf(c.id, { cost_allocation: e.target.value })}><option value="">{tr("Padrão do serviço")}</option><option value="absorvido">{tr("Crasto absorve")}</option><option value="byo_cliente">{tr("Transferir ao cliente")}</option></select></label>
