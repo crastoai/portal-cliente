@@ -206,6 +206,19 @@
 .modal--wide .screengrid { grid-template-columns: repeat(3, 1fr); }
 @media (max-width: 760px) { .modal--wide .screengrid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 520px) { .modal--wide .screengrid { grid-template-columns: 1fr !important; } }
+/* Popup em TELA CHEIA responsiva — ocupa TODO o viewport (como abrir outra tela),
+   independente do tamanho. Header e rodapé fixos; só o corpo rola. */
+.modal-overlay--fs { padding: 0; place-items: stretch; }
+.modal--fullscreen {
+  width: 100vw; max-width: none; height: 100vh; max-height: 100vh;
+  border: 0; border-radius: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.modal--fullscreen .modal-body { flex: 1 1 auto; overflow-y: auto; min-height: 0; }
+.modal--fullscreen .modal-h, .modal--fullscreen .modal-foot { flex: 0 0 auto; }
+.modal--fullscreen .screengrid { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 760px) { .modal--fullscreen .screengrid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 520px) { .modal--fullscreen .screengrid { grid-template-columns: 1fr; } }
 /* seções do lançamento financeiro rico */
 .finsec { border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md, 12px); padding: 14px 16px; margin-bottom: 14px; background: var(--crasto-surface-muted, #F7F9FC); }
 .finsec-h { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--crasto-text-muted); margin-bottom: 10px; }

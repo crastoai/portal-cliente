@@ -671,6 +671,12 @@
     padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
     animation: portal-sheet-up .2s ease-out;
   }
+  /* Tela cheia no celular = viewport inteiro (dvh p/ a barra do Safari), sem cantos. */
+  .modal-overlay--fs { place-items: stretch !important; }
+  .modal--fullscreen {
+    height: 100dvh !important; max-height: 100dvh !important; border-radius: 0 !important;
+    padding-bottom: env(safe-area-inset-bottom) !important;
+  }
 }
 @keyframes portal-sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
