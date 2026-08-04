@@ -14,7 +14,7 @@ const A_EMPTY = {
   id: "", account_type: "payable",
   contact_name: "", contact_reference: "", organization_id: "", cnpj: "",
   description: "", services: [] as any[],
-  contract_validity_value: "", contract_validity_unit: "months", contract_total: "",
+  contract_validity_value: "", contract_validity_unit: "months", contract_total: "", contract_signed_date: "",
   payment_installments: "", installment_amount: "", due_date: "", payment_day_of_month: "", payment_method: "PIX", payment_schedule: [] as any[],
   expense_type: "consumo", category: "", status: "pending", payment_reason: "",
   amount: "", amount_paid: "", payment_date: "", recurrence: "", invoice_number: "", notes: "",
@@ -31,7 +31,8 @@ function buildSchedule(n: number, first: string, day: any, val: number) {
   for (let i = 0; i < n; i++) {
     const d = new Date(base.getFullYear(), base.getMonth() + i, day ? Number(day) : base.getDate());
     const iso = d.toISOString().slice(0, 10), amt = Number(val || 0);
-    out.push({ installment: i + 1, date: iso, amount: amt, status: "pending", origin_date: iso, origin_amount: amt, origin: "contrato" });
+    out.push({ installment: i + 1, date: iso, amount: amt, status: "pending", origin_date: iso, origin_amount: amt, origin: "contrato",
+      paid_date: "", proof_url: "", proof_note: "", penalty_amount: 0, penalty_waived: false });
   }
   return out;
 }
@@ -185,9 +186,9 @@ export default function Financeiro() {
       id: i.id, account_type: i.account_type,
       contact_name: i.contact_name || "", contact_reference: i.contact_reference || "", organization_id: i.organization_id || "", cnpj: i.cnpj || "",
       description: i.description || "", services: Array.isArray(i.services) ? i.services : [],
-      contract_validity_value: String(i.contract_validity_value ?? ""), contract_validity_unit: i.contract_validity_unit || "months", contract_total: String(i.contract_total ?? i.amount ?? ""),
+      contract_validity_value: String(i.contract_validity_value ?? ""), contract_validity_unit: i.contract_validity_unit || "months", contract_total: String(i.contract_total ?? i.amount ?? ""), contract_signed_date: ymd(i.contract_signed_date),
       payment_installments: String(i.payment_installments ?? ""), installment_amount: String(Array.isArray(i.payment_schedule) && i.payment_schedule[0] ? i.payment_schedule[0].amount : ""),
-      payment_schedule: Array.isArray(i.payment_schedule) ? i.payment_schedule.map((p: any) => ({ ...p, date: ymd(p.date), origin_date: p.origin_date ? ymd(p.origin_date) : ymd(p.date) })) : [],
+      payment_schedule: Array.isArray(i.payment_schedule) ? i.payment_schedule.map((p: any) => ({ ...p, date: ymd(p.date), origin_date: p.origin_date ? ymd(p.origin_date) : ymd(p.date), paid_date: p.paid_date ? ymd(p.paid_date) : "", proof_url: p.proof_url || "", proof_note: p.proof_note || "", penalty_amount: Number(p.penalty_amount || 0), penalty_waived: !!p.penalty_waived })) : [],
       due_date: ymd(i.due_date) || (Array.isArray(i.payment_schedule) && i.payment_schedule[0] ? ymd(i.payment_schedule[0].date) : ""), payment_day_of_month: String(i.payment_day_of_month ?? ""), payment_method: i.payment_method || "PIX",
       expense_type: i.expense_type || "consumo", category: i.category || "", status: i.status || "pending", payment_reason: i.payment_reason || "",
       amount: String(i.amount ?? ""), amount_paid: String(i.amount_paid ?? ""), payment_date: i.payment_date || "", recurrence: i.recurrence || "", invoice_number: i.invoice_number || "", notes: i.notes || "",
@@ -222,7 +223,7 @@ export default function Financeiro() {
     if (!total) { flash(t("Informe o total do contrato ou o valor da parcela.")); return; }
     // Usa a tabela EDITADA (com as origens do contrato) se houver; senão gera do gerador.
     const schedule = (Array.isArray(af.payment_schedule) && af.payment_schedule.length)
-      ? af.payment_schedule.map((p: any) => ({ ...p, amount: Number(p.amount || 0) }))
+      ? af.payment_schedule.map((p: any) => ({ ...p, amount: Number(p.amount || 0), penalty_amount: Number(p.penalty_amount || 0), penalty_waived: !!p.penalty_waived, paid_date: p.paid_date || "" }))
       : buildSchedule(inst, af.due_date, af.payment_day_of_month, val);
     // "Pago" = soma das parcelas marcadas pagas (se a tabela existe); senão o campo status.
     const paidFromSchedule = schedule.filter((p: any) => p.status === "paid").reduce((a: number, p: any) => a + Number(p.amount || 0), 0);
@@ -232,7 +233,7 @@ export default function Financeiro() {
       await services.finance.accounts.save({
         id: af.id, account_type: af.account_type, contact_name: af.contact_name, contact_reference: af.contact_reference, organization_id: af.organization_id, cnpj: af.cnpj,
         description: af.description, services: af.services || [], category: af.category, expense_type: af.expense_type, status: af.status,
-        contract_validity_value: af.contract_validity_value, contract_validity_unit: af.contract_validity_unit, contract_total: total,
+        contract_validity_value: af.contract_validity_value, contract_validity_unit: af.contract_validity_unit, contract_total: total, contract_signed_date: af.contract_signed_date,
         payment_installments: af.payment_installments, payment_day_of_month: af.payment_day_of_month, payment_method: af.payment_method, payment_reason: af.payment_reason,
         due_date: af.due_date || (schedule[0]?.date ?? ""), payment_schedule: schedule, amount: total, amount_paid: paid, recurrence: af.recurrence, invoice_number: af.invoice_number, notes: af.notes,
       });
@@ -541,9 +542,13 @@ export default function Financeiro() {
         <div className="finsec">
           <div className="finsec-h">{t("Vigência do Contrato")}</div>
           <div className="grid3">
+            <Field label={t("Data de assinatura do contrato")}><input type="date" value={af.contract_signed_date} onChange={(e) => setAf({ ...af, contract_signed_date: e.target.value })} /></Field>
             <Field label={t("Duração")}><input type="number" value={af.contract_validity_value} onChange={(e) => setAf({ ...af, contract_validity_value: e.target.value })} placeholder="12" /></Field>
             <Field label={t("Unidade")}><select value={af.contract_validity_unit} onChange={(e) => setAf({ ...af, contract_validity_unit: e.target.value })}>{UNITS.map((u) => <option key={u.v} value={u.v}>{t(u.l)}</option>)}</select></Field>
+          </div>
+          <div className="grid3">
             <Field label={t("Total do Contrato (R$)")}><input type="number" step="0.01" value={af.contract_total} onChange={(e) => setAcc({ contract_total: e.target.value })} /></Field>
+            {af.contract_signed_date && <div className="fhint" style={{ alignSelf: "end", paddingBottom: 8 }}>{t("Contrato assinado em")} {brDate(af.contract_signed_date)} — {t("previsão de recebimento nas datas das parcelas abaixo.")}</div>}
           </div>
         </div>
 
@@ -571,6 +576,9 @@ export default function Financeiro() {
                     <th>{t("Vencimento")}</th>
                     <th style={{ textAlign: "right" }}>{t("Valor (R$)")}</th>
                     <th>{t("Status")}</th>
+                    <th>{t("Data pagto")}</th>
+                    <th>{t("Comprovante")}</th>
+                    <th style={{ textAlign: "right" }}>{t("Multa (R$)")}</th>
                     <th>{t("Origem / ajuste")}</th>
                   </tr></thead>
                   <tbody>
@@ -589,6 +597,17 @@ export default function Financeiro() {
                               <option value="paid">{t("Pago")}</option>
                               <option value="cancelled">{t("Cancelada")}</option>
                             </select>
+                          </td>
+                          {/* COMPROVANTE: data real do pagamento + anexo/nota */}
+                          <td><input type="date" value={p.paid_date || ""} onChange={(e) => setSchedRow(idx, { paid_date: e.target.value })} style={{ width: 140 }} /></td>
+                          <td>
+                            <input value={p.proof_note || ""} onChange={(e) => setSchedRow(idx, { proof_note: e.target.value })} placeholder={t("ex.: PIX 13/09")} style={{ width: 150, display: "block", marginBottom: 3 }} />
+                            <input value={p.proof_url || ""} onChange={(e) => setSchedRow(idx, { proof_url: e.target.value })} placeholder={t("link do comprovante")} style={{ width: 150, fontSize: 11 }} />
+                          </td>
+                          {/* MULTA: valor + "dispensar" (houve atraso mas você decidiu não cobrar) */}
+                          <td style={{ textAlign: "right" }}>
+                            <input type="number" step="0.01" value={p.penalty_amount ?? ""} onChange={(e) => setSchedRow(idx, { penalty_amount: e.target.value })} placeholder="0" style={{ width: 84, textAlign: "right", display: "block", marginBottom: 3 }} />
+                            <label style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 3, justifyContent: "flex-end" }}><input type="checkbox" checked={!!p.penalty_waived} onChange={(e) => setSchedRow(idx, { penalty_waived: e.target.checked })} /> {t("dispensar")}</label>
                           </td>
                           <td style={{ fontSize: 11 }}>
                             {editado ? (
