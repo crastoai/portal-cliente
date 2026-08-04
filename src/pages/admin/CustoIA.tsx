@@ -205,34 +205,44 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
               <div className="delta">{t("quanto a IA custa por lead atendido")}</div>
             </div>
           </div>
-          {(insights.por_cliente || []).length > 0 && (
+          {(insights.por_cliente || []).length > 0 && (() => {
+            const farol: Record<string, { cor: string; emoji: string; label: string }> = {
+              verde: { cor: "#1F8A5B", emoji: "🟢", label: t("Saudável") },
+              laranja: { cor: "#B54708", emoji: "🟠", label: t("Atenção") },
+              vermelho: { cor: "#E5484D", emoji: "🔴", label: t("Crítico") },
+              cinza: { cor: "#98A2B3", emoji: "⚪", label: t("Sem receita") },
+            };
+            return (
             <div className="tbl-wrap">
               <table className="tbl">
                 <thead><tr>
+                  <th style={{ width: 44, textAlign: "center" }}></th>
                   <th>{t("Cliente")}</th>
+                  <th style={{ textAlign: "right" }}>{t("Receita (mês)")}</th>
                   <th style={{ textAlign: "right" }}>{t("Custo IA (mês)")}</th>
-                  <th style={{ textAlign: "right" }}>{t("Leads")}</th>
-                  <th style={{ textAlign: "right" }}>{t("Conversas")}</th>
-                  <th style={{ textAlign: "right" }}>{t("Custo / lead")}</th>
+                  <th style={{ textAlign: "right" }}>{t("% da receita")}</th>
+                  <th style={{ textAlign: "right" }}>{t("Margem após IA")}</th>
                   <th style={{ textAlign: "right" }}>{t("Custo / conversa")}</th>
                 </tr></thead>
                 <tbody>
-                  {(insights.por_cliente as any[]).map((r) => (
+                  {(insights.por_cliente as any[]).map((r) => { const f = farol[r.farol] || farol.cinza; return (
                     <tr key={r.organization_id}>
+                      <td style={{ textAlign: "center", fontSize: 15 }} title={f.label}>{f.emoji}</td>
                       <td className="nm" style={{ fontWeight: 600 }}>{r.cliente}</td>
+                      <td className="tnum" style={{ textAlign: "right" }}>{r.mrr != null ? money(r.mrr) : <span className="muted" style={{ fontSize: 12 }}>{t("cadastrar")}</span>}</td>
                       <td className="tnum" style={{ textAlign: "right", fontWeight: 700 }}>{money(r.custo_ia)}</td>
-                      <td className="tnum" style={{ textAlign: "right" }}>{r.leads}</td>
-                      <td className="tnum" style={{ textAlign: "right" }}>{r.conversas}</td>
-                      <td className="tnum" style={{ textAlign: "right" }}>{r.custo_por_lead != null ? money(r.custo_por_lead) : "—"}</td>
+                      <td className="tnum" style={{ textAlign: "right", color: f.cor, fontWeight: 600 }}>{r.pct_receita_ia != null ? r.pct_receita_ia + "%" : "—"}</td>
+                      <td className="tnum" style={{ textAlign: "right", fontWeight: 600 }}>{r.margem_apos_ia != null ? money(r.margem_apos_ia) : "—"}</td>
                       <td className="tnum" style={{ textAlign: "right" }}>{r.custo_por_conversa != null ? money(r.custo_por_conversa) : "—"}</td>
                     </tr>
-                  ))}
+                  ); })}
                 </tbody>
               </table>
             </div>
-          )}
+            );
+          })()}
           <div className="note" style={{ marginTop: 10 }}>
-            <span>{t("A margem por cliente (receita − custos) entra quando a receita/MRR de cada cliente estiver cadastrada. Por ora, esta visão mostra o lado do CUSTO: economia da troca pra DeepSeek, projeção do mês e quanto a IA custa por lead/conversa de cada cliente.")}</span>
+            <span><strong>{t("Farol de margem:")}</strong> 🟢 {t("IA < 5% da receita (saudável)")} · 🟠 {t("5–15% (atenção)")} · 🔴 {t("> 15% ou margem negativa (crítico)")} · ⚪ {t("sem contrato cadastrado")}. {t("Tudo automático: ao registrar/editar o contrato do cliente e sincronizar o custo de IA, o farol recalcula sozinho.")}</span>
           </div>
         </div>
       )}

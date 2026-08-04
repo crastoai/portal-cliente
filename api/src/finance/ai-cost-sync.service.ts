@@ -306,6 +306,21 @@ export class AiCostSyncService {
     // Nome do cliente: prioriza o do painel (com custo); senão o do wacrm (org com atividade sem custo).
     for (const r of nomes) if (r.id && !nomeOrg.has(r.id)) nomeOrg.set(r.id, r.name);
 
+    // RECEITA (MRR) por cliente — derivada dos CONTRATOS recorrentes (recebíveis) no financeiro:
+    // MRR = total do contrato ÷ meses de vigência. Só conta recorrente (validade em meses > 0);
+    // serviço avulso (workshop, setup) NÃO entra na mensalidade. É a base do farol de margem.
+    const mrrOrg = new Map<string, number>();
+    try {
+      const recebiveis = await this.db.asUser(uid, async (c) => (await c.query(`select * from public.fin_accounts('receivable', null)`)).rows);
+      for (const a of recebiveis as any[]) {
+        const org = a.organization_id;
+        const meses = String(a.contract_validity_unit) === 'months' ? Number(a.contract_validity_value || 0) : 0;
+        const total = Number(a.contract_total || a.amount || 0);
+        if (!org || meses <= 0 || total <= 0) continue; // avulso/sem-vigência não é MRR
+        mrrOrg.set(org, (mrrOrg.get(org) || 0) + total / meses);
+      }
+    } catch { /* sem receita cadastrada → margem fica indisponível, farol cinza */ }
+
     // Economia DeepSeek: o que pagaria no Gemini Flash − o que paga no DeepSeek Flash (mesmos tokens).
     const GEM: [number, number] = [0.30, 2.5], DS: [number, number] = [0.14, 0.28];
     let economiaBrl = 0, ttGemBrl = 0, ttDsBrl = 0;
@@ -322,20 +337,39 @@ export class AiCostSyncService {
     const diasMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
     const projetado = diaHoje > 0 ? (custoTotal / diaHoje) * diasMes : custoTotal;
 
-    // Unit economics por cliente (ordenado por custo desc = ranking dos mais caros).
-    const orgIds = new Set<string>([...custoOrg.keys(), ...leadsOrg.keys(), ...convsOrg.keys()]);
+    // FARÓIS de margem — quanto da RECEITA (MRR) do cliente a IA consome (regra de negócio):
+    //   🟢 verde  = IA < 5% da receita   → saudável
+    //   🟠 laranja= 5%–15%               → atenção
+    //   🔴 vermelho= > 15% OU margem negativa → prejuízo/crítico
+    //   ⚪ cinza   = sem receita cadastrada → não dá pra avaliar a margem
+    // Thresholds por env (FAROL_VERDE_PCT / FAROL_LARANJA_PCT) — default 5 e 15.
+    const V = Number(process.env.FAROL_VERDE_PCT) || 5, L = Number(process.env.FAROL_LARANJA_PCT) || 15;
+    const farolDe = (pct: number | null): 'verde' | 'laranja' | 'vermelho' | 'cinza' => {
+      if (pct == null) return 'cinza';
+      if (pct < V) return 'verde';
+      if (pct <= L) return 'laranja';
+      return 'vermelho';
+    };
+    // Unit economics + margem por cliente (ordenado por custo desc = ranking dos mais caros).
+    const orgIds = new Set<string>([...custoOrg.keys(), ...leadsOrg.keys(), ...convsOrg.keys(), ...mrrOrg.keys()]);
     const porCliente = [...orgIds].map((org) => {
       const custo = custoOrg.get(org) || 0;
       const nl = leadsOrg.get(org) || 0, nc = convsOrg.get(org) || 0;
+      const mrr = mrrOrg.get(org) || 0;
+      const pctIa = mrr > 0 ? Math.round((custo / mrr) * 10000) / 100 : null; // % da receita consumido pela IA
       return {
         organization_id: org, cliente: nomeOrg.get(org) || '—',
         custo_ia: Math.round(custo * 100) / 100,
         leads: nl, conversas: nc,
         custo_por_lead: nl > 0 ? Math.round((custo / nl) * 100) / 100 : null,
         custo_por_conversa: nc > 0 ? Math.round((custo / nc) * 100) / 100 : null,
+        mrr: mrr > 0 ? Math.round(mrr * 100) / 100 : null,
+        margem_apos_ia: mrr > 0 ? Math.round((mrr - custo) * 100) / 100 : null,
+        pct_receita_ia: pctIa,
+        farol: farolDe(pctIa),
       };
-    }).filter((r) => r.custo_ia > 0 || r.leads > 0 || r.conversas > 0)
-      .sort((a, b) => b.custo_ia - a.custo_ia);
+    }).filter((r) => r.custo_ia > 0 || r.leads > 0 || r.conversas > 0 || (r.mrr || 0) > 0)
+      .sort((a, b) => (b.mrr || 0) - (a.mrr || 0) || b.custo_ia - a.custo_ia);
 
     return {
       periodo: { start, end },
