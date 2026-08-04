@@ -125,10 +125,14 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = []) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [n, setN] = useState(0);
+  // Só mostra "Carregando…" no 1º carregamento. reload()/refetch depois disso acontecem em
+  // SEGUNDO PLANO — os dados atuais ficam na tela enquanto rebusca, então a lista não some,
+  // a página não encolhe e o scroll NÃO volta pro topo (fix da UX de salvar/apagar).
+  const loadedOnce = useRef(false);
   useEffect(() => {
     let alive = true;
-    setLoading(true);
-    fn().then((d) => { if (alive) { setData(d); setLoading(false); } }).catch(() => { if (alive) setLoading(false); });
+    if (!loadedOnce.current) setLoading(true);
+    fn().then((d) => { if (alive) { setData(d); setLoading(false); loadedOnce.current = true; } }).catch(() => { if (alive) { setLoading(false); loadedOnce.current = true; } });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, n]);
