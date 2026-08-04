@@ -36,8 +36,16 @@ export class JulieLlmService {
 
   async completeTools(system: string, messages: JulieMsg[], tools: JulieTool[]): Promise<JulieTurn> {
     const rt = await this.runtime();
-    if (rt.provider !== 'google') throw new Error(`A Julie hoje roda no Gemini; provedor padrão atual é "${rt.provider}". Ajuste em Modelos LLM.`);
-    return this.gemini(rt, system, messages, tools);
+    if (rt.provider === 'google') return this.gemini(rt, system, messages, tools);
+    if (rt.provider === 'deepseek') {
+      // DeepSeek é texto puro (não lê PDF/imagem/áudio). Se tem anexo, falha claro em vez de
+      // fingir que leu. O Portal pode: (a) trocar temporariamente pra Gemini via llm_runtime,
+      // ou (b) processar sem o anexo se ele não for essencial.
+      const temAnexo = messages.some((m: any) => Array.isArray(m.attachments) && m.attachments.length);
+      if (temAnexo) throw new Error('DeepSeek não lê anexos (PDF/imagem/áudio) — pra Julie processar arquivos, mude o provedor default pra Google/Gemini em Modelos LLM.');
+      return this.deepseek(rt, system, messages, tools);
+    }
+    throw new Error(`Provedor "${rt.provider}" ainda não tem adaptador na Julie. Suportados: google, deepseek.`);
   }
 
   private async gemini(rt: any, system: string, messages: JulieMsg[], tools: JulieTool[]): Promise<JulieTurn> {
@@ -87,5 +95,41 @@ export class JulieLlmService {
     if (!calls.length && !text.trim()) throw new Error(`Gemini não devolveu resposta (${j?.candidates?.[0]?.finishReason || 'sem motivo'}).`);
     const u = j?.usageMetadata || {};
     return { text, calls, uso: { model, ms: Date.now() - t0, tokens_in: u.promptTokenCount, tokens_out: u.candidatesTokenCount } };
+  }
+
+  /**
+   * DEEPSEEK — API OpenAI-compatible. Aqui a Julie NÃO usa multimodal (guarded no completeTools).
+   * Motivo pra estar aqui: reduzir custo em consultas de texto puro (financeiro, chat interno,
+   * classificação) — DeepSeek v4-flash é ~35× mais barato que GPT-4o-mini. Ative trocando
+   * `llm_runtime` no Portal pra `{ provider: 'deepseek', model: 'deepseek-v4-flash', api_key: ... }`.
+   */
+  private async deepseek(rt: any, system: string, messages: JulieMsg[], tools: JulieTool[]): Promise<JulieTurn> {
+    const model = process.env.JULIE_MODEL || rt.model || 'deepseek-v4-flash';
+    const msgs: any[] = [{ role: 'system', content: system }];
+    for (const m of messages as any[]) {
+      if (m.role === 'assistant_call') {
+        msgs.push({ role: 'assistant', tool_calls: m.calls.map((c: any, i: number) => ({ id: `call_${i}`, type: 'function', function: { name: c.name, arguments: JSON.stringify(c.args || {}) } })) });
+      } else if (m.role === 'tool_result') {
+        for (let i = 0; i < m.results.length; i++) msgs.push({ role: 'tool', tool_call_id: `call_${i}`, content: JSON.stringify(m.results[i].result ?? {}) });
+      } else {
+        msgs.push({ role: m.role, content: m.text });
+      }
+    }
+    const t0 = Date.now();
+    const body: any = { model, max_tokens: 4000, messages: msgs, temperature: 0.2 };
+    if (tools.length) body.tools = tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
+    const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST', headers: { Authorization: 'Bearer ' + rt.api_key, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const j: any = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      if (r.status === 402) throw new Error('DeepSeek sem saldo — faça top-up em platform.deepseek.com/top_up.');
+      throw new Error(`DeepSeek respondeu ${r.status}: ${String(j?.error?.message || '').slice(0, 220)}`);
+    }
+    const msg = j?.choices?.[0]?.message || {};
+    const calls = (msg.tool_calls || []).map((tc: any) => ({ name: tc.function?.name, args: JSON.parse(tc.function?.arguments || '{}') }));
+    const text = msg.content || '';
+    if (!calls.length && !text.trim()) throw new Error('DeepSeek não devolveu resposta.');
+    return { text, calls, uso: { model, ms: Date.now() - t0, tokens_in: j?.usage?.prompt_tokens, tokens_out: j?.usage?.completion_tokens } };
   }
 }
