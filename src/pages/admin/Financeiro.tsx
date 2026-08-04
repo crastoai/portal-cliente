@@ -38,6 +38,31 @@ function buildSchedule(n: number, first: string, day: any, val: number) {
 }
 // dd/mm/aaaa a partir de ISO (yyyy-mm-dd)
 function brDate(iso?: string) { if (!iso) return "—"; const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; }
+// diferença em dias: b − a (positivo = b depois de a)
+function diasEntre(aIso?: string, bIso?: string): number | null {
+  if (!aIso || !bIso) return null;
+  return Math.round((new Date(bIso + "T00:00:00").getTime() - new Date(aIso + "T00:00:00").getTime()) / 86400000);
+}
+// VEREDITO da parcela = cruzamento previsão (vencimento) × realizado (comprovante) + multa.
+// tone: ok(pago em dia) | warn(pago com atraso) | bad(vencida sem pagto) | pending(a vencer) | muted(cancelada)
+function vereditoParcela(p: any, todayIso: string): { tone: string; icon: string; text: string } {
+  if ((p.status || "pending") === "cancelled") return { tone: "muted", icon: "—", text: "cancelada" };
+  const venc = p.date, pago = p.status === "paid" || !!p.paid_date;
+  if (pago) {
+    const paidDate = p.paid_date || venc;
+    const atraso = diasEntre(venc, paidDate);
+    if (atraso != null && atraso > 0) {
+      const multa = Number(p.penalty_amount) > 0 ? `multa ${money(Number(p.penalty_amount))} aplicada`
+        : p.penalty_waived ? "você decidiu não aplicar multa" : "sem multa lançada";
+      return { tone: "warn", icon: "🟠", text: `pago dia ${brDate(paidDate)} · ${atraso} dia(s) de atraso · ${multa}` };
+    }
+    return { tone: "ok", icon: "🟢", text: p.paid_date ? `pago em dia (${brDate(p.paid_date)})` : "pago em dia" };
+  }
+  const atrasoHoje = diasEntre(venc, todayIso);
+  if (venc && atrasoHoje != null && atrasoHoje > 0) return { tone: "bad", icon: "🔴", text: `sem pagamento · vencida há ${atrasoHoje} dia(s)` };
+  return { tone: "pending", icon: "⏳", text: venc ? `a vencer em ${brDate(venc)}` : "a vencer" };
+}
+const TONE_COLOR: Record<string, string> = { ok: "#1F8A5B", warn: "#B54708", bad: "#B42318", pending: "#475467", muted: "#98A2B3" };
 const C_EMPTY = { id: "", vendor_name: "", description: "", category: "", currency: "BRL", amount_original: "", exchange_rate: "1", amount_brl: "", recurrence: "mensal", cost_type: "fixo", cost_nature: "recorrente", next_payment_date: "", is_active: true, notes: "" };
 const T_EMPTY = { id: "", type: "income", category: "", amount: "", description: "", status: "completed", transaction_date: "", contact_name: "", payment_method: "", notes: "" };
 
@@ -579,7 +604,7 @@ export default function Financeiro() {
                     <th>{t("Data pagto")}</th>
                     <th>{t("Comprovante")}</th>
                     <th style={{ textAlign: "right" }}>{t("Multa (R$)")}</th>
-                    <th>{t("Origem / ajuste")}</th>
+                    <th style={{ minWidth: 230 }}>{t("Diagnóstico")}</th>
                   </tr></thead>
                   <tbody>
                     {(af.payment_schedule as any[]).map((p, idx) => {
@@ -609,14 +634,19 @@ export default function Financeiro() {
                             <input type="number" step="0.01" value={p.penalty_amount ?? ""} onChange={(e) => setSchedRow(idx, { penalty_amount: e.target.value })} placeholder="0" style={{ width: 84, textAlign: "right", display: "block", marginBottom: 3 }} />
                             <label style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 3, justifyContent: "flex-end" }}><input type="checkbox" checked={!!p.penalty_waived} onChange={(e) => setSchedRow(idx, { penalty_waived: e.target.checked })} /> {t("dispensar")}</label>
                           </td>
-                          <td style={{ fontSize: 11 }}>
-                            {editado ? (
-                              <span style={{ color: "#B54708" }}>
-                                ✏️ {t("ajustado à mão")}. {t("Contrato:")} {dataMudou ? brDate(p.origin_date) : ""}{dataMudou && valorMudou ? " · " : ""}{valorMudou ? money(Number(p.origin_amount)) : ""}
-                              </span>
-                            ) : (
-                              <span className="muted">📄 {t("conforme o contrato")}</span>
-                            )}
+                          <td style={{ fontSize: 11, minWidth: 230 }}>
+                            {(() => { const v = vereditoParcela(p, new Date().toISOString().slice(0, 10)); return (
+                              <div style={{ color: TONE_COLOR[v.tone], fontWeight: 600 }}>{v.icon} {v.text}</div>
+                            ); })()}
+                            <div style={{ marginTop: 2 }}>
+                              {editado ? (
+                                <span style={{ color: "#B54708" }}>
+                                  ✏️ {t("ajustado à mão")}. {t("Contrato:")} {dataMudou ? brDate(p.origin_date) : ""}{dataMudou && valorMudou ? " · " : ""}{valorMudou ? money(Number(p.origin_amount)) : ""}
+                                </span>
+                              ) : (
+                                <span className="muted">📄 {t("conforme o contrato")}</span>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -624,9 +654,30 @@ export default function Financeiro() {
                   </tbody>
                 </table>
               </div>
-              <div className="fhint" style={{ paddingTop: 4 }}>
-                {t("{n} parcelas", { n: af.payment_schedule.length })} · {t("total")} {money((af.payment_schedule as any[]).reduce((a, p) => a + Number(p.amount || 0), 0))} · {t("pagas")} {(af.payment_schedule as any[]).filter((p) => p.status === "paid").length}
-              </div>
+              {/* RESUMO DE CONCILIAÇÃO — previsto (contrato) × realizado (comprovantes) */}
+              {(() => {
+                const today = new Date().toISOString().slice(0, 10);
+                const sch = af.payment_schedule as any[];
+                const pago = (p: any) => p.status === "paid" || !!p.paid_date;
+                const previsto = sch.reduce((a, p) => a + Number(p.amount || 0), 0);
+                const pagas = sch.filter(pago);
+                const recebido = pagas.reduce((a, p) => a + Number(p.amount || 0), 0);
+                const atrasadas = sch.filter((p) => !pago(p) && p.status !== "cancelled" && p.date && p.date < today);
+                const emAtraso = atrasadas.reduce((a, p) => a + Number(p.amount || 0), 0);
+                const aVencer = sch.filter((p) => !pago(p) && p.status !== "cancelled" && (!p.date || p.date >= today));
+                const multaAplicada = sch.reduce((a, p) => a + Number(p.penalty_amount || 0), 0);
+                const dispensadas = pagas.filter((p) => { const at = diasEntre(p.date, p.paid_date || p.date); return at != null && at > 0 && p.penalty_waived; }).length;
+                return (
+                  <div className="fhint" style={{ paddingTop: 6, lineHeight: 1.7 }}>
+                    {af.contract_signed_date && <>📄 {t("Contrato assinado em")} <b>{brDate(af.contract_signed_date)}</b> · </>}
+                    {t("{n} parcelas", { n: sch.length })} · {t("previsto")} <b>{money(previsto)}</b> · <span style={{ color: TONE_COLOR.ok }}>{t("recebido")} {money(recebido)} ({pagas.length})</span>
+                    {atrasadas.length > 0 && <> · <span style={{ color: TONE_COLOR.bad, fontWeight: 600 }}>{t("em atraso")} {atrasadas.length} ({money(emAtraso)})</span></>}
+                    {aVencer.length > 0 && <> · <span style={{ color: TONE_COLOR.pending }}>{t("a vencer")} {aVencer.length}</span></>}
+                    {multaAplicada > 0 && <> · {t("multas aplicadas")} {money(multaAplicada)}</>}
+                    {dispensadas > 0 && <> · <span style={{ color: TONE_COLOR.warn }}>{t("multas dispensadas")} {dispensadas}</span></>}
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
