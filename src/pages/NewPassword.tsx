@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { services, errorMessage } from "../services";
@@ -8,35 +8,30 @@ import { useAuth } from "../lib/auth";
 import { useT } from "../lib/i18n";
 import LangSwitcher from "../ui/LangSwitcher";
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
 export default function NewPassword() {
   const { session } = useAuth();
   const t = useT();
   const nav = useNavigate();
   const forced = (session?.user?.user_metadata as any)?.must_change_password === true;
-  // Convite da Crasto.AI: o e-mail traz ?token=… (uso único). Trocamos o token por uma
-  // sessão aqui mesmo — assim o link é do NOSSO domínio e não dependemos da allow-list
-  // de redirect do Supabase. Sem token, segue o fluxo normal (sessão de recuperação).
-  const url = new URL(window.location.href);
-  const token = url.searchParams.get("token");
-  const tokenType = url.searchParams.get("type") === "invite" ? "invite" : "recovery";
-  const [checking, setChecking] = useState(!!token && !session);
-  const [linkErr, setLinkErr] = useState("");
-
-  useEffect(() => {
-    if (!token) return;
-    (async () => {
-      const { error } = await supabase.auth.verifyOtp({ token_hash: token, type: tokenType as any });
-      if (error) {
-        // Mensagem NOSSA: o GoTrue responde em inglês e não diz o que fazer.
-        setLinkErr(t("Este link expirou ou já foi usado. Peça um novo ao time da Crasto.AI."));
-      } else {
-        // Tira o token da URL para não ficar no histórico do navegador.
-        window.history.replaceState({}, "", url.pathname);
-      }
-      setChecking(false);
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  // Convite/reset da Crasto.AI: o e-mail traz ?token=… (uso único). O link é do NOSSO domínio
+  // (não dependemos da allow-list de redirect do Supabase). Sem token, segue o fluxo normal
+  // (usuário já logado querendo trocar senha).
+  //
+  // Por que capturar o token no MOMENTO DO CLICK EM SALVAR (não em useEffect):
+  // o padrão anterior chamava `supabase.auth.verifyOtp` no mount, o SDK criava uma sessão
+  // internamente, e depois `updateUser` dependia dessa sessão estar persistida. O SDK v2
+  // tem race condition conhecida onde a sessão retornada por verifyOtp em type='recovery'
+  // NÃO fica no localStorage antes do próximo tick — e o updateUser cai em "Auth session
+  // missing". Foi o que aconteceu com a Fabiana (SR Brasil, 2026-08-04): link válido, token
+  // válido, mas erro na hora de salvar. Igualmos ao fluxo do wacrm/DefinirSenha (que sempre
+  // funcionou): REST direto no GoTrue com o access_token na mão — zero dependência do state
+  // interno do SDK.
+  const urlToken = new URL(window.location.href).searchParams.get("token") || "";
+  const tokenType = new URL(window.location.href).searchParams.get("type") === "invite" ? "invite" : "recovery";
+  const hasToken = !!urlToken;
 
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
@@ -51,13 +46,42 @@ export default function NewPassword() {
     if (pw !== pw2) { setErr(t("As senhas não conferem.")); return; }
     setBusy(true); setErr("");
     try {
-      await services.identity.auth.updatePassword(pw);
+      if (hasToken) {
+        // Fluxo do LINK (convite/recovery). REST direto no GoTrue — não dependemos do SDK.
+        // 1) verify: troca o token do e-mail por access_token + refresh_token.
+        const v = await fetch(`${SUPABASE_URL}/auth/v1/verify`, {
+          method: "POST",
+          headers: { apikey: SUPABASE_ANON, "Content-Type": "application/json" },
+          body: JSON.stringify({ type: tokenType, token_hash: urlToken }),
+        });
+        const vb: any = await v.json().catch(() => ({}));
+        if (!vb?.access_token) {
+          throw new Error(t("Este link expirou ou já foi usado. Peça um novo ao time da Crasto.AI."));
+        }
+        // 2) grava a nova senha usando o access_token direto — o GoTrue aceita.
+        const u = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+          method: "PUT",
+          headers: { apikey: SUPABASE_ANON, Authorization: "Bearer " + vb.access_token, "Content-Type": "application/json" },
+          body: JSON.stringify({ password: pw, data: { must_change_password: false } }),
+        });
+        const ub: any = await u.json().catch(() => ({}));
+        if (!u.ok) {
+          throw new Error(ub?.msg || ub?.error_description || ub?.message || t("Não foi possível salvar a senha."));
+        }
+        // 3) persiste a sessão no SDK pra ela já entrar logada.
+        await supabase.auth.setSession({ access_token: vb.access_token, refresh_token: vb.refresh_token });
+      } else {
+        // Fluxo SEM token — usuário já está logado (ex.: `must_change_password=true`). Usa o SDK.
+        await services.identity.auth.updatePassword(pw);
+      }
       // Trilha: quem definiu senha, quando, e se foi o primeiro acesso (veio de convite).
       api.post("/api/audit/event", {
         action: "password_set", system: "portal",
-        first_access: !!token && tokenType === "invite",
-        via: token ? "link" : "sessao",
+        first_access: hasToken && tokenType === "invite",
+        via: hasToken ? "link" : "sessao",
       }).catch(() => {});
+      // Tira o token da URL antes de navegar (não fica no histórico do navegador).
+      if (hasToken) window.history.replaceState({}, "", "/nova-senha");
       setOk(true);
       setTimeout(() => nav("/", { replace: true }), 1400);
     } catch (e) {
@@ -85,11 +109,7 @@ export default function NewPassword() {
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}><LangSwitcher /></div>
           <h1>{forced ? t("Defina sua senha") : t("Nova senha")}</h1>
           <p className="sub">{forced ? t("Por segurança, crie uma senha própria para continuar.") : t("Escolha uma nova senha para o seu acesso.")}</p>
-          {checking ? (
-            <div className="login-note">{t("Validando o seu link…")}</div>
-          ) : linkErr ? (
-            <div className="login-err">{linkErr}</div>
-          ) : ok ? (
+          {ok ? (
             <div className="login-note">{t("Senha definida com sucesso ✓ Entrando no portal…")}</div>
           ) : (
             <form className="login-form" onSubmit={submit}>
