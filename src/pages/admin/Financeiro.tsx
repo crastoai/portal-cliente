@@ -12,7 +12,7 @@ import CustoIA from "./CustoIA";
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
 const A_EMPTY = {
   id: "", account_type: "payable",
-  contact_name: "", contact_reference: "", organization_id: "",
+  contact_name: "", contact_reference: "", organization_id: "", cnpj: "",
   description: "", services: [] as any[],
   contract_validity_value: "", contract_validity_unit: "months", contract_total: "",
   payment_installments: "", installment_amount: "", due_date: "", payment_day_of_month: "", payment_method: "PIX",
@@ -66,6 +66,29 @@ export default function Financeiro() {
   const [toast, setToast] = useState("");
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 6000); };
   const [aOpen, setAOpen] = useState(false); const [af, setAf] = useState<any>({ ...A_EMPTY });
+  const [clienteBusy, setClienteBusy] = useState(false);
+  // Ao escolher o cliente, PUXA o cadastro (razão social, CNPJ, contato) e preenche sozinho —
+  // o Carlos só confere e digita o que é do CONTRATO (valor/parcelas). Sem cliente = limpa.
+  async function selecionarCliente(orgId: string) {
+    if (!orgId) { setAf((s: any) => ({ ...s, organization_id: "", cnpj: "" })); return; }
+    const base = orgs.find((x: any) => x.id === orgId);
+    setAf((s: any) => ({ ...s, organization_id: orgId, contact_name: base ? base.name : s.contact_name }));
+    setClienteBusy(true);
+    try {
+      const o: any = await services.identity.organizations.getById(orgId).catch(() => null);
+      const cnpjs: any[] = await services.identity.cnpjs.listByOrg(orgId).catch(() => []);
+      const cnpj = (cnpjs && cnpjs[0]?.cnpj) || o?.cnpj || "";
+      setAf((s: any) => ({
+        ...s,
+        contact_name: o?.name || base?.name || s.contact_name,
+        cnpj,
+        // contato: dono/responsável ou e-mail do cadastro (o que existir), sem sobrescrever se já digitou.
+        contact_reference: s.contact_reference || o?.owner_name || o?.email || "",
+        // descrição padrão se ainda vazia — economiza digitação.
+        description: s.description || t("Contrato de prestação de serviços de IA — {n}", { n: o?.name || base?.name || "" }),
+      }));
+    } finally { setClienteBusy(false); }
+  }
   const [cOpen, setCOpen] = useState(false); const [cf, setCf] = useState<any>({ ...C_EMPTY });
   const [tOpen, setTOpen] = useState(false); const [tf, setTf] = useState<any>({ ...T_EMPTY });
 
@@ -155,7 +178,7 @@ export default function Financeiro() {
     if (i._kind === "cost") { const c = costs.find((x) => x.id === i.id); setCf({ id: c.id, vendor_name: c.vendor_name || "", description: c.description || "", category: c.category || "", currency: c.currency || "BRL", amount_original: String(c.amount_original ?? ""), exchange_rate: String(c.exchange_rate ?? "1"), amount_brl: String(c.amount_brl ?? ""), recurrence: c.recurrence || "mensal", cost_type: c.cost_type || "fixo", cost_nature: c.cost_nature || "recorrente", next_payment_date: ymd(c.next_payment_date), is_active: !!c.is_active, notes: c.notes || "" }); setCOpen(true); }
     else { setAf({
       id: i.id, account_type: i.account_type,
-      contact_name: i.contact_name || "", contact_reference: i.contact_reference || "", organization_id: i.organization_id || "",
+      contact_name: i.contact_name || "", contact_reference: i.contact_reference || "", organization_id: i.organization_id || "", cnpj: i.cnpj || "",
       description: i.description || "", services: Array.isArray(i.services) ? i.services : [],
       contract_validity_value: String(i.contract_validity_value ?? ""), contract_validity_unit: i.contract_validity_unit || "months", contract_total: String(i.contract_total ?? i.amount ?? ""),
       payment_installments: String(i.payment_installments ?? ""), installment_amount: String(Array.isArray(i.payment_schedule) && i.payment_schedule[0] ? i.payment_schedule[0].amount : ""),
@@ -188,7 +211,7 @@ export default function Financeiro() {
     setBusy(true);
     try {
       await services.finance.accounts.save({
-        id: af.id, account_type: af.account_type, contact_name: af.contact_name, contact_reference: af.contact_reference, organization_id: af.organization_id,
+        id: af.id, account_type: af.account_type, contact_name: af.contact_name, contact_reference: af.contact_reference, organization_id: af.organization_id, cnpj: af.cnpj,
         description: af.description, services: af.services || [], category: af.category, expense_type: af.expense_type, status: af.status,
         contract_validity_value: af.contract_validity_value, contract_validity_unit: af.contract_validity_unit, contract_total: total,
         payment_installments: af.payment_installments, payment_day_of_month: af.payment_day_of_month, payment_method: af.payment_method, payment_reason: af.payment_reason,
@@ -447,23 +470,34 @@ export default function Financeiro() {
         <div className="finsec">
           <div className="finsec-h">{af.account_type === "payable" ? t("Identificação do Fornecedor") : t("Identificação do Cliente")}</div>
           <Field label={t("Cliente cadastrado no sistema")}>
-            <select value={af.organization_id} onChange={(e) => { const o = orgs.find((x: any) => x.id === e.target.value); setAf({ ...af, organization_id: e.target.value, contact_name: o ? o.name : af.contact_name }); }}>
+            <select value={af.organization_id} onChange={(e) => selecionarCliente(e.target.value)}>
               <option value="">{t("— avulso / não cadastrado —")}</option>
               {orgs.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
             </select>
-            {af.account_type === "receivable" && <small className="fhint">{af.organization_id ? t("Esta cobrança (e suas parcelas) aparece como fatura no portal deste cliente.") : t("Sem cliente, a cobrança fica só no admin — não aparece em nenhum portal.")}</small>}
+            {clienteBusy && <small className="fhint">{t("Puxando o cadastro do cliente…")}</small>}
+            {!clienteBusy && af.organization_id && (
+              <small className="fhint">
+                ✓ {t("Cadastro preenchido automaticamente")}{af.cnpj ? ` · CNPJ ${af.cnpj}` : ""}.
+                {af.account_type === "receivable" ? " " + t("Esta cobrança aparece como fatura no portal do cliente.") : ""}
+              </small>
+            )}
+            {!af.organization_id && af.account_type === "receivable" && <small className="fhint">{t("Sem cliente, a cobrança fica só no admin — não aparece em nenhum portal.")}</small>}
           </Field>
           <div className="grid2">
             <Field label={t("Razão Social / Empresa") + " *"}>
               <input list="fin-companies" value={af.contact_name} onChange={(e) => setAf({ ...af, contact_name: e.target.value })} placeholder={t("Digite para buscar (ex: SR)")} />
               <datalist id="fin-companies">{companySuggestions.map((n) => <option key={n} value={n} />)}</datalist>
-              <small className="fhint">{t("Sugestões puxadas do cadastro e de lançamentos anteriores")}</small>
             </Field>
-            <Field label={t("Contato / Referência")}>
-              <input value={af.contact_reference} onChange={(e) => setAf({ ...af, contact_reference: e.target.value })} placeholder={t("Ex: Account Manager, Autoatendimento, Suporte")} />
+            <Field label={t("CNPJ")}>
+              <input value={af.cnpj} onChange={(e) => setAf({ ...af, cnpj: e.target.value })} placeholder={t("Preenchido do cadastro")} />
             </Field>
           </div>
-          <Field label={t("Descrição dos Serviços")}><input value={af.description} onChange={(e) => setAf({ ...af, description: e.target.value })} placeholder={t("Resumo geral dos serviços contratados")} /></Field>
+          <div className="grid2">
+            <Field label={t("Contato / Referência")}>
+              <input value={af.contact_reference} onChange={(e) => setAf({ ...af, contact_reference: e.target.value })} placeholder={t("Ex: Responsável, e-mail ou telefone")} />
+            </Field>
+            <Field label={t("Descrição dos Serviços")}><input value={af.description} onChange={(e) => setAf({ ...af, description: e.target.value })} placeholder={t("Resumo geral dos serviços contratados")} /></Field>
+          </div>
         </div>
 
         {/* Serviços do fornecedor */}
