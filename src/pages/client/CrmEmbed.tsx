@@ -21,6 +21,16 @@ export default function CrmEmbed() {
   const [agents, setAgents] = useState<Agent[] | null>(null);
   const [chosen, setChosen] = useState<string | null>(null); // id do agente ou "*" (empresa inteira)
   const [err, setErr] = useState<string>("");
+  const [live, setLive] = useState<import("../../services/delivery.service").CrmLive | null>(null);
+
+  // Mini-cockpit AO VIVO (pulso do WhatsApp CRM) — atualiza a cada 30s. CRM fora → null → "—".
+  useEffect(() => {
+    let alive = true;
+    const load = () => services.delivery.crmLive.getMine().then((l) => { if (alive) setLive(l); }).catch(() => {});
+    load();
+    const id = setInterval(load, 30000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -84,8 +94,22 @@ export default function CrmEmbed() {
   // não vaza no access-log/histórico/Referer do iframe (era um vazamento diário). O CRM já lê do #
   // (session.ts), com fallback pra ?query durante a transição.
   const src = `${crmUrl}/?embedded=1${agentQS}#access_token=${encodeURIComponent(token || "")}`;
+  // Mini-cockpit de BI no topo do módulo (dado real do wacrm). Sem fonte = "—".
+  const stat = (label: string, value: any, tone?: "warn") => (
+    <div style={{ padding: "8px 16px", borderRight: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))", minWidth: 120 }}>
+      <div style={{ fontSize: 9.5, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--crasto-text-muted)", fontWeight: 600 }}>{label}</div>
+      <div className="tnum" style={{ fontSize: 18, fontWeight: 700, color: tone === "warn" ? "#B54708" : "var(--crasto-text-primary)", marginTop: 1 }}>{value}</div>
+    </div>
+  );
   return (
     <div className="crm-fs">{back}
+      <div style={{ display: "flex", alignItems: "stretch", background: "var(--crasto-surface, #fff)", borderBottom: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))", overflowX: "auto", flex: "0 0 auto" }}>
+        {stat(t("Agentes conectados"), live ? `${live.agentesOnline}/${live.agentesTotal}` : "—")}
+        {stat(t("Conversas ativas"), live ? live.conversasAtivas : "—")}
+        {stat(t("Aguardando na fila"), live ? live.fila : "—", live && live.fila > 0 ? "warn" : undefined)}
+        {stat(t("Atendido pela IA · hoje"), live ? (live.automacaoHoje != null ? `${live.automacaoHoje}%` : "—") : "—")}
+        <div style={{ marginLeft: "auto", alignSelf: "center", padding: "0 14px", fontSize: 11, color: "var(--crasto-text-muted)" }}>{t("ao vivo · atualiza a cada 30s")}</div>
+      </div>
       <iframe title="WhatsApp CRM" src={src} className="crm-fs-frame" allow="clipboard-write; microphone; camera; autoplay" />
     </div>
   );

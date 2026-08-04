@@ -66,4 +66,26 @@ export class WacrmMetricsService {
       c.release();
     }
   }
+
+  // MINI-COCKPIT do WhatsApp CRM — pulso AO VIVO AGORA (para o topo do módulo). Escopo por org.
+  async liveNow(orgId: string): Promise<{ agentesOnline: number; agentesTotal: number; conversasAtivas: number; fila: number; automacaoHoje: number | null } | null> {
+    const p = this.db();
+    if (!p || !orgId) return null;
+    const c = await p.connect();
+    try {
+      const r = (await c.query(
+        `select
+           (select count(*) from public.profiles where organization_id=$1 and last_seen_at > now() - interval '5 minutes')::int online,
+           (select count(*) from public.profiles where organization_id=$1)::int total,
+           (select count(*) from whatsapp.conversations where organization_id=$1 and coalesce(archived,false)=false and status in ('ai','human'))::int ativas,
+           (select count(*) from whatsapp.conversations where organization_id=$1 and coalesce(archived,false)=false and last_inbound is not null and (last_outbound is null or last_inbound > last_outbound))::int fila,
+           (select count(*) filter (where from_type='ai')    from whatsapp.messages where organization_id=$1 and created_at >= date_trunc('day', now()))::int ai_hoje,
+           (select count(*) filter (where from_type='human') from whatsapp.messages where organization_id=$1 and created_at >= date_trunc('day', now()))::int human_hoje`,
+        [orgId])).rows[0];
+      const tot = (r.ai_hoje || 0) + (r.human_hoje || 0);
+      return { agentesOnline: r.online, agentesTotal: r.total, conversasAtivas: r.ativas, fila: r.fila, automacaoHoje: tot > 0 ? Math.round((r.ai_hoje / tot) * 100) : null };
+    } finally {
+      c.release();
+    }
+  }
 }

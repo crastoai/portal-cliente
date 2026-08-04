@@ -141,4 +141,10 @@ export const cockpit = {
   getMine: async () => api.get<CockpitMine>(`/api/delivery/cockpit/mine`),
 };
 
-export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, selfService, moduleSessions, teamUsage, meetings, implEvents, agentUsage, cockpit };
+// Mini-cockpit do WhatsApp CRM — pulso ao vivo (agentes online, conversas ativas, fila, IA hoje).
+export type CrmLive = { agentesOnline: number; agentesTotal: number; conversasAtivas: number; fila: number; automacaoHoje: number | null };
+export const crmLive = {
+  getMine: async () => api.get<CrmLive | null>(`/api/delivery/crm-live/mine`),
+};
+
+export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, selfService, moduleSessions, teamUsage, meetings, implEvents, agentUsage, cockpit, crmLive };

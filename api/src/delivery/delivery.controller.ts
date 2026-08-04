@@ -179,6 +179,15 @@ export class DeliveryController {
     };
   }
 
+  // MINI-COCKPIT do WhatsApp CRM — pulso ao vivo (agentes online, conversas ativas, fila, IA hoje).
+  // Escopado pelo orgId do Portal (current_org_id, confiável). CRM fora → null → o front mostra "—".
+  @Get('crm-live/mine')
+  async crmLiveMine(@Req() req: any) {
+    const orgId = await this.db.asUser(this.uid(req), async (c) => (await c.query('select public.current_org_id() as id')).rows[0]?.id).catch(() => null);
+    if (!orgId) return null;
+    return this.wacrm.liveNow(orgId).catch(() => null);
+  }
+
   // ── client_modules ──
   /**
    * Soluções do cliente. Para o WhatsApp CRM devolvemos `crm_url` pronta: é a MESMA
