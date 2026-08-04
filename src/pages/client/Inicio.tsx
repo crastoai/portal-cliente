@@ -197,6 +197,36 @@ export default function Inicio() {
         : m.depois == null ? t("sem atividade ainda") : t("medido ao vivo");
   const conquistaTom = (c: any): Tom => { const r = String(c.rollout_status || c.status || "").toLowerCase(); return ["delivered", "done", "live"].includes(r) ? "green" : ["on_hold", "paused", "cancelled", "canceled"].includes(r) ? "red" : "amber"; };
 
+  // ── ENTREGAS & IMPLANTAÇÃO (Fase 2) — Gantt planejado×realizado + FAROL DE PRAZO por solução.
+  // Tudo derivado do dado real (início/previsão/entrega real/progresso). Sem fonte = "—".
+  const ymd2 = (x: any) => (x ? String(x).slice(0, 10) : "");
+  const diasEntre = (a?: string, b?: string) => (!a || !b ? null : Math.round((new Date(b + "T00:00:00").getTime() - new Date(a + "T00:00:00").getTime()) / 86400000));
+  const FAROL_COR: Record<string, string> = { green: "#1F8A5B", amber: "#B54708", red: "#B42318", mute: "#98A2B3" };
+  const brData = (iso?: string) => (iso ? new Date(iso + "T00:00:00").toLocaleDateString("pt-BR") : "—");
+  const brDataHora = (iso?: string) => (iso ? new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");
+  const entregaInfo = (m: any, hoje: string) => {
+    const inicio = ymd2(m.rollout_start) || ymd2(m.contract_date) || ymd2(m.activated_at);
+    const previsao = ymd2(m.rollout_due);
+    const entregaReal: string | null = m.delivered_at || null;
+    const prog = Number(m.rollout_progress || 0);
+    const st = String(m.rollout_status || "").toLowerCase();
+    const entregue = !!entregaReal || st === "delivered" || prog >= 100;
+    let tom: Tom = "green", label = t("No prazo");
+    if (st === "on_hold") { tom = "red"; label = t("Em espera"); }
+    else if (entregue) {
+      const d = entregaReal && previsao ? diasEntre(previsao, ymd2(entregaReal)) : null;
+      if (d != null && d > 0) { tom = "amber"; label = t("Entregue {n}d depois", { n: d }); }
+      else { tom = "green"; label = t("Entregue no prazo"); }
+    } else if (previsao) {
+      const atraso = diasEntre(previsao, hoje);
+      if (atraso != null && atraso > 0) { tom = "red"; label = t("Atrasado {n}d", { n: atraso }); }
+      else if (atraso != null && atraso >= -5) { tom = "amber"; label = t("Faltam {n}d", { n: -atraso }); }
+    }
+    let meta: number | null = null;
+    if (!entregue && inicio && previsao) { const tot = diasEntre(inicio, previsao), dec = diasEntre(inicio, hoje); if (tot && tot > 0 && dec != null) meta = Math.max(0, Math.min(100, Math.round((dec / tot) * 100))); }
+    return { inicio, previsao, entregaReal, prog: entregue ? 100 : prog, tom, label, meta, temData: !!(inicio || previsao || entregaReal) };
+  };
+
   return (
     <div>
       <div className="phead">
@@ -208,7 +238,7 @@ export default function Inicio() {
       {/* Abas do dashboard — separam o acompanhamento das SOLUÇÕES do painel de NEGÓCIOS do cliente. */}
       <div className="dashtabs" role="tablist">
         <button role="tab" aria-selected={tab === "resultados"} className={"dashtab" + (tab === "resultados" ? " on" : "")} onClick={() => setTab("resultados")}>{t("Meus Resultados")}</button>
-        <button role="tab" aria-selected={tab === "solucoes"} className={"dashtab" + (tab === "solucoes" ? " on" : "")} onClick={() => setTab("solucoes")}>{t("Soluções & Serviços")}</button>
+        <button role="tab" aria-selected={tab === "solucoes"} className={"dashtab" + (tab === "solucoes" ? " on" : "")} onClick={() => setTab("solucoes")}>{t("Entregas & Implantação")}</button>
         <button role="tab" aria-selected={tab === "minhas"} className={"dashtab" + (tab === "minhas" ? " on" : "")} onClick={() => setTab("minhas")}>{t("Minhas soluções")}{mods.length ? <span className="dashtab-cnt">{mods.length}</span> : null}</button>
         {podeFin && <button role="tab" aria-selected={tab === "negocios"} className={"dashtab" + (tab === "negocios" ? " on" : "")} onClick={() => setTab("negocios")}>{t("Negócios")}</button>}
       </div>
@@ -303,17 +333,58 @@ export default function Inicio() {
         <button className="kpi ckpi" onClick={() => setSlaOpen(true)}><div className="lab">{t("Contrato de suporte")}</div><div className="val" style={{ fontSize: 20 }}>{overall >= 100 ? t("SLA 48h") : daysLeft != null ? t("{n} dias", { n: daysLeft }) : t("SLA 48h")}</div><div className="delta">{overall >= 100 ? t("saber mais") : t("prazo de implantação")} <ArrowRight size={11} /></div></button>
       </div>
 
-      {/* ═══ SUAS SOLUÇÕES ═══ health check das soluções implementadas (farol próprio). */}
+      {/* ═══ ENTREGAS & IMPLANTAÇÃO ═══ Gantt planejado×realizado por solução (dado real). */}
       <div className="scopebox">
-        <div className="scopehead"><div>{farolSolucoes && <span className={"scopedot " + farolSolucoes} />}<Activity size={17} /><span>{t("Escopo e situação das soluções")}</span></div><small>{t("Health check das soluções — dado real do contrato e da implantação")}</small></div>
-        <div className="scopelist">
-          {itensEscopo.length === 0 ? (
-            <div className="scopeempty">{t("Nenhuma solução vinculada ao contrato ainda.")}</div>
-          ) : itensEscopo.map((item: any, idx: number) => {
-            const { tom, label } = statusInfo(item);
-            return <div className="scoperow" key={`${item.id || idx}-${idx}`}><span className={`scopedot ${tom}`} /><div><strong>{item.name || t("Solução contratada")}</strong>{item.description && <small>{item.description}</small>}</div><span className={`scopepill ${tom}`}>{label}</span></div>;
-          })}
-        </div>
+        <div className="scopehead"><div>{farolSolucoes && <span className={"scopedot " + farolSolucoes} />}<Activity size={17} /><span>{t("Entregas & Implantação")}</span></div><small>{t("início · previsão · entrega real · farol de prazo — dado real")}</small></div>
+        {itensEscopo.length === 0 ? (
+          <div className="scopeempty">{t("Nenhuma solução vinculada ao contrato ainda.")}</div>
+        ) : (() => {
+          const hoje = new Date().toISOString().slice(0, 10);
+          return (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 720 }}>
+                <thead><tr style={{ textAlign: "left", fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--crasto-text-muted)" }}>
+                  <th style={{ padding: "8px 10px" }}>{t("Solução")}</th><th style={{ padding: "8px 10px" }}>{t("Início")}</th><th style={{ padding: "8px 10px" }}>{t("Previsão")}</th><th style={{ padding: "8px 10px" }}>{t("Entrega real")}</th><th style={{ padding: "8px 10px", minWidth: 180 }}>{t("Implantação")}</th><th style={{ padding: "8px 10px" }}>{t("Prazo")}</th>
+                </tr></thead>
+                <tbody>
+                  {itensEscopo.map((item: any, idx: number) => {
+                    const isMod = item.kind !== "service";
+                    const info = isMod ? entregaInfo(item, hoje) : null;
+                    const { tom, label } = isMod ? { tom: info!.tom as string, label: info!.label } : statusInfo(item);
+                    return (
+                      <tr key={`${item.id || idx}-${idx}`} style={{ borderTop: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))" }}>
+                        <td style={{ padding: "11px 10px" }}><div style={{ fontWeight: 600, color: "var(--crasto-text-primary)", fontSize: 13.5 }}>{item.name || t("Solução contratada")}</div>{item.description && <div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)" }}>{item.description}</div>}</td>
+                        <td className="tnum" style={{ padding: "11px 10px", fontSize: 12.5, color: "var(--crasto-text-muted)" }}>{info ? brData(info.inicio) : "—"}</td>
+                        <td className="tnum" style={{ padding: "11px 10px", fontSize: 12.5 }}>{info ? brData(info.previsao) : "—"}</td>
+                        <td className="tnum" style={{ padding: "11px 10px", fontSize: 12 }}>{info?.entregaReal ? brDataHora(info.entregaReal) : "—"}</td>
+                        <td style={{ padding: "11px 10px", minWidth: 180 }}>
+                          {info ? (
+                            <div>
+                              <div style={{ position: "relative", height: 8 }}>
+                                <div style={{ height: 8, borderRadius: 999, background: "rgba(1,14,38,.08)", overflow: "hidden" }}>
+                                  <div style={{ height: "100%", width: `${info.prog}%`, borderRadius: 999, background: FAROL_COR[tom] }} />
+                                </div>
+                                {info.meta != null && <div title={t("meta hoje")} style={{ position: "absolute", top: -2, left: `${info.meta}%`, width: 2, height: 12, background: "var(--crasto-text-primary)", opacity: .5, borderRadius: 2 }} />}
+                              </div>
+                              <div className="tnum" style={{ fontSize: 11, color: "var(--crasto-text-muted)", marginTop: 3 }}>{info.prog}%</div>
+                            </div>
+                          ) : <span style={{ fontSize: 12, color: "var(--crasto-text-muted)" }}>—</span>}
+                        </td>
+                        <td style={{ padding: "11px 10px" }}><span className={"scopepill " + tom}>{label}</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", padding: "10px 10px 2px", fontSize: 11.5, color: "var(--crasto-text-muted)" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 14, height: 8, borderRadius: 3, background: FAROL_COR.green }} /> {t("no prazo")}</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 14, height: 8, borderRadius: 3, background: FAROL_COR.amber }} /> {t("atenção")}</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 14, height: 8, borderRadius: 3, background: FAROL_COR.red }} /> {t("atrasado")}</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 2, height: 12, background: "var(--crasto-text-primary)", opacity: .5 }} /> {t("meta planejada para hoje")}</span>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* ═══ SEU CONTRATO ═══ health check do contrato (situação financeira) — farol próprio,
