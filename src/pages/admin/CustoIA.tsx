@@ -41,14 +41,16 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
   const [ref, setRef] = useState(() => new Date());
   const from = monthISO(ref), to = monthEndISO(ref);
   const { data, loading, reload } = useAsync(async () => {
-    const [panel, orgs, gcpMap] = await Promise.all([
+    const [panel, orgs, gcpMap, insights] = await Promise.all([
       services.finance.aiCost.panel(from, to),
       services.identity.organizations.listBrief(),
       services.finance.aiCost.gcpMap().catch(() => [] as any[]),
+      services.finance.aiCost.insights(from, to).catch(() => null),
     ]);
-    return { panel: panel ?? {}, orgs: (orgs as any[]) ?? [], gcpMap: (gcpMap as any[]) ?? [] };
+    return { panel: panel ?? {}, orgs: (orgs as any[]) ?? [], gcpMap: (gcpMap as any[]) ?? [], insights };
   }, [from, to]);
   const panel = data?.panel ?? {}, orgs = data?.orgs ?? [], gcpMap = data?.gcpMap ?? [];
+  const insights = data?.insights ?? null;
   const s = panel.summary ?? { total: 0, prev_total: 0, platforms: 0, clients: 0, client_cost: 0 };
   const byPlatform: any[] = panel.by_platform ?? [];
   const byClient: any[] = panel.by_client ?? [];
@@ -176,6 +178,64 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
         <button className="kpi kpi-btn" onClick={() => scrollTo("cia-plataforma")}><div className="lab">{t("Plataformas com despesa")}</div><div className="val tnum" style={{ fontSize: 22 }}>{s.platforms || 0}</div><div className="delta">{provsPresentes.length ? provsPresentes.map((p) => providerLabel(p) || p).join(" · ") : t("nenhuma")}</div></button>
         <button className="kpi kpi-btn" onClick={() => scrollTo("cia-cliente")}><div className="lab">{t("Custo médio / cliente")}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(avgClient)}</div><div className="delta">{t("{n} cliente(s) com uso", { n: s.clients || 0 })}</div></button>
       </div>
+
+      {/* ══════════ VISÃO DE DONO (regras de negócio) ══════════ */}
+      {insights && (
+        <div style={{ marginBottom: 22 }}>
+          <div className="sec-h"><h2>{t("Visão de dono")}</h2></div>
+          <div className="kpis" style={{ marginBottom: 14 }}>
+            <div className="kpi" style={{ borderLeft: "3px solid #1F8A5B" }}>
+              <div className="lab">{t("Economia com DeepSeek (mês)")}</div>
+              <div className="val tnum" style={{ fontSize: 22, color: "#1F8A5B" }}>{money(insights.economia_deepseek?.brl || 0)}</div>
+              <div className="delta">{insights.economia_deepseek?.pct || 0}% {t("mais barato vs Gemini")} · {t("seria")} {money(insights.economia_deepseek?.seria_gemini || 0)}</div>
+            </div>
+            <div className="kpi">
+              <div className="lab">{t("Projeção de fechamento (mês)")}</div>
+              <div className="val tnum" style={{ fontSize: 22 }}>{money(insights.run_rate?.projetado_mes || 0)}</div>
+              <div className="delta">{t("hoje")} {money(insights.run_rate?.atual || 0)} · {t("dia")} {insights.run_rate?.dia_hoje}/{insights.run_rate?.dias_mes}</div>
+            </div>
+            <div className="kpi">
+              <div className="lab">{t("Clientes com custo de IA")}</div>
+              <div className="val tnum" style={{ fontSize: 22 }}>{(insights.por_cliente || []).filter((r: any) => r.custo_ia > 0).length}</div>
+              <div className="delta">{t("unit economics abaixo")}</div>
+            </div>
+            <div className="kpi">
+              <div className="lab">{t("Custo IA por lead (média)")}</div>
+              <div className="val tnum" style={{ fontSize: 22 }}>{(() => { const rs = (insights.por_cliente || []).filter((r: any) => r.custo_por_lead != null); const avg = rs.length ? rs.reduce((s: number, r: any) => s + r.custo_por_lead, 0) / rs.length : 0; return money(avg); })()}</div>
+              <div className="delta">{t("quanto a IA custa por lead atendido")}</div>
+            </div>
+          </div>
+          {(insights.por_cliente || []).length > 0 && (
+            <div className="tbl-wrap">
+              <table className="tbl">
+                <thead><tr>
+                  <th>{t("Cliente")}</th>
+                  <th style={{ textAlign: "right" }}>{t("Custo IA (mês)")}</th>
+                  <th style={{ textAlign: "right" }}>{t("Leads")}</th>
+                  <th style={{ textAlign: "right" }}>{t("Conversas")}</th>
+                  <th style={{ textAlign: "right" }}>{t("Custo / lead")}</th>
+                  <th style={{ textAlign: "right" }}>{t("Custo / conversa")}</th>
+                </tr></thead>
+                <tbody>
+                  {(insights.por_cliente as any[]).map((r) => (
+                    <tr key={r.organization_id}>
+                      <td className="nm" style={{ fontWeight: 600 }}>{r.cliente}</td>
+                      <td className="tnum" style={{ textAlign: "right", fontWeight: 700 }}>{money(r.custo_ia)}</td>
+                      <td className="tnum" style={{ textAlign: "right" }}>{r.leads}</td>
+                      <td className="tnum" style={{ textAlign: "right" }}>{r.conversas}</td>
+                      <td className="tnum" style={{ textAlign: "right" }}>{r.custo_por_lead != null ? money(r.custo_por_lead) : "—"}</td>
+                      <td className="tnum" style={{ textAlign: "right" }}>{r.custo_por_conversa != null ? money(r.custo_por_conversa) : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="note" style={{ marginTop: 10 }}>
+            <span>{t("A margem por cliente (receita − custos) entra quando a receita/MRR de cada cliente estiver cadastrada. Por ora, esta visão mostra o lado do CUSTO: economia da troca pra DeepSeek, projeção do mês e quanto a IA custa por lead/conversa de cada cliente.")}</span>
+          </div>
+        </div>
+      )}
 
       {loading ? <Empty>Carregando…</Empty> : byPlatform.length === 0 && byClient.length === 0 ? (
         <div className="card"><Empty><p><strong>{t("Nenhum custo de IA registrado neste mês.")}</strong> {t("Use \"Registrar custo\" para lançar o gasto de cada plataforma — ou aguarde a ingestão automática das APIs.")}</p></Empty></div>

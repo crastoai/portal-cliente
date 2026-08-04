@@ -36,6 +36,8 @@ export const aiCost = {
   remove: async (id: string) => api.del(`/api/finance/ai-cost/${id}`),
   /** Puxa o custo REAL das APIs de billing (Anthropic + OpenAI). 🔒 admin. */
   sync: async (from?: string, to?: string) => api.post<{ periodo: { start: string; end: string }; resultados: { provider: string; ok: boolean; cost?: number; erro?: string }[] }>(`/api/finance/ai-cost/sync`, { from, to }),
+  /** Visão de dono: economia DeepSeek, run-rate projetado, custo por lead/conversa por cliente. 🔒 admin. */
+  insights: async (from?: string, to?: string): Promise<any> => api.get<any>(`/api/finance/ai-cost/insights${qs({ from, to })}`),
   /** Salva a Admin key de billing no cofre (anthropic_admin | openai_admin). A chave nunca volta. */
   setBillingKey: async (provider: string, secret: string) => api.post<{ ok: boolean; error?: string }>(`/api/finance/ai-cost/billing-key`, { provider, secret }),
   billingStatus: async () => api.get<{ anthropic_admin: boolean; openai_admin: boolean }>(`/api/finance/ai-cost/billing-status`),

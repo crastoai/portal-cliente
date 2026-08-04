@@ -17,6 +17,10 @@ export class FinanceController {
   @Post('ai-cost/sync')
   aiCostSync(@Req() req: any, @Body() b: any) { return this.aiSync.sync(this.uid(req), { from: b?.from, to: b?.to }); }
 
+  // VISÃO DE DONO — métricas de negócio (economia DeepSeek, run-rate, custo por lead/conversa).
+  @Get('ai-cost/insights')
+  aiCostInsights(@Req() req: any, @Query('from') from: string, @Query('to') to: string) { return this.aiSync.insights(this.uid(req), { from, to }); }
+
   // Guarda no cofre a ADMIN key de billing (só anthropic_admin/openai_admin). A chave nunca
   // volta ao front; set_provider_secret cria a integração + o segredo no Vault.
   @Post('ai-cost/billing-key')

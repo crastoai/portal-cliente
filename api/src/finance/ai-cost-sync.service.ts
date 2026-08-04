@@ -254,6 +254,94 @@ export class AiCostSyncService {
     return { provider: 'deepseek', ok: true, cost: totalGeral, linhas };
   }
 
+  /**
+   * VISÃO DE DONO (CEO) — métricas de NEGÓCIO do custo de IA, não só o número bruto.
+   * O que o Carlos precisa/tem dor de ver:
+   *  - economia_deepseek: quanto ele ECONOMIZA usando DeepSeek em vez do Gemini (a decisão dele
+   *    de trocar pra cortar custo — provada em R$)
+   *  - run_rate: projeção de fechamento do mês (custo atual ÷ dias corridos × dias do mês)
+   *  - por_cliente: custo de IA + leads + conversas + custo POR LEAD e POR CONVERSA (unit economics)
+   *  - ranking implícito (por_cliente vem ordenado por custo desc)
+   * Cross-DB: custo vem do Portal (finance via RPC); tokens/leads/conversas vêm do wacrm.
+   */
+  async insights(uid: string, opts?: { from?: string; to?: string }): Promise<any> {
+    const { start, end } = this.periodo(opts?.from, opts?.to);
+    const USD_BRL = Number(process.env.USD_BRL) || 5.40;
+    // 1) Custo por cliente (BRL) do período — via RPC do painel (mesma fonte da tela).
+    const panel = await this.db.asUser(uid, async (c) => (await c.query(`select public.admin_ai_cost($1,$2) as r`, [start, end])).rows[0]?.r || {});
+    const byClient: any[] = (panel.by_client || []).filter((r: any) => r.organization_id);
+    const custoOrg = new Map<string, number>(byClient.map((r: any) => [r.organization_id, Number(r.cost || 0)]));
+    const nomeOrg = new Map<string, string>(byClient.map((r: any) => [r.organization_id, r.organization_name]));
+    const custoTotal = Number(panel.summary?.total || 0);
+
+    // 2) wacrm: tokens DeepSeek (economia), leads e conversas ativas por org no período.
+    const wacrm = this.wacrmDb();
+    let dsTokens: any[] = [], leads: any[] = [], convs: any[] = [];
+    if (wacrm) {
+      const c = await wacrm.connect();
+      try {
+        dsTokens = (await c.query(`
+          select organization_id,
+                 coalesce(sum((detail->>'tokens_in')::bigint),0) ti,
+                 coalesce(sum((detail->>'tokens_out')::bigint),0) too
+            from whatsapp.runtime_events
+           where kind='llm' and ok=true and (detail->>'provider')='deepseek'
+             and (created_at at time zone 'America/Sao_Paulo')::date between $1::date and $2::date
+           group by 1`, [start, end])).rows;
+        leads = (await c.query(`
+          select organization_id, count(*)::int n from whatsapp.leads
+           where (created_at at time zone 'America/Sao_Paulo')::date between $1::date and $2::date
+           group by 1`, [start, end])).rows;
+        convs = (await c.query(`
+          select cv.organization_id, count(distinct cv.id)::int n
+            from whatsapp.conversations cv
+           where exists (select 1 from whatsapp.messages m where m.conversation_id=cv.id
+                          and (m.created_at at time zone 'America/Sao_Paulo')::date between $1::date and $2::date)
+           group by 1`, [start, end])).rows;
+      } finally { c.release(); }
+    }
+    const leadsOrg = new Map<string, number>(leads.map((r: any) => [r.organization_id, Number(r.n)]));
+    const convsOrg = new Map<string, number>(convs.map((r: any) => [r.organization_id, Number(r.n)]));
+
+    // Economia DeepSeek: o que pagaria no Gemini Flash − o que paga no DeepSeek Flash (mesmos tokens).
+    const GEM: [number, number] = [0.30, 2.5], DS: [number, number] = [0.14, 0.28];
+    let economiaBrl = 0, ttGemBrl = 0, ttDsBrl = 0;
+    for (const r of dsTokens) {
+      const ti = Number(r.ti), too = Number(r.too);
+      const gem = (ti / 1e6 * GEM[0] + too / 1e6 * GEM[1]) * USD_BRL;
+      const ds = (ti / 1e6 * DS[0] + too / 1e6 * DS[1]) * USD_BRL;
+      economiaBrl += gem - ds; ttGemBrl += gem; ttDsBrl += ds;
+    }
+
+    // Run-rate: projeta o fechamento do mês pela proporção de dias corridos.
+    const hoje = new Date();
+    const diaHoje = hoje.getDate();
+    const diasMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
+    const projetado = diaHoje > 0 ? (custoTotal / diaHoje) * diasMes : custoTotal;
+
+    // Unit economics por cliente (ordenado por custo desc = ranking dos mais caros).
+    const orgIds = new Set<string>([...custoOrg.keys(), ...leadsOrg.keys(), ...convsOrg.keys()]);
+    const porCliente = [...orgIds].map((org) => {
+      const custo = custoOrg.get(org) || 0;
+      const nl = leadsOrg.get(org) || 0, nc = convsOrg.get(org) || 0;
+      return {
+        organization_id: org, cliente: nomeOrg.get(org) || '—',
+        custo_ia: Math.round(custo * 100) / 100,
+        leads: nl, conversas: nc,
+        custo_por_lead: nl > 0 ? Math.round((custo / nl) * 100) / 100 : null,
+        custo_por_conversa: nc > 0 ? Math.round((custo / nc) * 100) / 100 : null,
+      };
+    }).filter((r) => r.custo_ia > 0 || r.leads > 0 || r.conversas > 0)
+      .sort((a, b) => b.custo_ia - a.custo_ia);
+
+    return {
+      periodo: { start, end },
+      economia_deepseek: { brl: Math.round(economiaBrl * 100) / 100, seria_gemini: Math.round(ttGemBrl * 100) / 100, custa_deepseek: Math.round(ttDsBrl * 100) / 100, pct: ttGemBrl > 0 ? Math.round((economiaBrl / ttGemBrl) * 100) : 0 },
+      run_rate: { atual: Math.round(custoTotal * 100) / 100, projetado_mes: Math.round(projetado * 100) / 100, dia_hoje: diaHoje, dias_mes: diasMes },
+      por_cliente: porCliente,
+    };
+  }
+
   /** Sincroniza os provedores com custo real. Nunca lança: devolve status por provedor. */
   async sync(uid: string, opts?: { from?: string; to?: string }): Promise<{ periodo: { start: string; end: string }; resultados: Resultado[] }> {
     const { start, end } = this.periodo(opts?.from, opts?.to);
