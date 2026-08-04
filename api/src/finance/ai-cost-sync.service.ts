@@ -276,10 +276,11 @@ export class AiCostSyncService {
 
     // 2) wacrm: tokens DeepSeek (economia), leads e conversas ativas por org no período.
     const wacrm = this.wacrmDb();
-    let dsTokens: any[] = [], leads: any[] = [], convs: any[] = [];
+    let dsTokens: any[] = [], leads: any[] = [], convs: any[] = [], nomes: any[] = [];
     if (wacrm) {
       const c = await wacrm.connect();
       try {
+        nomes = (await c.query(`select id, name from public.organizations`)).rows;
         dsTokens = (await c.query(`
           select organization_id,
                  coalesce(sum((detail->>'tokens_in')::bigint),0) ti,
@@ -302,6 +303,8 @@ export class AiCostSyncService {
     }
     const leadsOrg = new Map<string, number>(leads.map((r: any) => [r.organization_id, Number(r.n)]));
     const convsOrg = new Map<string, number>(convs.map((r: any) => [r.organization_id, Number(r.n)]));
+    // Nome do cliente: prioriza o do painel (com custo); senão o do wacrm (org com atividade sem custo).
+    for (const r of nomes) if (r.id && !nomeOrg.has(r.id)) nomeOrg.set(r.id, r.name);
 
     // Economia DeepSeek: o que pagaria no Gemini Flash − o que paga no DeepSeek Flash (mesmos tokens).
     const GEM: [number, number] = [0.30, 2.5], DS: [number, number] = [0.14, 0.28];
