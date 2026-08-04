@@ -230,27 +230,28 @@ export class AiCostSyncService {
     if (!rows.length) return { provider: 'deepseek', ok: true, cost: 0, linhas: 0 };
     // Reescreve limpo (mesmo padrão do Google): apaga auto-sync deepseek do período e regrava.
     await this.db.asUser(uid, async (c) => { await c.query(`select public.fin_ai_cost_delete_auto_sync('deepseek', $1, $2)`, [start, end]); });
-    // Soma por org (agregando todos os modelos daquela org num único cost linhas).
-    const byOrg = new Map<string, number>(); // org → custo em USD
-    let semPreco = 0, totalGeral = 0;
+    // O painel financeiro mostra R$. O pricing DeepSeek é em USD → converto pra BRL (a mesma
+    // moeda do Google, que já vem em BRL do BigQuery). Taxa por env (USD_BRL), default 5.40.
+    const USD_BRL = Number(process.env.USD_BRL) || 5.40;
+    // Soma por org (agregando todos os modelos daquela org num único lançamento).
+    const byOrg = new Map<string, number>(); // org → custo em BRL
+    let totalGeral = 0;
     for (const r of rows) {
-      const preco = AiCostSyncService.DEEPSEEK_PRICE[r.model];
-      if (!preco) { semPreco++; this.log.warn(`modelo DeepSeek sem preço cadastrado: ${r.model}`); continue; }
-      const usd = (r.ti / 1e6) * preco[0] + (r.too / 1e6) * preco[1];
+      // Modelo desconhecido → assume flash (nunca ignora silenciosamente: melhor estimar que sumir).
+      const preco = AiCostSyncService.DEEPSEEK_PRICE[r.model] || AiCostSyncService.DEEPSEEK_PRICE['deepseek-v4-flash'];
+      const brl = ((r.ti / 1e6) * preco[0] + (r.too / 1e6) * preco[1]) * USD_BRL;
       const orgKey = r.organization_id || '__internal__';
-      byOrg.set(orgKey, (byOrg.get(orgKey) || 0) + usd);
-      totalGeral += usd;
+      byOrg.set(orgKey, (byOrg.get(orgKey) || 0) + brl);
+      totalGeral += brl;
     }
     let linhas = 0;
-    for (const [orgKey, usd] of byOrg.entries()) {
-      if (usd < 0.001) continue; // ignora migalha < 0.1 centavo (evita ruído no dashboard)
+    for (const [orgKey, brl] of byOrg.entries()) {
+      if (brl < 0.005) continue; // ignora migalha < meio centavo (evita ruído)
       const orgId = orgKey === '__internal__' ? null : orgKey;
-      await this.gravar(uid, 'deepseek', 'deepseek_api', usd, start, end, orgId);
+      await this.gravar(uid, 'deepseek', 'deepseek_api', brl, start, end, orgId);
       linhas++;
     }
-    const notas: string[] = [];
-    if (semPreco > 0) notas.push(`${semPreco} linha(s) com modelo sem preço cadastrado — atualize DEEPSEEK_PRICE se DeepSeek lançou modelo novo.`);
-    return { provider: 'deepseek', ok: true, cost: totalGeral, linhas, ...(notas.length ? { erro: notas.join(' ') } : {}) };
+    return { provider: 'deepseek', ok: true, cost: totalGeral, linhas };
   }
 
   /** Sincroniza os provedores com custo real. Nunca lança: devolve status por provedor. */

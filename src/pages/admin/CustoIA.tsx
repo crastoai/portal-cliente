@@ -261,9 +261,13 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
           </table>
         </div>
 
-        {/* lançamentos do período (editar/excluir) */}
-        {(panel.rows ?? []).length > 0 && (<>
-          <div className="sec-h" style={{ marginTop: 20 }}><h2>{t("Lançamentos do mês")}</h2></div>
+        {/* lançamentos do período (editar/excluir) — linhas individuais (auto-sync + manuais).
+            Recolhido por padrão: é detalhe/auditoria, não a visão principal. */}
+        {(panel.rows ?? []).length > 0 && (
+          <details style={{ marginTop: 20 }}>
+          <summary style={{ cursor: "pointer", fontWeight: 600, color: "var(--crasto-navy, #010E26)", padding: "8px 0" }}>
+            {t("Lançamentos do mês (detalhe/auditoria)")} <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>({(panel.rows as any[]).length})</span>
+          </summary>
           <div className="tbl-wrap">
             <table className="tbl">
               <thead><tr>
@@ -293,12 +297,17 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
               </tbody>
             </table>
           </div>
-        </>)}
+          </details>
+        )}
       </>)}
 
-      {/* Mapa GCP project → cliente — usado pelo sync do Gemini para separar o custo por cliente.
-          Sem mapeamento, o custo do projeto cai como "Interno / plataforma". */}
-      <div className="sec-h" style={{ marginTop: 20 }}><h2>{t("Projetos GCP (Gemini) — mapeamento por cliente")}</h2></div>
+      {/* Mapa GCP project → cliente — usado SÓ pelo sync do Gemini/Google para separar o custo por
+          cliente. É configuração (cadastra 1× por projeto) — por isso fica recolhido por padrão,
+          pra não poluir a visão diária. DeepSeek/outros não usam este mapa (o custo já vem por org). */}
+      <details style={{ marginTop: 20 }}>
+        <summary style={{ cursor: "pointer", fontWeight: 600, color: "var(--crasto-navy, #010E26)", padding: "8px 0" }}>
+          ⚙️ {t("Configuração do Google/Gemini — mapa de projetos GCP")} <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>({gcpMap.length} {t("projeto(s)")})</span>
+        </summary>
       <div className="tbl-wrap" style={{ marginBottom: 12 }}>
         <table className="tbl">
           <thead><tr>
@@ -345,9 +354,10 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
       <div className="note" style={{ marginBottom: 14 }}>
         <span>{t("Como funciona:")} {t("cada chave criada no AI Studio pertence a 1 projeto GCP. O sync agrupa o custo do Gemini por projeto e usa este mapa para saber o cliente. Cadastre 1× por projeto — o resto é automático a cada \"Sincronizar custos\".")}</span>
       </div>
+      </details>
 
       <div className="note" style={{ marginTop: 18, display: "flex", gap: 10, alignItems: "flex-start" }}>
-        <div><strong>{t("Causa raiz financeira:")}</strong> {t("cada valor vem do consumo real (tokens/uso) por plataforma, registrado por cliente. A ingestão automática das APIs (Anthropic, OpenAI, Google, ElevenLabs) entra numa próxima fase; por ora o lançamento é manual por período.")}</div>
+        <div><strong>{t("Como o custo é calculado:")}</strong> {t("DeepSeek e demais LLMs por token → o custo por cliente é ESTIMADO do consumo real (tokens de cada agente × preço oficial da API), em tempo real a cada \"Sincronizar custos\". Google/Gemini vem do billing real do Google Cloud (delay ~24–48h). Anthropic/OpenAI via Admin key. Tudo consolidado por cliente em R$.")}</div>
       </div>
 
       {/* Modal registrar/editar */}
