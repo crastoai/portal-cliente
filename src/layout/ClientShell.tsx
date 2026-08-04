@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Home, LayoutGrid, Activity, Sparkles, Wallet, Users, LifeBuoy, Eye, IdCard,
-  MessageCircle, Megaphone, Share2, Target, ShoppingCart, type LucideIcon } from "lucide-react";
+  MessageCircle, Megaphone, Share2, Target, ShoppingCart, PackageOpen, type LucideIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { useAsync } from "../ui/ui";
 import { services } from "../services";
@@ -27,6 +27,7 @@ const MODULES: { key: string; label: string; icon: LucideIcon; rx: RegExp; crm?:
   { key: "social", label: "Social Media", icon: Share2, rx: /social/i },
   { key: "trafego", label: "Tráfego Pago", icon: Target, rx: /tr[aá]feg|ads|paga|paid/i },
   { key: "compras", label: "Compras", icon: ShoppingCart, rx: /compra|purchas|suprim/i },
+  { key: "importacao", label: "Importação", icon: PackageOpen, rx: /importa[çc][ãa]o|import\b/i },
 ];
 
 export default function ClientShell() {
@@ -123,21 +124,24 @@ export default function ClientShell() {
 
   // Categorias do sidebar do cliente (colapsáveis, com seta — igual ao admin). Início fica no
   // topo, sem categoria (sempre visível). O resto entra numa das seções abaixo.
+  // Seções do protótipo aprovado (Minha Crasto.AI · Módulos · Ajuda). O Shell agrupa por seção
+  // CONSECUTIVA — por isso a montagem do nav abaixo mantém cada seção junta e na ordem certa.
+  const REL = "Minha Crasto.AI";
   const SECAO: Record<string, string | undefined> = {
-    inicio: undefined,                      // topo, sempre visível
-    modulos: "Acompanhamento", implementacao: "Acompanhamento", solucoes: "Acompanhamento",
-    financeiro: "Conta", usuarios: "Conta", perfil: "Conta",
+    inicio: REL, modulos: REL, implementacao: REL, solucoes: REL, financeiro: REL, perfil: REL,
+    usuarios: "Módulos",       // Gestão de Acessos entra no fim de "Módulos"
     suporte: "Ajuda",
   };
   const telas = CLIENT_SCREENS
     .filter((s) => allowed.has(s.key))
     .filter((s) => s.key !== "implementacao" || !implDone)
     .map((s) => ({ to: s.to, end: s.key === "inicio", icon: SCREEN_ICON[s.key], label: s.label, section: SECAO[s.key] }));
-  // Ordem: Início (topo) → Módulos (uso diário) → Acompanhamento → Conta → Ajuda.
+  // Ordem: Minha Crasto.AI (Cockpit no topo) → Módulos (os módulos + Gestão de Acessos) → Ajuda.
   const nav: NavItem[] = [
-    ...telas.filter((s) => s.to === "/app"),
+    ...telas.filter((s) => s.section === REL),
     ...modItems,
-    ...telas.filter((s) => s.to !== "/app"),
+    ...telas.filter((s) => s.section === "Módulos"),
+    ...telas.filter((s) => s.section === "Ajuda"),
   ];
 
   // Barra inferior do CELULAR (thumb zone): prioriza Início, WhatsApp CRM, Suporte, Perfil e

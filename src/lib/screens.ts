@@ -4,12 +4,12 @@
 export type ClientScreen = { key: string; to: string; label: string };
 
 export const CLIENT_SCREENS: ClientScreen[] = [
-  { key: "inicio", to: "/app", label: "Início" },
+  { key: "inicio", to: "/app", label: "Cockpit" },
   { key: "modulos", to: "/app/modulos", label: "Minhas Soluções" },
   { key: "implementacao", to: "/app/implementacao", label: "Minha Implementação" },
   { key: "solucoes", to: "/app/solucoes", label: "Catálogo de soluções" },
   { key: "financeiro", to: "/app/financeiro", label: "Financeiro" },
-  { key: "usuarios", to: "/app/usuarios", label: "Usuários & Equipe" },
+  { key: "usuarios", to: "/app/usuarios", label: "Gestão de Acessos" },
   { key: "perfil", to: "/app/perfil", label: "Dados cadastrais" },
   { key: "suporte", to: "/app/suporte", label: "Suporte & Ajuda" },
 ];
