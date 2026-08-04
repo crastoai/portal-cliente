@@ -14,6 +14,17 @@ export class DeliveryController {
     return { sets: keys.map((k, i) => `"${k}"=$${startAt + i}`).join(', '), vals: keys.map((k) => patch[k]), ok: keys.length > 0 };
   }
 
+  // Federa um GET do wacrm repassando o Bearer do PRÓPRIO cliente (mesmo IdP Supabase) — a RLS
+  // do wacrm escopa por org. CRM fora/sem auth → null (a tela mostra "—", nunca inventa).
+  private async fetchCrm(req: any, path: string): Promise<any | null> {
+    const url = process.env.CRM_API_URL, auth = req?.headers?.authorization;
+    if (!url || !auth) return null;
+    try {
+      const r = await fetch(`${url.replace(/\/$/, '')}${path}`, { headers: { Authorization: auth } });
+      return await r.json().catch(() => null);
+    } catch { return null; }
+  }
+
   // `access_mode` viaja junto: é ele que diz ao front COMO abrir a instância
   // (link = nova aba, como sempre foi · embed = dentro do Portal · sso = embed com sessão própria).
   private readonly ROLLOUT = 'id,vdi_module_id,status,label,blurb,rollout_progress,rollout_due,rollout_status,access_mode,monthly_cost,setup_cost,contract_date,cost_allocation';
@@ -93,6 +104,63 @@ export class DeliveryController {
     });
     const { orgId: _orgId, ...safe } = visible;
     return { ...safe, ...privateUsage };
+  }
+
+  // ── COCKPIT · "Meus Resultados" (Fase 1) ──────────────────────────────────────
+  // Consolida, client-safe, os dados de RESULTADO do cliente:
+  //  • métricas antes×depois — o "depois" vem AO VIVO do wacrm (/api/dashboard + /api/me/agent-usage);
+  //    o "antes" (baseline declarado na reunião/print) entra no item 1.3 → por ora `antes:null` e o
+  //    front mostra a EVOLUÇÃO (trend atual×anterior). A narrativa da Psiquê entra no item 1.4.
+  //  • volume (mensagens/dia), jornada (marcos de implantação) e conquistas (módulos/serviços).
+  // Regra de ouro: sem fonte = null (o front vira "—"), NUNCA número inventado.
+  @Get('cockpit/mine')
+  async cockpitMine(@Req() req: any) {
+    const dash = await this.fetchCrm(req, '/api/dashboard?period=30d'); // motor antes×depois
+    const agent = await this.fetchCrm(req, '/api/me/agent-usage');      // taxa de automação (30d)
+    const crmOk = !!(dash && dash.cards);
+    const agentOk = !!(agent && agent.hasData);
+    const cards = dash?.cards || {};
+    const val = (x: any) => (typeof x?.value === 'number' ? x.value : null);
+    const trend = (x: any) => (typeof x?.trend === 'number' ? x.trend : null);
+
+    // antes: null até o Baseline de Entrada (1.3). depois: valor real ao vivo. trend: evolução.
+    const metrics = [
+      { key: 'tempo_resposta', label: '1ª resposta no WhatsApp', unidade: 's', melhor: 'menor',
+        antes: null as number | null, fonte_antes: null as string | null, depois: val(cards.tempo_medio_seg), trend: trend(cards.tempo_medio_seg) },
+      { key: 'automacao', label: 'Atendido pela IA (30d)', unidade: '%', melhor: 'maior',
+        antes: null as number | null, fonte_antes: null as string | null, depois: agentOk && typeof agent.automationPct === 'number' ? agent.automationPct : null, trend: null as number | null },
+      { key: 'atendimentos', label: 'Conversas atendidas', unidade: '', melhor: 'maior',
+        antes: null as number | null, fonte_antes: null as string | null, depois: val(cards.atendimentos), trend: trend(cards.atendimentos) },
+      { key: 'novos_leads', label: 'Novos leads', unidade: '', melhor: 'maior',
+        antes: null as number | null, fonte_antes: null as string | null, depois: val(cards.novos_leads), trend: trend(cards.novos_leads) },
+    ];
+
+    const db = await this.db.asUser(this.uid(req), async (c) => {
+      const orgId = (await c.query('select public.current_org_id() as id')).rows[0]?.id;
+      if (!orgId) return null;
+      const jornada = (await c.query(
+        `select e.happened_at, e.title, e.detail, coalesce(nullif(cm.label,''), vm.name) as module_name
+           from delivery.implementation_events e
+           left join delivery.client_modules cm on cm.id = e.client_module_id
+           left join catalog.vdi_modules vm on vm.id = cm.vdi_module_id
+          order by e.happened_at desc limit 20`)).rows;
+      const conquistas = (await c.query(
+        `select coalesce(cm.label, m.name) as titulo, cm.status, cm.rollout_status, 'module' as tipo
+           from delivery.client_modules cm join catalog.vdi_modules m on m.id = cm.vdi_module_id
+          union all
+         select service_name as titulo, status, null as rollout_status, 'service' as tipo
+           from delivery.client_services`)).rows;
+      return { jornada, conquistas };
+    });
+
+    return {
+      metrics,
+      volume: crmOk && Array.isArray(dash.volume) ? dash.volume : [],
+      jornada: db?.jornada ?? [],
+      conquistas: db?.conquistas ?? [],
+      narrativa: null,                      // Psiquê — item 1.4
+      fontes: { crm: crmOk, agent: agentOk }, // p/ o front saber quando mostrar "—"
+    };
   }
 
   // ── client_modules ──
