@@ -1,13 +1,14 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { JwtOrgGuard } from '../common/jwt-org.guard';
 import { RlsDbService } from '../common/rls-db.service';
+import { WacrmMetricsService } from './wacrm-metrics.service';
 
 // Bounded context DELIVERY (schema delivery). Tudo em asUser → a RLS do Portal faz o "mine"
 // (própria org do cliente) e o bypass do admin, exatamente como fazia via PostgREST.
 @Controller('delivery')
 @UseGuards(JwtOrgGuard)
 export class DeliveryController {
-  constructor(private readonly db: RlsDbService) {}
+  constructor(private readonly db: RlsDbService, private readonly wacrm: WacrmMetricsService) {}
   private uid(req: any): string { return req.user.id; }
   private set(patch: Record<string, any>, startAt: number) {
     const keys = Object.keys(patch || {}).filter((k) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k));
@@ -115,32 +116,11 @@ export class DeliveryController {
   // Regra de ouro: sem fonte = null (o front vira "—"), NUNCA número inventado.
   @Get('cockpit/mine')
   async cockpitMine(@Req() req: any) {
-    const dash = await this.fetchCrm(req, '/api/dashboard?period=30d'); // motor antes×depois
-    const agent = await this.fetchCrm(req, '/api/me/agent-usage');      // taxa de automação (30d)
-    const crmOk = !!(dash && dash.cards);
-    const agentOk = !!(agent && agent.hasData);
-    const cards = dash?.cards || {};
-    const val = (x: any) => (typeof x?.value === 'number' ? x.value : null);
-    const trend = (x: any) => (typeof x?.trend === 'number' ? x.trend : null);
-
-    // antes: null até o Baseline de Entrada (1.3). depois: valor real ao vivo. trend: evolução.
-    const metrics = [
-      { key: 'tempo_resposta', label: '1ª resposta no WhatsApp', unidade: 's', melhor: 'menor',
-        antes: null as number | null, fonte_antes: null as string | null, depois: val(cards.tempo_medio_seg), trend: trend(cards.tempo_medio_seg) },
-      { key: 'automacao', label: 'Atendido pela IA (30d)', unidade: '%', melhor: 'maior',
-        antes: null as number | null, fonte_antes: null as string | null, depois: agentOk && typeof agent.automationPct === 'number' ? agent.automationPct : null, trend: null as number | null },
-      { key: 'atendimentos', label: 'Conversas atendidas', unidade: '', melhor: 'maior',
-        antes: null as number | null, fonte_antes: null as string | null, depois: val(cards.atendimentos), trend: trend(cards.atendimentos) },
-      { key: 'novos_leads', label: 'Novos leads', unidade: '', melhor: 'maior',
-        antes: null as number | null, fonte_antes: null as string | null, depois: val(cards.novos_leads), trend: trend(cards.novos_leads) },
-    ];
-
-    // Escopo EXPLÍCITO por org (organization_id = current_org_id()) — não confiar só na RLS:
-    // p/ admin a RLS faz bypass e voltaria dado de TODOS os clientes (vazamento). `.catch` garante
-    // que uma falha de DB NUNCA derruba o cockpit (o front recebe [], mostra "—"/vazio honesto).
+    // 1) orgId CONFIÁVEL do Portal (current_org_id via RLS) + conquistas/jornada da própria org.
+    //    `.catch` garante que uma falha de DB NUNCA derruba o cockpit (front recebe [] → "—").
     const db = await this.db.asUser(this.uid(req), async (c) => {
       const orgId = (await c.query('select public.current_org_id() as id')).rows[0]?.id;
-      if (!orgId) return { jornada: [] as any[], conquistas: [] as any[] };
+      if (!orgId) return { orgId: null as string | null, jornada: [] as any[], conquistas: [] as any[], baseline: [] as any[] };
       const jornada = (await c.query(
         `select e.happened_at, e.title, e.detail, coalesce(nullif(cm.label,''), vm.name) as module_name
            from delivery.implementation_events e
@@ -155,16 +135,43 @@ export class DeliveryController {
           union all
          select service_name as titulo, status, null as rollout_status, 'service' as tipo
            from delivery.client_services where organization_id = $1`, [orgId])).rows;
-      return { jornada, conquistas };
-    }).catch(() => ({ jornada: [] as any[], conquistas: [] as any[] }));
+      // Baseline ("antes") vigente — casado por métrica com os resultados vivos (item 1.3).
+      const baseline = (await c.query(
+        `select metric, valor_antes, unidade, status, fonte, baseline_date from delivery.client_baseline
+          where organization_id = $1 and is_current`, [orgId])).rows;
+      return { orgId, jornada, conquistas, baseline };
+    }).catch(() => ({ orgId: null as string | null, jornada: [] as any[], conquistas: [] as any[], baseline: [] as any[] }));
+
+    // 2) RESULTADOS VIVOS direto do wacrm, escopados pelo orgId do Portal (confiável e em tempo real).
+    const r = db?.orgId ? await this.wacrm.resultados(db.orgId).catch(() => null) : null;
+    const crmOk = !!r;
+    const bmap: Record<string, any> = {};
+    for (const b of (db?.baseline || [])) bmap[b.metric] = b;
+    // antes = baseline informado; depois = valor vivo do wacrm; trend = evolução (quando não há "antes").
+    const metric = (key: string, label: string, unidade: string, melhor: 'menor' | 'maior', depois: number | null, trend: number | null) => {
+      const b = bmap[key];
+      const temAntes = b && (b.status === 'informado' || b.status === 'medido') && b.valor_antes != null;
+      return {
+        key, label, unidade, melhor,
+        antes: temAntes ? Number(b.valor_antes) : null,
+        fonte_antes: b ? (b.status === 'nao_tinha' ? 'não tinha' : (b.fonte || null)) : null,
+        depois, trend,
+      };
+    };
+    const metrics = [
+      metric('tempo_resposta', '1ª resposta no WhatsApp', 's', 'menor', r?.tempo_resposta ?? null, null),
+      metric('automacao', 'Atendido pela IA (30d)', '%', 'maior', r?.automacao ?? null, null),
+      metric('atendimentos', 'Conversas atendidas', '', 'maior', r?.atendimentos ?? null, r?.trend?.atendimentos ?? null),
+      metric('novos_leads', 'Novos leads', '', 'maior', r?.novos_leads ?? null, r?.trend?.novos_leads ?? null),
+    ];
 
     return {
       metrics,
-      volume: crmOk && Array.isArray(dash.volume) ? dash.volume : [],
+      volume: r?.volume ?? [],
       jornada: db?.jornada ?? [],
       conquistas: db?.conquistas ?? [],
-      narrativa: null,                      // Psiquê — item 1.4
-      fontes: { crm: crmOk, agent: agentOk }, // p/ o front saber quando mostrar "—"
+      narrativa: null,                        // Psiquê — item 1.4
+      fontes: { crm: crmOk, agent: crmOk },   // p/ o front saber quando mostrar "—"
     };
   }
 
