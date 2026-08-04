@@ -93,6 +93,10 @@ export default function Financeiro() {
   const [tab, setTab] = useState(sp.get("tab") || "pagar"); // permite abrir direto numa aba (ex.: ?tab=receber)
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  // Edição INLINE de UMA parcela direto na lista (sem abrir o modal). {acc:idConta, inst:nºparcela}
+  const [parcEdit, setParcEdit] = useState<{ acc: string; inst: number } | null>(null);
+  const [parcDraft, setParcDraft] = useState<any>(null);
+  const fLabel: any = { display: "flex", flexDirection: "column", gap: 3, fontSize: 11, fontWeight: 600, color: "var(--crasto-text-muted)" };
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 6000); };
@@ -296,6 +300,33 @@ export default function Financeiro() {
     try { await services.finance.accounts.save({ id: i.id, payment_schedule: sched, amount_paid: paid, status, payment_date: status === "paid" ? (lastPaid || today()) : "" }); reload(); flash(t("Parcela atualizada ✓")); }
     catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
   }
+  // abre o editor inline de uma parcela (clicando na linha) — carrega o rascunho
+  function openParc(i: any, p: any) {
+    setParcEdit({ acc: i.id, inst: p.installment });
+    setParcDraft({ installment: p.installment, date: ymd(p.date), amount: String(p.amount ?? ""), status: p.status || "pending",
+      paid_date: p.paid_date ? ymd(p.paid_date) : "", proof_note: p.proof_note || "", proof_url: p.proof_url || "",
+      penalty_amount: String(p.penalty_amount ?? ""), penalty_waived: !!p.penalty_waived });
+  }
+  const setParc = (patch: any) => setParcDraft((d: any) => ({ ...d, ...patch }));
+  // salva SÓ a parcela editada inline e recomputa a conta (mesma lógica do toggleInstallment)
+  async function saveParcInline(i: any) {
+    const d = parcDraft; if (!d) return;
+    const cur = Array.isArray(i.payment_schedule) ? i.payment_schedule : [];
+    const sched = cur.map((p: any) => p.installment === d.installment ? {
+      ...p, date: d.date, amount: Number(d.amount || 0), status: d.status,
+      paid_date: d.paid_date || "", proof_note: d.proof_note || "", proof_url: d.proof_url || "",
+      penalty_amount: Number(d.penalty_amount || 0), penalty_waived: !!d.penalty_waived,
+      amount_paid: d.status === "paid" ? Number(d.amount || 0) : 0,
+      paid_at: d.status === "paid" ? (p.paid_at || new Date().toISOString()) : null,
+    } : p);
+    const paid = sched.filter((p: any) => p.status === "paid").reduce((a: number, p: any) => a + Number(p.amount || 0), 0);
+    const total = Number(i.amount || 0) || sched.reduce((a: number, p: any) => a + Number(p.amount || 0), 0);
+    const status = paid >= total && total > 0 ? "paid" : paid > 0 ? "partial" : "pending";
+    const lastPaid = sched.filter((p: any) => p.status === "paid").map((p: any) => p.paid_date || p.date).filter(Boolean).sort().slice(-1)[0] || null;
+    setBusy(true);
+    try { await services.finance.accounts.save({ id: i.id, payment_schedule: sched, amount_paid: paid, status, payment_date: status === "paid" ? (lastPaid || today()) : "" }); reload(); setParcEdit(null); setParcDraft(null); flash(t("Parcela atualizada ✓")); }
+    catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
+  }
 
   // handlers tesouraria
   function newTx(type: string) { setTf({ ...T_EMPTY, type, transaction_date: today() }); setTOpen(true); }
@@ -481,10 +512,17 @@ export default function Financeiro() {
                         </div>
                       </td>
                     </tr>
-                    {parc.map((p: any) => (
-                      <tr key={i.id + "-p" + p.installment} className="finrow finparc">
+                    {parc.map((p: any) => {
+                      const isEd = parcEdit != null && parcEdit.acc === i.id && parcEdit.inst === p.installment;
+                      const v = vereditoParcela({ ...p, date: ymd(p.date), paid_date: p.paid_date ? ymd(p.paid_date) : "" }, new Date().toISOString().slice(0, 10));
+                      return (
+                      <Fragment key={i.id + "-p" + p.installment}>
+                      <tr className={"finrow finparc" + (isEd ? " is-editing" : "")} style={{ cursor: "pointer" }} title={t("Clique para editar esta parcela")} onClick={() => (isEd ? (setParcEdit(null), setParcDraft(null)) : openParc(i, p))}>
                         <td></td>
-                        <td colSpan={2}><div className="mt" style={{ paddingLeft: 12 }}>{t("Parcela {k}/{n}", { k: p.installment, n: parc.length })}</div></td>
+                        <td colSpan={2}>
+                          <div className="mt" style={{ paddingLeft: 12 }}>{t("Parcela {k}/{n}", { k: p.installment, n: parc.length })} <Pencil size={11} style={{ opacity: .4, verticalAlign: "-1px" }} /></div>
+                          <div style={{ paddingLeft: 12, color: TONE_COLOR[v.tone], fontSize: 11, fontWeight: 600 }}>{v.icon} {v.text}</div>
+                        </td>
                         <td className="tnum">{p.date ? new Date(ymd(p.date) + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</td>
                         <td className="tnum" style={{ textAlign: "right" }}>{money(Number(p.amount || 0))}</td>
                         <td className="tnum" style={{ textAlign: "right", color: "#1F8A5B" }}>{money(p.status === "paid" ? Number(p.amount || 0) : 0)}</td>
@@ -496,7 +534,29 @@ export default function Financeiro() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      {isEd && parcDraft && (
+                        <tr className="finparc-edit"><td></td><td colSpan={7} style={{ background: "var(--crasto-surface-2, #F7F9FC)", padding: "10px 12px", borderRadius: 8 }} onClick={(e) => e.stopPropagation()}>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+                            <label style={fLabel}>{t("Vencimento")}<input type="date" value={parcDraft.date} onChange={(e) => setParc({ date: e.target.value })} /></label>
+                            <label style={fLabel}>{t("Valor (R$)")}<input type="number" step="0.01" value={parcDraft.amount} onChange={(e) => setParc({ amount: e.target.value })} style={{ width: 110 }} /></label>
+                            <label style={fLabel}>{t("Status")}<select value={parcDraft.status} onChange={(e) => setParc({ status: e.target.value })}><option value="pending">{t("Pendente")}</option><option value="paid">{t("Pago")}</option><option value="cancelled">{t("Cancelada")}</option></select></label>
+                            <label style={fLabel}>{t("Data pagto")}<input type="date" value={parcDraft.paid_date} onChange={(e) => setParc({ paid_date: e.target.value })} /></label>
+                            <label style={fLabel}>{t("Comprovante")}<input value={parcDraft.proof_note} onChange={(e) => setParc({ proof_note: e.target.value })} placeholder={t("ex.: PIX 13/09")} /></label>
+                            <label style={fLabel}>{t("Link")}<input value={parcDraft.proof_url} onChange={(e) => setParc({ proof_url: e.target.value })} placeholder={t("link do comprovante")} /></label>
+                            <label style={fLabel}>{t("Multa (R$)")}<input type="number" step="0.01" value={parcDraft.penalty_amount} onChange={(e) => setParc({ penalty_amount: e.target.value })} style={{ width: 90 }} /></label>
+                            <label style={{ ...fLabel, flexDirection: "row", alignItems: "center", gap: 4 }}><input type="checkbox" checked={!!parcDraft.penalty_waived} onChange={(e) => setParc({ penalty_waived: e.target.checked })} /> {t("dispensar multa")}</label>
+                            <div style={{ display: "flex", gap: 6 }}>
+                              <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={() => saveParcInline(i)}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar")}</span></button>
+                              <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => { setParcEdit(null); setParcDraft(null); }}><span className="crasto-btn__label">{t("Cancelar")}</span></button>
+                            </div>
+                          </div>
+                          {/* preview do veredito enquanto edita */}
+                          {(() => { const vv = vereditoParcela({ date: parcDraft.date, paid_date: parcDraft.paid_date, status: parcDraft.status, penalty_amount: parcDraft.penalty_amount, penalty_waived: parcDraft.penalty_waived }, new Date().toISOString().slice(0, 10)); return <div style={{ marginTop: 8, fontSize: 12, color: TONE_COLOR[vv.tone], fontWeight: 600 }}>{vv.icon} {vv.text}</div>; })()}
+                        </td></tr>
+                      )}
+                      </Fragment>
+                      );
+                    })}
                     </Fragment>
                     );
                   })}
