@@ -12,6 +12,7 @@ import { reg as regInfo, regTypeFor, COUNTRIES as REG_COUNTRIES, countryName as 
 import { CrmAccessSection } from "./CrmAccessSection";
 import SocialIntegracoes from "./SocialIntegracoes";
 import DiagnosticoCard from "./DiagnosticoCard";
+import BaselineCard from "./BaselineCard";
 import EmpresaExtra from "./EmpresaExtra";
 import PessoasEditor from "./PessoasEditor";
 import OrgInline from "./OrgInline";
@@ -409,6 +410,9 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
 
       {/* Diagnóstico do site (Mapa de IA) — card + popup; some se o cliente não veio do /mapa */}
       <DiagnosticoCard orgId={id!} />
+
+      {/* Baseline de Entrada — o "antes" do Cockpit (Meus Resultados). Psiquê (DeepSeek) extrai da transcrição. */}
+      <BaselineCard orgId={id!} />
 
       {/* Propostas / contrato ganho */}
       <div className="sec-h" style={{ marginTop: 20 }}><h2>{tr("Propostas & contrato")}</h2><Pill tone="mute">{tr("marcar como ganha liga o MRR")}</Pill></div>
