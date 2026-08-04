@@ -655,7 +655,7 @@ export default function Financeiro() {
             <div style={{ marginTop: 10 }}>
               <div className="finsec-h" style={{ fontSize: 13 }}>{t("Parcelas")} <span className="fhint" style={{ fontWeight: 400 }}>· {t("edite data, valor ou status de cada parcela. O que veio do contrato fica registrado.")}</span></div>
               <div className="tbl-wrap">
-                <table className="tbl">
+                <table className="tbl parc-tbl">
                   <thead><tr>
                     <th style={{ width: 44 }}>#</th>
                     <th>{t("Vencimento")}</th>

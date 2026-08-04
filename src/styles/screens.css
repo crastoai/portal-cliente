@@ -595,6 +595,19 @@
   outline: none; border-color: var(--crasto-text-primary); box-shadow: var(--crasto-shadow-focus);
 }
 
+/* Inputs do cronograma de parcelas + editor inline da parcela — herdam o visual do DS
+   (a tabela e o editor usam <input>/<select> crus fora de .frow). */
+.parc-tbl input:not([type="checkbox"]), .parc-tbl select,
+.finparc-edit input:not([type="checkbox"]), .finparc-edit select {
+  border: 1px solid var(--crasto-border); border-radius: var(--crasto-radius-sm);
+  padding: 8px 10px; font-size: 13px; color: var(--crasto-text-primary);
+  background: var(--crasto-surface); font-family: inherit; font-weight: 500;
+}
+.parc-tbl input:focus, .parc-tbl select:focus,
+.finparc-edit input:not([type="checkbox"]):focus, .finparc-edit select:focus {
+  outline: none; border-color: var(--crasto-text-primary); box-shadow: var(--crasto-shadow-focus);
+}
+
 /* =============================================================
    LIQUID GLASS — assinatura do DS nas superfícies de sistema.
    Aplica a receita real do componente Card do DS (fundo de vidro +
