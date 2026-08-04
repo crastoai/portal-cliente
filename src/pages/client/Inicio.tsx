@@ -40,6 +40,7 @@ export default function Inicio() {
   const [impl, setImpl] = useState<Impl | null>(null);
   const [mods, setMods] = useState<Mod[]>([]);
   const [fin, setFin] = useState<FaturaSummary | null>(null);
+  const [faturas, setFaturas] = useState<Fatura[]>([]);
   const [self, setSelf] = useState<any>(null);
   const [team, setTeam] = useState<{ scope: string; rows: { id: string; email: string; full_name: string | null; online: boolean; sessoes: number; minutos: number; ultimo: string | null }[] } | null>(null);
   const [reunioes, setReunioes] = useState<import("../../services/delivery.service").Meeting[]>([]);
@@ -79,7 +80,9 @@ export default function Inicio() {
       services.delivery.cockpit.getMine().then(setCock).catch(() => setCock(null));
       // Permissão financeira (dono sempre; membro só se liberado) — gate do bloco financeiro/negócios.
       services.identity.access.myScreens().then((s) => setPodeFin(allowedScreens(s as string[] | null).has("financeiro"))).catch(() => setPodeFin(false));
-      setFin(summarizeFaturas((inv as unknown as Fatura[]) ?? []));
+      const invRows = (inv as unknown as Fatura[]) ?? [];
+      setFaturas(invRows);
+      setFin(summarizeFaturas(invRows));
       const rows = cm ?? [];
       const ids = rows.map((r) => r.vdi_module_id);
       let vmap: Record<string, any> = {};
@@ -240,7 +243,7 @@ export default function Inicio() {
         <button role="tab" aria-selected={tab === "resultados"} className={"dashtab" + (tab === "resultados" ? " on" : "")} onClick={() => setTab("resultados")}>{t("Meus Resultados")}</button>
         <button role="tab" aria-selected={tab === "solucoes"} className={"dashtab" + (tab === "solucoes" ? " on" : "")} onClick={() => setTab("solucoes")}>{t("Entregas & Implantação")}</button>
         <button role="tab" aria-selected={tab === "minhas"} className={"dashtab" + (tab === "minhas" ? " on" : "")} onClick={() => setTab("minhas")}>{t("Minhas soluções")}{mods.length ? <span className="dashtab-cnt">{mods.length}</span> : null}</button>
-        {podeFin && <button role="tab" aria-selected={tab === "negocios"} className={"dashtab" + (tab === "negocios" ? " on" : "")} onClick={() => setTab("negocios")}>{t("Negócios")}</button>}
+        {podeFin && <button role="tab" aria-selected={tab === "negocios"} className={"dashtab" + (tab === "negocios" ? " on" : "")} onClick={() => setTab("negocios")}>{t("Contrato & Financeiro")}</button>}
       </div>
 
       {/* ═══ MEUS RESULTADOS ═══ o que a IA gerou (antes×depois real). O "antes" entra com o
@@ -534,15 +537,69 @@ export default function Inicio() {
 
       {/* Aba NEGÓCIOS — CRM + financeiro do PRÓPRIO negócio do cliente (resultados que as soluções
           geram). Próxima fase: nada fictício ainda, então mostra o que vem, sem números inventados. */}
-      {tab === "negocios" && podeFin && (
-        <div className="scopebox">
-          <div className="scopehead"><div><span className="scopedot mute" /><Activity size={17} /><span>{t("Negócios do cliente")}</span></div><small>{t("Em construção · próxima fase")}</small></div>
-          <div style={{ padding: "28px 20px", textAlign: "center", color: "var(--crasto-text-muted)", fontSize: 14, lineHeight: 1.7 }}>
-            <p style={{ fontWeight: 600, color: "var(--crasto-text-primary)", marginBottom: 6 }}>{t("Painel de negócios em construção.")}</p>
-            <p style={{ maxWidth: 520, margin: "0 auto" }}>{t("Aqui você vai acompanhar os resultados que as suas soluções geram: leads e conversas do WhatsApp CRM, oportunidades e faturamento do seu negócio — em tempo real, sem dados fictícios.")}</p>
+      {/* ═══ CONTRATO & FINANCEIRO ═══ situação real + parcelas com farol de vencimento + contrato. */}
+      {tab === "negocios" && podeFin && (() => {
+        const hoje = new Date().toISOString().slice(0, 10);
+        const settled = (f: Fatura) => f.status === "paid" || f.status === "canceled";
+        const total = faturas.reduce((s, f) => s + Number(f.amount || 0), 0);
+        const pago = faturas.filter((f) => f.status === "paid").reduce((s, f) => s + Number(f.amount || 0), 0);
+        const restante = faturas.filter((f) => !settled(f)).reduce((s, f) => s + Number(f.amount || 0), 0);
+        const faturaFarol = (f: Fatura): { tom: Tom; label: string } => {
+          if (f.status === "paid") return { tom: "green", label: t("Paga") };
+          if (f.status === "canceled") return { tom: "mute", label: t("Cancelada") };
+          if (f.due_date && f.due_date < hoje) return { tom: "red", label: t("Vencida") };
+          const d = diasEntre(hoje, f.due_date || undefined);
+          if (d != null && d <= 5) return { tom: "amber", label: d <= 0 ? t("Vence hoje") : t("Vence em {n}d", { n: d }) };
+          return { tom: "mute", label: t("A vencer") };
+        };
+        return (<>
+          <SecHead title={t("Situação financeira")} tom={(fin?.status as Tom) ?? "mute"} caption={t("dado real do seu contrato · parcelas")} icon={<Wallet size={16} />} />
+          <div className="kpis kpis--3">
+            <div className="kpi"><div className="lab">{t("Total do contrato")}</div><div className="val tnum">{money(total)}</div><div className="delta">{t("{n} parcelas", { n: faturas.length })}</div></div>
+            <div className="kpi g"><div className="lab">{t("Já pago")}</div><div className="val tnum">{money(pago)}</div><div className="delta">{t("{n} paga(s)", { n: faturas.filter((f) => f.status === "paid").length })}</div></div>
+            <div className="kpi"><div className="lab">{t("Restante")}</div><div className="val tnum">{money(restante)}</div><div className="delta">{fin?.status === "red" ? t("com atraso") : fin?.status === "amber" ? t("vencendo em breve") : t("em dia")}</div></div>
           </div>
-        </div>
-      )}
+
+          {/* Parcelas com farol de vencimento */}
+          <div className="scopebox">
+            <div className="scopehead"><div><span className={"scopedot " + ((fin?.status as string) || "mute")} /><Wallet size={17} /><span>{t("Parcelas")}</span></div><small>🟢 {t("paga")} · 🟡 {t("a vencer (≤5 dias)")} · 🔴 {t("vencida")}</small></div>
+            {faturas.length === 0 ? (
+              <div className="scopeempty">{t("Nenhuma fatura registrada.")}</div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
+                  <thead><tr style={{ textAlign: "left", fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--crasto-text-muted)" }}>
+                    <th style={{ padding: "8px 10px" }}>{t("Parcela")}</th><th style={{ padding: "8px 10px" }}>{t("Vencimento")}</th><th style={{ padding: "8px 10px", textAlign: "right" }}>{t("Valor")}</th><th style={{ padding: "8px 10px" }}>{t("Pago em")}</th><th style={{ padding: "8px 10px" }}>{t("Status")}</th>
+                  </tr></thead>
+                  <tbody>
+                    {faturas.map((f) => { const { tom, label } = faturaFarol(f); return (
+                      <tr key={f.id} style={{ borderTop: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))" }}>
+                        <td style={{ padding: "11px 10px", fontSize: 13, fontWeight: 600, color: "var(--crasto-text-primary)" }}>{f.description || t("Fatura")}</td>
+                        <td className="tnum" style={{ padding: "11px 10px", fontSize: 12.5, color: "var(--crasto-text-muted)" }}>{brData(f.due_date || undefined)}</td>
+                        <td className="tnum" style={{ padding: "11px 10px", fontSize: 13, textAlign: "right" }}>{money(Number(f.amount || 0))}</td>
+                        <td className="tnum" style={{ padding: "11px 10px", fontSize: 12.5, color: f.paid_date ? "var(--crasto-text-body)" : "var(--crasto-text-muted)" }}>{f.paid_date ? brData(f.paid_date) : "—"}</td>
+                        <td style={{ padding: "11px 10px" }}><span className={"scopepill " + tom}>{label}</span></td>
+                      </tr>
+                    ); })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Contrato — assinado + PDF */}
+          <div className="scopebox">
+            <div className="scopehead"><div><span className="scopedot mute" /><FileSignature size={17} /><span>{t("Contrato")}</span></div><small>{t("seu contrato de prestação de serviço")}</small></div>
+            <div className="scoperow">
+              <span className="scopedot green" />
+              <div><strong>{self?.contract_doc?.file_name || self?.contract?.title || t("Contrato da Crasto.AI")}</strong><small>{self?.contract?.signed_at ? t("Assinado em {d}", { d: new Date(self.contract.signed_at).toLocaleDateString("pt-BR") }) : self?.contract_doc ? t("Disponível para download") : self?.contract?.status === "signed" ? t("Assinado") : self?.contract ? t("Em andamento") : t("Ainda não disponível")}</small></div>
+              {self?.contract_doc
+                ? <button className="scopepill mute" style={{ cursor: "pointer", border: 0 }} onClick={abrirContrato} disabled={abrindoContrato}>{abrindoContrato ? t("Abrindo…") : t("Abrir")} <ArrowRight size={12} style={{ verticalAlign: -2 }} /></button>
+                : self?.contract?.url && <a className="scopepill mute" href={self.contract.url} target="_blank" rel="noreferrer">{t("Abrir")} <ArrowRight size={12} style={{ verticalAlign: -2 }} /></a>}
+            </div>
+          </div>
+        </>);
+      })()}
 
       <Modal title={t("Histórico de implantação")} open={implOpen} onClose={() => setImplOpen(false)}>
         <div style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 14 }}>
