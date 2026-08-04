@@ -139,8 +139,11 @@ export class DeliveryController {
       const baseline = (await c.query(
         `select metric, valor_antes, unidade, status, fonte, baseline_date from delivery.client_baseline
           where organization_id = $1 and is_current`, [orgId])).rows;
-      return { orgId, jornada, conquistas, baseline };
-    }).catch(() => ({ orgId: null as string | null, jornada: [] as any[], conquistas: [] as any[], baseline: [] as any[] }));
+      // Narrativa da Psiquê (hero) — vigente (item 1.4).
+      const narrativa = (await c.query(
+        `select narrative from delivery.cockpit_narrative where organization_id = $1 and is_current limit 1`, [orgId])).rows[0]?.narrative ?? null;
+      return { orgId, jornada, conquistas, baseline, narrativa };
+    }).catch(() => ({ orgId: null as string | null, jornada: [] as any[], conquistas: [] as any[], baseline: [] as any[], narrativa: null as any }));
 
     // 2) RESULTADOS VIVOS direto do wacrm, escopados pelo orgId do Portal (confiável e em tempo real).
     const r = db?.orgId ? await this.wacrm.resultados(db.orgId).catch(() => null) : null;
@@ -170,7 +173,7 @@ export class DeliveryController {
       volume: r?.volume ?? [],
       jornada: db?.jornada ?? [],
       conquistas: db?.conquistas ?? [],
-      narrativa: null,                        // Psiquê — item 1.4
+      narrativa: db?.narrativa ?? null,       // Psiquê (item 1.4) — headline/destaques/resumo
       fontes: { crm: crmOk, agent: crmOk },   // p/ o front saber quando mostrar "—"
     };
   }

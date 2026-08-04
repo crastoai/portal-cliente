@@ -1,6 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { RlsDbService } from '../common/rls-db.service';
 import { JulieLlmService } from '../assistant/julie-llm.service';
+import { WacrmMetricsService } from '../delivery/wacrm-metrics.service';
 
 // PSIQUÊ — a inteligência do Cockpit (Meus Resultados). Roda no DeepSeek (garantia do Crasto).
 // Fase 1: extrai o "antes" (Baseline de Entrada) de uma transcrição de reunião / texto, e grava
@@ -16,8 +18,23 @@ const STATUS_VALIDOS = ['informado', 'nao_tinha', 'nao_informado', 'medido'];
 export type BaselineMetric = { metric: string; label: string; valor_antes: number | null; unidade: string; status: string };
 
 @Injectable()
-export class PsiqueService {
-  constructor(private readonly db: RlsDbService, private readonly llm: JulieLlmService) {}
+export class PsiqueService implements OnModuleInit {
+  private readonly logp = new Logger('Psique');
+  constructor(private readonly db: RlsDbService, private readonly llm: JulieLlmService, private readonly wacrm: WacrmMetricsService) {}
+
+  // AUTOMAÇÃO: renova a narrativa dos clientes ativos 1× no boot e a cada 24h. Só regenera quando o
+  // snapshot muda (hash) — barato. Gate por env PSIQUE_DAILY=off. (Multi-réplica: adicionar lock.)
+  onModuleInit() {
+    if (process.env.PSIQUE_DAILY === 'off') return;
+    setTimeout(() => this.rodarDiario().catch(() => {}), 90_000);
+    setInterval(() => this.rodarDiario().catch(() => {}), 24 * 3600 * 1000);
+  }
+  async rodarDiario() {
+    const orgs = await this.db.asService(async (c) => (await c.query(`select distinct organization_id from delivery.client_modules`)).rows.map((r: any) => r.organization_id));
+    let n = 0;
+    for (const org of orgs) { const r = await this.gerarNarrativa(org).catch(() => null); if (r && (r as any).ok) n++; }
+    this.logp.log(`narrativa diária: ${n}/${orgs.length} regeneradas`);
+  }
 
   private readonly SYSTEM = [
     'PAPEL: você é a Psiquê, a inteligência de resultados da Crasto.AI. Sua tarefa é extrair o BASELINE ("antes") de um cliente a partir de um texto — normalmente a transcrição de uma reunião comercial ou uma descrição da situação atual dele, ANTES de contratar a Crasto.AI.',
@@ -94,5 +111,63 @@ export class PsiqueService {
     return this.db.asService(async (c) => (await c.query(
       `select metric,label,valor_antes,unidade,status,fonte,baseline_date,created_by_name,created_at
          from delivery.client_baseline where organization_id=$1 and is_current order by metric`, [orgId])).rows);
+  }
+
+  // ── NARRATIVA (hero do Cockpit · Meus Resultados) — item 1.4 ──────────────────
+  private readonly SYSTEM_NARR = [
+    'PAPEL: você é a Psiquê, a inteligência de resultados da Crasto.AI, falando com o CLIENTE no topo do painel dele (Cockpit · Meus Resultados). Tom pt-BR, claro, humano e honesto.',
+    'OBJETIVO: escrever a narrativa de resultados a partir do SNAPSHOT (dados reais do cliente).',
+    'FORMATO: responda SOMENTE JSON: { "headline": "<frase de impacto>", "destaques": [ { "n": "<número>", "l": "<rótulo curto>" } ], "resumo": "<1 a 2 frases>" }.',
+    'HEADLINE: se houver "antes" E "depois" de tempo de resposta, escreva no espírito "Você respondia em X. Agora, em Y."; senão use o resultado mais forte do "depois" (ex.: "Sua IA já atende N% das conversas."). Sem dado forte → uma frase honesta e acolhedora sobre acompanhar os resultados.',
+    'DESTAQUES: até 3, SÓ com números reais do snapshot (ex.: % atendido pela IA, novos leads, conversas). Formate (62 → "62%").',
+    'RESUMO: 1 a 2 frases honestas sobre o que a IA já mudou.',
+    'FREIO (anti-alucinação): use APENAS o que está no snapshot. NUNCA invente número. Se um dado faltar, não o cite. Melhor curto e verdadeiro do que grande e falso. JSON e nada mais.',
+  ].join('\n');
+
+  private fmtSeg(s: number) { return s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}min` : `${(s / 3600).toFixed(1)}h`; }
+
+  // Snapshot client-safe (antes + depois + conquistas + implantação). SEM margem/custo/VDI.
+  private async snapshot(orgId: string) {
+    const base = await this.db.asService(async (c) => {
+      const antes = (await c.query(`select metric,label,valor_antes,unidade,status from delivery.client_baseline where organization_id=$1 and is_current`, [orgId])).rows;
+      const conquistas = (await c.query(
+        `select coalesce(cm.label,m.name) as titulo, cm.rollout_status as status from delivery.client_modules cm join catalog.vdi_modules m on m.id=cm.vdi_module_id where cm.organization_id=$1
+         union all select service_name, status from delivery.client_services where organization_id=$1`, [orgId])).rows;
+      const impl = (await c.query(`select overall_progress from delivery.implementations where organization_id=$1 order by created_at desc limit 1`, [orgId])).rows[0];
+      return { antes, conquistas, implantacao_pct: impl?.overall_progress ?? null };
+    });
+    const live = await this.wacrm.resultados(orgId).catch(() => null);
+    const depois: any = {};
+    if (live) {
+      if (live.tempo_resposta != null) depois.tempo_resposta = `${live.tempo_resposta}s (${this.fmtSeg(live.tempo_resposta)})`;
+      if (live.automacao != null) depois.atendido_pela_ia_pct = live.automacao;
+      if (live.atendimentos != null) depois.conversas_atendidas_mes = live.atendimentos;
+      if (live.novos_leads != null) depois.novos_leads_mes = live.novos_leads;
+    }
+    return { antes: base.antes, depois, conquistas: base.conquistas, implantacao_pct: base.implantacao_pct };
+  }
+
+  // Gera/regenera a narrativa do cliente via DeepSeek. Só regenera se o snapshot mudou (hash),
+  // a menos que force=true (botão "regerar agora"). Append-only + is_current.
+  async gerarNarrativa(orgId: string, opts?: { force?: boolean }) {
+    const snap = await this.snapshot(orgId);
+    const hash = createHash('sha1').update(JSON.stringify(snap)).digest('hex').slice(0, 16);
+    const cur = await this.db.asService(async (c) => (await c.query(`select snapshot_hash from delivery.cockpit_narrative where organization_id=$1 and is_current limit 1`, [orgId])).rows[0]);
+    if (!opts?.force && cur?.snapshot_hash === hash) return { skipped: true, motivo: 'snapshot sem mudança' };
+    const turn = await this.llm.complete(this.SYSTEM_NARR, JSON.stringify(snap), { provider: 'deepseek' });
+    const parsed = this.parseJson(turn.text);
+    const narrative = {
+      headline: String(parsed?.headline || '').slice(0, 200) || null,
+      destaques: (Array.isArray(parsed?.destaques) ? parsed.destaques : []).slice(0, 3)
+        .map((d: any) => ({ n: String(d?.n ?? '').slice(0, 20), l: String(d?.l ?? '').slice(0, 60) })).filter((d: any) => d.n && d.l),
+      resumo: String(parsed?.resumo || '').slice(0, 400) || null,
+      gerado_em: new Date().toISOString(),
+    };
+    await this.db.asService(async (c) => {
+      await c.query(`update delivery.cockpit_narrative set is_current=false where organization_id=$1 and is_current`, [orgId]);
+      await c.query(`insert into delivery.cockpit_narrative(organization_id,narrative,snapshot_hash,model,tokens_in,tokens_out) values ($1,$2,$3,$4,$5,$6)`,
+        [orgId, JSON.stringify(narrative), hash, turn.uso?.model ?? null, turn.uso?.tokens_in ?? null, turn.uso?.tokens_out ?? null]);
+    });
+    return { ok: true, narrative, uso: turn.uso };
   }
 }

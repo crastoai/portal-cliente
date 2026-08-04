@@ -218,11 +218,19 @@ export default function Inicio() {
       {tab === "resultados" && (<>
         {/* Hero — a narrativa da Psiquê entra aqui (1.4); por ora, abertura + dado real ao vivo. */}
         <div className="scopebox" style={{ background: "linear-gradient(150deg,var(--crasto-navy,#010E26),#000714)", border: 0, color: "#fff" }}>
-          <div style={{ padding: "22px 20px" }}>
+          <div style={{ padding: "24px 22px" }}>
             <div style={{ fontSize: 11, letterSpacing: ".16em", textTransform: "uppercase", color: "var(--crasto-blue,#6E9CE8)", fontWeight: 600 }}>{t("Meus resultados · o que a sua IA fez por você")}</div>
-            <div style={{ fontSize: 20, fontWeight: 600, marginTop: 8, lineHeight: 1.35, maxWidth: 640 }}>
+            <div style={{ fontSize: 22, fontWeight: 600, marginTop: 10, lineHeight: 1.3, maxWidth: 680 }}>
               {cock?.narrativa?.headline || t("Acompanhe, em tempo real, o que a sua IA já mudou no seu atendimento.")}
             </div>
+            {cock?.narrativa?.resumo && <div style={{ fontSize: 14, color: "rgba(255,255,255,.78)", marginTop: 8, maxWidth: 680, lineHeight: 1.6 }}>{cock.narrativa.resumo}</div>}
+            {Array.isArray(cock?.narrativa?.destaques) && cock!.narrativa.destaques.length > 0 && (
+              <div style={{ display: "flex", gap: 30, flexWrap: "wrap", marginTop: 18 }}>
+                {cock!.narrativa.destaques.map((d: any, i: number) => (
+                  <div key={i}><div className="tnum" style={{ fontSize: 26, fontWeight: 600, color: "#fff" }}>{d.n}</div><div style={{ fontSize: 12, color: "rgba(255,255,255,.65)", marginTop: 2, maxWidth: 150 }}>{d.l}</div></div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
