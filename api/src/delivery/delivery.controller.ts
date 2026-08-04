@@ -28,7 +28,7 @@ export class DeliveryController {
 
   // `access_mode` viaja junto: é ele que diz ao front COMO abrir a instância
   // (link = nova aba, como sempre foi · embed = dentro do Portal · sso = embed com sessão própria).
-  private readonly ROLLOUT = 'id,vdi_module_id,status,label,blurb,rollout_progress,rollout_due,rollout_status,access_mode,monthly_cost,setup_cost,contract_date,cost_allocation';
+  private readonly ROLLOUT = 'id,vdi_module_id,status,label,blurb,rollout_progress,rollout_due,rollout_status,access_mode,monthly_cost,setup_cost,contract_date,cost_allocation,rollout_start,delivered_at,activated_at';
 
   // ── Fase 4 · autoatendimento consolidado ────────────────────────────────
   // O org_id vem do JWT + RLS, nunca do navegador. Só depois de resolvê-lo no banco
@@ -70,6 +70,7 @@ export class DeliveryController {
       )).rows;
       const modules = (await c.query(
         `select cm.id,coalesce(cm.label,m.name) as name,cm.status,cm.rollout_status,cm.rollout_progress,'module' as kind,
+                cm.rollout_start, cm.rollout_due, cm.delivered_at, cm.contract_date, cm.activated_at,
                 (m.crm_solution is true) as is_crm
            from delivery.client_modules cm join catalog.vdi_modules m on m.id=cm.vdi_module_id
           order by cm.created_at`,
