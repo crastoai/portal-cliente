@@ -125,4 +125,20 @@ export const moduleSessions = {
     api.get<any[]>(`/api/delivery/module-sessions/summary?dias=${dias}${orgId ? `&org=${orgId}` : ""}`),
 };
 
-export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, selfService, moduleSessions, teamUsage, meetings, implEvents, agentUsage };
+// COCKPIT · "Meus Resultados" (Fase 1) — consolida os dados de RESULTADO do cliente.
+// O "depois" das métricas vem AO VIVO do wacrm; o "antes" (baseline declarado) entra no item 1.3
+// (por ora null → o front mostra a evolução/trend). Sem fonte = null → a tela vira "—", nunca inventa.
+export type CockpitMetric = { key: string; label: string; unidade: string; melhor: "maior" | "menor"; antes: number | null; fonte_antes: string | null; depois: number | null; trend: number | null };
+export type CockpitMine = {
+  metrics: CockpitMetric[];
+  volume: { label: string; n: number }[];
+  jornada: { happened_at: string; title: string; detail: string | null; module_name: string | null }[];
+  conquistas: { titulo: string; status: string | null; rollout_status: string | null; tipo: "module" | "service" }[];
+  narrativa: any | null;
+  fontes: { crm: boolean; agent: boolean };
+};
+export const cockpit = {
+  getMine: async () => api.get<CockpitMine>(`/api/delivery/cockpit/mine`),
+};
+
+export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, selfService, moduleSessions, teamUsage, meetings, implEvents, agentUsage, cockpit };

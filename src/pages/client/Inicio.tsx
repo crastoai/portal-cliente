@@ -48,6 +48,7 @@ export default function Inicio() {
   const [implOpen, setImplOpen] = useState(false);
   const [detMod, setDetMod] = useState<Mod | null>(null);
   const [agent, setAgent] = useState<import("../../services/delivery.service").AgentUsage | null>(null);
+  const [cock, setCock] = useState<import("../../services/delivery.service").CockpitMine | null>(null);
   // Defesa em profundidade: financeiro/negócios do Início só para quem tem a permissão "Financeiro"
   // (dono ou membro liberado). Começa false para o membro nunca ver nem por um instante; o backend
   // (my_faturas + pode_ver_financeiro) já protege o dado, isto só limpa a tela.
@@ -73,6 +74,9 @@ export default function Inicio() {
       services.delivery.implEvents.listMine().then((r) => setImplEvents(Array.isArray(r) ? r : [])).catch(() => setImplEvents([]));
       // Uso REAL do agente de IA (federado do wacrm) — taxa de automação das respostas.
       services.delivery.agentUsage.getMine().then(setAgent).catch(() => setAgent(null));
+      // COCKPIT · Meus Resultados (Fase 1) — métricas antes×depois (depois ao vivo do wacrm),
+      // conquistas e jornada. Sem CRM/atividade → o próprio endpoint devolve null → a tela mostra "—".
+      services.delivery.cockpit.getMine().then(setCock).catch(() => setCock(null));
       // Permissão financeira (dono sempre; membro só se liberado) — gate do bloco financeiro/negócios.
       services.identity.access.myScreens().then((s) => setPodeFin(allowedScreens(s as string[] | null).has("financeiro"))).catch(() => setPodeFin(false));
       setFin(summarizeFaturas((inv as unknown as Fatura[]) ?? []));
@@ -157,7 +161,7 @@ export default function Inicio() {
   const [slaOpen, setSlaOpen] = useState(false);
   // Abas do dashboard: "Soluções & Serviços" (fase atual) × "Negócios" (CRM+financeiro do cliente,
   // próxima fase). Separar em abas facilita a navegação do dono — pedido do Crasto.
-  const [tab, setTab] = useState<"solucoes" | "minhas" | "negocios">("solucoes");
+  const [tab, setTab] = useState<"resultados" | "solucoes" | "minhas" | "negocios">("resultados");
   // Abrir o contrato de prestação de serviço (documento subido pelo admin) — URL assinada do R2.
   const [abrindoContrato, setAbrindoContrato] = useState(false);
   // Abrir uma solução: o WhatsApp CRM abre DENTRO do portal (/app/crm → seletor de agente +
@@ -182,6 +186,17 @@ export default function Inicio() {
   // Farol do CONTRATO = situação financeira real (faturas). Separado do farol das SOLUÇÕES.
   const contratoTom: Tom = fin ? (fin.status as Tom) : null;
 
+  // ── COCKPIT · Meus Resultados (Fase 1) — formatação HONESTA do dado real ──
+  // Nunca inventa: valor null → "—". tempo em s/min/h; % com sufixo. O "antes" só aparece
+  // quando existir (Baseline de Entrada, item 1.3); senão mostra a evolução (trend).
+  const fmtSeg = (s: number) => (s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}min` : `${(s / 3600).toFixed(1)}h`);
+  const fmtMetric = (m: any, v: number | null) => (v == null ? "—" : m.key === "tempo_resposta" ? fmtSeg(v) : m.unidade === "%" ? `${v}%` : Number(v).toLocaleString("pt-BR"));
+  const deltaMetric = (m: any) =>
+    m.antes != null ? `${t("antes")} ${fmtMetric(m, m.antes)}${m.fonte_antes ? " · " + m.fonte_antes : ""}`
+      : m.trend != null ? `${m.trend > 0 ? "▲" : m.trend < 0 ? "▼" : ""} ${Math.abs(m.trend)}% ${t("vs. período anterior")}`
+        : m.depois == null ? t("sem atividade ainda") : t("medido ao vivo");
+  const conquistaTom = (c: any): Tom => { const r = String(c.rollout_status || c.status || "").toLowerCase(); return ["delivered", "done", "live"].includes(r) ? "green" : ["on_hold", "paused", "cancelled", "canceled"].includes(r) ? "red" : "amber"; };
+
   return (
     <div>
       <div className="phead">
@@ -192,10 +207,66 @@ export default function Inicio() {
 
       {/* Abas do dashboard — separam o acompanhamento das SOLUÇÕES do painel de NEGÓCIOS do cliente. */}
       <div className="dashtabs" role="tablist">
+        <button role="tab" aria-selected={tab === "resultados"} className={"dashtab" + (tab === "resultados" ? " on" : "")} onClick={() => setTab("resultados")}>{t("Meus Resultados")}</button>
         <button role="tab" aria-selected={tab === "solucoes"} className={"dashtab" + (tab === "solucoes" ? " on" : "")} onClick={() => setTab("solucoes")}>{t("Soluções & Serviços")}</button>
         <button role="tab" aria-selected={tab === "minhas"} className={"dashtab" + (tab === "minhas" ? " on" : "")} onClick={() => setTab("minhas")}>{t("Minhas soluções")}{mods.length ? <span className="dashtab-cnt">{mods.length}</span> : null}</button>
         {podeFin && <button role="tab" aria-selected={tab === "negocios"} className={"dashtab" + (tab === "negocios" ? " on" : "")} onClick={() => setTab("negocios")}>{t("Negócios")}</button>}
       </div>
+
+      {/* ═══ MEUS RESULTADOS ═══ o que a IA gerou (antes×depois real). O "antes" entra com o
+          Baseline de Entrada (item 1.3) e a narrativa com a Psiquê (item 1.4). Zero número fixo. */}
+      {tab === "resultados" && (<>
+        {/* Hero — a narrativa da Psiquê entra aqui (1.4); por ora, abertura + dado real ao vivo. */}
+        <div className="scopebox" style={{ background: "linear-gradient(150deg,var(--crasto-navy,#010E26),#000714)", border: 0, color: "#fff" }}>
+          <div style={{ padding: "22px 20px" }}>
+            <div style={{ fontSize: 11, letterSpacing: ".16em", textTransform: "uppercase", color: "var(--crasto-blue,#6E9CE8)", fontWeight: 600 }}>{t("Meus resultados · o que a sua IA fez por você")}</div>
+            <div style={{ fontSize: 20, fontWeight: 600, marginTop: 8, lineHeight: 1.35, maxWidth: 640 }}>
+              {cock?.narrativa?.headline || t("Acompanhe, em tempo real, o que a sua IA já mudou no seu atendimento.")}
+            </div>
+          </div>
+        </div>
+
+        {/* Antes × Depois — métricas reais. O "depois" vem ao vivo do WhatsApp CRM. */}
+        <SecHead title={t("Antes × Depois")} tom="mute" caption={cock?.fontes?.crm ? t("dado real · em tempo real") : t("aguardando atividade no WhatsApp CRM")} />
+        <div className="kpis kpis--3">
+          {(cock?.metrics || []).map((m) => (
+            <div className="kpi" key={m.key}>
+              <div className="lab">{m.label}</div>
+              <div className="val">{fmtMetric(m, m.depois)}</div>
+              <div className="delta">{deltaMetric(m)}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Você não tinha, agora tem — conquistas reais (módulos/serviços contratados). */}
+        {(cock?.conquistas || []).length > 0 && (
+          <div className="scopebox">
+            <div className="scopehead"><div><span className="scopedot green" /><Activity size={17} /><span>{t("Você não tinha, agora tem")}</span></div><small>{t("capacidades desbloqueadas com a Crasto.AI")}</small></div>
+            <div className="scopelist">
+              {cock!.conquistas.map((c, i) => { const tom = conquistaTom(c); return (
+                <div className="scoperow" key={i}><span className={"scopedot " + tom} /><div><strong>{c.titulo}</strong><small>{c.tipo === "service" ? t("Serviço") : t("Solução")}</small></div><span className={"scopepill " + tom}>{tom === "green" ? t("Ativo") : tom === "red" ? t("Pausado") : t("Em implantação")}</span></div>
+              ); })}
+            </div>
+          </div>
+        )}
+
+        {/* Nossa jornada — marcos reais de implantação (registrados pela Crasto.AI). */}
+        {(cock?.jornada || []).length > 0 && (
+          <div className="scopebox">
+            <div className="scopehead"><div><span className="scopedot mute" /><FileSignature size={17} /><span>{t("Nossa jornada juntos")}</span></div><small>{t("marcos do relacionamento")}</small></div>
+            <div className="scopelist">
+              {cock!.jornada.map((e, i) => (
+                <div className="scoperow" key={i}><span className="scopedot green" /><div><strong>{e.title}{e.module_name ? <span style={{ fontWeight: 400, color: "var(--crasto-text-muted)" }}> · {e.module_name}</span> : null}</strong><small>{new Date(e.happened_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</small></div></div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Vazio HONESTO: sem fonte viva e sem conquistas → convite, nunca número inventado. */}
+        {!cock?.fontes?.crm && (cock?.conquistas || []).length === 0 && (
+          <div className="empty"><p><strong>{t("Seus resultados aparecem aqui.")}</strong> {t("Assim que suas soluções entrarem em operação, os números aparecem em tempo real — sem dados fictícios.")}</p></div>
+        )}
+      </>)}
 
       {tab === "solucoes" && (<>
       {/* Farol — a luz é a MÉDIA real dos faróis das soluções (o pior vence), não mais verde fixo. */}
