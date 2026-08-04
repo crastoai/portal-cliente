@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { createSign } from 'crypto';
+import { Pool } from 'pg';
 import { RlsDbService } from '../common/rls-db.service';
 
 // Sincroniza o CUSTO REAL de IA direto das APIs de billing dos provedores para finance.ai_costs.
@@ -26,6 +27,23 @@ function somarAmounts(obj: any): number {
 
 @Injectable()
 export class AiCostSyncService {
+  private log = new Logger('AiCostSync');
+  // Pool cross-DB pro wacrm (só criado se WACRM_DATABASE_URL estiver setada). Lazy: só abre
+  // quando o sync do DeepSeek roda pela 1ª vez. Reusado nas próximas rodadas (pooler Supabase).
+  private wacrmPool?: Pool;
+  private wacrmDb(): Pool | null {
+    const url = process.env.WACRM_DATABASE_URL;
+    if (!url) return null;
+    if (!this.wacrmPool) {
+      this.wacrmPool = new Pool({
+        connectionString: url,
+        ssl: { rejectUnauthorized: false },
+        max: 3, // sync roda em série; 3 dá folga sem estourar o pooler do wacrm
+        connectionTimeoutMillis: 8000,
+      });
+    }
+    return this.wacrmPool;
+  }
   constructor(private readonly db: RlsDbService) {}
 
   private revealKey(provider: string): Promise<string | null> {
@@ -169,11 +187,77 @@ export class AiCostSyncService {
     return { provider: 'google', ok: true, cost: totalGeral, linhas, ...(notas.length ? { erro: notas.join(' ') } : {}) };
   }
 
+  // ── DEEPSEEK — custo ESTIMADO por cliente, calculado a partir dos tokens gastos ──
+  // DeepSeek NÃO tem API oficial de custo por período (só /user/balance = saldo restante).
+  // Solução: cross-DB → puxa direto do wacrm.runtime_events (que já grava tokens_in/out por
+  // agente a cada chamada LLM, via obs.evento), soma por organization_id × modelo, multiplica
+  // pelo pricing oficial (doc lida ao vivo em 2026-08-04), grava em finance.ai_costs.
+  // Regravação a cada sync: apaga auto-sync do período e reescreve — evita duplicata quando
+  // o admin roda o botão várias vezes.
+  //
+  // Precisão: usa o preço "cache miss" da doc DeepSeek (pior caso). Se o modelo usar cache
+  // com frequência, o custo REAL vai ser 1-3% menor. Melhor superestimar 1% que subestimar.
+  // Preços por 1M tokens [input, output] em USD. Atualizar aqui quando DeepSeek mudar preço.
+  private static readonly DEEPSEEK_PRICE: Record<string, [number, number]> = {
+    'deepseek-v4-flash': [0.14, 0.28],
+    'deepseek-v4-pro': [0.435, 0.87],
+  };
+  private async deepseek(uid: string, start: string, end: string): Promise<Resultado> {
+    const wacrm = this.wacrmDb();
+    if (!wacrm) return { provider: 'deepseek', ok: false, erro: 'falta WACRM_DATABASE_URL no .env desta API — sem ela, não consigo agregar tokens do wacrm.' };
+    // Agrega tokens por organization_id × modelo no período. Considera SÓ eventos LLM ok=true
+    // com provider=deepseek. Data usa timezone SP (mesmo padrão do resto do financeiro).
+    let rows: { organization_id: string | null; model: string; ti: number; too: number }[];
+    try {
+      const c = await wacrm.connect();
+      try {
+        const r = await c.query(
+          `select organization_id, name as model,
+                  coalesce(sum((detail->>'tokens_in')::bigint), 0)::bigint as ti,
+                  coalesce(sum((detail->>'tokens_out')::bigint), 0)::bigint as too
+             from whatsapp.runtime_events
+            where kind = 'llm' and ok = true
+              and (detail->>'provider') = 'deepseek'
+              and (created_at at time zone 'America/Sao_Paulo')::date between $1::date and $2::date
+            group by organization_id, name`,
+          [start, end],
+        );
+        rows = r.rows.map((x: any) => ({ organization_id: x.organization_id, model: x.model, ti: Number(x.ti), too: Number(x.too) }));
+      } finally { c.release(); }
+    } catch (e: any) {
+      return { provider: 'deepseek', ok: false, erro: `falha ao ler wacrm: ${(e.message || '').slice(0, 160)}` };
+    }
+    if (!rows.length) return { provider: 'deepseek', ok: true, cost: 0, linhas: 0 };
+    // Reescreve limpo (mesmo padrão do Google): apaga auto-sync deepseek do período e regrava.
+    await this.db.asUser(uid, async (c) => { await c.query(`select public.fin_ai_cost_delete_auto_sync('deepseek', $1, $2)`, [start, end]); });
+    // Soma por org (agregando todos os modelos daquela org num único cost linhas).
+    const byOrg = new Map<string, number>(); // org → custo em USD
+    let semPreco = 0, totalGeral = 0;
+    for (const r of rows) {
+      const preco = AiCostSyncService.DEEPSEEK_PRICE[r.model];
+      if (!preco) { semPreco++; this.log.warn(`modelo DeepSeek sem preço cadastrado: ${r.model}`); continue; }
+      const usd = (r.ti / 1e6) * preco[0] + (r.too / 1e6) * preco[1];
+      const orgKey = r.organization_id || '__internal__';
+      byOrg.set(orgKey, (byOrg.get(orgKey) || 0) + usd);
+      totalGeral += usd;
+    }
+    let linhas = 0;
+    for (const [orgKey, usd] of byOrg.entries()) {
+      if (usd < 0.001) continue; // ignora migalha < 0.1 centavo (evita ruído no dashboard)
+      const orgId = orgKey === '__internal__' ? null : orgKey;
+      await this.gravar(uid, 'deepseek', 'deepseek_api', usd, start, end, orgId);
+      linhas++;
+    }
+    const notas: string[] = [];
+    if (semPreco > 0) notas.push(`${semPreco} linha(s) com modelo sem preço cadastrado — atualize DEEPSEEK_PRICE se DeepSeek lançou modelo novo.`);
+    return { provider: 'deepseek', ok: true, cost: totalGeral, linhas, ...(notas.length ? { erro: notas.join(' ') } : {}) };
+  }
+
   /** Sincroniza os provedores com custo real. Nunca lança: devolve status por provedor. */
   async sync(uid: string, opts?: { from?: string; to?: string }): Promise<{ periodo: { start: string; end: string }; resultados: Resultado[] }> {
     const { start, end } = this.periodo(opts?.from, opts?.to);
     const resultados: Resultado[] = [];
-    for (const fn of [this.anthropic.bind(this), this.openai.bind(this), this.google.bind(this)]) {
+    for (const fn of [this.anthropic.bind(this), this.openai.bind(this), this.google.bind(this), this.deepseek.bind(this)]) {
       try { resultados.push(await fn(uid, start, end)); }
       catch (e: any) { resultados.push({ provider: 'desconhecido', ok: false, erro: e?.message || 'falha' }); }
     }

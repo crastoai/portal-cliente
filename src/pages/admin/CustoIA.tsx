@@ -8,7 +8,8 @@ import Modal from "../../ui/Modal";
 // Fornecedores (códigos aceitos pelo banco) + rótulo de exibição
 const PROVIDERS = [
   { v: "anthropic", label: "Anthropic" }, { v: "openai", label: "OpenAI" },
-  { v: "google", label: "Google" }, { v: "elevenlabs", label: "ElevenLabs" }, { v: "other", label: "Outro" },
+  { v: "google", label: "Google" }, { v: "deepseek", label: "DeepSeek 🔥" },
+  { v: "elevenlabs", label: "ElevenLabs" }, { v: "other", label: "Outro" },
 ];
 const providerLabel = (v?: string) => PROVIDERS.find((p) => p.v === v)?.label ?? "";
 // Catálogo de plataformas de IA (produto + fornecedor + finalidade padrão)
@@ -16,6 +17,8 @@ const PLATFORMS = [
   { v: "claude_api", provider: "anthropic", label: "Claude API", kind: "cliente", purpose: "Respostas dos agentes" },
   { v: "gemini", provider: "google", label: "Gemini / AI Studio", kind: "cliente", purpose: "Respostas (alternativa)" },
   { v: "gpt", provider: "openai", label: "GPT", kind: "cliente", purpose: "Respostas (alternativa)" },
+  // DeepSeek — custo estimado por AiCostSyncService.deepseek() lendo tokens do wacrm × pricing oficial.
+  { v: "deepseek_api", provider: "deepseek", label: "DeepSeek 🔥", kind: "cliente", purpose: "Respostas dos agentes (mais barato)" },
   { v: "claude_code", provider: "anthropic", label: "Claude Code", kind: "interno", purpose: "Desenvolvimento da plataforma" },
   { v: "claude_cowork", provider: "anthropic", label: "Claude Cowork", kind: "interno", purpose: "Operação interna" },
   { v: "elevenlabs", provider: "elevenlabs", label: "Voz (TTS)", kind: "cliente", purpose: "Respostas em áudio" },
@@ -62,6 +65,20 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [f, setF] = useState<any>({ ...E_EMPTY });
+  // FILTRO por fornecedor. '' = todos. Afeta as tabelas de plataforma/cliente/lançamentos
+  // (mas o KPI "Custo total" continua mostrando o total geral pra referência).
+  const [provFilter, setProvFilter] = useState<string>("");
+  const provsPresentes = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of byPlatform) { const p = r.provider || platMeta(r.platform || "")?.provider; if (p) set.add(p); }
+    return Array.from(set);
+  }, [byPlatform]);
+  const filtrar = <T extends { provider?: string; platform?: string }>(rows: T[]): T[] => {
+    if (!provFilter) return rows;
+    return rows.filter((r) => (r.provider || platMeta(r.platform || "")?.provider) === provFilter);
+  };
+  const byPlatformF = filtrar(byPlatform);
+  const totalF = byPlatformF.reduce((s, r) => s + Number((r as any).cost || 0), 0);
 
   const monthLabel = useMemo(() => ref.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }), [ref]);
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -139,11 +156,24 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
         <button className="icobtn" title={t("Próximo mês")} onClick={() => setRef(new Date(ref.getFullYear(), ref.getMonth() + 1, 1))}><ChevronRight size={16} /></button>
       </div>
 
+      {/* FILTRO por fornecedor — chips clicáveis. Filtra a tabela "por plataforma" e o total
+          filtrado abaixo. "Todos" volta ao geral. Aparece só quando há mais de 1 fornecedor. */}
+      {provsPresentes.length > 1 && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}>
+          <span className="muted" style={{ fontSize: 13 }}>{t("Filtrar por fornecedor:")}</span>
+          <button className={"pill" + (!provFilter ? " pill--on" : "")} onClick={() => setProvFilter("")} style={{ cursor: "pointer" }}>{t("Todos")}</button>
+          {provsPresentes.map((p) => (
+            <button key={p} className={"pill" + (provFilter === p ? " pill--on" : "")} onClick={() => setProvFilter(p)} style={{ cursor: "pointer" }}>{providerLabel(p) || p}</button>
+          ))}
+          {provFilter && <span className="muted" style={{ fontSize: 12 }}>{t("Filtrado: {sum} — {n} plataforma(s)", { sum: money(totalF), n: byPlatformF.length })}</span>}
+        </div>
+      )}
+
       {/* indicadores (clicáveis → detalhe) */}
       <div className="kpis" style={{ marginBottom: 18 }}>
         <button className="kpi kpi-btn g" onClick={() => scrollTo("cia-plataforma")}><div className="lab">{t("Custo total (mês)")}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(total)}</div><div className="delta">{t("todas as plataformas")}</div></button>
         <button className="kpi kpi-btn" onClick={() => scrollTo("cia-plataforma")}><div className="lab">{t("vs mês anterior")}</div><div className="val tnum" style={{ fontSize: 22, color: deltaPct > 0 ? "#B54708" : deltaPct < 0 ? "#1F8A5B" : undefined, display: "flex", alignItems: "center", gap: 6 }}>{deltaPct > 0 ? <TrendingUp size={18} /> : deltaPct < 0 ? <TrendingDown size={18} /> : null}{deltaPct > 0 ? "+" : ""}{deltaPct}%</div><div className="delta">{money(prev)} {t("no mês passado")}</div></button>
-        <button className="kpi kpi-btn" onClick={() => scrollTo("cia-plataforma")}><div className="lab">{t("Plataformas com despesa")}</div><div className="val tnum" style={{ fontSize: 22 }}>{s.platforms || 0}</div><div className="delta">{t("Claude · Gemini · GPT · Code · Cowork · TTS")}</div></button>
+        <button className="kpi kpi-btn" onClick={() => scrollTo("cia-plataforma")}><div className="lab">{t("Plataformas com despesa")}</div><div className="val tnum" style={{ fontSize: 22 }}>{s.platforms || 0}</div><div className="delta">{provsPresentes.length ? provsPresentes.map((p) => providerLabel(p) || p).join(" · ") : t("nenhuma")}</div></button>
         <button className="kpi kpi-btn" onClick={() => scrollTo("cia-cliente")}><div className="lab">{t("Custo médio / cliente")}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(avgClient)}</div><div className="delta">{t("{n} cliente(s) com uso", { n: s.clients || 0 })}</div></button>
       </div>
 
@@ -163,7 +193,7 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
               <SortTh col="status" sort={sortP} toggle={toggleP}>{t("Situação")}</SortTh>
             </tr></thead>
             <tbody>
-              {sortedP(byPlatform, (r, col) => {
+              {sortedP(byPlatformF, (r, col) => {
                 switch (col) {
                   case "platform": return platLabel(r);
                   case "purpose": return r.purpose || platMeta(r.platform)?.purpose || "";
