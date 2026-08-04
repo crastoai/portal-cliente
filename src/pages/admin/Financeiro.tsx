@@ -5,6 +5,7 @@ import { services, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, money, Field, useSort, SortTh } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
+import DocField from "../../ui/DocField";
 import CustoIA from "./CustoIA";
 
 // Data de HOJE no fuso do Brasil (America/Sao_Paulo) em "YYYY-MM-DD". Usar toISOString()
@@ -541,8 +542,8 @@ export default function Financeiro() {
                             <label style={fLabel}>{t("Valor (R$)")}<input type="number" step="0.01" value={parcDraft.amount} onChange={(e) => setParc({ amount: e.target.value })} style={{ width: 110 }} /></label>
                             <label style={fLabel}>{t("Status")}<select value={parcDraft.status} onChange={(e) => setParc({ status: e.target.value })}><option value="pending">{t("Pendente")}</option><option value="paid">{t("Pago")}</option><option value="cancelled">{t("Cancelada")}</option></select></label>
                             <label style={fLabel}>{t("Data pagto")}<input type="date" value={parcDraft.paid_date} onChange={(e) => setParc({ paid_date: e.target.value })} /></label>
-                            <label style={fLabel}>{t("Comprovante")}<input value={parcDraft.proof_note} onChange={(e) => setParc({ proof_note: e.target.value })} placeholder={t("ex.: PIX 13/09")} /></label>
-                            <label style={fLabel}>{t("Link")}<input value={parcDraft.proof_url} onChange={(e) => setParc({ proof_url: e.target.value })} placeholder={t("link do comprovante")} /></label>
+                            <label style={fLabel}>{t("Comprovante")}<DocField prefix="financeiro" accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.heic" label={t("Anexar comprovante")}
+                              path={parcDraft.proof_url} name={parcDraft.proof_note} onChange={(path, name) => setParc({ proof_url: path, proof_note: name })} /></label>
                             <label style={fLabel}>{t("Multa (R$)")}<input type="number" step="0.01" value={parcDraft.penalty_amount} onChange={(e) => setParc({ penalty_amount: e.target.value })} style={{ width: 90 }} /></label>
                             <label style={{ ...fLabel, flexDirection: "row", alignItems: "center", gap: 4 }}><input type="checkbox" checked={!!parcDraft.penalty_waived} onChange={(e) => setParc({ penalty_waived: e.target.checked })} /> {t("dispensar multa")}</label>
                             <div style={{ display: "flex", gap: 6 }}>
@@ -683,11 +684,11 @@ export default function Financeiro() {
                               <option value="cancelled">{t("Cancelada")}</option>
                             </select>
                           </td>
-                          {/* COMPROVANTE: data real do pagamento + anexo/nota */}
+                          {/* COMPROVANTE: data real do pagamento + ANEXO do documento (R2) */}
                           <td><input type="date" value={p.paid_date || ""} onChange={(e) => setSchedRow(idx, { paid_date: e.target.value })} style={{ width: 140 }} /></td>
                           <td>
-                            <input value={p.proof_note || ""} onChange={(e) => setSchedRow(idx, { proof_note: e.target.value })} placeholder={t("ex.: PIX 13/09")} style={{ width: 150, display: "block", marginBottom: 3 }} />
-                            <input value={p.proof_url || ""} onChange={(e) => setSchedRow(idx, { proof_url: e.target.value })} placeholder={t("link do comprovante")} style={{ width: 150, fontSize: 11 }} />
+                            <DocField prefix="financeiro" accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.heic" label={t("Anexar comprovante")}
+                              path={p.proof_url} name={p.proof_note} onChange={(path, name) => setSchedRow(idx, { proof_url: path, proof_note: name })} />
                           </td>
                           {/* MULTA: valor + "dispensar" (houve atraso mas você decidiu não cobrar) */}
                           <td style={{ textAlign: "right" }}>
