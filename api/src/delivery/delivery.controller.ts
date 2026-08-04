@@ -135,23 +135,28 @@ export class DeliveryController {
         antes: null as number | null, fonte_antes: null as string | null, depois: val(cards.novos_leads), trend: trend(cards.novos_leads) },
     ];
 
+    // Escopo EXPLÍCITO por org (organization_id = current_org_id()) — não confiar só na RLS:
+    // p/ admin a RLS faz bypass e voltaria dado de TODOS os clientes (vazamento). `.catch` garante
+    // que uma falha de DB NUNCA derruba o cockpit (o front recebe [], mostra "—"/vazio honesto).
     const db = await this.db.asUser(this.uid(req), async (c) => {
       const orgId = (await c.query('select public.current_org_id() as id')).rows[0]?.id;
-      if (!orgId) return null;
+      if (!orgId) return { jornada: [] as any[], conquistas: [] as any[] };
       const jornada = (await c.query(
         `select e.happened_at, e.title, e.detail, coalesce(nullif(cm.label,''), vm.name) as module_name
            from delivery.implementation_events e
            left join delivery.client_modules cm on cm.id = e.client_module_id
            left join catalog.vdi_modules vm on vm.id = cm.vdi_module_id
-          order by e.happened_at desc limit 20`)).rows;
+          where e.organization_id = $1
+          order by e.happened_at desc limit 20`, [orgId])).rows;
       const conquistas = (await c.query(
         `select coalesce(cm.label, m.name) as titulo, cm.status, cm.rollout_status, 'module' as tipo
            from delivery.client_modules cm join catalog.vdi_modules m on m.id = cm.vdi_module_id
+          where cm.organization_id = $1
           union all
          select service_name as titulo, status, null as rollout_status, 'service' as tipo
-           from delivery.client_services`)).rows;
+           from delivery.client_services where organization_id = $1`, [orgId])).rows;
       return { jornada, conquistas };
-    });
+    }).catch(() => ({ jornada: [] as any[], conquistas: [] as any[] }));
 
     return {
       metrics,
