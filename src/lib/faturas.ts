@@ -1,6 +1,6 @@
 // Resumo das faturas do cliente para o health-check (Início) e a tela Financeiro.
 // Fonte: billing.invoices (RLS por organização). "Ver" é real hoje; "pagar" entra com o Inter.
-export type Fatura = { id: string; description: string | null; amount: number; due_date: string | null; status: string };
+export type Fatura = { id: string; description: string | null; amount: number; due_date: string | null; paid_date?: string | null; status: string };
 
 export type FaturaSummary = {
   open: Fatura[];
