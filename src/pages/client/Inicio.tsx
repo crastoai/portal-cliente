@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageCircle, Search, Send, Wallet, ArrowRight, AlertTriangle, Clock, FileSignature, Headphones, Bot, Activity } from "lucide-react";
+import { MessageCircle, Search, Send, Wallet, ArrowRight, AlertTriangle, Clock, FileSignature, Headphones, Bot, Activity, Trophy, Package } from "lucide-react";
 import { services } from "../../services";
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
@@ -247,11 +247,12 @@ export default function Inicio() {
       </div>
 
       {/* Abas do dashboard — separam o acompanhamento das SOLUÇÕES do painel de NEGÓCIOS do cliente. */}
+      {/* Abas estilo protótipo: pills com ícone. "Minhas soluções" saiu (as soluções vivem no
+          menu lateral); o protótipo tem só estas 3. */}
       <div className="dashtabs" role="tablist">
-        <button role="tab" aria-selected={tab === "resultados"} className={"dashtab" + (tab === "resultados" ? " on" : "")} onClick={() => setTab("resultados")}>{t("Meus Resultados")}</button>
-        <button role="tab" aria-selected={tab === "solucoes"} className={"dashtab" + (tab === "solucoes" ? " on" : "")} onClick={() => setTab("solucoes")}>{t("Entregas & Implantação")}</button>
-        <button role="tab" aria-selected={tab === "minhas"} className={"dashtab" + (tab === "minhas" ? " on" : "")} onClick={() => setTab("minhas")}>{t("Minhas soluções")}{mods.length ? <span className="dashtab-cnt">{mods.length}</span> : null}</button>
-        {podeFin && <button role="tab" aria-selected={tab === "negocios"} className={"dashtab" + (tab === "negocios" ? " on" : "")} onClick={() => setTab("negocios")}>{t("Contrato & Financeiro")}</button>}
+        <button role="tab" aria-selected={tab === "resultados"} className={"dashtab" + (tab === "resultados" ? " on" : "")} onClick={() => setTab("resultados")}><Trophy size={16} />{t("Meus Resultados")}</button>
+        <button role="tab" aria-selected={tab === "solucoes"} className={"dashtab" + (tab === "solucoes" ? " on" : "")} onClick={() => setTab("solucoes")}><Package size={16} />{t("Entregas & Implantação")}</button>
+        {podeFin && <button role="tab" aria-selected={tab === "negocios"} className={"dashtab" + (tab === "negocios" ? " on" : "")} onClick={() => setTab("negocios")}><Wallet size={16} />{t("Contrato & Financeiro")}</button>}
       </div>
 
       {/* ═══ MEUS RESULTADOS ═══ o que a IA gerou (antes×depois real). O "antes" entra com o

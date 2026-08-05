@@ -289,12 +289,18 @@
 .farol .txt .s { font-size: 12.5px; color: var(--crasto-text-muted); margin-top: 3px; }
 
 /* ===== abas do dashboard do cliente (Soluções × Negócios) ===== */
-.dashtabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 22px; }
-.dashtab { appearance: none; background: none; border: 0; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--crasto-text-muted); padding: 8px 16px; border-radius: 10px; cursor: pointer; transition: color .15s ease, background .15s ease; }
-.dashtab:hover { color: var(--crasto-text-primary); background: var(--crasto-bg-2); }
-.dashtab.on { color: #fff; background: var(--crasto-navy); }
-.dashtab:focus-visible { outline: 2px solid var(--crasto-blue, #3E6FB8); outline-offset: 2px; }
-.dashtab-cnt { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 7px; border-radius: 9px; font-size: 11px; font-weight: 700; background: var(--crasto-bg-3, rgba(1,14,38,.08)); color: var(--crasto-text-muted); vertical-align: middle; }
+.dashtabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+.dashtab { appearance: none; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--crasto-text-muted); display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: var(--crasto-radius-pill, 999px); background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); cursor: pointer; box-shadow: var(--crasto-shadow-sm); transition: color .18s ease, background .18s ease, border-color .18s ease, transform .18s ease, box-shadow .18s ease; }
+.dashtab svg { width: 16px; height: 16px; opacity: .9; flex-shrink: 0; }
+.dashtab:hover { color: var(--crasto-text-primary); border-color: var(--crasto-blue, #6E9CE8); transform: translateY(-1px); }
+.dashtab.on { color: #fff; background: var(--crasto-navy); border-color: var(--crasto-navy); box-shadow: 0 6px 18px rgba(1,14,38,.24); }
+.dashtab.on svg { opacity: 1; }
+.dashtab:focus-visible { outline: 2px solid var(--crasto-blue, #6E9CE8); outline-offset: 2px; }
+/* Dark: pills glassy; ativa com destaque azul (chamativo, sem sumir no fundo navy). */
+[data-theme="dark"] .dashtab { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.12); }
+[data-theme="dark"] .dashtab:hover { background: rgba(255,255,255,.08); border-color: var(--crasto-blue, #6E9CE8); }
+[data-theme="dark"] .dashtab.on { background: rgba(110,156,232,.16); border-color: rgba(110,156,232,.55); color: #fff; box-shadow: 0 4px 18px rgba(110,156,232,.22); }
+.dashtab-cnt { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; font-size: 11px; font-weight: 700; background: var(--crasto-bg-3, rgba(1,14,38,.08)); color: var(--crasto-text-muted); }
 .dashtab.on .dashtab-cnt { background: rgba(255,255,255,.22); color: #fff; }
 
 /* ===== leitura de reunião/minuta (modal wide) — conforto para transcrições longas ===== */
