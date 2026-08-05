@@ -18,6 +18,7 @@ export class WacrmMetricsService {
   // Resultados dos últimos 30 dias (+ trend vs 30 anteriores). SEMPRE filtra organization_id=$1.
   async resultados(orgId: string): Promise<{
     tempo_resposta: number | null; automacao: number | null; atendimentos: number | null; novos_leads: number | null;
+    conversas_ia: number | null; dur_media: number | null;
     trend: { atendimentos: number | null; novos_leads: number | null }; volume: { label: string; n: number }[];
   } | null> {
     const p = this.db();
@@ -33,7 +34,15 @@ export class WacrmMetricsService {
            (select count(*) from whatsapp.contacts ct, w  where ct.organization_id=$1 and ct.created_at>=w.f  and ct.created_at<w.t)::int  leads,
            (select count(*) from whatsapp.contacts ct, pr where ct.organization_id=$1 and ct.created_at>=pr.f and ct.created_at<pr.t)::int leads_prev,
            (select count(*) filter (where from_type='ai')    from whatsapp.messages, w where organization_id=$1 and created_at>=w.f)::int ai,
-           (select count(*) filter (where from_type='human') from whatsapp.messages, w where organization_id=$1 and created_at>=w.f)::int human`,
+           (select count(*) filter (where from_type='human') from whatsapp.messages, w where organization_id=$1 and created_at>=w.f)::int human,
+           (select count(distinct conversation_id) from whatsapp.messages, w where organization_id=$1 and from_type='ai' and created_at>=w.f and created_at<w.t)::int conversas_ia`,
+        [orgId])).rows[0];
+      // Duração média de conversa (30d) — proxy medido de "tempo de atendimento" p/ derivar horas.
+      const dm = (await c.query(
+        `with w as (select now()-'30 days'::interval f),
+              c as (select conversation_id, extract(epoch from (max(created_at)-min(created_at))) dur
+                      from whatsapp.messages, w where organization_id=$1 and created_at>=w.f group by conversation_id)
+         select coalesce(round(avg(dur) filter (where dur between 30 and 7200)),0)::int dur_media from c`,
         [orgId])).rows[0];
       const tm = (await c.query(
         `with w as (select now()-'30 days'::interval f, now() t),
@@ -59,6 +68,8 @@ export class WacrmMetricsService {
         automacao: total > 0 ? Math.round((m.ai / total) * 100) : null,
         atendimentos: m.atend > 0 ? m.atend : null,
         novos_leads: m.leads > 0 ? m.leads : null,
+        conversas_ia: m.conversas_ia > 0 ? m.conversas_ia : null,
+        dur_media: dm.dur_media > 0 ? dm.dur_media : null,
         trend: { atendimentos: pct(m.atend, m.atend_prev), novos_leads: pct(m.leads, m.leads_prev) },
         volume: vol,
       };

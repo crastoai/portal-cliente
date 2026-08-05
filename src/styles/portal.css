@@ -417,6 +417,13 @@
 .kpi .val { font-size: 30px; font-weight: 700; color: var(--crasto-text-primary); letter-spacing: -.03em; margin: 8px 0 2px; font-variant-numeric: tabular-nums; }
 .kpi .val small { font-size: 14px; font-weight: 600; color: var(--crasto-text-faint); }
 .kpi .delta { font-size: 12px; font-weight: 600; color: var(--crasto-success); }
+/* Antes×Depois: "antes" riscado no value + indicador em pill (estilo protótipo). */
+.kpi .val .val-antes { text-decoration: line-through; color: var(--crasto-text-faint); font-weight: 500; font-size: .6em; letter-spacing: 0; }
+.kpi .kdelta { display: inline-flex; align-items: center; gap: 4px; margin-top: 9px; font-size: 12px; font-weight: 600; padding: 3px 11px; border-radius: var(--crasto-radius-pill, 999px); }
+.kpi .kdelta.good { color: #1F8A5B; background: rgba(31,138,91,.10); }
+.kpi .kdelta.mute { color: var(--crasto-text-muted); background: var(--crasto-bg-3, rgba(1,14,38,.06)); }
+[data-theme="dark"] .kpi .kdelta.good { color: #5DE0A0; background: rgba(40,199,111,.14); }
+[data-theme="dark"] .kpi .kdelta.mute { color: var(--crasto-text-muted); background: rgba(255,255,255,.06); }
 
 /* ===== módulos ===== */
 .sec-h { display: flex; align-items: center; justify-content: space-between; margin: 8px 0 16px; }

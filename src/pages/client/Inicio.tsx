@@ -193,11 +193,22 @@ export default function Inicio() {
   // Nunca inventa: valor null → "—". tempo em s/min/h; % com sufixo. O "antes" só aparece
   // quando existir (Baseline de Entrada, item 1.3); senão mostra a evolução (trend).
   const fmtSeg = (s: number) => (s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}min` : `${(s / 3600).toFixed(1)}h`);
-  const fmtMetric = (m: any, v: number | null) => (v == null ? "—" : m.key === "tempo_resposta" ? fmtSeg(v) : m.unidade === "%" ? `${v}%` : Number(v).toLocaleString("pt-BR"));
-  const deltaMetric = (m: any) =>
-    m.antes != null ? `${t("antes")} ${fmtMetric(m, m.antes)}${m.fonte_antes ? " · " + m.fonte_antes : ""}`
-      : m.trend != null ? `${m.trend > 0 ? "▲" : m.trend < 0 ? "▼" : ""} ${Math.abs(m.trend)}% ${t("vs. período anterior")}`
-        : m.depois == null ? t("sem atividade ainda") : t("medido ao vivo");
+  const fmtMetric = (m: any, v: any) => (v == null ? "—" : m.texto ? String(v) : m.key === "tempo_resposta" ? fmtSeg(Number(v)) : m.unidade === "%" ? `${v}%` : m.unidade === "h" ? `${Number(v).toLocaleString("pt-BR")}h` : Number(v).toLocaleString("pt-BR"));
+  // Indicador estilo protótipo: pill verde com copy contextual. Com baseline ("antes") mostra a
+  // melhora em %; sem baseline, um selo por métrica (automação / tempo liberado / sempre no ar…).
+  const deltaMetric = (m: any): { txt: string; tone: "good" | "mute" } => {
+    if (m.antes != null && m.depois != null && !m.texto) {
+      const a = Number(m.antes), d = Number(m.depois);
+      if (m.melhor === "menor") { const p = a > 0 ? Math.round((1 - d / a) * 100) : null; return { txt: p != null ? `▼ ${p}% ${m.key === "tempo_resposta" ? t("mais rápido") : t("de custo")}` : t("melhorou"), tone: "good" }; }
+      const p = a > 0 ? Math.round((d / a - 1) * 100) : null; return { txt: p != null ? `▲ ${p}%` : t("evoluiu"), tone: "good" };
+    }
+    if (m.depois == null) return { txt: t("sem atividade ainda"), tone: "mute" };
+    if (m.key === "automacao") return { txt: t("automação"), tone: "good" };
+    if (m.key === "horas") return { txt: t("tempo liberado"), tone: "good" };
+    if (m.key === "cobertura") return { txt: t("sempre no ar"), tone: "good" };
+    if (m.trend != null) return { txt: `${m.trend > 0 ? "▲" : m.trend < 0 ? "▼" : ""} ${Math.abs(m.trend)}% ${t("vs. período anterior")}`, tone: "good" };
+    return { txt: m.estimativa ? t("estimativa") : t("medido ao vivo"), tone: "good" };
+  };
   const conquistaTom = (c: any): Tom => { const r = String(c.rollout_status || c.status || "").toLowerCase(); return ["delivered", "done", "live"].includes(r) ? "green" : ["on_hold", "paused", "cancelled", "canceled"].includes(r) ? "red" : "amber"; };
 
   // ── ENTREGAS & IMPLANTAÇÃO (Fase 2) — Gantt planejado×realizado + FAROL DE PRAZO por solução.
@@ -279,13 +290,13 @@ export default function Inicio() {
         {/* Antes × Depois — métricas reais. O "depois" vem ao vivo do WhatsApp CRM. */}
         <SecHead title={t("Antes × Depois")} tom="mute" caption={cock?.fontes?.crm ? t("dado real · em tempo real") : t("aguardando atividade no WhatsApp CRM")} />
         <div className="kpis kpis--3">
-          {(cock?.metrics || []).map((m) => (
+          {(cock?.metrics || []).map((m) => { const d = deltaMetric(m); return (
             <div className="kpi" key={m.key}>
               <div className="lab">{m.label}</div>
-              <div className="val">{fmtMetric(m, m.depois)}</div>
-              <div className="delta">{deltaMetric(m)}</div>
+              <div className="val">{m.antes != null ? <><span className="val-antes">{fmtMetric(m, m.antes)}</span> → </> : null}{fmtMetric(m, m.depois)}</div>
+              <div className={"kdelta " + d.tone}>{d.txt}</div>
             </div>
-          ))}
+          ); })}
         </div>
 
         {/* Você não tinha, agora tem — conquistas reais (módulos/serviços contratados). */}

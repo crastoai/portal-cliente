@@ -188,11 +188,16 @@ export class DeliveryController {
         depois, trend,
       };
     };
-    const metrics = [
-      metric('tempo_resposta', '1ª resposta no WhatsApp', 's', 'menor', r?.tempo_resposta ?? null, null),
-      metric('automacao', 'Atendido pela IA (30d)', '%', 'maior', r?.automacao ?? null, null),
+    // Horas da equipe economizadas (ESTIMATIVA, dado real): conversas atendidas pela IA × duração
+    // média de conversa medida. É derivação transparente — marcada como estimativa no front.
+    const horas = (r?.conversas_ia != null && r?.dur_media != null) ? Math.round((r.conversas_ia * r.dur_media) / 3600) : null;
+    const metrics: any[] = [
+      metric('tempo_resposta', '1ª resposta · WhatsApp', 's', 'menor', r?.tempo_resposta ?? null, null),
+      metric('automacao', 'Atendimentos feitos pela IA', '%', 'maior', r?.automacao ?? null, null),
+      metric('novos_leads', 'Leads / mês', '', 'maior', r?.novos_leads ?? null, r?.trend?.novos_leads ?? null),
       metric('atendimentos', 'Conversas atendidas', '', 'maior', r?.atendimentos ?? null, r?.trend?.atendimentos ?? null),
-      metric('novos_leads', 'Novos leads', '', 'maior', r?.novos_leads ?? null, r?.trend?.novos_leads ?? null),
+      { ...metric('horas', 'Horas da equipe / mês', 'h', 'maior', horas, null), estimativa: true },
+      { key: 'cobertura', label: 'Cobertura de atendimento', unidade: '', melhor: 'maior', antes: null, fonte_antes: null, depois: crmOk ? '24/7' : null, trend: null, texto: true },
     ];
 
     return {
