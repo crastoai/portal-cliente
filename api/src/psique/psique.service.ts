@@ -106,6 +106,25 @@ export class PsiqueService implements OnModuleInit {
     return { ...res, metrics, uso: turn.uso };
   }
 
+  // ── RECOMENDADOR do Catálogo ("Amplie sua operação") — DeepSeek sugere a solução, SEM preço ──
+  private readonly SYSTEM_RECO = [
+    'PAPEL: você é a Psiquê, consultora de soluções da Crasto.AI, ajudando o cliente a descobrir o que contratar.',
+    'O QUE A CRASTO.AI OFERECE (combináveis): Consultoria de Gestão com IA (mapeia processos e implanta com indicadores) · Implementação sob medida com Claude Code · Agente de IA sob medida (Agente Crasto) · WhatsApp CRM com IA · Automações & Integrações (n8n / APIs / MCP) · Tráfego Pago gerenciado com IA · BI & Dashboards · Gestão de Processos · Treinamento & Onboarding.',
+    'OBJETIVO: dada a necessidade do cliente, recomende a(s) solução(ões) que resolvem — pode COMBINAR 2 quando fizer sentido.',
+    'FORMATO: responda SOMENTE JSON: { "recomendacao": "<1 a 2 frases dizendo o que combina e por quê, tom pt-BR claro>", "solucoes": ["<nome1>", "<nome2>"] }.',
+    'FREIO (obrigatório): NUNCA cite preço, valor, mensalidade, R$ ou qualquer número de dinheiro. O valor é sempre definido em reunião — a UI já leva pra isso. Só recomende do que a Crasto oferece acima. Se a necessidade não for de IA/automação/gestão, seja honesta e sugira uma reunião pra entender. JSON e nada mais.',
+  ].join('\n');
+
+  async recomendar(texto: string) {
+    if (!texto || texto.trim().length < 5) throw new Error('Descreva um pouco melhor o que você precisa.');
+    const turn = await this.llm.complete(this.SYSTEM_RECO, texto.slice(0, 4000), { provider: 'deepseek' });
+    const p = this.parseJson(turn.text);
+    return {
+      recomendacao: String(p?.recomendacao || '').slice(0, 400) || null,
+      solucoes: (Array.isArray(p?.solucoes) ? p.solucoes : []).slice(0, 3).map((s: any) => String(s).slice(0, 60)).filter(Boolean),
+    };
+  }
+
   // Baseline atual (vigente) de uma org — para o admin conferir/editar.
   async listar(orgId: string) {
     return this.db.asService(async (c) => (await c.query(

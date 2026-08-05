@@ -20,4 +20,6 @@ export const psique = {
     api.post<SaveResp>(`/api/psique/baseline/save`, { organization_id, metrics, fonte, baseline_date }),
   /** Baseline vigente da org. */
   list: async (organization_id: string) => api.get<BaselineRow[]>(`/api/psique/baseline/${organization_id}`),
+  /** "Amplie sua operação" — o cliente descreve a necessidade, a IA recomenda a solução (SEM preço). */
+  recomendar: async (texto: string) => api.post<{ recomendacao: string | null; solucoes: string[]; error?: string }>(`/api/psique/recomendar`, { texto }),
 };
