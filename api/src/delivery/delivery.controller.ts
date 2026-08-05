@@ -121,7 +121,7 @@ export class DeliveryController {
     //    `.catch` garante que uma falha de DB NUNCA derruba o cockpit (front recebe [] → "—").
     const db = await this.db.asUser(this.uid(req), async (c) => {
       const orgId = (await c.query('select public.current_org_id() as id')).rows[0]?.id;
-      if (!orgId) return { orgId: null as string | null, jornada: [] as any[], conquistas: [] as any[], baseline: [] as any[] };
+      if (!orgId) return { orgId: null as string | null, jornada: [] as any[], conquistas: [] as any[], baseline: [] as any[], me: null as any };
       const jornada = (await c.query(
         `select e.happened_at, e.title, e.detail, coalesce(nullif(cm.label,''), vm.name) as module_name
            from delivery.implementation_events e
@@ -143,11 +143,37 @@ export class DeliveryController {
       // Narrativa da Psiquê (hero) — vigente (item 1.4).
       const narrativa = (await c.query(
         `select narrative from delivery.cockpit_narrative where organization_id = $1 and is_current limit 1`, [orgId])).rows[0]?.narrative ?? null;
-      return { orgId, jornada, conquistas, baseline, narrativa };
-    }).catch(() => ({ orgId: null as string | null, jornada: [] as any[], conquistas: [] as any[], baseline: [] as any[], narrativa: null as any }));
+      // Identidade do logado p/ o cabeçalho: nome + e-mail (o e-mail casa o cargo depois). asUser lê o próprio profile.
+      const me = (await c.query('select full_name, email from public.profiles where id = auth.uid()')).rows[0] ?? null;
+      return { orgId, jornada, conquistas, baseline, narrativa, me };
+    }).catch(() => ({ orgId: null as string | null, jornada: [] as any[], conquistas: [] as any[], baseline: [] as any[], narrativa: null as any, me: null as any }));
 
     // 2) RESULTADOS VIVOS direto do wacrm, escopados pelo orgId do Portal (confiável e em tempo real).
     const r = db?.orgId ? await this.wacrm.resultados(db.orgId).catch(() => null) : null;
+
+    // 2b) IDENTIDADE do cabeçalho (cargo + empresa) — Item 1. O cargo vem do cadastro de Pessoas/Sócios
+    //     do detalhe do cliente (crm.people.funcao/role · crm.company_partners.role_title), casando pelo
+    //     E-MAIL do usuário logado. Essas tabelas são admin-only na RLS → leitura via asService
+    //     (service_role) ESCOPADA ao orgId do próprio usuário. Sem match de e-mail → cargo null (nunca
+    //     inventa). Empresa (organizations.name) sempre real. Falha → identity null (cabeçalho degrada limpo).
+    const identity = db?.orgId ? await this.db.asService(async (c) => {
+      const org_name = (await c.query('select name from public.organizations where id = $1', [db.orgId])).rows[0]?.name ?? null;
+      const email: string | undefined = (db as any)?.me?.email || undefined;
+      let cargo: string | null = null;
+      if (email) {
+        cargo = (await c.query(
+          `select coalesce(nullif(funcao,''), nullif(role,'')) as c
+             from crm.people
+            where organization_id = $1
+              and (lower(email) = lower($2) or exists (select 1 from unnest(emails) e where lower(e) = lower($2)))
+            order by is_primary desc nulls last limit 1`, [db.orgId, email])).rows[0]?.c ?? null;
+        if (!cargo) cargo = (await c.query(
+          `select nullif(role_title,'') as c from crm.company_partners
+            where organization_id = $1 and lower(email) = lower($2) and is_active
+            order by is_ceo desc nulls last limit 1`, [db.orgId, email])).rows[0]?.c ?? null;
+      }
+      return { full_name: (db as any)?.me?.full_name ?? null, org_name, cargo };
+    }).catch(() => null) : null;
     const crmOk = !!r;
     const bmap: Record<string, any> = {};
     for (const b of (db?.baseline || [])) bmap[b.metric] = b;
@@ -175,6 +201,7 @@ export class DeliveryController {
       jornada: db?.jornada ?? [],
       conquistas: db?.conquistas ?? [],
       narrativa: db?.narrativa ?? null,       // Psiquê (item 1.4) — headline/destaques/resumo
+      identity,                                // cabeçalho (Item 1): { full_name, org_name, cargo } — cargo do cadastro de Pessoas
       fontes: { crm: crmOk, agent: crmOk },   // p/ o front saber quando mostrar "—"
     };
   }

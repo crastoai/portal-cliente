@@ -135,6 +135,7 @@ export type CockpitMine = {
   jornada: { happened_at: string; title: string; detail: string | null; module_name: string | null }[];
   conquistas: { titulo: string; status: string | null; rollout_status: string | null; tipo: "module" | "service" }[];
   narrativa: any | null;
+  identity: { full_name: string | null; org_name: string | null; cargo: string | null } | null;
   fontes: { crm: boolean; agent: boolean };
 };
 export const cockpit = {

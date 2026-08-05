@@ -272,6 +272,10 @@
 .phead .ey { font-size: 11px; font-weight: 700; letter-spacing: var(--crasto-ls-label); text-transform: uppercase; color: var(--crasto-blue-ink, #3E6FB8); margin-bottom: 7px; }
 .phead h1 { font-size: var(--crasto-fs-h1); font-weight: 500; letter-spacing: var(--crasto-ls-tighter); }
 .phead .sub { color: var(--crasto-text-muted); margin-top: 6px; }
+/* Etiquetas de identidade do cabeçalho (Item 1): cargo · empresa — dado real (cadastro de Pessoas). */
+.phead .ident-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.phead .ident-chip { display: inline-flex; align-items: center; font-size: 12px; font-weight: 600; letter-spacing: .005em; color: var(--crasto-text-body); background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-pill); padding: 4px 12px; line-height: 1.4; }
+.phead .ident-chip.is-role { color: var(--crasto-blue-ink, #3E6FB8); border-color: var(--crasto-blue-ink, #3E6FB8); background: color-mix(in srgb, var(--crasto-blue-ink, #3E6FB8) 8%, transparent); }
 
 /* ===== farol ===== */
 .farol { display: flex; align-items: center; gap: 22px; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md); padding: 18px 22px; box-shadow: var(--crasto-shadow-sm); margin-bottom: 26px; flex-wrap: wrap; }

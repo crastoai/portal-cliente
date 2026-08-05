@@ -235,6 +235,14 @@ export default function Inicio() {
       <div className="phead">
         <div className="ey">{t("Portal do Cliente")}</div>
         <h1>{firstName ? t("Olá, {n} 👋", { n: firstName }) : t("Olá 👋")}</h1>
+        {/* Etiquetas de identidade (Item 1): cargo + empresa — dado real do cadastro de Pessoas/Sócios.
+            Sem cargo cadastrado p/ o e-mail do logado → só a empresa; sem org → nada (nunca inventa). */}
+        {(cock?.identity?.cargo || cock?.identity?.org_name) && (
+          <div className="ident-chips">
+            {cock.identity.cargo && <span className="ident-chip is-role">{cock.identity.cargo}</span>}
+            {cock.identity.org_name && <span className="ident-chip">{cock.identity.org_name}</span>}
+          </div>
+        )}
         <div className="sub">{t("Aqui está o resumo do que a sua IA fez por você.")}</div>
       </div>
 
