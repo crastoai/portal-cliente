@@ -334,31 +334,34 @@ export default function Inicio() {
       </>)}
 
       {tab === "solucoes" && (<>
-      {/* Farol — a luz é a MÉDIA real dos faróis das soluções (o pior vence), não mais verde fixo. */}
-      <div className="farol">
-        <div className="lights">
-          <span className={"fl red" + (lit === "red" ? " on" : "")} />
-          <span className={"fl amber" + (lit === "amber" ? " on" : "")} />
-          <span className={"fl green" + (lit === "green" ? " on" : "")} />
-        </div>
-        <div className="txt">
-          <div className="h">
-            {lit === "green" ? t("Sistema no ar") : lit === "amber" ? t("Ajuste em andamento") : lit === "red" ? t("Atenção necessária") : t("Aguardando ativação")}
-            <span className={"pill " + (lit === "green" ? "ok" : lit === "amber" ? "warn" : lit === "red" ? "info" : "mute")}>
-              <span className="d" />{lit === "green" ? t("Operando") : lit === "amber" ? t("Corrigindo") : lit === "red" ? t("Suporte atuando") : t("Sem solução ativa")}
-            </span>
-          </div>
-          <div className="s">{health?.message || (lit === "green" ? t("Tudo funcionando normalmente.") : lit ? t("A média das suas soluções indica um ponto de atenção — veja abaixo.") : t("Assim que uma solução for ativada, o farol reflete a operação dela."))}</div>
-        </div>
-      </div>
+      {/* (Banner "Ajuste em andamento" removido — não era dado real; a saúde por solução já aparece
+          no farol de prazo da tabela abaixo, por linha.) */}
+      {void lit}
 
       {/* KPIs (3): implantação (abre o histórico), soluções ativas (bate com o escopo abaixo),
           contrato de suporte/SLA. */}
-      <div className="kpis kpis--3">
-        <button className="kpi g ckpi" onClick={() => setImplOpen(true)}><div className="lab">{t("Implantação")}</div><div className="val">{overall}<small>%</small></div><div className="delta">{implEvents.length ? <>{t("ver histórico")} <ArrowRight size={11} /></> : overall >= 100 ? t("Entregue") : t("Em andamento")}</div></button>
-        <div className="kpi"><div className="lab">{t("Soluções ativas")}</div><div className="val">{escopoAtivos}<small> / {itensEscopo.length}</small></div><div className="delta">{tiposAtivos || t("no seu plano")}</div></div>
-        <button className="kpi ckpi" onClick={() => setSlaOpen(true)}><div className="lab">{t("Contrato de suporte")}</div><div className="val" style={{ fontSize: 20 }}>{overall >= 100 ? t("SLA 48h") : daysLeft != null ? t("{n} dias", { n: daysLeft }) : t("SLA 48h")}</div><div className="delta">{overall >= 100 ? t("saber mais") : t("prazo de implantação")} <ArrowRight size={11} /></div></button>
+      {/* 4 cards do protótipo: implantação geral · soluções contratadas · total do contrato ·
+          próximo vencimento. Os dois de contrato só aparecem com dado real (podeFin/faturas). */}
+      {(() => {
+        const totalContrato = faturas.reduce((s, f) => s + Number(f.amount || 0), 0);
+        const emImpl = Math.max(0, itensEscopo.length - escopoAtivos);
+        return (
+      <div className="kpis">
+        <button className="kpi g ckpi" onClick={() => setImplOpen(true)}><div className="lab">{t("Implantação geral")}</div><div className="val">{overall}<small>%</small></div><div className="delta">{implEvents.length ? <>{t("ver histórico")} <ArrowRight size={11} /></> : overall >= 100 ? t("Entregue") : emImpl ? t("{n} em andamento", { n: emImpl }) : t("Em andamento")}</div></button>
+        <div className="kpi"><div className="lab">{t("Soluções contratadas")}</div><div className="val">{itensEscopo.length}</div><div className="delta">{escopoAtivos ? t("{n} no ar", { n: escopoAtivos }) : t("no seu plano")}{emImpl ? ` · ${t("{n} em implantação", { n: emImpl })}` : ""}</div></div>
+        {podeFin && faturas.length > 0 ? (
+          <button className="kpi ckpi" onClick={() => setTab("negocios")}><div className="lab">{t("Total do contrato")}</div><div className="val" style={{ fontSize: 24 }}>{money(totalContrato)}</div><div className="delta">{t("{n}× parcelas", { n: faturas.length })} <ArrowRight size={11} /></div></button>
+        ) : (
+          <button className="kpi ckpi" onClick={() => setSlaOpen(true)}><div className="lab">{t("Contrato de suporte")}</div><div className="val" style={{ fontSize: 20 }}>{overall >= 100 ? t("SLA 48h") : daysLeft != null ? t("{n} dias", { n: daysLeft }) : t("SLA 48h")}</div><div className="delta">{t("saber mais")} <ArrowRight size={11} /></div></button>
+        )}
+        {podeFin && fin?.next ? (
+          <button className="kpi ckpi" onClick={() => setTab("negocios")}><div className="lab">{t("Próximo vencimento")}</div><div className="val" style={{ fontSize: 24 }}>{brData(fin.next.due_date || undefined)}</div><div className="delta">{fin.next.description || t("Parcela")}{fin.next.amount ? ` · ${money(fin.next.amount)}` : ""}</div></button>
+        ) : (
+          <div className="kpi"><div className="lab">{t("Soluções ativas")}</div><div className="val">{escopoAtivos}<small> / {itensEscopo.length}</small></div><div className="delta">{tiposAtivos || t("no seu plano")}</div></div>
+        )}
       </div>
+        );
+      })()}
 
       {/* ═══ ENTREGAS & IMPLANTAÇÃO ═══ Gantt planejado×realizado por solução (dado real). */}
       <div className="scopebox">
