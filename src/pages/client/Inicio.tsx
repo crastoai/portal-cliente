@@ -112,7 +112,7 @@ export default function Inicio() {
   // Drill-down AO VIVO (Fase 1): ao abrir o card "1ª resposta", busca o breakdown por colaborador e
   // repete a cada 30s — sem o usuário atualizar a tela. Limpa ao fechar.
   useEffect(() => {
-    if (drill !== "tempo_resposta") { setCollabs(null); return; }
+    if (!drill) { setCollabs(null); return; }
     let alive = true;
     const load = () => services.delivery.cockpit.responseBreakdown()
       .then((r) => { if (alive) setCollabs(r.rows || []); })
@@ -315,7 +315,7 @@ export default function Inicio() {
         {/* Antes × Depois — métricas reais. O "depois" vem ao vivo do WhatsApp CRM. */}
         <SecHead title={t("Antes × Depois")} tom="mute" caption={cock?.fontes?.crm ? t("dado real · em tempo real") : t("aguardando atividade no WhatsApp CRM")} />
         <div className="kpis kpis--3">
-          {(cock?.metrics || []).map((m) => { const d = deltaMetric(m); const drillable = m.key === "tempo_resposta" && !!cock?.fontes?.crm; return (
+          {(cock?.metrics || []).map((m) => { const d = deltaMetric(m); const drillable = ["tempo_resposta", "atendimentos", "automacao"].includes(m.key) && !!cock?.fontes?.crm; return (
             <div className={"kpi" + (drillable ? " kpi--drill" : "")} key={m.key}
               onClick={drillable ? () => setDrill(m.key) : undefined}
               role={drillable ? "button" : undefined} tabIndex={drillable ? 0 : undefined}
@@ -626,7 +626,7 @@ export default function Inicio() {
 
       {/* DRILL-DOWN interativo — Nível 1 (colaboradores, ao vivo 30s) → Nível 2 (conversas do
           colaborador) → clique abre /chat/<id> no CRM pra ler o histórico e ver por que demora. */}
-      <Modal title={drillCollab ? `${drillCollab.kind === "ai" ? "🤖 " : "👤 "}${drillCollab.nome}` : t("Tempo de resposta por colaborador")} open={drill === "tempo_resposta"} onClose={() => { setDrill(null); setDrillCollab(null); setConvs(null); }} wide>
+      <Modal title={drillCollab ? `${drillCollab.kind === "ai" ? "🤖 " : "👤 "}${drillCollab.nome}` : (drill === "automacao" ? t("Atendimento por colaborador (humano × IA)") : drill === "atendimentos" ? t("Conversas por colaborador") : t("Tempo de resposta por colaborador"))} open={!!drill} onClose={() => { setDrill(null); setDrillCollab(null); setConvs(null); }} wide>
         {!drillCollab ? (<>
           <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)", marginBottom: 12 }}>{t("Quem está respondendo no WhatsApp — e em quanto tempo. Clique num colaborador para ver as conversas dele.")} <span style={{ color: "var(--crasto-blue, #6E9CE8)", fontWeight: 600 }}>● {t("ao vivo")}</span></div>
           {collabs === null ? (
