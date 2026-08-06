@@ -20,7 +20,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
  *   escolher. Senão um esbarrão no mouse "responderia" por ela.
  */
 const KEY = "crasto.lastActivity";
-export const IDLE_MS = 60 * 60 * 1000; // 1 hora parado → pergunta
+export const IDLE_MS = 30 * 60 * 1000; // 30 min parado → pergunta (break de 30 min; servidor também enforça)
 export const WARN_MS = 30 * 1000;      // 30s para responder → sai
 
 const agora = () => Date.now();
