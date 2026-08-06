@@ -143,7 +143,11 @@ export const cockpit = {
   getMine: async () => api.get<CockpitMine>(`/api/delivery/cockpit/mine`),
   // Drill-down (Fase 1): tempo de resposta por colaborador — chamar em loop (~30s) p/ ficar ao vivo.
   responseBreakdown: async () => api.get<{ rows: CollabRow[] }>(`/api/delivery/cockpit/response-breakdown`),
+  // Drill-down (Fase 2): as conversas de um colaborador — clicar abre /chat/<id> no CRM.
+  collabConversations: async (kind: string, id: string | null) =>
+    api.get<{ rows: ConvRow[] }>(`/api/delivery/cockpit/collab-conversations?kind=${encodeURIComponent(kind)}${id ? `&id=${encodeURIComponent(id)}` : ""}`),
 };
+export type ConvRow = { id: string; nome: string; phone: string | null; aguardando: boolean; last_inbound: string | null; last_outbound: string | null };
 
 // Mini-cockpit do WhatsApp CRM — pulso ao vivo (agentes online, conversas ativas, fila, IA hoje).
 export type CrmLive = { agentesOnline: number; agentesTotal: number; conversasAtivas: number; fila: number; automacaoHoje: number | null };

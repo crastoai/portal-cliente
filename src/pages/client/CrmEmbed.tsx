@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { services } from "../../services";
@@ -16,6 +16,8 @@ type Agent = { id: string; name: string; slug?: string; status?: string };
 export default function CrmEmbed() {
   const t = useT();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const convParam = params.get("conversation"); // deep-link do drill-down do Cockpit → abre /chat/<id>
   const [crmUrl, setCrmUrl] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [agents, setAgents] = useState<Agent[] | null>(null);
@@ -50,7 +52,8 @@ export default function CrmEmbed() {
           ags = Array.isArray(j?.agents) ? j.agents : [];
         } catch { /* sem lista → entra direto no principal */ }
         setAgents(ags);
-        if (ags.length <= 1) setChosen(ags[0]?.id || "*"); // 0/1 agente → sem tela, entra direto
+        if (convParam) setChosen("*"); // deep-link de conversa → pula o seletor, abre a empresa inteira
+        else if (ags.length <= 1) setChosen(ags[0]?.id || "*"); // 0/1 agente → sem tela, entra direto
       } catch (e: any) { setErr(e?.message || t("Não foi possível abrir o WhatsApp CRM.")); }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -93,7 +96,8 @@ export default function CrmEmbed() {
   // Token no FRAGMENTO (#), NUNCA na query: o `#` não é enviado ao servidor, então o JWT do cliente
   // não vaza no access-log/histórico/Referer do iframe (era um vazamento diário). O CRM já lê do #
   // (session.ts), com fallback pra ?query durante a transição.
-  const src = `${crmUrl}/?embedded=1${agentQS}#access_token=${encodeURIComponent(token || "")}`;
+  const convPath = convParam ? `/chat/${encodeURIComponent(convParam)}` : "/";
+  const src = `${crmUrl}${convPath}?embedded=1${agentQS}#access_token=${encodeURIComponent(token || "")}`;
   // Mini-cockpit de BI no topo do módulo (dado real do wacrm). Sem fonte = "—".
   const stat = (label: string, value: any, tone?: "warn") => (
     <div style={{ padding: "8px 16px", borderRight: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))", minWidth: 120 }}>

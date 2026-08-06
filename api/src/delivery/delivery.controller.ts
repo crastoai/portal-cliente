@@ -223,6 +223,17 @@ export class DeliveryController {
     return { rows: rows ?? [] };
   }
 
+  // DRILL-DOWN Fase 2: as conversas de um colaborador (p/ abrir no CRM via /chat/<id>). Escopo por org.
+  @Get('cockpit/collab-conversations')
+  async collabConversations(@Req() req: any, @Query('kind') kind: string, @Query('id') id: string) {
+    const orgId = await this.db.asUser(this.uid(req), async (c) =>
+      (await c.query('select public.current_org_id() as id')).rows[0]?.id as string | null,
+    ).catch(() => null);
+    if (!orgId) return { rows: [] as any[] };
+    const rows = await this.wacrm.collabConversations(orgId, kind === 'ai' ? 'ai' : 'human', id || null).catch(() => null);
+    return { rows: rows ?? [] };
+  }
+
   // MINI-COCKPIT do WhatsApp CRM — pulso ao vivo (agentes online, conversas ativas, fila, IA hoje).
   // Escopado pelo orgId do Portal (current_org_id, confiável). CRM fora → null → o front mostra "—".
   @Get('crm-live/mine')

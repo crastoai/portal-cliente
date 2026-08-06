@@ -145,4 +145,38 @@ export class WacrmMetricsService {
       c.release();
     }
   }
+
+  // DRILL-DOWN Fase 2: as CONVERSAS em que um colaborador respondeu (humano por sender_user_id, IA
+  // por acting_agent_id). Traz contato + se está AGUARDANDO resposta agora (last_inbound>last_outbound)
+  // + o id p/ deep-link (/chat/<id> no CRM). Escopo por org. id null = balde "geral" (sem atribuição).
+  async collabConversations(orgId: string, kind: 'human' | 'ai', id: string | null): Promise<{ id: string; nome: string; phone: string | null; aguardando: boolean; last_inbound: string | null; last_outbound: string | null }[] | null> {
+    const p = this.db();
+    if (!p || !orgId) return null;
+    const c = await p.connect();
+    try {
+      const rows = (await c.query(
+        `with w as (select now()-'30 days'::interval f),
+         resp as (
+           select m.conversation_id
+             from whatsapp.messages m, w
+            where m.organization_id=$1 and m.created_at>=w.f
+              and case when $2='ai'
+                       then m.from_type='ai'    and (($3::uuid is not null and m.acting_agent_id=$3::uuid) or ($3::uuid is null and m.acting_agent_id is null))
+                       else m.from_type='human' and (($3::uuid is not null and m.sender_user_id=$3::uuid)  or ($3::uuid is null and m.sender_user_id  is null))
+                  end)
+         select cv.id, coalesce(nullif(ct.name,''), ct.phone, 'Contato') nome, ct.phone,
+                (cv.last_inbound is not null and (cv.last_outbound is null or cv.last_inbound > cv.last_outbound)) aguardando,
+                cv.last_inbound, cv.last_outbound
+           from (select distinct conversation_id from resp) rc
+           join whatsapp.conversations cv on cv.id = rc.conversation_id
+           left join whatsapp.contacts ct on ct.id = cv.contact_id
+          where coalesce(cv.archived,false)=false
+          order by aguardando desc, coalesce(cv.last_inbound, cv.last_outbound) desc nulls last
+          limit 40`,
+        [orgId, kind, id])).rows;
+      return rows.map((r: any) => ({ id: String(r.id), nome: r.nome, phone: r.phone || null, aguardando: !!r.aguardando, last_inbound: r.last_inbound || null, last_outbound: r.last_outbound || null }));
+    } finally {
+      c.release();
+    }
+  }
 }

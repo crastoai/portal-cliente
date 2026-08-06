@@ -430,6 +430,10 @@
 .kpi--drill:focus-visible { outline: 2px solid var(--crasto-blue, #6E9CE8); outline-offset: 2px; }
 .kpi .kpi-drill-ico { margin-left: 6px; vertical-align: -1px; opacity: .4; }
 .kpi--drill:hover .kpi-drill-ico { opacity: .95; color: var(--crasto-blue, #6E9CE8); }
+/* Drill-down: linha de colaborador clicável + card de conversa (abre no CRM). */
+.drillrow:hover { background: var(--crasto-bg-2, rgba(1,14,38,.035)); }
+.drillconv { display: flex; align-items: center; gap: 10px; width: 100%; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md, 12px); padding: 11px 13px; cursor: pointer; font: inherit; transition: border-color .14s ease, transform .14s ease, box-shadow .14s ease; }
+.drillconv:hover { border-color: var(--crasto-blue, #6E9CE8); transform: translateX(2px); box-shadow: var(--crasto-shadow-sm); }
 
 /* ===== módulos ===== */
 .sec-h { display: flex; align-items: center; justify-content: space-between; margin: 8px 0 16px; }
