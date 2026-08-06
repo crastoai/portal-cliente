@@ -51,6 +51,7 @@ export default function Inicio() {
   const [rFrom, setRFrom] = useState<string | null>(null);          // filtro de período (De) — null = últimos 30d
   const [rTo, setRTo] = useState<string | null>(null);              // filtro de período (Até)
   const [leadQ, setLeadQ] = useState("");                           // busca por lead (nível 2)
+  const [collabQ, setCollabQ] = useState("");                       // busca por colaborador (nível 1)
   const [self, setSelf] = useState<any>(null);
   const [team, setTeam] = useState<{ scope: string; rows: { id: string; email: string; full_name: string | null; online: boolean; sessoes: number; minutos: number; ultimo: string | null }[] } | null>(null);
   const [reunioes, setReunioes] = useState<import("../../services/delivery.service").Meeting[]>([]);
@@ -646,7 +647,7 @@ export default function Inicio() {
 
       {/* DRILL-DOWN interativo — Nível 1 (colaboradores, ao vivo 30s) → Nível 2 (conversas do
           colaborador) → clique abre /chat/<id> no CRM pra ler o histórico e ver por que demora. */}
-      <Modal title={drillCollab ? `${drillCollab.kind === "ai" ? "🤖 " : "👤 "}${drillCollab.nome}` : (drill === "automacao" ? t("Atendimento por colaborador (humano × IA)") : drill === "atendimentos" ? t("Conversas por colaborador") : t("Tempo de resposta por colaborador"))} open={!!drill} onClose={() => { setDrill(null); setDrillCollab(null); setConvs(null); setLeadQ(""); setRFrom(null); setRTo(null); }} wide>
+      <Modal title={drillCollab ? `${drillCollab.kind === "ai" ? "🤖 " : "👤 "}${drillCollab.nome}` : (drill === "automacao" ? t("Atendimento por colaborador (humano × IA)") : drill === "atendimentos" ? t("Conversas por colaborador") : t("Tempo de resposta por colaborador"))} open={!!drill} onClose={() => { setDrill(null); setDrillCollab(null); setConvs(null); setLeadQ(""); setCollabQ(""); setRFrom(null); setRTo(null); }} wide>
         {!drillCollab ? (<>
           <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)", marginBottom: 12 }}>{t("Quem está respondendo no WhatsApp — e em quanto tempo. Clique num colaborador para ver as conversas dele.")} <span style={{ color: "var(--crasto-blue, #6E9CE8)", fontWeight: 600 }}>● {t("ao vivo")}</span></div>
           <DateRange from={rFrom} to={rTo} onChange={(f, tt) => { setRFrom(f); setRTo(tt); }} />
@@ -654,7 +655,16 @@ export default function Inicio() {
             <div style={{ padding: "16px 0", color: "var(--crasto-text-muted)" }}>{t("Carregando…")}</div>
           ) : collabs.length === 0 ? (
             <div style={{ padding: "16px 0", color: "var(--crasto-text-muted)" }}>{t("Sem atividade de resposta no período.")}</div>
-          ) : (
+          ) : (<>
+            <div className="dp-search">
+              <Search size={15} style={{ opacity: .5, flexShrink: 0 }} />
+              <input className="inp" placeholder={t("Buscar colaborador…")} value={collabQ} onChange={(e) => setCollabQ(e.target.value)} />
+              {collabQ && <button type="button" className="dp-search-clear" onClick={() => setCollabQ("")} aria-label={t("Limpar busca")}><X size={14} /></button>}
+            </div>
+            {(() => {
+              const shown = collabs.filter((c: any) => !collabQ.trim() || (c.nome || "").toLowerCase().includes(collabQ.trim().toLowerCase()));
+              if (shown.length === 0) return <div style={{ padding: "12px 0", color: "var(--crasto-text-muted)" }}>{t("Nenhum colaborador com esse nome.")}</div>;
+              return (
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 540 }}>
                 <thead><tr style={{ textAlign: "left", fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--crasto-text-muted)" }}>
@@ -665,7 +675,7 @@ export default function Inicio() {
                   <th />
                 </tr></thead>
                 <tbody>
-                  {collabs.map((c: any, i: number) => (
+                  {shown.map((c: any, i: number) => (
                     <tr key={c.id || c.nome + i} className="drillrow" onClick={() => { setDrillCollab(c); setConvs(null); setLeadQ(""); }} style={{ borderTop: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))", cursor: "pointer" }}>
                       <td style={{ padding: "11px 10px", fontSize: 13.5, fontWeight: 600, color: "var(--crasto-text-primary)" }}>{c.kind === "ai" ? "🤖 " : "👤 "}{c.nome}</td>
                       <td className="tnum" style={{ padding: "11px 10px", fontSize: 14, textAlign: "right", fontWeight: 700, color: "var(--crasto-text-primary)" }}>{c.tmed != null ? fmtSeg(c.tmed) : "—"}</td>
@@ -677,7 +687,9 @@ export default function Inicio() {
                 </tbody>
               </table>
             </div>
-          )}
+              );
+            })()}
+          </>)}
         </>) : (<>
           <button className="crasto-btn crasto-btn--sm" style={{ marginBottom: 12 }} onClick={() => { setDrillCollab(null); setConvs(null); setLeadQ(""); }}><span className="crasto-btn__label">← {t("Voltar aos colaboradores")}</span></button>
           <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)", marginBottom: 10 }}>{t("Conversas onde {n} respondeu — clique para abrir e ler o histórico no WhatsApp.", { n: drillCollab.nome })}</div>
@@ -694,7 +706,7 @@ export default function Inicio() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {convs.map((cv: any) => (
-                <button key={cv.id} className="drillconv" onClick={() => { setDrill(null); setDrillCollab(null); setConvs(null); setLeadQ(""); setRFrom(null); setRTo(null); navigate(`/app/crm?conversation=${encodeURIComponent(cv.id)}`); }}>
+                <button key={cv.id} className="drillconv" onClick={() => { setDrill(null); setDrillCollab(null); setConvs(null); setLeadQ(""); setCollabQ(""); setRFrom(null); setRTo(null); navigate(`/app/crm?conversation=${encodeURIComponent(cv.id)}`); }}>
                   <MessageCircle size={16} style={{ opacity: .6, flexShrink: 0 }} />
                   <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 13.5, color: "var(--crasto-text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cv.nome}{cv.phone ? <span style={{ fontWeight: 400, color: "var(--crasto-text-muted)" }}> · {cv.phone}</span> : null}</div>

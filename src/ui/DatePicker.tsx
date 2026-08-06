@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useRef, useLayoutEffect, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Calendar as CalIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
 
 // Calendário/intervalo de datas 100% no Design System da Crasto (sem lib externa — o Portal não
-// tem date-picker; o input nativo abre o calendário do SO, fora do DS). Inline (no fluxo) para não
-// ser recortado dentro do modal (que rola em 90vh). Usado no drill-down do Cockpit.
+// tem date-picker; o input nativo abre o calendário do SO, fora do DS). Abre como POP-UP flutuante
+// (portal + position:fixed) para não ser recortado nem empurrar o conteúdo do modal (que rola em 90vh).
 
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 const DOW = ["D", "S", "T", "Q", "Q", "S", "S"];
@@ -65,21 +66,60 @@ function MonthCal({ value, min, max, onPick }: { value: string | null; min?: str
   );
 }
 
+// Pop-up flutuante: renderiza no body (portal), posicionado sob o campo âncora, com overlay
+// transparente que fecha ao clicar fora. Reposiciona se não couber na tela.
+function CalPopover({ anchor, value, min, max, onPick, onClose }: { anchor: DOMRect; value: string | null; min?: string | null; max?: string | null; onPick: (iso: string) => void; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: anchor.bottom + 6, left: anchor.left });
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const w = el.offsetWidth, h = el.offsetHeight;
+    let left = anchor.left;
+    if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
+    if (left < 8) left = 8;
+    let top = anchor.bottom + 6;
+    if (top + h > window.innerHeight - 8) top = Math.max(8, anchor.top - h - 6);
+    setPos({ top, left });
+  }, [anchor]);
+  return createPortal(
+    <>
+      <div className="dp-overlay" onClick={onClose} />
+      <div ref={ref} className="dp-pop" style={{ top: pos.top, left: pos.left }} role="dialog" aria-label="Calendário">
+        <MonthCal value={value} min={min} max={max} onPick={onPick} />
+      </div>
+    </>,
+    document.body,
+  );
+}
+
 export function DateRange({ from, to, onChange }: { from: string | null; to: string | null; onChange: (from: string | null, to: string | null) => void }) {
   const [open, setOpen] = useState<null | "from" | "to">(null);
+  const [anchor, setAnchor] = useState<DOMRect | null>(null);
   const todayISO = toISO(new Date());
+  const openField = (which: "from" | "to", e: React.MouseEvent<HTMLButtonElement>) => {
+    setAnchor(e.currentTarget.getBoundingClientRect());
+    setOpen((o) => (o === which ? null : which));
+  };
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
   return (
     <div className="dp-range">
       <div className="dp-bar">
         <CalIcon size={15} style={{ opacity: 0.6, flexShrink: 0 }} />
         <span className="dp-lbl">Período:</span>
-        <button type="button" className={"dp-field" + (open === "from" ? " is-open" : "")} onClick={() => setOpen((o) => (o === "from" ? null : "from"))}>{from ? fmtBR(from) : "início"}</button>
+        <button type="button" className={"dp-field" + (open === "from" ? " is-open" : "")} onClick={(e) => openField("from", e)}>{from ? fmtBR(from) : "início"}</button>
         <span className="dp-sep">→</span>
-        <button type="button" className={"dp-field" + (open === "to" ? " is-open" : "")} onClick={() => setOpen((o) => (o === "to" ? null : "to"))}>{to ? fmtBR(to) : "hoje"}</button>
+        <button type="button" className={"dp-field" + (open === "to" ? " is-open" : "")} onClick={(e) => openField("to", e)}>{to ? fmtBR(to) : "hoje"}</button>
         {(from || to) && <button type="button" className="dp-clear" onClick={() => { onChange(null, null); setOpen(null); }} aria-label="Limpar período"><X size={13} /> limpar</button>}
       </div>
-      {open && (
-        <MonthCal
+      {open && anchor && (
+        <CalPopover
+          anchor={anchor}
           value={open === "from" ? from : to}
           max={todayISO}
           min={open === "to" ? from : null}
@@ -88,6 +128,7 @@ export function DateRange({ from, to, onChange }: { from: string | null; to: str
             else onChange(from, iso);
             setOpen(null);
           }}
+          onClose={() => setOpen(null)}
         />
       )}
     </div>
