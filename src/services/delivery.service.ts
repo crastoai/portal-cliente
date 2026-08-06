@@ -139,6 +139,9 @@ export type CockpitMine = {
   fontes: { crm: boolean; agent: boolean };
 };
 export type CollabRow = { kind: "human" | "ai"; id: string | null; nome: string; tmed: number | null; convs: number; respostas: number; last_seen_at: string | null };
+// Relógio de ponto (Fase A): tempo logado real por colaborador (min = minutos) + presença online.
+export type HoursRow = { id: string; nome: string; email: string | null; online: boolean; last_seen_at: string | null; min_hoje: number; min_semana: number; min_mes: number; min_periodo: number; sessoes: number; ultimo: string | null };
+export type SessionRow = { id: string; login: string; logout: string; minutos: number };
 export const cockpit = {
   getMine: async () => api.get<CockpitMine>(`/api/delivery/cockpit/mine`),
   // Drill-down (Fase 1): tempo de resposta por colaborador — chamar em loop (~30s) p/ ficar ao vivo.
@@ -160,6 +163,23 @@ export const cockpit = {
     if (to) qs.set("to", to);
     if (q && q.trim()) qs.set("q", q.trim());
     return api.get<{ rows: ConvRow[] }>(`/api/delivery/cockpit/collab-conversations?${qs.toString()}`);
+  },
+  // Drill-down de HORAS (relógio de ponto): tempo logado por colaborador — loop ~30s p/ ficar ao vivo.
+  // from/to = período (YYYY-MM-DD); as janelas hoje/semana/mês são fixas no backend.
+  hoursBreakdown: async (from?: string | null, to?: string | null) => {
+    const qs = new URLSearchParams();
+    if (from) qs.set("from", from);
+    if (to) qs.set("to", to);
+    const s = qs.toString();
+    return api.get<{ rows: HoursRow[] }>(`/api/delivery/cockpit/hours-breakdown${s ? `?${s}` : ""}`);
+  },
+  // Drill-down de HORAS (nível 2): as sessões (login/logout) de um colaborador no período.
+  collabSessions: async (id: string, from?: string | null, to?: string | null) => {
+    const qs = new URLSearchParams();
+    qs.set("id", id);
+    if (from) qs.set("from", from);
+    if (to) qs.set("to", to);
+    return api.get<{ rows: SessionRow[] }>(`/api/delivery/cockpit/collab-sessions?${qs.toString()}`);
   },
 };
 export type ConvRow = { id: string; nome: string; phone: string | null; aguardando: boolean; last_inbound: string | null; last_outbound: string | null };

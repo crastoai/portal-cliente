@@ -196,4 +196,73 @@ export class WacrmMetricsService {
       c.release();
     }
   }
+
+  // DRILL-DOWN de HORAS (Fase A) — RELÓGIO DE PONTO por colaborador, dado REAL de public.user_sessions
+  // do wacrm (sem login/logout explícito ainda: login=started_at, logout≈last_ping_at). user_sessions
+  // NÃO tem organization_id → escopo via join em public.profiles (org do Portal, confiável). Farol =
+  // presença: online = last_seen_at < 5min. Janelas FIXAS hoje/semana/mês (date_trunc) + o período do
+  // filtro (min_periodo). Escopo por org; onlyUserId restringe o membro à própria linha.
+  // NOTA (aprox., igual ao team-usage): a sessão é somada pela janela do started_at (não recorta quem
+  // cruza a virada do dia). Sessões quebram com gap de ping > 5min, então o erro de fronteira é mínimo.
+  async hoursByCollaborator(orgId: string, from?: string | null, to?: string | null, onlyUserId?: string | null): Promise<{ id: string; nome: string; email: string | null; online: boolean; last_seen_at: string | null; min_hoje: number; min_semana: number; min_mes: number; min_periodo: number; sessoes: number; ultimo: string | null }[] | null> {
+    const p = this.db();
+    if (!p || !orgId) return null;
+    const c = await p.connect();
+    try {
+      const rows = (await c.query(
+        `with w as (select coalesce($2::date, (now()-'30 days'::interval)::date) f,
+                           coalesce($3::date + 1, now()::date + 1) t)
+         select p.id, coalesce(nullif(p.full_name,''), p.email, 'Colaborador') nome, p.email,
+                p.last_seen_at,
+                coalesce(p.last_seen_at > now() - interval '5 minutes', false) online,
+                coalesce(round(sum(extract(epoch from (s.last_ping_at - s.started_at))) filter (where s.started_at >= date_trunc('day',   now())) / 60), 0)::int min_hoje,
+                coalesce(round(sum(extract(epoch from (s.last_ping_at - s.started_at))) filter (where s.started_at >= date_trunc('week',  now())) / 60), 0)::int min_semana,
+                coalesce(round(sum(extract(epoch from (s.last_ping_at - s.started_at))) filter (where s.started_at >= date_trunc('month', now())) / 60), 0)::int min_mes,
+                coalesce(round(sum(extract(epoch from (s.last_ping_at - s.started_at))) filter (where s.started_at >= w.f and s.started_at < w.t) / 60), 0)::int min_periodo,
+                coalesce(count(s.id) filter (where s.started_at >= w.f and s.started_at < w.t), 0)::int sessoes,
+                max(s.last_ping_at) ultimo
+           from public.profiles p
+           cross join w
+           left join public.user_sessions s on s.user_id = p.id and s.started_at > now() - interval '180 days'
+          where p.organization_id = $1 and p.role::text <> 'crasto_admin'
+            and ($4::uuid is null or p.id = $4::uuid)
+          group by p.id, p.email, p.full_name, p.last_seen_at
+          order by online desc, min_mes desc, nome`,
+        [orgId, from ?? null, to ?? null, onlyUserId ?? null])).rows;
+      return rows.map((r: any) => ({
+        id: String(r.id), nome: r.nome, email: r.email || null,
+        online: !!r.online, last_seen_at: r.last_seen_at || null,
+        min_hoje: r.min_hoje, min_semana: r.min_semana, min_mes: r.min_mes, min_periodo: r.min_periodo,
+        sessoes: r.sessoes, ultimo: r.ultimo || null,
+      }));
+    } finally {
+      c.release();
+    }
+  }
+
+  // DRILL-DOWN de HORAS (Fase A · nível 2) — as SESSÕES (login/logout) de um colaborador no período.
+  // login=started_at, logout≈last_ping_at (o logout carimbado real entra no item 5 do plano). Escopo
+  // por org (exists em profiles); o membro só chega aqui com o próprio id (forçado no controller).
+  async collabSessions(orgId: string, userId: string, from?: string | null, to?: string | null): Promise<{ id: string; login: string; logout: string; minutos: number }[] | null> {
+    const p = this.db();
+    if (!p || !orgId || !userId) return null;
+    const c = await p.connect();
+    try {
+      const rows = (await c.query(
+        `with w as (select coalesce($3::date, (now()-'30 days'::interval)::date) f,
+                           coalesce($4::date + 1, now()::date + 1) t)
+         select s.id, s.started_at login, s.last_ping_at logout,
+                round(extract(epoch from (s.last_ping_at - s.started_at)) / 60)::int minutos
+           from public.user_sessions s, w
+          where s.user_id = $2::uuid
+            and exists (select 1 from public.profiles pr where pr.id = s.user_id and pr.organization_id = $1)
+            and s.started_at >= w.f and s.started_at < w.t
+          order by s.started_at desc
+          limit 200`,
+        [orgId, userId, from ?? null, to ?? null])).rows;
+      return rows.map((r: any) => ({ id: String(r.id), login: r.login, logout: r.logout, minutos: r.minutos }));
+    } finally {
+      c.release();
+    }
+  }
 }

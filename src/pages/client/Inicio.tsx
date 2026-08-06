@@ -53,6 +53,16 @@ export default function Inicio() {
   const [leadQ, setLeadQ] = useState("");                           // busca por lead (nível 2)
   const [collabQ, setCollabQ] = useState("");                       // busca por colaborador (nível 1)
   const collabSort = useSort("tmed", -1);                           // ordenação da tabela (nível 1); default = mais lento primeiro
+  // Relógio de ponto (drill-down do card "Horas da equipe"): Nível 1 (tempo logado por colaborador,
+  // ao vivo) → Nível 2 (as sessões login/logout dessa pessoa, filtráveis por período).
+  const [pontoOpen, setPontoOpen] = useState(false);
+  const [pontoRows, setPontoRows] = useState<import("../../services/delivery.service").HoursRow[] | null>(null);
+  const [pontoCollab, setPontoCollab] = useState<import("../../services/delivery.service").HoursRow | null>(null);
+  const [sessions, setSessions] = useState<import("../../services/delivery.service").SessionRow[] | null>(null);
+  const [pFrom, setPFrom] = useState<string | null>(null);          // período do histórico de sessões (nível 2)
+  const [pTo, setPTo] = useState<string | null>(null);
+  const [pontoQ, setPontoQ] = useState("");                         // busca por colaborador (nível 1)
+  const pontoSort = useSort("mes", -1);                             // default = quem mais trabalhou no mês
   const [self, setSelf] = useState<any>(null);
   const [team, setTeam] = useState<{ scope: string; rows: { id: string; email: string; full_name: string | null; online: boolean; sessoes: number; minutos: number; ultimo: string | null }[] } | null>(null);
   const [reunioes, setReunioes] = useState<import("../../services/delivery.service").Meeting[]>([]);
@@ -140,6 +150,30 @@ export default function Inicio() {
     }, leadQ ? 300 : 0);
     return () => { alive = false; clearTimeout(h); };
   }, [drillCollab, rFrom, rTo, leadQ]);
+
+  // RELÓGIO DE PONTO — Nível 1 (tempo logado por colaborador): ao abrir o card "Horas", busca ao vivo
+  // e repete a cada 30s. As janelas hoje/semana/mês são fixas no backend (não dependem do período).
+  useEffect(() => {
+    if (!pontoOpen) { setPontoRows(null); return; }
+    let alive = true;
+    const load = () => services.delivery.cockpit.hoursBreakdown()
+      .then((r) => { if (alive) setPontoRows(r.rows || []); })
+      .catch(() => { if (alive) setPontoRows([]); });
+    load();
+    const iv = setInterval(load, 30000);
+    return () => { alive = false; clearInterval(iv); };
+  }, [pontoOpen]);
+
+  // RELÓGIO DE PONTO — Nível 2 (sessões login/logout de uma pessoa): recarrega ao trocar de colaborador
+  // ou de período. Aqui o DateRange faz sentido (investigar o histórico de UMA pessoa).
+  useEffect(() => {
+    if (!pontoCollab) return;
+    let alive = true;
+    services.delivery.cockpit.collabSessions(pontoCollab.id, pFrom, pTo)
+      .then((r) => { if (alive) setSessions(r.rows || []); })
+      .catch(() => { if (alive) setSessions([]); });
+    return () => { alive = false; };
+  }, [pontoCollab, pFrom, pTo]);
 
   const firstName = (profile?.full_name || "").split(" ")[0] || "";
   const daysLeft = impl?.due_date
@@ -231,6 +265,8 @@ export default function Inicio() {
   // Nunca inventa: valor null → "—". tempo em s/min/h; % com sufixo. O "antes" só aparece
   // quando existir (Baseline de Entrada, item 1.3); senão mostra a evolução (trend).
   const fmtSeg = (s: number) => (s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}min` : `${(s / 3600).toFixed(1)}h`);
+  // Duração de tempo logado (relógio de ponto): minutos → "45min" / "3h" / "3h 20min".
+  const fmtMin = (min: number) => (min < 60 ? `${min}min` : `${Math.floor(min / 60)}h${min % 60 ? ` ${min % 60}min` : ""}`);
   // "Último acesso" relativo (para o drill-down por colaborador).
   const relSeen = (iso: string) => { const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000); return min < 2 ? t("agora") : min < 60 ? t("há {n}min", { n: min }) : min < 1440 ? t("há {n}h", { n: Math.floor(min / 60) }) : new Date(iso).toLocaleDateString("pt-BR"); };
   // Semáforo do tempo de 1ª resposta (visão do dono, limiar "mais rígido"). IA responde em
@@ -247,7 +283,7 @@ export default function Inicio() {
     }
     if (m.depois == null) return { txt: t("sem atividade ainda"), tone: "mute" };
     if (m.key === "automacao") return { txt: t("automação"), tone: "good" };
-    if (m.key === "horas") return { txt: t("tempo liberado"), tone: "good" };
+    if (m.key === "horas") return { txt: t("tempo conectado"), tone: "mute" };
     if (m.key === "cobertura") return { txt: t("sempre no ar"), tone: "good" };
     if (m.trend != null) return { txt: `${m.trend > 0 ? "▲" : m.trend < 0 ? "▼" : ""} ${Math.abs(m.trend)}% ${t("vs. período anterior")}`, tone: "good" };
     return { txt: m.estimativa ? t("estimativa") : t("medido ao vivo"), tone: "good" };
@@ -337,17 +373,23 @@ export default function Inicio() {
         {/* Antes × Depois — métricas reais. O "depois" vem ao vivo do WhatsApp CRM. */}
         <SecHead title={t("Antes × Depois")} tom="mute" caption={cock?.fontes?.crm ? t("dado real · em tempo real") : t("aguardando atividade no WhatsApp CRM")} />
         <div className="kpis kpis--3">
-          {(cock?.metrics || []).map((m) => { const d = deltaMetric(m); const drillable = ["tempo_resposta", "atendimentos", "automacao"].includes(m.key) && !!cock?.fontes?.crm; return (
-            <div className={"kpi" + (drillable ? " kpi--drill" : "")} key={m.key}
-              onClick={drillable ? () => setDrill(m.key) : undefined}
-              role={drillable ? "button" : undefined} tabIndex={drillable ? 0 : undefined}
-              onKeyDown={drillable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDrill(m.key); } } : undefined}
-              title={drillable ? t("Ver por colaborador") : undefined}>
+          {(cock?.metrics || []).map((m) => {
+            const d = deltaMetric(m);
+            const drillable = ["tempo_resposta", "atendimentos", "automacao"].includes(m.key) && !!cock?.fontes?.crm;
+            const pontoDrill = m.key === "horas" && !!cock?.fontes?.crm;          // card Horas → relógio de ponto
+            const abrir = drillable ? () => setDrill(m.key) : pontoDrill ? () => setPontoOpen(true) : undefined;
+            const clic = !!abrir;
+            return (
+            <div className={"kpi" + (clic ? " kpi--drill" : "")} key={m.key}
+              onClick={abrir}
+              role={clic ? "button" : undefined} tabIndex={clic ? 0 : undefined}
+              onKeyDown={clic ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); abrir!(); } } : undefined}
+              title={clic ? (pontoDrill ? t("Ver o relógio de ponto da equipe") : t("Ver por colaborador")) : undefined}>
               <div className="lab">{m.label}</div>
               <div className="val">{m.antes != null ? <><span className="val-antes">{fmtMetric(m, m.antes)}</span> → </> : null}{fmtMetric(m, m.depois)}</div>
               <div className="kpi-foot">
                 <div className={"kdelta " + d.tone}>{d.txt}</div>
-                {drillable && <span className="kpi-cta">{t("Ver detalhes")}<ArrowRight size={13} /></span>}
+                {clic && <span className="kpi-cta">{t("Ver detalhes")}<ArrowRight size={13} /></span>}
               </div>
             </div>
           ); })}
@@ -733,6 +775,109 @@ export default function Inicio() {
               ))}
             </div>
           )}
+        </>)}
+      </Modal>
+
+      {/* RELÓGIO DE PONTO da equipe — drill-down do card "Horas da equipe". Nível 1 (tempo logado por
+          colaborador, ao vivo 30s) → clique numa pessoa → Nível 2 (as sessões login/logout dela, por
+          período). Farol = presença (online agora / offline). Horas hoje/semana/mês = real de user_sessions. */}
+      <Modal
+        title={pontoCollab ? `👤 ${pontoCollab.nome}` : t("Relógio de ponto da equipe")}
+        open={pontoOpen}
+        onClose={() => { setPontoOpen(false); setPontoCollab(null); setSessions(null); setPontoQ(""); setPFrom(null); setPTo(null); }}
+        wide>
+        {!pontoCollab ? (<>
+          <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)", marginBottom: 12 }}>
+            {t("Quanto tempo cada pessoa da equipe passou logada (Portal + WhatsApp CRM). Clique numa pessoa para ver as entradas e saídas.")}{" "}
+            <span style={{ color: "var(--crasto-blue, #6E9CE8)", fontWeight: 600 }}>● {t("ao vivo")}</span>
+          </div>
+          {pontoRows === null ? (
+            <div style={{ padding: "16px 0", color: "var(--crasto-text-muted)" }}>{t("Carregando…")}</div>
+          ) : pontoRows.length === 0 ? (
+            <div style={{ padding: "16px 0", color: "var(--crasto-text-muted)" }}>{t("Nenhum colaborador nesta empresa ainda.")}</div>
+          ) : (<>
+            <div className="dp-search">
+              <Search size={15} style={{ opacity: .5, flexShrink: 0 }} />
+              <input className="inp" placeholder={t("Buscar colaborador…")} value={pontoQ} onChange={(e) => setPontoQ(e.target.value)} />
+              {pontoQ && <button type="button" className="dp-search-clear" onClick={() => setPontoQ("")} aria-label={t("Limpar busca")}><X size={14} /></button>}
+            </div>
+            {(() => {
+              const q = pontoQ.trim().toLowerCase();
+              const shown = pontoRows.filter((c: any) => !q || (c.nome || "").toLowerCase().includes(q) || (c.email || "").toLowerCase().includes(q));
+              if (shown.length === 0) return <div style={{ padding: "12px 0", color: "var(--crasto-text-muted)" }}>{t("Nenhum colaborador com esse nome.")}</div>;
+              const online = (c: any) => !!c.last_seen_at && (Date.now() - new Date(c.last_seen_at).getTime()) < 5 * 60000;
+              const sorted = pontoSort.sorted(shown, (r: any, col: string) => col === "nome" ? (r.nome || "").toLowerCase() : col === "status" ? (online(r) ? 1 : 0) : col === "hoje" ? r.min_hoje : col === "semana" ? r.min_semana : col === "mes" ? r.min_mes : (r.ultimo ? new Date(r.ultimo).getTime() : 0));
+              return (<>
+                <div style={{ display: "flex", gap: 16, fontSize: 11, color: "var(--crasto-text-muted)", margin: "0 0 10px", flexWrap: "wrap", alignItems: "center" }}>
+                  <span style={{ color: "var(--crasto-text-faint)" }}>{t("Presença:")}</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span className="resp-dot" style={{ background: FAROL_COR.green }} /> {t("online agora")}</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span className="resp-dot" style={{ background: FAROL_COR.mute }} /> {t("offline")}</span>
+                </div>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 620 }}>
+                    <thead><tr style={{ textAlign: "left", fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--crasto-text-muted)" }}>
+                      <SortTh col="nome" sort={pontoSort.sort} toggle={pontoSort.toggle} style={{ padding: "8px 10px" }}>{t("Colaborador")}</SortTh>
+                      <SortTh col="status" sort={pontoSort.sort} toggle={pontoSort.toggle} style={{ padding: "8px 10px" }}>{t("Status")}</SortTh>
+                      <SortTh col="hoje" sort={pontoSort.sort} toggle={pontoSort.toggle} style={{ padding: "8px 10px" }} right>{t("Hoje")}</SortTh>
+                      <SortTh col="semana" sort={pontoSort.sort} toggle={pontoSort.toggle} style={{ padding: "8px 10px" }} right>{t("Semana")}</SortTh>
+                      <SortTh col="mes" sort={pontoSort.sort} toggle={pontoSort.toggle} style={{ padding: "8px 10px" }} right>{t("Mês")}</SortTh>
+                      <SortTh col="ultimo" sort={pontoSort.sort} toggle={pontoSort.toggle} style={{ padding: "8px 10px" }}>{t("Último acesso")}</SortTh>
+                      <th />
+                    </tr></thead>
+                    <tbody>
+                      {sorted.map((c: any, i: number) => {
+                        const on = online(c);
+                        const cel = (min: number) => min > 0 ? fmtMin(min) : <span style={{ color: "var(--crasto-text-faint)" }}>—</span>;
+                        return (
+                        <tr key={c.id || c.nome + i} className="drillrow" onClick={() => { setPontoCollab(c); setSessions(null); setPFrom(null); setPTo(null); }} style={{ borderTop: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))", cursor: "pointer" }}>
+                          <td style={{ padding: "11px 10px", fontSize: 13.5, fontWeight: 600, color: "var(--crasto-text-primary)" }}>👤 {c.nome}</td>
+                          <td style={{ padding: "11px 10px", fontSize: 12.5 }}>{on ? <span style={{ color: FAROL_COR.green, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}><span className="resp-dot" style={{ background: FAROL_COR.green }} />{t("online")}</span> : <span style={{ color: "var(--crasto-text-faint)", display: "inline-flex", alignItems: "center", gap: 6 }}><span className="resp-dot" style={{ background: FAROL_COR.mute }} />{t("offline")}</span>}</td>
+                          <td className="tnum" style={{ padding: "11px 10px", fontSize: 13, textAlign: "right", fontWeight: 600 }}>{cel(c.min_hoje)}</td>
+                          <td className="tnum" style={{ padding: "11px 10px", fontSize: 13, textAlign: "right" }}>{cel(c.min_semana)}</td>
+                          <td className="tnum" style={{ padding: "11px 10px", fontSize: 14, textAlign: "right", fontWeight: 700 }}>{cel(c.min_mes)}</td>
+                          <td style={{ padding: "11px 10px", fontSize: 12.5, color: "var(--crasto-text-muted)" }}>{on ? <span style={{ color: FAROL_COR.green, fontWeight: 600 }}>{t("agora")}</span> : c.ultimo ? relSeen(c.ultimo) : t("nunca acessou")}</td>
+                          <td style={{ padding: "11px 10px", textAlign: "right" }}><ArrowRight size={14} style={{ opacity: .4 }} /></td>
+                        </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>);
+            })()}
+          </>)}
+        </>) : (<>
+          <button className="crasto-btn crasto-btn--sm" style={{ marginBottom: 12 }} onClick={() => { setPontoCollab(null); setSessions(null); setPFrom(null); setPTo(null); }}><span className="crasto-btn__label">← {t("Voltar à equipe")}</span></button>
+          <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)", marginBottom: 10 }}>{t("Entradas e saídas de {n} no período. O logout é aproximado pelo último sinal da sessão (fica exato quando o registro de saída entrar).", { n: pontoCollab.nome })}</div>
+          <DateRange from={pFrom} to={pTo} onChange={(f, tt) => { setPFrom(f); setPTo(tt); }} />
+          {sessions === null ? (
+            <div style={{ padding: "16px 0", color: "var(--crasto-text-muted)" }}>{t("Carregando…")}</div>
+          ) : sessions.length === 0 ? (
+            <div style={{ padding: "16px 0", color: "var(--crasto-text-muted)" }}>{t("Nenhuma sessão no período.")}</div>
+          ) : (<>
+            {(() => {
+              const totMin = sessions.reduce((s: number, x: any) => s + (x.minutos || 0), 0);
+              return <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)", margin: "4px 0 10px" }}>{t("{n} sessões · {h} logado no período", { n: sessions.length, h: fmtMin(totMin) })}</div>;
+            })()}
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 480 }}>
+                <thead><tr style={{ textAlign: "left", fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--crasto-text-muted)" }}>
+                  <th style={{ padding: "8px 10px" }}>{t("Login")}</th>
+                  <th style={{ padding: "8px 10px" }}>{t("Logout")}</th>
+                  <th style={{ padding: "8px 10px", textAlign: "right" }}>{t("Tempo logado")}</th>
+                </tr></thead>
+                <tbody>
+                  {sessions.map((s: any) => (
+                    <tr key={s.id} style={{ borderTop: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))" }}>
+                      <td style={{ padding: "11px 10px", fontSize: 13 }}>{brDataHora(s.login)}</td>
+                      <td style={{ padding: "11px 10px", fontSize: 13, color: "var(--crasto-text-muted)" }}>{brDataHora(s.logout)} <span title={t("Aproximado pelo último sinal da sessão.")} style={{ color: "var(--crasto-text-faint)", cursor: "help" }}>≈</span></td>
+                      <td className="tnum" style={{ padding: "11px 10px", fontSize: 13.5, textAlign: "right", fontWeight: 600 }}>{fmtMin(s.minutos)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>)}
         </>)}
       </Modal>
 

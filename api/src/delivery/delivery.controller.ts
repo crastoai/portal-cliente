@@ -188,15 +188,17 @@ export class DeliveryController {
         depois, trend,
       };
     };
-    // Horas da equipe economizadas (ESTIMATIVA, dado real): conversas atendidas pela IA × duração
-    // média de conversa medida. É derivação transparente — marcada como estimativa no front.
-    const horas = (r?.conversas_ia != null && r?.dur_media != null) ? Math.round((r.conversas_ia * r.dur_media) / 3600) : null;
+    // Horas TRABALHADAS reais da equipe no MÊS corrente — RELÓGIO DE PONTO, dado real de
+    // public.user_sessions (soma do tempo conectado por colaborador). Substitui a antiga ESTIMATIVA
+    // "horas economizadas" (conversas_ia × dur_media). Sem sessão/CRM → null → o front mostra "—".
+    const ponto = db?.orgId ? await this.wacrm.hoursByCollaborator(db.orgId).catch(() => null) : null;
+    const horasMes = ponto ? Math.round(ponto.reduce((s, x) => s + (x.min_mes || 0), 0) / 60) : null;
     const metrics: any[] = [
       metric('tempo_resposta', '1ª resposta · WhatsApp', 's', 'menor', r?.tempo_resposta ?? null, null),
       metric('automacao', 'Atendimentos feitos pela IA', '%', 'maior', r?.automacao ?? null, null),
       metric('novos_leads', 'Leads / mês', '', 'maior', r?.novos_leads ?? null, r?.trend?.novos_leads ?? null),
       metric('atendimentos', 'Conversas atendidas', '', 'maior', r?.atendimentos ?? null, r?.trend?.atendimentos ?? null),
-      { ...metric('horas', 'Horas da equipe / mês', 'h', 'maior', horas, null), estimativa: true },
+      metric('horas', 'Horas da equipe / mês', 'h', 'maior', horasMes && horasMes > 0 ? horasMes : null, null),
       { key: 'cobertura', label: 'Cobertura de atendimento', unidade: '', melhor: 'maior', antes: null, fonte_antes: null, depois: crmOk ? '24/7' : null, trend: null, texto: true },
     ];
 
@@ -239,6 +241,36 @@ export class DeliveryController {
     const kd: 'human' | 'ai' = ctx.dono ? (kind === 'ai' ? 'ai' : 'human') : 'human';
     const targetId = ctx.dono ? (id || null) : ctx.uid;
     const rows = await this.wacrm.collabConversations(ctx.orgId, kd, targetId, from || null, to || null, q || null).catch(() => null);
+    return { rows: rows ?? [] };
+  }
+
+  // DRILL-DOWN de HORAS (Fase A): RELÓGIO DE PONTO por colaborador — tempo logado real (user_sessions).
+  // Online + horas hoje/semana/mês por pessoa da org. Ao vivo (o front repete ~30s). Membro vê só a si.
+  @Get('cockpit/hours-breakdown')
+  async hoursBreakdown(@Req() req: any, @Query('from') from?: string, @Query('to') to?: string) {
+    const ctx = await this.db.asUser(this.uid(req), async (c) => {
+      const orgId = (await c.query('select public.current_org_id() as id')).rows[0]?.id as string | null;
+      const me = (await c.query(`select id, role::text r from public.profiles where id = auth.uid()`)).rows[0];
+      return { orgId, uid: (me?.id as string) ?? null, dono: me?.r === 'client_owner' || me?.r === 'crasto_admin' };
+    }).catch(() => null);
+    if (!ctx?.orgId) return { rows: [] as any[] };
+    const rows = await this.wacrm.hoursByCollaborator(ctx.orgId, from || null, to || null, ctx.dono ? null : ctx.uid).catch(() => null);
+    return { rows: rows ?? [] };
+  }
+
+  // DRILL-DOWN de HORAS (Fase A · nível 2): as SESSÕES (login/logout) de um colaborador. Escopo por org;
+  // membro comum só vê as PRÓPRIAS sessões (targetId forçado ao próprio uid).
+  @Get('cockpit/collab-sessions')
+  async collabSessions(@Req() req: any, @Query('id') id: string, @Query('from') from?: string, @Query('to') to?: string) {
+    const ctx = await this.db.asUser(this.uid(req), async (c) => {
+      const orgId = (await c.query('select public.current_org_id() as id')).rows[0]?.id as string | null;
+      const me = (await c.query(`select id, role::text r from public.profiles where id = auth.uid()`)).rows[0];
+      return { orgId, uid: (me?.id as string) ?? null, dono: me?.r === 'client_owner' || me?.r === 'crasto_admin' };
+    }).catch(() => null);
+    if (!ctx?.orgId) return { rows: [] as any[] };
+    const targetId = ctx.dono ? (id || null) : ctx.uid;
+    if (!targetId) return { rows: [] as any[] };
+    const rows = await this.wacrm.collabSessions(ctx.orgId, targetId, from || null, to || null).catch(() => null);
     return { rows: rows ?? [] };
   }
 
