@@ -144,7 +144,7 @@ export class DeliveryController {
       const narrativa = (await c.query(
         `select narrative from delivery.cockpit_narrative where organization_id = $1 and is_current limit 1`, [orgId])).rows[0]?.narrative ?? null;
       // Identidade do logado p/ o cabeçalho: nome + e-mail (o e-mail casa o cargo depois). asUser lê o próprio profile.
-      const me = (await c.query('select full_name, email from public.profiles where id = auth.uid()')).rows[0] ?? null;
+      const me = (await c.query('select id, full_name, email, role::text as role from public.profiles where id = auth.uid()')).rows[0] ?? null;
       return { orgId, jornada, conquistas, baseline, narrativa, me };
     }).catch(() => ({ orgId: null as string | null, jornada: [] as any[], conquistas: [] as any[], baseline: [] as any[], narrativa: null as any, me: null as any }));
 
@@ -191,14 +191,17 @@ export class DeliveryController {
     // Horas TRABALHADAS reais da equipe no MÊS corrente — RELÓGIO DE PONTO, dado real de
     // public.user_sessions (soma do tempo conectado por colaborador). Substitui a antiga ESTIMATIVA
     // "horas economizadas" (conversas_ia × dur_media). Sem sessão/CRM → null → o front mostra "—".
-    const ponto = db?.orgId ? await this.wacrm.hoursByCollaborator(db.orgId).catch(() => null) : null;
+    // GATING (decisão do Crasto): só o DONO vê o TOTAL da equipe. Membro comum vê só as PRÓPRIAS
+    // horas (mesma regra do drill-down). Papel resolvido no banco (profiles.role), nunca do cliente.
+    const donoHoras = (db as any)?.me?.role === 'client_owner' || (db as any)?.me?.role === 'crasto_admin';
+    const ponto = db?.orgId ? await this.wacrm.hoursByCollaborator(db.orgId, null, null, donoHoras ? null : ((db as any)?.me?.id ?? null)).catch(() => null) : null;
     const horasMes = ponto ? Math.round(ponto.reduce((s, x) => s + (x.min_mes || 0), 0) / 60) : null;
     const metrics: any[] = [
       metric('tempo_resposta', '1ª resposta · WhatsApp', 's', 'menor', r?.tempo_resposta ?? null, null),
       metric('automacao', 'Atendimentos feitos pela IA', '%', 'maior', r?.automacao ?? null, null),
       metric('novos_leads', 'Leads / mês', '', 'maior', r?.novos_leads ?? null, r?.trend?.novos_leads ?? null),
       metric('atendimentos', 'Conversas atendidas', '', 'maior', r?.atendimentos ?? null, r?.trend?.atendimentos ?? null),
-      metric('horas', 'Horas da equipe / mês', 'h', 'maior', horasMes && horasMes > 0 ? horasMes : null, null),
+      metric('horas', donoHoras ? 'Horas da equipe / mês' : 'Minhas horas / mês', 'h', 'maior', horasMes && horasMes > 0 ? horasMes : null, null),
       { key: 'cobertura', label: 'Cobertura de atendimento', unidade: '', melhor: 'maior', antes: null, fonte_antes: null, depois: crmOk ? '24/7' : null, trend: null, texto: true },
     ];
 
