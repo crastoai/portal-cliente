@@ -448,45 +448,7 @@ export default function Inicio() {
         </>
       )}
 
-      {/* Seu atendimento — contrato assinado, horas de suporte e uso de IA (informativo, sem farol de saúde). */}
-      <SecHead title={t("Seu atendimento")} tom="mute" caption={t("Suporte, SLA e uso — informativo")} />
-      <div className="selfgrid">
-        <article className="selfcard">
-          <div className="selfico"><FileSignature size={18} /></div>
-          <div className="selfbody">
-            <span className="selflabel">{t("Contrato")}</span>
-            <strong>{self?.contract_doc?.file_name || self?.contract?.title || t("Contrato da Crasto.AI")}</strong>
-            <small>{self?.contract_doc ? t("Disponível para download") : self?.contract?.status === "signed" ? t("Assinado") : self?.contract ? t("Em andamento") : t("Ainda não disponível")}</small>
-          </div>
-          {self?.contract_doc
-            ? <button className="selflink" onClick={abrirContrato} disabled={abrindoContrato}>{abrindoContrato ? t("Abrindo…") : t("Abrir")} <ArrowRight size={13} /></button>
-            : self?.contract?.url && <a className="selflink" href={self.contract.url} target="_blank" rel="noreferrer">{t("Abrir")} <ArrowRight size={13} /></a>}
-        </article>
-        <article className="selfcard">
-          <div className="selfico"><Headphones size={18} /></div>
-          <div className="selfbody">
-            <span className="selflabel">{t("Horas de suporte")}</span>
-            <strong className="tnum">{self?.support ? `${self.support.used_hours}h / ${self.support.plan_hours}h` : "—"}</strong>
-            <small>{self?.support ? t("{n}h disponíveis", { n: self.support.balance }) : t("Sem plano de horas registrado")}</small>
-          </div>
-          <button className="selflink" onClick={() => navigate("/app/suporte")}>{t("Detalhes")} <ArrowRight size={13} /></button>
-        </article>
-        <article className="selfcard">
-          <div className="selfico"><Bot size={18} /></div>
-          <div className="selfbody">
-            <span className="selflabel">{t("Uso dos agentes de IA")}</span>
-            <strong className="tnum">{agent?.automationPct != null ? `${agent.automationPct}%` : "—"}</strong>
-            <small>{agent?.automationPct != null
-              ? t("das respostas foram pela IA · {a} de {tot} · 30 dias", { a: agent.aiMessages ?? 0, tot: (agent.aiMessages ?? 0) + (agent.humanMessages ?? 0) })
-              : agent?.hasData
-                ? t("sem respostas registradas nos últimos 30 dias")
-                : t("Sem atividade do agente nos últimos 30 dias")}</small>
-          </div>
-          {agent?.automationPct != null && (agent.aiConversations ?? 0) + (agent.humanConversations ?? 0) > 0 && (
-            <span className="selflink" style={{ pointerEvents: "none" }} title={t("Conversas conduzidas pela IA vs humano")}>{t("{n} no piloto IA", { n: agent.aiConversations ?? 0 })}</span>
-          )}
-        </article>
-      </div>
+      {/* ("Seu atendimento" removido a pedido — Contrato/Horas/Uso saíram desta aba.) */}
 
       {/* ═══ SUA EQUIPE ═══ tempo conectado REAL (user_sessions do wacrm). Só o dono vê. Farol: ninguém acessou = vermelho; alguém nunca acessou = âmbar; todos acessaram = verde. */}
       {team?.scope === "team" && team.rows.length > 0 && (
@@ -525,6 +487,8 @@ export default function Inicio() {
         </div>
       )}
 
+      {/* Amplie sua operação — no rodapé de Entregas & Implantação (a mesma de Meus Resultados). */}
+      <AmpliarOperacao orgName={cock?.identity?.org_name} ownedNames={(cock?.conquistas || []).map((c) => c.titulo)} />
       </>)}
 
       {/* Aba MINHAS SOLUÇÕES — só os cards de acesso do cliente. Separado do acompanhamento para
