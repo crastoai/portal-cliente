@@ -211,6 +211,18 @@ export class DeliveryController {
     };
   }
 
+  // DRILL-DOWN do Cockpit (Fase 1): tempo de 1ª resposta POR COLABORADOR (humano e IA). Escopado
+  // pela org do usuário (current_org_id). Dado ao vivo — o front repete a cada ~30s, sem refresh.
+  @Get('cockpit/response-breakdown')
+  async responseBreakdown(@Req() req: any) {
+    const orgId = await this.db.asUser(this.uid(req), async (c) =>
+      (await c.query('select public.current_org_id() as id')).rows[0]?.id as string | null,
+    ).catch(() => null);
+    if (!orgId) return { rows: [] as any[] };
+    const rows = await this.wacrm.responseByCollaborator(orgId).catch(() => null);
+    return { rows: rows ?? [] };
+  }
+
   // MINI-COCKPIT do WhatsApp CRM — pulso ao vivo (agentes online, conversas ativas, fila, IA hoje).
   // Escopado pelo orgId do Portal (current_org_id, confiável). CRM fora → null → o front mostra "—".
   @Get('crm-live/mine')

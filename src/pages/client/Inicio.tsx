@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageCircle, Search, Send, Wallet, ArrowRight, AlertTriangle, Clock, FileSignature, Headphones, Bot, Activity, Trophy, Package } from "lucide-react";
+import { MessageCircle, Search, Send, Wallet, ArrowRight, AlertTriangle, Clock, FileSignature, Headphones, Bot, Activity, Trophy, Package, Maximize2, Users } from "lucide-react";
 import { services } from "../../services";
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
@@ -42,6 +42,9 @@ export default function Inicio() {
   const [mods, setMods] = useState<Mod[]>([]);
   const [fin, setFin] = useState<FaturaSummary | null>(null);
   const [faturas, setFaturas] = useState<Fatura[]>([]);
+  // Drill-down interativo (Fase 1): qual card está aberto + breakdown por colaborador (ao vivo, 30s).
+  const [drill, setDrill] = useState<string | null>(null);
+  const [collabs, setCollabs] = useState<any[] | null>(null);
   const [self, setSelf] = useState<any>(null);
   const [team, setTeam] = useState<{ scope: string; rows: { id: string; email: string; full_name: string | null; online: boolean; sessoes: number; minutos: number; ultimo: string | null }[] } | null>(null);
   const [reunioes, setReunioes] = useState<import("../../services/delivery.service").Meeting[]>([]);
@@ -103,6 +106,19 @@ export default function Inicio() {
       setLoading(false);
     })();
   }, []);
+
+  // Drill-down AO VIVO (Fase 1): ao abrir o card "1ª resposta", busca o breakdown por colaborador e
+  // repete a cada 30s — sem o usuário atualizar a tela. Limpa ao fechar.
+  useEffect(() => {
+    if (drill !== "tempo_resposta") { setCollabs(null); return; }
+    let alive = true;
+    const load = () => services.delivery.cockpit.responseBreakdown()
+      .then((r) => { if (alive) setCollabs(r.rows || []); })
+      .catch(() => { if (alive) setCollabs([]); });
+    load();
+    const iv = setInterval(load, 30000);
+    return () => { alive = false; clearInterval(iv); };
+  }, [drill]);
 
   const firstName = (profile?.full_name || "").split(" ")[0] || "";
   const daysLeft = impl?.due_date
@@ -194,6 +210,8 @@ export default function Inicio() {
   // Nunca inventa: valor null → "—". tempo em s/min/h; % com sufixo. O "antes" só aparece
   // quando existir (Baseline de Entrada, item 1.3); senão mostra a evolução (trend).
   const fmtSeg = (s: number) => (s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}min` : `${(s / 3600).toFixed(1)}h`);
+  // "Último acesso" relativo (para o drill-down por colaborador).
+  const relSeen = (iso: string) => { const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000); return min < 2 ? t("agora") : min < 60 ? t("há {n}min", { n: min }) : min < 1440 ? t("há {n}h", { n: Math.floor(min / 60) }) : new Date(iso).toLocaleDateString("pt-BR"); };
   const fmtMetric = (m: any, v: any) => (v == null ? "—" : m.texto ? String(v) : m.key === "tempo_resposta" ? fmtSeg(Number(v)) : m.unidade === "%" ? `${v}%` : m.unidade === "h" ? `${Number(v).toLocaleString("pt-BR")}h` : Number(v).toLocaleString("pt-BR"));
   // Indicador estilo protótipo: pill verde com copy contextual. Com baseline ("antes") mostra a
   // melhora em %; sem baseline, um selo por métrica (automação / tempo liberado / sempre no ar…).
@@ -295,9 +313,13 @@ export default function Inicio() {
         {/* Antes × Depois — métricas reais. O "depois" vem ao vivo do WhatsApp CRM. */}
         <SecHead title={t("Antes × Depois")} tom="mute" caption={cock?.fontes?.crm ? t("dado real · em tempo real") : t("aguardando atividade no WhatsApp CRM")} />
         <div className="kpis kpis--3">
-          {(cock?.metrics || []).map((m) => { const d = deltaMetric(m); return (
-            <div className="kpi" key={m.key}>
-              <div className="lab">{m.label}</div>
+          {(cock?.metrics || []).map((m) => { const d = deltaMetric(m); const drillable = m.key === "tempo_resposta" && !!cock?.fontes?.crm; return (
+            <div className={"kpi" + (drillable ? " kpi--drill" : "")} key={m.key}
+              onClick={drillable ? () => setDrill(m.key) : undefined}
+              role={drillable ? "button" : undefined} tabIndex={drillable ? 0 : undefined}
+              onKeyDown={drillable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDrill(m.key); } } : undefined}
+              title={drillable ? t("Ver por colaborador") : undefined}>
+              <div className="lab">{m.label}{drillable && <Maximize2 size={12} className="kpi-drill-ico" />}</div>
               <div className="val">{m.antes != null ? <><span className="val-antes">{fmtMetric(m, m.antes)}</span> → </> : null}{fmtMetric(m, m.depois)}</div>
               <div className={"kdelta " + d.tone}>{d.txt}</div>
             </div>
@@ -599,6 +621,37 @@ export default function Inicio() {
           <AmpliarOperacao orgName={cock?.identity?.org_name} ownedNames={(cock?.conquistas || []).map((c) => c.titulo)} />
         </>);
       })()}
+
+      {/* DRILL-DOWN (Fase 1): "1ª resposta" por colaborador — modal AO VIVO (atualiza a cada 30s). */}
+      <Modal title={t("Tempo de resposta por colaborador")} open={drill === "tempo_resposta"} onClose={() => setDrill(null)} wide>
+        <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)", marginBottom: 12 }}>{t("Quem está respondendo no WhatsApp — e em quanto tempo.")} <span style={{ color: "var(--crasto-blue, #6E9CE8)", fontWeight: 600 }}>● {t("ao vivo")}</span></div>
+        {collabs === null ? (
+          <div style={{ padding: "16px 0", color: "var(--crasto-text-muted)" }}>{t("Carregando…")}</div>
+        ) : collabs.length === 0 ? (
+          <div style={{ padding: "16px 0", color: "var(--crasto-text-muted)" }}>{t("Sem atividade de resposta no período.")}</div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 520 }}>
+              <thead><tr style={{ textAlign: "left", fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--crasto-text-muted)" }}>
+                <th style={{ padding: "8px 10px" }}>{t("Colaborador")}</th>
+                <th style={{ padding: "8px 10px", textAlign: "right" }}>{t("1ª resposta")}</th>
+                <th style={{ padding: "8px 10px", textAlign: "right" }}>{t("Conversas")}</th>
+                <th style={{ padding: "8px 10px" }}>{t("Último acesso")}</th>
+              </tr></thead>
+              <tbody>
+                {collabs.map((c: any, i: number) => (
+                  <tr key={c.id || c.nome + i} style={{ borderTop: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))" }}>
+                    <td style={{ padding: "11px 10px", fontSize: 13.5, fontWeight: 600, color: "var(--crasto-text-primary)" }}>{c.kind === "ai" ? "🤖 " : "👤 "}{c.nome}</td>
+                    <td className="tnum" style={{ padding: "11px 10px", fontSize: 14, textAlign: "right", fontWeight: 700, color: "var(--crasto-text-primary)" }}>{c.tmed != null ? fmtSeg(c.tmed) : "—"}</td>
+                    <td className="tnum" style={{ padding: "11px 10px", fontSize: 13, textAlign: "right", color: "var(--crasto-text-muted)" }}>{c.convs}</td>
+                    <td style={{ padding: "11px 10px", fontSize: 12.5, color: "var(--crasto-text-muted)" }}>{c.kind === "ai" ? t("sempre no ar") : c.last_seen_at ? relSeen(c.last_seen_at) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Modal>
 
       <Modal title={t("Histórico de implantação")} open={implOpen} onClose={() => setImplOpen(false)}>
         <div style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 14 }}>

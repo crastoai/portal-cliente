@@ -99,4 +99,50 @@ export class WacrmMetricsService {
       c.release();
     }
   }
+
+  // DRILL-DOWN do Cockpit (Fase 1): tempo de 1ª resposta POR COLABORADOR — humano por sender_user_id,
+  // IA por acting_agent_id. Nomes de public.profiles / agents.agents. Ordenado do mais LENTO (destaca
+  // quem trava). `last_seen_at` = ativo/último acesso real. Escopo por org. Sem WACRM_DB → null.
+  async responseByCollaborator(orgId: string): Promise<{ kind: 'human' | 'ai'; id: string | null; nome: string; tmed: number | null; convs: number; respostas: number; last_seen_at: string | null }[] | null> {
+    const p = this.db();
+    if (!p || !orgId) return null;
+    const c = await p.connect();
+    try {
+      const rows = (await c.query(
+        `with w as (select now()-'30 days'::interval f),
+         pairs as (
+           select r.from_type, r.sender_user_id, r.acting_agent_id, r.conversation_id,
+                  extract(epoch from (r.created_at - msg.created_at)) sec
+             from whatsapp.messages msg, w
+             join lateral (select from_type, sender_user_id, acting_agent_id, conversation_id, created_at
+               from whatsapp.messages a
+              where a.conversation_id=msg.conversation_id and a.from_type in ('ai','human') and a.created_at>msg.created_at
+              order by a.created_at asc limit 1) r on true
+            where msg.organization_id=$1 and msg.from_type='user' and msg.created_at>=w.f)
+         select pp.from_type, pp.sender_user_id, pp.acting_agent_id,
+                case when pp.from_type='human' then coalesce(pr.full_name,'Atendente (não identificado)')
+                     else coalesce(ag.name,'IA (geral)') end as nome,
+                coalesce(round(avg(pp.sec) filter (where pp.sec between 0 and 3600)),0)::int tmed,
+                count(distinct pp.conversation_id)::int convs,
+                count(*) filter (where pp.sec between 0 and 3600)::int respostas,
+                pr.last_seen_at
+           from pairs pp
+           left join public.profiles pr on pr.id = pp.sender_user_id
+           left join agents.agents  ag on ag.id = pp.acting_agent_id
+          group by pp.from_type, pp.sender_user_id, pp.acting_agent_id, nome, pr.last_seen_at
+          order by tmed desc`,
+        [orgId])).rows;
+      return rows.map((r: any) => ({
+        kind: r.from_type === 'ai' ? 'ai' : 'human',
+        id: (r.from_type === 'ai' ? r.acting_agent_id : r.sender_user_id) || null,
+        nome: r.nome,
+        tmed: r.tmed > 0 ? r.tmed : null,
+        convs: r.convs,
+        respostas: r.respostas,
+        last_seen_at: r.last_seen_at || null,
+      }));
+    } finally {
+      c.release();
+    }
+  }
 }

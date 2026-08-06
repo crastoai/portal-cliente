@@ -424,6 +424,12 @@
 .kpi .kdelta.mute { color: var(--crasto-text-muted); background: var(--crasto-bg-3, rgba(1,14,38,.06)); }
 [data-theme="dark"] .kpi .kdelta.good { color: #5DE0A0; background: rgba(40,199,111,.14); }
 [data-theme="dark"] .kpi .kdelta.mute { color: var(--crasto-text-muted); background: rgba(255,255,255,.06); }
+/* Card com drill-down (clicável → abre o detalhe por colaborador). */
+.kpi--drill { cursor: pointer; transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease; }
+.kpi--drill:hover { transform: translateY(-2px); box-shadow: var(--crasto-shadow-md, 0 10px 24px -16px rgba(1,14,38,.5)); border-color: var(--crasto-blue, #6E9CE8); }
+.kpi--drill:focus-visible { outline: 2px solid var(--crasto-blue, #6E9CE8); outline-offset: 2px; }
+.kpi .kpi-drill-ico { margin-left: 6px; vertical-align: -1px; opacity: .4; }
+.kpi--drill:hover .kpi-drill-ico { opacity: .95; color: var(--crasto-blue, #6E9CE8); }
 
 /* ===== módulos ===== */
 .sec-h { display: flex; align-items: center; justify-content: space-between; margin: 8px 0 16px; }
