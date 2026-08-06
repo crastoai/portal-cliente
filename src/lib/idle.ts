@@ -29,7 +29,7 @@ export function marcarAtividade() {
   try { localStorage.setItem(KEY, String(agora())); } catch { /* aba privada: cai no fallback abaixo */ }
 }
 
-function ultimaAtividade(): number | null {
+export function ultimaAtividade(): number | null {
   try {
     const v = Number(localStorage.getItem(KEY));
     if (Number.isFinite(v) && v > 0) return v;

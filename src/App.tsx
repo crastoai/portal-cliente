@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./lib/auth";
-import { useIdleGuard } from "./lib/idle";
+import { useIdleGuard, ultimaAtividade } from "./lib/idle";
+import { services } from "./services";
 import IdleModal from "./ui/IdleModal";
 import Splash from "./ui/Splash";
 import { preview } from "./lib/preview";
@@ -65,6 +66,19 @@ export default function App() {
   useEffect(() => { if (!isAdmin) preview.clear(); }, [isAdmin]);
   // Sessão não fica aberta para sempre: 30 min parado → pergunta; 30s sem resposta → sai.
   const idle = useIdleGuard(!!session, (motivo) => { void signOut(motivo); });
+  // HEARTBEAT de ATIVIDADE REAL (relógio de ponto — lado Portal): logado, a cada 60s manda um ping SE
+  // houve interação (mouse/teclado/scroll) nos últimos 90s. O backend carimba delivery.user_sessions →
+  // conta trabalho ativo no Portal (que o merge une com o do WhatsApp CRM). Best-effort.
+  useEffect(() => {
+    if (!session) return;
+    const bater = () => {
+      const ult = ultimaAtividade();
+      if (ult && Date.now() - ult < 90_000) services.delivery.userSession.heartbeat().catch(() => {});
+    };
+    bater();
+    const iv = setInterval(bater, 60_000);
+    return () => clearInterval(iv);
+  }, [!!session]);
   if (loading || (session && !profile)) {
     return <Splash />;
   }

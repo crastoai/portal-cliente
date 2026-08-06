@@ -277,6 +277,35 @@ export class DeliveryController {
     return { rows: rows ?? [] };
   }
 
+  // HEARTBEAT de ATIVIDADE REAL do PORTAL (relógio de ponto — lado Portal, espelha o wacrm). O front
+  // dispara ~1/min SÓ com mouse/teclado. Gerencia delivery.user_sessions por ATIVIDADE: estende a
+  // aberta se o último sinal foi < 5min; senão fecha a anterior (logout no último sinal real) e abre
+  // nova. Cada sessão = um burst de trabalho ATIVO. asUser: own_insert/own_update escrevem a própria.
+  @Post('heartbeat')
+  async heartbeat(@Req() req: any) {
+    await this.db.asUser(this.uid(req), async (c) => {
+      const org = (await c.query('select public.current_org_id() as id')).rows[0]?.id;
+      if (!org) return;
+      await c.query(
+        `with recent as (
+           select id, last_active_at, last_ping_at, started_at from delivery.user_sessions
+            where user_id = auth.uid() and logout_at is null order by started_at desc limit 1),
+         ext as (
+           update delivery.user_sessions s set last_active_at = now(), last_ping_at = now() from recent
+            where s.id = recent.id and now() - recent.last_active_at <= interval '5 minutes' returning s.id),
+         closed as (
+           update delivery.user_sessions s
+              set logout_at = coalesce(recent.last_active_at, recent.last_ping_at, recent.started_at) from recent
+            where s.id = recent.id and now() - recent.last_active_at > interval '5 minutes'
+              and not exists (select 1 from ext) returning s.id)
+         insert into delivery.user_sessions (user_id, organization_id, started_at, last_ping_at, last_active_at)
+         select auth.uid(), $1, now(), now(), now() where not exists (select 1 from ext)`,
+        [org],
+      );
+    }).catch(() => {});
+    return { ok: true };
+  }
+
   // MINI-COCKPIT do WhatsApp CRM — pulso ao vivo (agentes online, conversas ativas, fila, IA hoje).
   // Escopado pelo orgId do Portal (current_org_id, confiável). CRM fora → null → o front mostra "—".
   @Get('crm-live/mine')

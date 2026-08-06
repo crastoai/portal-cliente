@@ -190,4 +190,10 @@ export const crmLive = {
   getMine: async () => api.get<CrmLive | null>(`/api/delivery/crm-live/mine`),
 };
 
-export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, selfService, moduleSessions, teamUsage, meetings, implEvents, agentUsage, cockpit, crmLive };
+// Heartbeat de ATIVIDADE REAL do Portal (relógio de ponto — lado Portal). O App dispara ~1/min só
+// com mouse/teclado; o backend carimba delivery.user_sessions. Fire-and-forget.
+export const userSession = {
+  heartbeat: async () => api.post(`/api/delivery/heartbeat`, {}),
+};
+
+export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, selfService, moduleSessions, teamUsage, meetings, implEvents, agentUsage, cockpit, crmLive, userSession };
