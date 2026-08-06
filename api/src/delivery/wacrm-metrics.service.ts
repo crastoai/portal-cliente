@@ -266,4 +266,30 @@ export class WacrmMetricsService {
       c.release();
     }
   }
+
+  // RELÓGIO DE PONTO — sessões CRUAS do wacrm (em epoch ms) + last_seen por usuário, para o MERGE
+  // Portal+wacrm (a união de intervalos por user_id é feita no controller, junto das sessões do Portal).
+  async pontoRaw(orgId: string, onlyUserId?: string | null): Promise<{ sessions: { uid: string; s: number; e: number }[]; lastSeen: Record<string, number> } | null> {
+    const p = this.db();
+    if (!p || !orgId) return null;
+    const c = await p.connect();
+    try {
+      const sess = (await c.query(
+        `select s.user_id::text uid, extract(epoch from s.started_at) * 1000 s,
+                extract(epoch from coalesce(s.logout_at, s.last_active_at, s.last_ping_at)) * 1000 e
+           from public.user_sessions s join public.profiles p on p.id = s.user_id
+          where p.organization_id = $1 and s.started_at > now() - '180 days'::interval
+            and ($2::uuid is null or s.user_id = $2::uuid)`,
+        [orgId, onlyUserId ?? null])).rows;
+      const ls = (await c.query(
+        `select id::text uid, extract(epoch from last_seen_at) * 1000 ls from public.profiles
+          where organization_id = $1 and last_seen_at is not null and ($2::uuid is null or id = $2::uuid)`,
+        [orgId, onlyUserId ?? null])).rows;
+      const lastSeen: Record<string, number> = {};
+      for (const r of ls) lastSeen[r.uid] = Number(r.ls);
+      return { sessions: sess.map((r: any) => ({ uid: r.uid, s: Number(r.s), e: Number(r.e) })), lastSeen };
+    } finally {
+      c.release();
+    }
+  }
 }

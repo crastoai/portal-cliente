@@ -3,6 +3,22 @@ import { JwtOrgGuard } from '../common/jwt-org.guard';
 import { RlsDbService } from '../common/rls-db.service';
 import { WacrmMetricsService } from './wacrm-metrics.service';
 
+// RELÓGIO DE PONTO — soma a UNIÃO de intervalos [s,e] (epoch ms) recortada a uma janela → minutos.
+// Merge Portal+wacrm: quando o mesmo usuário está ativo nos dois ao mesmo tempo (ex.: CRM embarcado
+// no Portal), a sobreposição conta UMA vez só. Ordena por início, funde sobrepostos, clipa à janela.
+function unionMinutes(intervals: { s: number; e: number }[], winStart: number, winEnd: number): number {
+  if (!intervals.length) return 0;
+  const xs = intervals.slice().sort((a, b) => a.s - b.s);
+  let total = 0, curS = xs[0].s, curE = xs[0].e;
+  for (let i = 1; i < xs.length; i++) {
+    const it = xs[i];
+    if (it.s <= curE) { if (it.e > curE) curE = it.e; }
+    else { total += Math.max(0, Math.min(curE, winEnd) - Math.max(curS, winStart)); curS = it.s; curE = it.e; }
+  }
+  total += Math.max(0, Math.min(curE, winEnd) - Math.max(curS, winStart));
+  return Math.round(total / 60000);
+}
+
 // Bounded context DELIVERY (schema delivery). Tudo em asUser → a RLS do Portal faz o "mine"
 // (própria org do cliente) e o bypass do admin, exatamente como fazia via PostgREST.
 @Controller('delivery')
@@ -194,8 +210,8 @@ export class DeliveryController {
     // GATING (decisão do Crasto): só o DONO vê o TOTAL da equipe. Membro comum vê só as PRÓPRIAS
     // horas (mesma regra do drill-down). Papel resolvido no banco (profiles.role), nunca do cliente.
     const donoHoras = (db as any)?.me?.role === 'client_owner' || (db as any)?.me?.role === 'crasto_admin';
-    const ponto = db?.orgId ? await this.wacrm.hoursByCollaborator(db.orgId, null, null, donoHoras ? null : ((db as any)?.me?.id ?? null)).catch(() => null) : null;
-    const horasMes = ponto ? Math.round(ponto.reduce((s, x) => s + (x.min_mes || 0), 0) / 60) : null;
+    const ponto = db?.orgId ? await this.pontoRows(db.orgId, null, null, donoHoras ? null : ((db as any)?.me?.id ?? null)).catch(() => null) : null;
+    const horasMes = ponto ? Math.round(ponto.reduce((s: number, x: any) => s + (x.min_mes || 0), 0) / 60) : null;
     const metrics: any[] = [
       metric('tempo_resposta', '1ª resposta · WhatsApp', 's', 'menor', r?.tempo_resposta ?? null, null),
       metric('automacao', 'Atendimentos feitos pela IA', '%', 'maior', r?.automacao ?? null, null),
@@ -257,8 +273,8 @@ export class DeliveryController {
       return { orgId, uid: (me?.id as string) ?? null, dono: me?.r === 'client_owner' || me?.r === 'crasto_admin' };
     }).catch(() => null);
     if (!ctx?.orgId) return { rows: [] as any[] };
-    const rows = await this.wacrm.hoursByCollaborator(ctx.orgId, from || null, to || null, ctx.dono ? null : ctx.uid).catch(() => null);
-    return { rows: rows ?? [] };
+    const rows = await this.pontoRows(ctx.orgId, from || null, to || null, ctx.dono ? null : ctx.uid).catch(() => [] as any[]);
+    return { rows };
   }
 
   // DRILL-DOWN de HORAS (Fase A · nível 2): as SESSÕES (login/logout) de um colaborador. Escopo por org;
@@ -273,8 +289,19 @@ export class DeliveryController {
     if (!ctx?.orgId) return { rows: [] as any[] };
     const targetId = ctx.dono ? (id || null) : ctx.uid;
     if (!targetId) return { rows: [] as any[] };
-    const rows = await this.wacrm.collabSessions(ctx.orgId, targetId, from || null, to || null).catch(() => null);
-    return { rows: rows ?? [] };
+    // Sessões dos DOIS sistemas (wacrm + Portal), listadas juntas e ordenadas por login (mais recente).
+    const wRows = (await this.wacrm.collabSessions(ctx.orgId, targetId, from || null, to || null).catch(() => null)) ?? [];
+    const pRows = await this.db.asService(async (c) => (await c.query(
+      `select s.id::text id, s.started_at login, coalesce(s.logout_at, s.last_active_at, s.last_ping_at) logout,
+              round(extract(epoch from (coalesce(s.logout_at, s.last_active_at, s.last_ping_at) - s.started_at)) / 60)::int minutos
+         from delivery.user_sessions s
+        where s.user_id = $1::uuid and s.organization_id = $2
+          and s.started_at >= coalesce($3::date, (now()-'30 days'::interval)::date)
+          and s.started_at < coalesce($4::date + 1, now()::date + 1)
+        order by s.started_at desc limit 200`,
+      [targetId, ctx.orgId, from || null, to || null])).rows.map((r: any) => ({ id: String(r.id), login: r.login, logout: r.logout, minutos: r.minutos }))).catch(() => [] as any[]);
+    const rows = [...wRows, ...pRows].sort((a: any, b: any) => new Date(b.login).getTime() - new Date(a.login).getTime()).slice(0, 200);
+    return { rows };
   }
 
   // HEARTBEAT de ATIVIDADE REAL do PORTAL (relógio de ponto — lado Portal, espelha o wacrm). O front
@@ -304,6 +331,66 @@ export class DeliveryController {
       );
     }).catch(() => {});
     return { ok: true };
+  }
+
+  // MERGE Portal+wacrm por user_id (relógio de ponto). Roster = membros da org (Portal = fonte da
+  // verdade da equipe, inclui quem só usa o Portal). Sessões dos DOIS sistemas unidas por
+  // unionMinutes (sobreposição 1×). Janelas hoje/semana/mês/período calculadas no banco do Portal
+  // (robusto se o wacrm cair). online/último = última atividade em qualquer um dos dois sistemas.
+  private async pontoRows(orgId: string, from: string | null, to: string | null, scopeUid: string | null) {
+    const portal = await this.db.asService(async (c) => {
+      const roster = (await c.query(
+        `select p.id::text id, coalesce(nullif(p.full_name,''), p.email, 'Colaborador') nome, p.email
+           from public.profiles p
+          where p.organization_id = $1 and p.role::text in ('client_owner','client_member')
+            and ($2::uuid is null or p.id = $2::uuid) order by nome`,
+        [orgId, scopeUid])).rows;
+      const sess = (await c.query(
+        `select user_id::text uid, extract(epoch from started_at) * 1000 s,
+                extract(epoch from coalesce(logout_at, last_active_at, last_ping_at)) * 1000 e
+           from delivery.user_sessions
+          where organization_id = $1 and started_at > now() - '180 days'::interval
+            and ($2::uuid is null or user_id = $2::uuid)`,
+        [orgId, scopeUid])).rows;
+      const b = (await c.query(
+        `select extract(epoch from date_trunc('day',now())) * 1000 day,
+                extract(epoch from date_trunc('week',now())) * 1000 week,
+                extract(epoch from date_trunc('month',now())) * 1000 month,
+                extract(epoch from coalesce($1::date, (now()-'30 days'::interval)::date)) * 1000 pstart,
+                extract(epoch from coalesce($2::date + 1, now()::date + 1)) * 1000 pend,
+                extract(epoch from now()) * 1000 now`,
+        [from, to])).rows[0];
+      return { roster, sess: sess.map((r: any) => ({ uid: r.uid, s: Number(r.s), e: Number(r.e) })), b };
+    }).catch(() => ({ roster: [] as any[], sess: [] as { uid: string; s: number; e: number }[], b: null as any }));
+
+    if (!portal.b) return [] as any[];
+    const w = await this.wacrm.pontoRaw(orgId, scopeUid).catch(() => null);
+    const lastSeen = w?.lastSeen ?? {};
+    const day = Number(portal.b.day), week = Number(portal.b.week), month = Number(portal.b.month);
+    const pStart = Number(portal.b.pstart), pEnd = Number(portal.b.pend), now = Number(portal.b.now);
+
+    const byUser = new Map<string, { s: number; e: number }[]>();
+    for (const x of [...portal.sess, ...(w?.sessions ?? [])]) {
+      const arr = byUser.get(x.uid) ?? [];
+      arr.push({ s: x.s, e: x.e });
+      byUser.set(x.uid, arr);
+    }
+    return portal.roster.map((u: any) => {
+      const iv = byUser.get(u.id) ?? [];
+      const maxE = iv.reduce((m, x) => Math.max(m, x.e), 0);
+      const ultimoMs = Math.max(maxE, lastSeen[u.id] || 0);
+      return {
+        id: u.id, nome: u.nome, email: u.email || null,
+        online: ultimoMs > 0 && now - ultimoMs < 5 * 60000,
+        last_seen_at: ultimoMs > 0 ? new Date(ultimoMs).toISOString() : null,
+        min_hoje: unionMinutes(iv, day, now),
+        min_semana: unionMinutes(iv, week, now),
+        min_mes: unionMinutes(iv, month, now),
+        min_periodo: unionMinutes(iv, pStart, pEnd),
+        sessoes: iv.filter((x) => x.s >= pStart && x.s < pEnd).length,
+        ultimo: ultimoMs > 0 ? new Date(ultimoMs).toISOString() : null,
+      };
+    }).sort((a: any, b2: any) => (Number(b2.online) - Number(a.online)) || (b2.min_mes - a.min_mes) || String(a.nome).localeCompare(String(b2.nome)));
   }
 
   // MINI-COCKPIT do WhatsApp CRM — pulso ao vivo (agentes online, conversas ativas, fila, IA hoje).
