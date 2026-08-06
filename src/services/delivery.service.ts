@@ -142,10 +142,25 @@ export type CollabRow = { kind: "human" | "ai"; id: string | null; nome: string;
 export const cockpit = {
   getMine: async () => api.get<CockpitMine>(`/api/delivery/cockpit/mine`),
   // Drill-down (Fase 1): tempo de resposta por colaborador — chamar em loop (~30s) p/ ficar ao vivo.
-  responseBreakdown: async () => api.get<{ rows: CollabRow[] }>(`/api/delivery/cockpit/response-breakdown`),
+  // from/to = período (YYYY-MM-DD); sem eles o backend usa os últimos 30 dias.
+  responseBreakdown: async (from?: string | null, to?: string | null) => {
+    const qs = new URLSearchParams();
+    if (from) qs.set("from", from);
+    if (to) qs.set("to", to);
+    const s = qs.toString();
+    return api.get<{ rows: CollabRow[] }>(`/api/delivery/cockpit/response-breakdown${s ? `?${s}` : ""}`);
+  },
   // Drill-down (Fase 2): as conversas de um colaborador — clicar abre /chat/<id> no CRM.
-  collabConversations: async (kind: string, id: string | null) =>
-    api.get<{ rows: ConvRow[] }>(`/api/delivery/cockpit/collab-conversations?kind=${encodeURIComponent(kind)}${id ? `&id=${encodeURIComponent(id)}` : ""}`),
+  // from/to = mesmo período do nível 1; q = busca por lead (nome/telefone).
+  collabConversations: async (kind: string, id: string | null, from?: string | null, to?: string | null, q?: string | null) => {
+    const qs = new URLSearchParams();
+    qs.set("kind", kind);
+    if (id) qs.set("id", id);
+    if (from) qs.set("from", from);
+    if (to) qs.set("to", to);
+    if (q && q.trim()) qs.set("q", q.trim());
+    return api.get<{ rows: ConvRow[] }>(`/api/delivery/cockpit/collab-conversations?${qs.toString()}`);
+  },
 };
 export type ConvRow = { id: string; nome: string; phone: string | null; aguardando: boolean; last_inbound: string | null; last_outbound: string | null };
 

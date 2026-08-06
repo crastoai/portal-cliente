@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageCircle, Search, Send, Wallet, ArrowRight, AlertTriangle, Clock, FileSignature, Headphones, Bot, Activity, Trophy, Package, Users } from "lucide-react";
+import { MessageCircle, Search, Send, Wallet, ArrowRight, AlertTriangle, Clock, FileSignature, Headphones, Bot, Activity, Trophy, Package, Users, X } from "lucide-react";
 import { services } from "../../services";
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
 import AmpliarOperacao from "./AmpliarOperacao";
 import { money } from "../../ui/ui";
 import Modal from "../../ui/Modal";
+import { DateRange } from "../../ui/DatePicker";
 import { summarizeFaturas, type Fatura, type FaturaSummary } from "../../lib/faturas";
 import { allowedScreens } from "../../lib/screens";
 
@@ -47,6 +48,9 @@ export default function Inicio() {
   const [collabs, setCollabs] = useState<any[] | null>(null);
   const [drillCollab, setDrillCollab] = useState<any | null>(null); // colaborador aberto no Nível 2
   const [convs, setConvs] = useState<any[] | null>(null);           // conversas dele
+  const [rFrom, setRFrom] = useState<string | null>(null);          // filtro de período (De) — null = últimos 30d
+  const [rTo, setRTo] = useState<string | null>(null);              // filtro de período (Até)
+  const [leadQ, setLeadQ] = useState("");                           // busca por lead (nível 2)
   const [self, setSelf] = useState<any>(null);
   const [team, setTeam] = useState<{ scope: string; rows: { id: string; email: string; full_name: string | null; online: boolean; sessoes: number; minutos: number; ultimo: string | null }[] } | null>(null);
   const [reunioes, setReunioes] = useState<import("../../services/delivery.service").Meeting[]>([]);
@@ -114,13 +118,26 @@ export default function Inicio() {
   useEffect(() => {
     if (!drill) { setCollabs(null); return; }
     let alive = true;
-    const load = () => services.delivery.cockpit.responseBreakdown()
+    const load = () => services.delivery.cockpit.responseBreakdown(rFrom, rTo)
       .then((r) => { if (alive) setCollabs(r.rows || []); })
       .catch(() => { if (alive) setCollabs([]); });
     load();
     const iv = setInterval(load, 30000);
     return () => { alive = false; clearInterval(iv); };
-  }, [drill]);
+  }, [drill, rFrom, rTo]);
+
+  // Nível 2 (conversas do colaborador): recarrega ao mudar de colaborador, período ou busca.
+  // Debounce na busca (300ms) p/ não bater a cada tecla. O período é o mesmo do nível 1.
+  useEffect(() => {
+    if (!drillCollab) return;
+    let alive = true;
+    const h = setTimeout(() => {
+      services.delivery.cockpit.collabConversations(drillCollab.kind, drillCollab.id, rFrom, rTo, leadQ)
+        .then((r) => { if (alive) setConvs(r.rows || []); })
+        .catch(() => { if (alive) setConvs([]); });
+    }, leadQ ? 300 : 0);
+    return () => { alive = false; clearTimeout(h); };
+  }, [drillCollab, rFrom, rTo, leadQ]);
 
   const firstName = (profile?.full_name || "").split(" ")[0] || "";
   const daysLeft = impl?.due_date
@@ -629,9 +646,10 @@ export default function Inicio() {
 
       {/* DRILL-DOWN interativo — Nível 1 (colaboradores, ao vivo 30s) → Nível 2 (conversas do
           colaborador) → clique abre /chat/<id> no CRM pra ler o histórico e ver por que demora. */}
-      <Modal title={drillCollab ? `${drillCollab.kind === "ai" ? "🤖 " : "👤 "}${drillCollab.nome}` : (drill === "automacao" ? t("Atendimento por colaborador (humano × IA)") : drill === "atendimentos" ? t("Conversas por colaborador") : t("Tempo de resposta por colaborador"))} open={!!drill} onClose={() => { setDrill(null); setDrillCollab(null); setConvs(null); }} wide>
+      <Modal title={drillCollab ? `${drillCollab.kind === "ai" ? "🤖 " : "👤 "}${drillCollab.nome}` : (drill === "automacao" ? t("Atendimento por colaborador (humano × IA)") : drill === "atendimentos" ? t("Conversas por colaborador") : t("Tempo de resposta por colaborador"))} open={!!drill} onClose={() => { setDrill(null); setDrillCollab(null); setConvs(null); setLeadQ(""); setRFrom(null); setRTo(null); }} wide>
         {!drillCollab ? (<>
           <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)", marginBottom: 12 }}>{t("Quem está respondendo no WhatsApp — e em quanto tempo. Clique num colaborador para ver as conversas dele.")} <span style={{ color: "var(--crasto-blue, #6E9CE8)", fontWeight: 600 }}>● {t("ao vivo")}</span></div>
+          <DateRange from={rFrom} to={rTo} onChange={(f, tt) => { setRFrom(f); setRTo(tt); }} />
           {collabs === null ? (
             <div style={{ padding: "16px 0", color: "var(--crasto-text-muted)" }}>{t("Carregando…")}</div>
           ) : collabs.length === 0 ? (
@@ -648,7 +666,7 @@ export default function Inicio() {
                 </tr></thead>
                 <tbody>
                   {collabs.map((c: any, i: number) => (
-                    <tr key={c.id || c.nome + i} className="drillrow" onClick={() => { setDrillCollab(c); setConvs(null); services.delivery.cockpit.collabConversations(c.kind, c.id).then((r) => setConvs(r.rows || [])).catch(() => setConvs([])); }} style={{ borderTop: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))", cursor: "pointer" }}>
+                    <tr key={c.id || c.nome + i} className="drillrow" onClick={() => { setDrillCollab(c); setConvs(null); setLeadQ(""); }} style={{ borderTop: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))", cursor: "pointer" }}>
                       <td style={{ padding: "11px 10px", fontSize: 13.5, fontWeight: 600, color: "var(--crasto-text-primary)" }}>{c.kind === "ai" ? "🤖 " : "👤 "}{c.nome}</td>
                       <td className="tnum" style={{ padding: "11px 10px", fontSize: 14, textAlign: "right", fontWeight: 700, color: "var(--crasto-text-primary)" }}>{c.tmed != null ? fmtSeg(c.tmed) : "—"}</td>
                       <td className="tnum" style={{ padding: "11px 10px", fontSize: 13, textAlign: "right", color: "var(--crasto-text-muted)" }}>{c.convs}</td>
@@ -661,8 +679,14 @@ export default function Inicio() {
             </div>
           )}
         </>) : (<>
-          <button className="crasto-btn crasto-btn--sm" style={{ marginBottom: 12 }} onClick={() => { setDrillCollab(null); setConvs(null); }}><span className="crasto-btn__label">← {t("Voltar aos colaboradores")}</span></button>
+          <button className="crasto-btn crasto-btn--sm" style={{ marginBottom: 12 }} onClick={() => { setDrillCollab(null); setConvs(null); setLeadQ(""); }}><span className="crasto-btn__label">← {t("Voltar aos colaboradores")}</span></button>
           <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)", marginBottom: 10 }}>{t("Conversas onde {n} respondeu — clique para abrir e ler o histórico no WhatsApp.", { n: drillCollab.nome })}</div>
+          <DateRange from={rFrom} to={rTo} onChange={(f, tt) => { setRFrom(f); setRTo(tt); }} />
+          <div className="dp-search">
+            <Search size={15} style={{ opacity: .5, flexShrink: 0 }} />
+            <input className="inp" placeholder={t("Buscar lead por nome ou telefone…")} value={leadQ} onChange={(e) => setLeadQ(e.target.value)} />
+            {leadQ && <button type="button" className="dp-search-clear" onClick={() => setLeadQ("")} aria-label={t("Limpar busca")}><X size={14} /></button>}
+          </div>
           {convs === null ? (
             <div style={{ padding: "16px 0", color: "var(--crasto-text-muted)" }}>{t("Carregando…")}</div>
           ) : convs.length === 0 ? (
@@ -670,7 +694,7 @@ export default function Inicio() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {convs.map((cv: any) => (
-                <button key={cv.id} className="drillconv" onClick={() => { setDrill(null); setDrillCollab(null); setConvs(null); navigate(`/app/crm?conversation=${encodeURIComponent(cv.id)}`); }}>
+                <button key={cv.id} className="drillconv" onClick={() => { setDrill(null); setDrillCollab(null); setConvs(null); setLeadQ(""); setRFrom(null); setRTo(null); navigate(`/app/crm?conversation=${encodeURIComponent(cv.id)}`); }}>
                   <MessageCircle size={16} style={{ opacity: .6, flexShrink: 0 }} />
                   <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 13.5, color: "var(--crasto-text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cv.nome}{cv.phone ? <span style={{ fontWeight: 400, color: "var(--crasto-text-muted)" }}> · {cv.phone}</span> : null}</div>

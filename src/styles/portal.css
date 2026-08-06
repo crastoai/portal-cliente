@@ -441,6 +441,35 @@
 .drillrow:hover { background: var(--crasto-bg-2, rgba(1,14,38,.035)); }
 .drillconv { display: flex; align-items: center; gap: 10px; width: 100%; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md, 12px); padding: 11px 13px; cursor: pointer; font: inherit; transition: border-color .14s ease, transform .14s ease, box-shadow .14s ease; }
 .drillconv:hover { border-color: var(--crasto-blue, #6E9CE8); transform: translateX(2px); box-shadow: var(--crasto-shadow-sm); }
+/* Drill-down: filtro de período (calendário custom no DS) + busca por lead. */
+.dp-range { margin-bottom: 12px; }
+.dp-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--crasto-text-muted); }
+.dp-bar .dp-lbl { font-weight: 600; }
+.dp-field { font: inherit; font-weight: 600; color: var(--crasto-text-primary); background: var(--crasto-surface); border: 1px solid var(--crasto-border, #D0D5DD); border-radius: var(--crasto-radius-sm, 8px); padding: 5px 10px; cursor: pointer; transition: border-color .14s ease, box-shadow .14s ease; }
+.dp-field:hover { border-color: var(--crasto-blue, #6E9CE8); }
+.dp-field.is-open { border-color: var(--crasto-blue, #6E9CE8); box-shadow: 0 0 0 3px rgba(110,156,232,.15); }
+.dp-sep { color: var(--crasto-text-faint); }
+.dp-clear { display: inline-flex; align-items: center; gap: 3px; font: inherit; font-size: 12px; color: var(--crasto-text-muted); background: none; border: none; cursor: pointer; padding: 4px 6px; border-radius: var(--crasto-radius-sm, 8px); }
+.dp-clear:hover { background: var(--crasto-bg-2); color: var(--crasto-text-primary); }
+.dp-cal { margin-top: 10px; width: 268px; max-width: 100%; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md, 12px); box-shadow: var(--crasto-shadow-md, 0 10px 24px -16px rgba(1,14,38,.5)); padding: 12px; }
+.dp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.dp-title { font-size: 13.5px; font-weight: 700; color: var(--crasto-text-primary); text-transform: capitalize; }
+.dp-nav { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-sm, 8px); background: var(--crasto-surface); color: var(--crasto-text-primary); cursor: pointer; }
+.dp-nav:hover { border-color: var(--crasto-blue, #6E9CE8); color: var(--crasto-blue, #6E9CE8); }
+.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.dp-dow { margin-bottom: 4px; }
+.dp-dowc { text-align: center; font-size: 10.5px; font-weight: 700; color: var(--crasto-text-muted); padding: 4px 0; }
+.dp-day { font: inherit; font-size: 12.5px; font-variant-numeric: tabular-nums; height: 32px; border: 1px solid transparent; border-radius: var(--crasto-radius-sm, 8px); background: none; color: var(--crasto-text-primary); cursor: pointer; transition: background .12s ease, color .12s ease; }
+.dp-day:hover:not(:disabled) { background: rgba(110,156,232,.14); }
+.dp-day.is-today { border-color: rgba(110,156,232,.5); }
+.dp-day.is-sel { background: var(--crasto-blue, #6E9CE8); color: #fff; font-weight: 700; border-color: var(--crasto-blue, #6E9CE8); }
+.dp-day:disabled { color: var(--crasto-text-faint); cursor: default; opacity: .5; }
+[data-theme="dark"] .dp-day:hover:not(:disabled) { background: rgba(110,156,232,.2); }
+/* Busca por lead (nível 2 do drill-down). */
+.dp-search { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.dp-search .inp { flex: 1; }
+.dp-search-clear { display: inline-flex; align-items: center; background: none; border: none; color: var(--crasto-text-muted); cursor: pointer; padding: 4px; border-radius: var(--crasto-radius-sm, 8px); }
+.dp-search-clear:hover { background: var(--crasto-bg-2); color: var(--crasto-text-primary); }
 
 /* ===== módulos ===== */
 .sec-h { display: flex; align-items: center; justify-content: space-between; margin: 8px 0 16px; }

@@ -214,23 +214,23 @@ export class DeliveryController {
   // DRILL-DOWN do Cockpit (Fase 1): tempo de 1ª resposta POR COLABORADOR (humano e IA). Escopado
   // pela org do usuário (current_org_id). Dado ao vivo — o front repete a cada ~30s, sem refresh.
   @Get('cockpit/response-breakdown')
-  async responseBreakdown(@Req() req: any) {
+  async responseBreakdown(@Req() req: any, @Query('from') from?: string, @Query('to') to?: string) {
     const orgId = await this.db.asUser(this.uid(req), async (c) =>
       (await c.query('select public.current_org_id() as id')).rows[0]?.id as string | null,
     ).catch(() => null);
     if (!orgId) return { rows: [] as any[] };
-    const rows = await this.wacrm.responseByCollaborator(orgId).catch(() => null);
+    const rows = await this.wacrm.responseByCollaborator(orgId, from || null, to || null).catch(() => null);
     return { rows: rows ?? [] };
   }
 
   // DRILL-DOWN Fase 2: as conversas de um colaborador (p/ abrir no CRM via /chat/<id>). Escopo por org.
   @Get('cockpit/collab-conversations')
-  async collabConversations(@Req() req: any, @Query('kind') kind: string, @Query('id') id: string) {
+  async collabConversations(@Req() req: any, @Query('kind') kind: string, @Query('id') id: string, @Query('from') from?: string, @Query('to') to?: string, @Query('q') q?: string) {
     const orgId = await this.db.asUser(this.uid(req), async (c) =>
       (await c.query('select public.current_org_id() as id')).rows[0]?.id as string | null,
     ).catch(() => null);
     if (!orgId) return { rows: [] as any[] };
-    const rows = await this.wacrm.collabConversations(orgId, kind === 'ai' ? 'ai' : 'human', id || null).catch(() => null);
+    const rows = await this.wacrm.collabConversations(orgId, kind === 'ai' ? 'ai' : 'human', id || null, from || null, to || null, q || null).catch(() => null);
     return { rows: rows ?? [] };
   }
 

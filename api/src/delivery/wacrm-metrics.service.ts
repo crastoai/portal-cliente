@@ -105,13 +105,16 @@ export class WacrmMetricsService {
   // (brain/base) — assim não sobra balde "IA (geral)"; o dono vê só os agentes reais. Nomes de
   // public.profiles / agents.agents. Ordenado do mais LENTO (destaca quem trava). `last_seen_at` =
   // ativo/último acesso real. Escopo por org. Sem WACRM_DB → null.
-  async responseByCollaborator(orgId: string): Promise<{ kind: 'human' | 'ai'; id: string | null; nome: string; tmed: number | null; convs: number; respostas: number; last_seen_at: string | null }[] | null> {
+  async responseByCollaborator(orgId: string, from?: string | null, to?: string | null): Promise<{ kind: 'human' | 'ai'; id: string | null; nome: string; tmed: number | null; convs: number; respostas: number; last_seen_at: string | null }[] | null> {
     const p = this.db();
     if (!p || !orgId) return null;
     const c = await p.connect();
     try {
+      // Janela do período: $2/$3 = De/Até (YYYY-MM-DD). Default = últimos 30 dias. `to` é
+      // inclusivo do dia inteiro (+1 dia, limite exclusivo). Sem filtro → comportamento antigo.
       const rows = (await c.query(
-        `with w as (select now()-'30 days'::interval f),
+        `with w as (select coalesce($2::date, (now()-'30 days'::interval)::date) f,
+                           coalesce($3::date + 1, now()::date + 1) t),
          pairs as (
            select r.from_type, r.sender_user_id, r.conversation_id,
                   -- IA sem persona carimbada (acting_agent_id null) é atribuída ao agente DA CONVERSA
@@ -124,7 +127,7 @@ export class WacrmMetricsService {
               where a.conversation_id=msg.conversation_id and a.from_type in ('ai','human') and a.created_at>msg.created_at
               order by a.created_at asc limit 1) r on true
              join whatsapp.conversations cv on cv.id = r.conversation_id
-            where msg.organization_id=$1 and msg.from_type='user' and msg.created_at>=w.f)
+            where msg.organization_id=$1 and msg.from_type='user' and msg.created_at>=w.f and msg.created_at<w.t)
          select pp.from_type, pp.sender_user_id, pp.eff_agent_id as acting_agent_id,
                 case when pp.from_type='human' then coalesce(pr.full_name,'Atendente (não identificado)')
                      else coalesce(ag.name,'IA') end as nome,
@@ -137,7 +140,7 @@ export class WacrmMetricsService {
            left join agents.agents  ag on ag.id = pp.eff_agent_id
           group by pp.from_type, pp.sender_user_id, pp.eff_agent_id, nome, pr.last_seen_at
           order by tmed desc`,
-        [orgId])).rows;
+        [orgId, from ?? null, to ?? null])).rows;
       return rows.map((r: any) => ({
         kind: r.from_type === 'ai' ? 'ai' : 'human',
         id: (r.from_type === 'ai' ? r.acting_agent_id : r.sender_user_id) || null,
@@ -156,19 +159,21 @@ export class WacrmMetricsService {
   // pela persona carimbada OU pelo agente da conversa — mesma re-atribuição do nível 1, senão o
   // clique na Giovanna não traria as conversas "órfãs" dela). Traz contato + se está AGUARDANDO
   // resposta agora (last_inbound>last_outbound) + o id p/ deep-link no CRM. Escopo por org.
-  async collabConversations(orgId: string, kind: 'human' | 'ai', id: string | null): Promise<{ id: string; nome: string; phone: string | null; aguardando: boolean; last_inbound: string | null; last_outbound: string | null }[] | null> {
+  async collabConversations(orgId: string, kind: 'human' | 'ai', id: string | null, from?: string | null, to?: string | null, q?: string | null): Promise<{ id: string; nome: string; phone: string | null; aguardando: boolean; last_inbound: string | null; last_outbound: string | null }[] | null> {
     const p = this.db();
     if (!p || !orgId) return null;
     const c = await p.connect();
     try {
+      // $4/$5 = período De/Até (default 30d, `to` inclusivo). $6 = busca por lead (nome/telefone).
       const rows = (await c.query(
-        `with w as (select now()-'30 days'::interval f),
+        `with w as (select coalesce($4::date, (now()-'30 days'::interval)::date) f,
+                           coalesce($5::date + 1, now()::date + 1) t),
          resp as (
            select m.conversation_id
              from whatsapp.messages m
              join whatsapp.conversations c on c.id = m.conversation_id
              cross join w
-            where m.organization_id=$1 and m.created_at>=w.f
+            where m.organization_id=$1 and m.created_at>=w.f and m.created_at<w.t
               and case when $2='ai'
                        -- espelha a re-atribuição do nível 1: IA = agente carimbado OU o agente da conversa
                        then m.from_type='ai'    and (($3::uuid is not null and coalesce(m.acting_agent_id, c.brain_agent_id, c.agent_id)=$3::uuid) or ($3::uuid is null and coalesce(m.acting_agent_id, c.brain_agent_id, c.agent_id) is null))
@@ -181,9 +186,10 @@ export class WacrmMetricsService {
            join whatsapp.conversations cv on cv.id = rc.conversation_id
            left join whatsapp.contacts ct on ct.id = cv.contact_id
           where coalesce(cv.archived,false)=false
+            and ($6::text is null or ct.name ilike '%'||$6||'%' or ct.phone ilike '%'||$6||'%')
           order by aguardando desc, coalesce(cv.last_inbound, cv.last_outbound) desc nulls last
           limit 40`,
-        [orgId, kind, id])).rows;
+        [orgId, kind, id, from ?? null, to ?? null, (q && q.trim()) ? q.trim() : null])).rows;
       return rows.map((r: any) => ({ id: String(r.id), nome: r.nome, phone: r.phone || null, aguardando: !!r.aguardando, last_inbound: r.last_inbound || null, last_outbound: r.last_outbound || null }));
     } finally {
       c.release();
