@@ -255,8 +255,9 @@ export default function Inicio() {
             {cock.identity.org_name && <span className="ident-chip">{cock.identity.org_name}</span>}
           </div>
         )}
-        {/* Descrição do protótipo aprovado — texto de marca (o que é o painel), abaixo da saudação. */}
-        <div className="sub" style={{ maxWidth: 820, lineHeight: 1.6 }}>
+        {/* Descrição do protótipo — largura FLUIDA (100% do container, que já respeita as margens
+            da página e acompanha a tela); sem teto fixo pra não ficar socada à esquerda. */}
+        <div className="sub" style={{ maxWidth: "100%", lineHeight: 1.6 }}>
           {t("Este é o seu")} <strong>{t("painel de relacionamento")}</strong> {t("com a Crasto.AI — tudo o que construímos juntos, em tempo real. Aqui você acompanha suas")} <strong>{t("soluções contratadas")}</strong>, {t("o")} <strong>{t("andamento de cada implantação")}</strong> {t("com a data prevista de entrega, e a")} <strong>{t("situação completa do seu contrato")}</strong>: {t("o que já foi pago, o que vence e quanto falta. Do primeiro dia ao resultado, com transparência total.")}
         </div>
       </div>
