@@ -5,7 +5,7 @@ import { services } from "../../services";
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
 import AmpliarOperacao from "./AmpliarOperacao";
-import { money } from "../../ui/ui";
+import { money, useSort, SortTh } from "../../ui/ui";
 import Modal from "../../ui/Modal";
 import { DateRange } from "../../ui/DatePicker";
 import { summarizeFaturas, type Fatura, type FaturaSummary } from "../../lib/faturas";
@@ -52,6 +52,7 @@ export default function Inicio() {
   const [rTo, setRTo] = useState<string | null>(null);              // filtro de período (Até)
   const [leadQ, setLeadQ] = useState("");                           // busca por lead (nível 2)
   const [collabQ, setCollabQ] = useState("");                       // busca por colaborador (nível 1)
+  const collabSort = useSort("tmed", -1);                           // ordenação da tabela (nível 1); default = mais lento primeiro
   const [self, setSelf] = useState<any>(null);
   const [team, setTeam] = useState<{ scope: string; rows: { id: string; email: string; full_name: string | null; online: boolean; sessoes: number; minutos: number; ultimo: string | null }[] } | null>(null);
   const [reunioes, setReunioes] = useState<import("../../services/delivery.service").Meeting[]>([]);
@@ -232,6 +233,9 @@ export default function Inicio() {
   const fmtSeg = (s: number) => (s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}min` : `${(s / 3600).toFixed(1)}h`);
   // "Último acesso" relativo (para o drill-down por colaborador).
   const relSeen = (iso: string) => { const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000); return min < 2 ? t("agora") : min < 60 ? t("há {n}min", { n: min }) : min < 1440 ? t("há {n}h", { n: Math.floor(min / 60) }) : new Date(iso).toLocaleDateString("pt-BR"); };
+  // Semáforo do tempo de 1ª resposta (visão do dono, limiar "mais rígido"). IA responde em
+  // segundos; humano em minutos — por isso limiares diferentes por tipo.
+  const respTone = (kind: string, s: number): "green" | "amber" | "red" => kind === "ai" ? (s <= 15 ? "green" : s <= 60 ? "amber" : "red") : (s <= 120 ? "green" : s <= 600 ? "amber" : "red");
   const fmtMetric = (m: any, v: any) => (v == null ? "—" : m.texto ? String(v) : m.key === "tempo_resposta" ? fmtSeg(Number(v)) : m.unidade === "%" ? `${v}%` : m.unidade === "h" ? `${Number(v).toLocaleString("pt-BR")}h` : Number(v).toLocaleString("pt-BR"));
   // Indicador estilo protótipo: pill verde com copy contextual. Com baseline ("antes") mostra a
   // melhora em %; sem baseline, um selo por métrica (automação / tempo liberado / sempre no ar…).
@@ -664,30 +668,42 @@ export default function Inicio() {
             {(() => {
               const shown = collabs.filter((c: any) => !collabQ.trim() || (c.nome || "").toLowerCase().includes(collabQ.trim().toLowerCase()));
               if (shown.length === 0) return <div style={{ padding: "12px 0", color: "var(--crasto-text-muted)" }}>{t("Nenhum colaborador com esse nome.")}</div>;
-              return (
+              const sorted = collabSort.sorted(shown, (r: any, col: string) => col === "nome" ? (r.nome || "").toLowerCase() : col === "tmed" ? (r.tmed ?? -1) : col === "convs" ? (r.convs ?? 0) : (r.last_seen_at ? new Date(r.last_seen_at).getTime() : 0));
+              return (<>
+            <div style={{ display: "flex", gap: 16, fontSize: 11, color: "var(--crasto-text-muted)", margin: "0 0 10px", flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ color: "var(--crasto-text-faint)" }}>{t("Tempo da 1ª resposta:")}</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span className="resp-dot" style={{ background: FAROL_COR.green }} /> {t("rápido")}</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span className="resp-dot" style={{ background: FAROL_COR.amber }} /> {t("atenção")}</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span className="resp-dot" style={{ background: FAROL_COR.red }} /> {t("lento")}</span>
+            </div>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 540 }}>
                 <thead><tr style={{ textAlign: "left", fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--crasto-text-muted)" }}>
-                  <th style={{ padding: "8px 10px" }}>{t("Colaborador")}</th>
-                  <th style={{ padding: "8px 10px", textAlign: "right" }}>{t("1ª resposta")}</th>
-                  <th style={{ padding: "8px 10px", textAlign: "right" }}>{t("Conversas")}</th>
-                  <th style={{ padding: "8px 10px" }}>{t("Último acesso")}</th>
+                  <SortTh col="nome" sort={collabSort.sort} toggle={collabSort.toggle} style={{ padding: "8px 10px" }}>{t("Colaborador")}</SortTh>
+                  <SortTh col="tmed" sort={collabSort.sort} toggle={collabSort.toggle} style={{ padding: "8px 10px" }} right>{t("1ª resposta")}</SortTh>
+                  <SortTh col="convs" sort={collabSort.sort} toggle={collabSort.toggle} style={{ padding: "8px 10px" }} right>{t("Conversas")}</SortTh>
+                  <SortTh col="last" sort={collabSort.sort} toggle={collabSort.toggle} style={{ padding: "8px 10px" }}>{t("Último acesso")}</SortTh>
                   <th />
                 </tr></thead>
                 <tbody>
-                  {shown.map((c: any, i: number) => (
+                  {sorted.map((c: any, i: number) => {
+                    const tone = c.tmed != null ? respTone(c.kind, c.tmed) : null;
+                    const cor = tone ? FAROL_COR[tone] : null;
+                    const onlineNow = c.kind === "ai" || (!!c.last_seen_at && (Date.now() - new Date(c.last_seen_at).getTime()) < 5 * 60000);
+                    return (
                     <tr key={c.id || c.nome + i} className="drillrow" onClick={() => { setDrillCollab(c); setConvs(null); setLeadQ(""); }} style={{ borderTop: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))", cursor: "pointer" }}>
-                      <td style={{ padding: "11px 10px", fontSize: 13.5, fontWeight: 600, color: "var(--crasto-text-primary)" }}>{c.kind === "ai" ? "🤖 " : "👤 "}{c.nome}</td>
-                      <td className="tnum" style={{ padding: "11px 10px", fontSize: 14, textAlign: "right", fontWeight: 700, color: "var(--crasto-text-primary)" }}>{c.tmed != null ? fmtSeg(c.tmed) : "—"}</td>
+                      <td style={{ padding: "11px 10px", fontSize: 13.5, fontWeight: 600, color: "var(--crasto-text-primary)" }}>{c.kind === "ai" ? "🤖 " : "👤 "}{c.nome}{c.nome === "Atendente (não identificado)" && <span title={t("Respostas enviadas fora do fluxo do CRM — sem identificação de quem respondeu.")} style={{ marginLeft: 6, color: "var(--crasto-text-faint)", cursor: "help", fontWeight: 400 }}>ⓘ</span>}</td>
+                      <td className="tnum" style={{ padding: "11px 10px", fontSize: 14, textAlign: "right", fontWeight: 700 }}>{c.tmed != null && cor ? <span style={{ color: cor, display: "inline-flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}><span className="resp-dot" style={{ background: cor }} />{fmtSeg(c.tmed)}</span> : <span style={{ color: "var(--crasto-text-faint)" }}>—</span>}</td>
                       <td className="tnum" style={{ padding: "11px 10px", fontSize: 13, textAlign: "right", color: "var(--crasto-text-muted)" }}>{c.convs}</td>
-                      <td style={{ padding: "11px 10px", fontSize: 12.5, color: "var(--crasto-text-muted)" }}>{c.kind === "ai" ? t("sempre no ar") : c.last_seen_at ? relSeen(c.last_seen_at) : "—"}</td>
+                      <td style={{ padding: "11px 10px", fontSize: 12.5, color: "var(--crasto-text-muted)" }}>{onlineNow ? <span style={{ color: FAROL_COR.green, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}><span className="resp-dot" style={{ background: FAROL_COR.green }} />{c.kind === "ai" ? t("sempre no ar") : t("agora")}</span> : c.last_seen_at ? relSeen(c.last_seen_at) : "—"}</td>
                       <td style={{ padding: "11px 10px", textAlign: "right" }}><ArrowRight size={14} style={{ opacity: .4 }} /></td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
-              );
+              </>);
             })()}
           </>)}
         </>) : (<>

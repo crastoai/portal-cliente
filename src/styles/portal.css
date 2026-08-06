@@ -468,6 +468,8 @@
 .dp-day.is-sel { background: var(--crasto-blue, #6E9CE8); color: #fff; font-weight: 700; border-color: var(--crasto-blue, #6E9CE8); }
 .dp-day:disabled { color: var(--crasto-text-faint); cursor: default; opacity: .5; }
 [data-theme="dark"] .dp-day:hover:not(:disabled) { background: rgba(110,156,232,.2); }
+/* Semáforo (visão do dono): bolinha de status do tempo de 1ª resposta / online. */
+.resp-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 /* Busca por lead (nível 2 do drill-down). */
 .dp-search { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .dp-search .inp { flex: 1; }
