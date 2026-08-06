@@ -352,13 +352,15 @@ export class DeliveryController {
           where organization_id = $1 and started_at > now() - '180 days'::interval
             and ($2::uuid is null or user_id = $2::uuid)`,
         [orgId, scopeUid])).rows;
+      // NB: aliases curtos (d/w/m/ps/pe/nw). "day"/"week"/"month"/"now" como alias CRU quebram o
+      // parser do Postgres (palavras de interval) → "syntax error at or near month". Sempre com AS.
       const b = (await c.query(
-        `select extract(epoch from date_trunc('day',now())) * 1000 day,
-                extract(epoch from date_trunc('week',now())) * 1000 week,
-                extract(epoch from date_trunc('month',now())) * 1000 month,
-                extract(epoch from coalesce($1::date, (now()-'30 days'::interval)::date)) * 1000 pstart,
-                extract(epoch from coalesce($2::date + 1, now()::date + 1)) * 1000 pend,
-                extract(epoch from now()) * 1000 now`,
+        `select extract(epoch from date_trunc('day',now())) * 1000 as d,
+                extract(epoch from date_trunc('week',now())) * 1000 as w,
+                extract(epoch from date_trunc('month',now())) * 1000 as m,
+                extract(epoch from coalesce($1::date, (now()-'30 days'::interval)::date)) * 1000 as ps,
+                extract(epoch from coalesce($2::date + 1, now()::date + 1)) * 1000 as pe,
+                extract(epoch from now()) * 1000 as nw`,
         [from, to])).rows[0];
       return { roster, sess: sess.map((r: any) => ({ uid: r.uid, s: Number(r.s), e: Number(r.e) })), b };
     }).catch(() => ({ roster: [] as any[], sess: [] as { uid: string; s: number; e: number }[], b: null as any }));
@@ -366,8 +368,8 @@ export class DeliveryController {
     if (!portal.b) return [] as any[];
     const w = await this.wacrm.pontoRaw(orgId, scopeUid).catch(() => null);
     const lastSeen = w?.lastSeen ?? {};
-    const day = Number(portal.b.day), week = Number(portal.b.week), month = Number(portal.b.month);
-    const pStart = Number(portal.b.pstart), pEnd = Number(portal.b.pend), now = Number(portal.b.now);
+    const day = Number(portal.b.d), week = Number(portal.b.w), month = Number(portal.b.m);
+    const pStart = Number(portal.b.ps), pEnd = Number(portal.b.pe), now = Number(portal.b.nw);
 
     const byUser = new Map<string, { s: number; e: number }[]>();
     for (const x of [...portal.sess, ...(w?.sessions ?? [])]) {
