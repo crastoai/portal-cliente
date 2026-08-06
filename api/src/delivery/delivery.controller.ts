@@ -333,6 +333,19 @@ export class DeliveryController {
     return { ok: true };
   }
 
+  // Carimba o LOGOUT MANUAL (botão "sair") no Portal: fecha a sessão aberta (logout_reason='manual').
+  // Chamado pelo client antes de descartar o token. No-op se já foi fechada (idle_timeout).
+  @Post('session-close')
+  async sessionClose(@Req() req: any) {
+    await this.db.asUser(this.uid(req), async (c) => {
+      await c.query(
+        `update delivery.user_sessions set logout_at = now(), logout_reason = 'manual'
+          where user_id = auth.uid() and logout_at is null`,
+      );
+    }).catch(() => {});
+    return { ok: true };
+  }
+
   // MERGE Portal+wacrm por user_id (relógio de ponto). Roster = membros da org (Portal = fonte da
   // verdade da equipe, inclui quem só usa o Portal). Sessões dos DOIS sistemas unidas por
   // unionMinutes (sobreposição 1×). Janelas hoje/semana/mês/período calculadas no banco do Portal

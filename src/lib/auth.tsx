@@ -81,6 +81,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signOut(motivo?: string) {
     // Auditar ANTES: depois do signOut não há mais token para autenticar o registro.
     await api.post("/api/audit/event", { action: "logout", system: "portal", via: motivo || "botao" }).catch(() => {});
+    // Carimba o fim da sessão do relógio de ponto (logout_reason='manual') ANTES de descartar o token.
+    await api.post("/api/delivery/session-close", {}).catch(() => {});
     await supabase.auth.signOut();
   }
   async function refreshProfile() {

@@ -194,6 +194,7 @@ export const crmLive = {
 // com mouse/teclado; o backend carimba delivery.user_sessions. Fire-and-forget.
 export const userSession = {
   heartbeat: async () => api.post(`/api/delivery/heartbeat`, {}),
+  close: async () => api.post(`/api/delivery/session-close`, {}),
 };
 
 export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, selfService, moduleSessions, teamUsage, meetings, implEvents, agentUsage, cockpit, crmLive, userSession };
