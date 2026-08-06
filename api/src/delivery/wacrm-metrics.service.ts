@@ -105,7 +105,7 @@ export class WacrmMetricsService {
   // (brain/base) — assim não sobra balde "IA (geral)"; o dono vê só os agentes reais. Nomes de
   // public.profiles / agents.agents. Ordenado do mais LENTO (destaca quem trava). `last_seen_at` =
   // ativo/último acesso real. Escopo por org. Sem WACRM_DB → null.
-  async responseByCollaborator(orgId: string, from?: string | null, to?: string | null): Promise<{ kind: 'human' | 'ai'; id: string | null; nome: string; tmed: number | null; convs: number; respostas: number; last_seen_at: string | null }[] | null> {
+  async responseByCollaborator(orgId: string, from?: string | null, to?: string | null, onlyUserId?: string | null): Promise<{ kind: 'human' | 'ai'; id: string | null; nome: string; tmed: number | null; convs: number; respostas: number; last_seen_at: string | null }[] | null> {
     const p = this.db();
     if (!p || !orgId) return null;
     const c = await p.connect();
@@ -127,7 +127,8 @@ export class WacrmMetricsService {
               where a.conversation_id=msg.conversation_id and a.from_type in ('ai','human') and a.created_at>msg.created_at
               order by a.created_at asc limit 1) r on true
              join whatsapp.conversations cv on cv.id = r.conversation_id
-            where msg.organization_id=$1 and msg.from_type='user' and msg.created_at>=w.f and msg.created_at<w.t)
+            where msg.organization_id=$1 and msg.from_type='user' and msg.created_at>=w.f and msg.created_at<w.t
+              and ($4::uuid is null or (r.from_type='human' and r.sender_user_id=$4::uuid)))
          select pp.from_type, pp.sender_user_id, pp.eff_agent_id as acting_agent_id,
                 case when pp.from_type='human' then coalesce(pr.full_name,'Atendente (não identificado)')
                      else coalesce(ag.name,'IA') end as nome,
@@ -140,7 +141,7 @@ export class WacrmMetricsService {
            left join agents.agents  ag on ag.id = pp.eff_agent_id
           group by pp.from_type, pp.sender_user_id, pp.eff_agent_id, nome, pr.last_seen_at
           order by tmed desc`,
-        [orgId, from ?? null, to ?? null])).rows;
+        [orgId, from ?? null, to ?? null, onlyUserId ?? null])).rows;
       return rows.map((r: any) => ({
         kind: r.from_type === 'ai' ? 'ai' : 'human',
         id: (r.from_type === 'ai' ? r.acting_agent_id : r.sender_user_id) || null,

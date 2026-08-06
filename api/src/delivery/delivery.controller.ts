@@ -215,22 +215,30 @@ export class DeliveryController {
   // pela org do usuário (current_org_id). Dado ao vivo — o front repete a cada ~30s, sem refresh.
   @Get('cockpit/response-breakdown')
   async responseBreakdown(@Req() req: any, @Query('from') from?: string, @Query('to') to?: string) {
-    const orgId = await this.db.asUser(this.uid(req), async (c) =>
-      (await c.query('select public.current_org_id() as id')).rows[0]?.id as string | null,
-    ).catch(() => null);
-    if (!orgId) return { rows: [] as any[] };
-    const rows = await this.wacrm.responseByCollaborator(orgId, from || null, to || null).catch(() => null);
+    const ctx = await this.db.asUser(this.uid(req), async (c) => {
+      const orgId = (await c.query('select public.current_org_id() as id')).rows[0]?.id as string | null;
+      const me = (await c.query(`select id, role::text r from public.profiles where id = auth.uid()`)).rows[0];
+      return { orgId, uid: (me?.id as string) ?? null, dono: me?.r === 'client_owner' || me?.r === 'crasto_admin' };
+    }).catch(() => null);
+    if (!ctx?.orgId) return { rows: [] as any[] };
+    // Membro comum vê só a PRÓPRIA linha (o próprio tempo de resposta); dono/gestor vê o time todo.
+    const rows = await this.wacrm.responseByCollaborator(ctx.orgId, from || null, to || null, ctx.dono ? null : ctx.uid).catch(() => null);
     return { rows: rows ?? [] };
   }
 
   // DRILL-DOWN Fase 2: as conversas de um colaborador (p/ abrir no CRM via /chat/<id>). Escopo por org.
   @Get('cockpit/collab-conversations')
   async collabConversations(@Req() req: any, @Query('kind') kind: string, @Query('id') id: string, @Query('from') from?: string, @Query('to') to?: string, @Query('q') q?: string) {
-    const orgId = await this.db.asUser(this.uid(req), async (c) =>
-      (await c.query('select public.current_org_id() as id')).rows[0]?.id as string | null,
-    ).catch(() => null);
-    if (!orgId) return { rows: [] as any[] };
-    const rows = await this.wacrm.collabConversations(orgId, kind === 'ai' ? 'ai' : 'human', id || null, from || null, to || null, q || null).catch(() => null);
+    const ctx = await this.db.asUser(this.uid(req), async (c) => {
+      const orgId = (await c.query('select public.current_org_id() as id')).rows[0]?.id as string | null;
+      const me = (await c.query(`select id, role::text r from public.profiles where id = auth.uid()`)).rows[0];
+      return { orgId, uid: (me?.id as string) ?? null, dono: me?.r === 'client_owner' || me?.r === 'crasto_admin' };
+    }).catch(() => null);
+    if (!ctx?.orgId) return { rows: [] as any[] };
+    // Membro comum só pode abrir as PRÓPRIAS conversas (kind humano, id = ele mesmo) — não os outros.
+    const kd: 'human' | 'ai' = ctx.dono ? (kind === 'ai' ? 'ai' : 'human') : 'human';
+    const targetId = ctx.dono ? (id || null) : ctx.uid;
+    const rows = await this.wacrm.collabConversations(ctx.orgId, kd, targetId, from || null, to || null, q || null).catch(() => null);
     return { rows: rows ?? [] };
   }
 
