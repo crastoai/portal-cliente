@@ -545,10 +545,11 @@ export default function Inicio() {
         };
         return (<>
           <SecHead title={t("Situação financeira")} tom={(fin?.status as Tom) ?? "mute"} caption={t("dado real do seu contrato · parcelas")} icon={<Wallet size={16} />} />
-          <div className="kpis kpis--3">
+          <div className="kpis">
             <div className="kpi"><div className="lab">{t("Total do contrato")}</div><div className="val tnum">{money(total)}</div><div className="delta">{t("{n} parcelas", { n: faturas.length })}</div></div>
             <div className="kpi g"><div className="lab">{t("Já pago")}</div><div className="val tnum">{money(pago)}</div><div className="delta">{t("{n} paga(s)", { n: faturas.filter((f) => f.status === "paid").length })}</div></div>
-            <div className="kpi"><div className="lab">{t("Restante")}</div><div className="val tnum">{money(restante)}</div><div className="delta">{fin?.status === "red" ? t("com atraso") : fin?.status === "amber" ? t("vencendo em breve") : t("em dia")}</div></div>
+            <div className="kpi"><div className="lab">{t("Restante")}</div><div className="val tnum">{money(restante)}</div><div className="delta">{t("{n} parcelas a vencer", { n: faturas.filter((f) => !settled(f)).length })}</div></div>
+            <div className="kpi"><div className="lab">{t("Status")}</div><div className="val" style={{ fontSize: 19 }}><span className={"scopepill " + ((fin?.status as string) || "mute")}>{fin?.status === "red" ? t("Em atraso") : fin?.status === "amber" ? t("Vence em breve") : t("Em dia")}</span></div><div className="delta">{fin && fin.overdue.length ? t("{n} em atraso · {v}", { n: fin.overdue.length, v: money(fin.overdueTotal) }) : t("nenhuma parcela em atraso")}</div></div>
           </div>
 
           {/* Parcelas com farol de vencimento */}
@@ -589,6 +590,9 @@ export default function Inicio() {
                 : self?.contract?.url && <a className="scopepill mute" href={self.contract.url} target="_blank" rel="noreferrer">{t("Abrir")} <ArrowRight size={12} style={{ verticalAlign: -2 }} /></a>}
             </div>
           </div>
+
+          {/* Amplie sua operação — rodapé de Contrato & Financeiro (mesma das outras abas). */}
+          <AmpliarOperacao orgName={cock?.identity?.org_name} ownedNames={(cock?.conquistas || []).map((c) => c.titulo)} />
         </>);
       })()}
 
