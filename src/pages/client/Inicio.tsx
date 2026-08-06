@@ -281,7 +281,7 @@ export default function Inicio() {
             {Array.isArray(cock?.narrativa?.destaques) && cock!.narrativa.destaques.length > 0 && (
               <div style={{ display: "flex", gap: 30, flexWrap: "wrap", marginTop: 18 }}>
                 {cock!.narrativa.destaques.map((d: any, i: number) => (
-                  <div key={i}><div className="tnum" style={{ fontSize: 26, fontWeight: 600, color: "#fff" }}>{d.n}</div><div style={{ fontSize: 12, color: "rgba(255,255,255,.65)", marginTop: 2, maxWidth: 150 }}>{d.l}</div></div>
+                  <div key={i}><div className="tnum" style={{ fontSize: 30, fontWeight: 700, color: "var(--crasto-blue, #6E9CE8)" }}>{d.n}</div><div style={{ fontSize: 12, color: "rgba(255,255,255,.65)", marginTop: 2, maxWidth: 150 }}>{d.l}</div></div>
                 ))}
               </div>
             )}
@@ -329,8 +329,8 @@ export default function Inicio() {
           <div className="empty"><p><strong>{t("Seus resultados aparecem aqui.")}</strong> {t("Assim que suas soluções entrarem em operação, os números aparecem em tempo real — sem dados fictícios.")}</p></div>
         )}
 
-        {/* Amplie sua operação — recomendador de IA (mesmo do Catálogo), no fim de Meus Resultados (protótipo). */}
-        <AmpliarOperacao />
+        {/* Amplie sua operação — recomendador de IA + 3 soluções do catálogo (protótipo), no fim de Meus Resultados. */}
+        <AmpliarOperacao orgName={cock?.identity?.org_name} ownedNames={(cock?.conquistas || []).map((c) => c.titulo)} />
       </>)}
 
       {tab === "solucoes" && (<>
