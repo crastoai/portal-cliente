@@ -4,6 +4,7 @@ import { MessageCircle, Search, Send, Wallet, ArrowRight, AlertTriangle, Clock, 
 import { services } from "../../services";
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
+import AmpliarOperacao from "./AmpliarOperacao";
 import { money } from "../../ui/ui";
 import Modal from "../../ui/Modal";
 import { summarizeFaturas, type Fatura, type FaturaSummary } from "../../lib/faturas";
@@ -327,6 +328,9 @@ export default function Inicio() {
         {!cock?.fontes?.crm && (cock?.conquistas || []).length === 0 && (
           <div className="empty"><p><strong>{t("Seus resultados aparecem aqui.")}</strong> {t("Assim que suas soluções entrarem em operação, os números aparecem em tempo real — sem dados fictícios.")}</p></div>
         )}
+
+        {/* Amplie sua operação — recomendador de IA (mesmo do Catálogo), no fim de Meus Resultados (protótipo). */}
+        <AmpliarOperacao />
       </>)}
 
       {tab === "solucoes" && (<>
