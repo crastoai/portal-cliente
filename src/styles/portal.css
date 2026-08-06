@@ -428,8 +428,15 @@
 .kpi--drill { cursor: pointer; transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease; }
 .kpi--drill:hover { transform: translateY(-2px); box-shadow: var(--crasto-shadow-md, 0 10px 24px -16px rgba(1,14,38,.5)); border-color: var(--crasto-blue, #6E9CE8); }
 .kpi--drill:focus-visible { outline: 2px solid var(--crasto-blue, #6E9CE8); outline-offset: 2px; }
-.kpi .kpi-drill-ico { margin-left: 6px; vertical-align: -1px; opacity: .4; }
-.kpi--drill:hover .kpi-drill-ico { opacity: .95; color: var(--crasto-blue, #6E9CE8); }
+/* Rodapé do card: delta (esq.) + CTA "Ver detalhes" (dir.) — não colidem e quebram no mobile. */
+.kpi-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 9px; }
+.kpi-foot .kdelta { margin-top: 0; }
+/* CTA claro de que o card abre o detalhe por colaborador (substitui o ícone apagado ⤢). */
+.kpi-cta { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: var(--crasto-radius-pill, 999px); font-size: 11px; font-weight: 700; letter-spacing: .01em; color: var(--crasto-blue, #6E9CE8); background: rgba(110,156,232,.12); border: 1px solid rgba(110,156,232,.38); white-space: nowrap; pointer-events: none; transition: background .14s ease, color .14s ease, border-color .14s ease; }
+.kpi-cta svg { transition: transform .14s ease; }
+.kpi--drill:hover .kpi-cta, .kpi--drill:focus-visible .kpi-cta { background: var(--crasto-blue, #6E9CE8); color: #fff; border-color: var(--crasto-blue, #6E9CE8); }
+.kpi--drill:hover .kpi-cta svg { transform: translateX(2px); }
+[data-theme="dark"] .kpi-cta { background: rgba(110,156,232,.18); border-color: rgba(110,156,232,.45); }
 /* Drill-down: linha de colaborador clicável + card de conversa (abre no CRM). */
 .drillrow:hover { background: var(--crasto-bg-2, rgba(1,14,38,.035)); }
 .drillconv { display: flex; align-items: center; gap: 10px; width: 100%; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md, 12px); padding: 11px 13px; cursor: pointer; font: inherit; transition: border-color .14s ease, transform .14s ease, box-shadow .14s ease; }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageCircle, Search, Send, Wallet, ArrowRight, AlertTriangle, Clock, FileSignature, Headphones, Bot, Activity, Trophy, Package, Maximize2, Users } from "lucide-react";
+import { MessageCircle, Search, Send, Wallet, ArrowRight, AlertTriangle, Clock, FileSignature, Headphones, Bot, Activity, Trophy, Package, Users } from "lucide-react";
 import { services } from "../../services";
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
@@ -321,9 +321,12 @@ export default function Inicio() {
               role={drillable ? "button" : undefined} tabIndex={drillable ? 0 : undefined}
               onKeyDown={drillable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDrill(m.key); } } : undefined}
               title={drillable ? t("Ver por colaborador") : undefined}>
-              <div className="lab">{m.label}{drillable && <Maximize2 size={12} className="kpi-drill-ico" />}</div>
+              <div className="lab">{m.label}</div>
               <div className="val">{m.antes != null ? <><span className="val-antes">{fmtMetric(m, m.antes)}</span> → </> : null}{fmtMetric(m, m.depois)}</div>
-              <div className={"kdelta " + d.tone}>{d.txt}</div>
+              <div className="kpi-foot">
+                <div className={"kdelta " + d.tone}>{d.txt}</div>
+                {drillable && <span className="kpi-cta">{t("Ver detalhes")}<ArrowRight size={13} /></span>}
+              </div>
             </div>
           ); })}
         </div>
