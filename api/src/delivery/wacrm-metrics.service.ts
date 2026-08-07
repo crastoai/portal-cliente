@@ -291,4 +291,111 @@ export class WacrmMetricsService {
       c.release();
     }
   }
+
+  // DRILL-DOWN do card "Leads / mês" — lista de LEADS = whatsapp.contacts (mesma fonte que o card
+  // conta). Paginado (OFFSET/LIMIT → abas, sem scroll infinito); `total` p/ montar as abas. FAROL:
+  // interesse da conversa (conversations.interest, ligado por contact_id) + funil de vendas
+  // (whatsapp.leads.status + valor, casado por telefone — não há FK, pode faltar). Busca por nome/tel.
+  async leadsList(orgId: string, from?: string | null, to?: string | null, q?: string | null, pageSize = 12, offset = 0): Promise<{ rows: { id: string; nome: string; phone: string | null; email: string | null; company: string | null; created_at: string; convs: number; interest: string; funil_status: string | null; valor: number | null }[]; total: number } | null> {
+    const p = this.db();
+    if (!p || !orgId) return null;
+    const c = await p.connect();
+    try {
+      const rows = (await c.query(
+        `with w as (select coalesce($2::date, (now()-'30 days'::interval)::date) f,
+                           coalesce($3::date + 1, now()::date + 1) t)
+         select ct.id, coalesce(nullif(ct.name,''), ct.phone, 'Contato') nome, ct.phone, ct.email, ct.company, ct.created_at,
+                (select count(*) from whatsapp.conversations cv where cv.contact_id = ct.id)::int convs,
+                (select case when bool_or(cv.interest = 'interested') then 'interested'
+                             when bool_or(cv.interest = 'declined')   then 'declined' else 'unknown' end
+                   from whatsapp.conversations cv where cv.contact_id = ct.id) interest,
+                l.status funil_status, l.valor,
+                count(*) over()::int total
+           from whatsapp.contacts ct, w
+           left join lateral (select status, valor from whatsapp.leads l
+              where l.organization_id = ct.organization_id and l.telefone = ct.phone
+              order by valor desc nulls last, last_activity_at desc nulls last limit 1) l on true
+          where ct.organization_id = $1 and ct.created_at >= w.f and ct.created_at < w.t
+            and ($4::text is null or ct.name ilike '%'||$4||'%' or ct.phone ilike '%'||$4||'%')
+          order by ct.created_at desc
+          limit $5 offset $6`,
+        [orgId, from ?? null, to ?? null, (q && q.trim()) ? q.trim() : null, pageSize, offset])).rows;
+      const total = rows[0]?.total ?? 0;
+      return {
+        rows: rows.map((r: any) => ({
+          id: String(r.id), nome: r.nome, phone: r.phone || null, email: r.email || null, company: r.company || null,
+          created_at: r.created_at, convs: r.convs, interest: r.interest || 'unknown',
+          funil_status: r.funil_status || null, valor: r.valor != null ? Number(r.valor) : null,
+        })),
+        total,
+      };
+    } finally {
+      c.release();
+    }
+  }
+
+  // DETALHE de um lead (master-detail): cabeçalho + interesse/funil + as CONVERSAS dele (p/ o front
+  // listar e escolher). O resumo da IA vem à parte (Psiquê/DeepSeek, cacheado).
+  async leadDetail(orgId: string, contactId: string): Promise<{ nome: string; phone: string | null; email: string | null; company: string | null; interest: string; funil_status: string | null; valor: number | null; conversas: { id: string; interest: string | null; status: string | null; msgs: number; last_inbound: string | null; last_outbound: string | null }[] } | null> {
+    const p = this.db();
+    if (!p || !orgId || !contactId) return null;
+    const c = await p.connect();
+    try {
+      const h = (await c.query(
+        `select coalesce(nullif(ct.name,''), ct.phone, 'Contato') nome, ct.phone, ct.email, ct.company,
+                (select case when bool_or(cv.interest='interested') then 'interested'
+                             when bool_or(cv.interest='declined') then 'declined' else 'unknown' end
+                   from whatsapp.conversations cv where cv.contact_id = ct.id) interest,
+                l.status funil_status, l.valor
+           from whatsapp.contacts ct
+           left join lateral (select status, valor from whatsapp.leads l
+              where l.organization_id = ct.organization_id and l.telefone = ct.phone
+              order by valor desc nulls last, last_activity_at desc nulls last limit 1) l on true
+          where ct.id = $2 and ct.organization_id = $1`,
+        [orgId, contactId])).rows[0];
+      if (!h) return null;
+      const conversas = (await c.query(
+        `select cv.id, cv.interest, cv.status,
+                (select count(*) from whatsapp.messages m where m.conversation_id = cv.id and m.body is not null)::int msgs,
+                cv.last_inbound, cv.last_outbound
+           from whatsapp.conversations cv
+          where cv.contact_id = $2 and cv.organization_id = $1
+          order by coalesce(cv.last_inbound, cv.last_outbound) desc nulls last`,
+        [orgId, contactId])).rows;
+      return {
+        nome: h.nome, phone: h.phone || null, email: h.email || null, company: h.company || null,
+        interest: h.interest || 'unknown', funil_status: h.funil_status || null, valor: h.valor != null ? Number(h.valor) : null,
+        conversas: conversas.map((r: any) => ({ id: String(r.id), interest: r.interest || null, status: r.status || null, msgs: r.msgs, last_inbound: r.last_inbound || null, last_outbound: r.last_outbound || null })),
+      };
+    } finally {
+      c.release();
+    }
+  }
+
+  // TRANSCRIPT da conversa de um lead (p/ o DeepSeek resumir). Rotula cada fala: cliente / IA(nome) /
+  // humano(nome). Limitado p/ caber no contexto do modelo. Escopo por org.
+  async leadTranscript(orgId: string, contactId: string): Promise<string | null> {
+    const p = this.db();
+    if (!p || !orgId || !contactId) return null;
+    const c = await p.connect();
+    try {
+      const rows = (await c.query(
+        `select m.from_type, m.body, ag.name agent_name, pr.full_name human_name
+           from whatsapp.messages m
+           join whatsapp.conversations cv on cv.id = m.conversation_id
+           left join agents.agents ag on ag.id = coalesce(m.acting_agent_id, cv.brain_agent_id, cv.agent_id)
+           left join public.profiles pr on pr.id = m.sender_user_id
+          where cv.contact_id = $2 and m.organization_id = $1 and m.body is not null
+          order by m.created_at asc
+          limit 400`,
+        [orgId, contactId])).rows;
+      if (!rows.length) return null;
+      return rows.map((r: any) => {
+        const who = r.from_type === 'user' ? 'Cliente' : r.from_type === 'ai' ? `IA${r.agent_name ? ' (' + r.agent_name + ')' : ''}` : (r.human_name || 'Atendente');
+        return `${who}: ${String(r.body).replace(/\s+/g, ' ').trim()}`;
+      }).join('\n');
+    } finally {
+      c.release();
+    }
+  }
 }

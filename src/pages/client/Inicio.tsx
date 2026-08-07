@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageCircle, Search, Send, Wallet, ArrowRight, AlertTriangle, Clock, FileSignature, Headphones, Bot, Activity, Trophy, Package, Users, X } from "lucide-react";
+import { MessageCircle, Search, Send, Wallet, ArrowRight, AlertTriangle, Clock, FileSignature, Headphones, Bot, Activity, Trophy, Package, Users, X, Sparkles, Loader2 } from "lucide-react";
 import { services } from "../../services";
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
@@ -63,6 +63,20 @@ export default function Inicio() {
   const [pTo, setPTo] = useState<string | null>(null);
   const [pontoQ, setPontoQ] = useState("");                         // busca por colaborador (nível 1)
   const pontoSort = useSort("mes", -1);                             // default = quem mais trabalhou no mês
+  // Drill-down do card "Leads / mês": lista paginada (abas) → detalhe do lead (master-detail) + resumo IA.
+  const [leadsOpen, setLeadsOpen] = useState(false);
+  const [leadRows, setLeadRows] = useState<import("../../services/delivery.service").LeadRow[] | null>(null);
+  const [leadTotal, setLeadTotal] = useState(0);
+  const [leadPageSize, setLeadPageSize] = useState(12);
+  const [leadPage, setLeadPage] = useState(0);
+  const [leadsFrom, setLeadsFrom] = useState<string | null>(null);
+  const [leadsTo, setLeadsTo] = useState<string | null>(null);
+  const [leadsQ, setLeadsQ] = useState("");
+  const [leadSelId, setLeadSelId] = useState<string | null>(null);  // lead aberto no nível 2
+  const [leadSel, setLeadSel] = useState<import("../../services/delivery.service").LeadDetail | null>(null);
+  const [leadResumo, setLeadResumo] = useState<string | null>(null);
+  const [leadResumoAt, setLeadResumoAt] = useState<string | null>(null);
+  const [leadBusy, setLeadBusy] = useState(false);                  // gerando resumo (DeepSeek)
   const [self, setSelf] = useState<any>(null);
   const [team, setTeam] = useState<{ scope: string; rows: { id: string; email: string; full_name: string | null; online: boolean; sessoes: number; minutos: number; ultimo: string | null }[] } | null>(null);
   const [reunioes, setReunioes] = useState<import("../../services/delivery.service").Meeting[]>([]);
@@ -178,6 +192,38 @@ export default function Inicio() {
       .catch(() => { if (alive) setSessions([]); });
     return () => { alive = false; };
   }, [pontoCollab, pFrom, pTo]);
+
+  // LEADS — nível 1 (lista paginada em abas): recarrega ao abrir, mudar período/busca/página (debounce na busca).
+  useEffect(() => {
+    if (!leadsOpen) { setLeadRows(null); return; }
+    let alive = true;
+    const h = setTimeout(() => {
+      services.delivery.cockpit.leads(leadsFrom, leadsTo, leadsQ, leadPage)
+        .then((r) => { if (alive) { setLeadRows(r.rows || []); setLeadTotal(r.total || 0); setLeadPageSize(r.pageSize || 12); } })
+        .catch(() => { if (alive) { setLeadRows([]); setLeadTotal(0); } });
+    }, leadsQ ? 300 : 0);
+    return () => { alive = false; clearTimeout(h); };
+  }, [leadsOpen, leadsFrom, leadsTo, leadsQ, leadPage]);
+
+  // LEADS — nível 2 (detalhe + resumo cacheado): ao selecionar um lead.
+  useEffect(() => {
+    if (!leadSelId) { setLeadSel(null); setLeadResumo(null); setLeadResumoAt(null); return; }
+    let alive = true;
+    services.delivery.cockpit.lead(leadSelId).then((d) => { if (alive) setLeadSel(d); }).catch(() => { if (alive) setLeadSel(null); });
+    services.delivery.cockpit.leadResumoGet(leadSelId).then((r) => { if (alive) { setLeadResumo(r.summary); setLeadResumoAt(r.generated_at); } }).catch(() => {});
+    return () => { alive = false; };
+  }, [leadSelId]);
+
+  // Gera (ou regenera) o resumo IA do lead via DeepSeek. force=true quando já existe um (botão "Regenerar").
+  const gerarResumo = async () => {
+    if (!leadSelId || leadBusy) return;
+    setLeadBusy(true);
+    try {
+      const r = await services.delivery.cockpit.leadResumoGerar(leadSelId, !!leadResumo);
+      if (r?.ok && r.summary) { setLeadResumo(r.summary); setLeadResumoAt(r.generated_at || new Date().toISOString()); }
+    } catch { /* silencioso — o botão volta ao normal */ }
+    finally { setLeadBusy(false); }
+  };
 
   const firstName = (profile?.full_name || "").split(" ")[0] || "";
   const daysLeft = impl?.due_date
@@ -381,14 +427,15 @@ export default function Inicio() {
             const d = deltaMetric(m);
             const drillable = ["tempo_resposta", "atendimentos", "automacao"].includes(m.key) && !!cock?.fontes?.crm;
             const pontoDrill = m.key === "horas" && !!cock?.fontes?.crm;          // card Horas → relógio de ponto
-            const abrir = drillable ? () => setDrill(m.key) : pontoDrill ? () => setPontoOpen(true) : undefined;
+            const leadsDrill = m.key === "novos_leads" && !!cock?.fontes?.crm;    // card Leads → lista de leads
+            const abrir = drillable ? () => setDrill(m.key) : pontoDrill ? () => setPontoOpen(true) : leadsDrill ? () => setLeadsOpen(true) : undefined;
             const clic = !!abrir;
             return (
             <div className={"kpi" + (clic ? " kpi--drill" : "")} key={m.key}
               onClick={abrir}
               role={clic ? "button" : undefined} tabIndex={clic ? 0 : undefined}
               onKeyDown={clic ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); abrir!(); } } : undefined}
-              title={clic ? (pontoDrill ? t("Ver o relógio de ponto da equipe") : t("Ver por colaborador")) : undefined}>
+              title={clic ? (pontoDrill ? t("Ver o relógio de ponto da equipe") : leadsDrill ? t("Ver todos os leads") : t("Ver por colaborador")) : undefined}>
               <div className="lab">{m.label}</div>
               <div className="val">{m.antes != null ? <><span className="val-antes">{fmtMetric(m, m.antes)}</span> → </> : null}{fmtMetric(m, m.depois)}</div>
               <div className="kpi-foot">
@@ -882,6 +929,108 @@ export default function Inicio() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </>)}
+        </>)}
+      </Modal>
+
+      {/* DRILL-DOWN do card "Leads / mês" — Nível 1 (lista paginada em ABAS + filtro + busca) →
+          Nível 2 (detalhe: interesse/funil + resumo IA do DeepSeek, com cache). Master-detail no modal. */}
+      <Modal
+        title={leadSelId ? `👤 ${leadSel?.nome || t("Lead")}` : t("Leads / mês")}
+        open={leadsOpen}
+        onClose={() => { setLeadsOpen(false); setLeadSelId(null); setLeadSel(null); setLeadResumo(null); setLeadResumoAt(null); setLeadsQ(""); setLeadsFrom(null); setLeadsTo(null); setLeadPage(0); }}
+        wide>
+        {!leadSelId ? (<>
+          <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)", marginBottom: 12 }}>{t("Todos os leads captados no período. Clique num lead para ver o interesse, o funil e gerar o resumo da conversa com a IA.")} <span style={{ color: "var(--crasto-blue, #6E9CE8)", fontWeight: 600 }}>● {t("dado real")}</span></div>
+          <DateRange from={leadsFrom} to={leadsTo} onChange={(f, tt) => { setLeadsFrom(f); setLeadsTo(tt); setLeadPage(0); }} />
+          <div className="dp-search">
+            <Search size={15} style={{ opacity: .5, flexShrink: 0 }} />
+            <input className="inp" placeholder={t("Buscar lead por nome ou telefone…")} value={leadsQ} onChange={(e) => { setLeadsQ(e.target.value); setLeadPage(0); }} />
+            {leadsQ && <button type="button" className="dp-search-clear" onClick={() => { setLeadsQ(""); setLeadPage(0); }} aria-label={t("Limpar busca")}><X size={14} /></button>}
+          </div>
+          {leadRows === null ? (
+            <div style={{ padding: "16px 0", color: "var(--crasto-text-muted)" }}>{t("Carregando…")}</div>
+          ) : leadRows.length === 0 ? (
+            <div style={{ padding: "16px 0", color: "var(--crasto-text-muted)" }}>{t("Nenhum lead no período.")}</div>
+          ) : (<>
+            <div style={{ display: "flex", gap: 16, fontSize: 11, color: "var(--crasto-text-muted)", margin: "0 0 10px", flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ color: "var(--crasto-text-faint)" }}>{t("Interesse:")}</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span className="resp-dot" style={{ background: FAROL_COR.green }} /> {t("interessado")}</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span className="resp-dot" style={{ background: FAROL_COR.red }} /> {t("recusou")}</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span className="resp-dot" style={{ background: FAROL_COR.mute }} /> {t("indefinido")}</span>
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
+                <thead><tr style={{ textAlign: "left", fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--crasto-text-muted)" }}>
+                  <th style={{ padding: "8px 10px" }}>{t("Lead")}</th>
+                  <th style={{ padding: "8px 10px" }}>{t("Interesse")}</th>
+                  <th style={{ padding: "8px 10px" }}>{t("Funil")}</th>
+                  <th style={{ padding: "8px 10px", textAlign: "right" }}>{t("Conversas")}</th>
+                  <th style={{ padding: "8px 10px" }}>{t("Entrou em")}</th>
+                  <th />
+                </tr></thead>
+                <tbody>
+                  {leadRows.map((L) => {
+                    const cor = L.interest === "interested" ? FAROL_COR.green : L.interest === "declined" ? FAROL_COR.red : FAROL_COR.mute;
+                    const ilbl = L.interest === "interested" ? t("interessado") : L.interest === "declined" ? t("recusou") : t("indefinido");
+                    return (
+                    <tr key={L.id} className="drillrow" onClick={() => setLeadSelId(L.id)} style={{ borderTop: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))", cursor: "pointer" }}>
+                      <td style={{ padding: "11px 10px", fontSize: 13.5, fontWeight: 600, color: "var(--crasto-text-primary)" }}>{L.nome}{L.phone ? <span style={{ fontWeight: 400, color: "var(--crasto-text-muted)", fontSize: 12 }}> · {L.phone}</span> : null}</td>
+                      <td style={{ padding: "11px 10px", fontSize: 12.5 }}><span style={{ color: cor, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}><span className="resp-dot" style={{ background: cor }} />{ilbl}</span></td>
+                      <td style={{ padding: "11px 10px", fontSize: 12.5, color: "var(--crasto-text-muted)" }}>{L.funil_status ? <>{t(L.funil_status)}{L.valor ? <span style={{ color: "var(--crasto-text-primary)", fontWeight: 600 }}> · {money(L.valor)}</span> : null}</> : "—"}</td>
+                      <td className="tnum" style={{ padding: "11px 10px", fontSize: 13, textAlign: "right", color: "var(--crasto-text-muted)" }}>{L.convs}</td>
+                      <td style={{ padding: "11px 10px", fontSize: 12.5, color: "var(--crasto-text-muted)" }}>{brData(ymd2(L.created_at))}</td>
+                      <td style={{ padding: "11px 10px", textAlign: "right" }}><ArrowRight size={14} style={{ opacity: .4 }} /></td>
+                    </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {(() => {
+              const pages = Math.max(1, Math.ceil(leadTotal / (leadPageSize || 12)));
+              if (pages <= 1) return null;
+              return (
+                <div className="dashtabs" role="tablist" style={{ marginTop: 12, flexWrap: "wrap" }}>
+                  {Array.from({ length: pages }).map((_, i) => (
+                    <button key={i} role="tab" aria-selected={i === leadPage} className={"dashtab" + (i === leadPage ? " on" : "")} onClick={() => setLeadPage(i)}>{t("Parte {n}", { n: i + 1 })}</button>
+                  ))}
+                </div>
+              );
+            })()}
+            <div style={{ fontSize: 11.5, color: "var(--crasto-text-faint)", marginTop: 8 }}>{t("{n} leads no total", { n: leadTotal })}</div>
+          </>)}
+        </>) : (<>
+          <button className="crasto-btn crasto-btn--sm" style={{ marginBottom: 12 }} onClick={() => setLeadSelId(null)}><span className="crasto-btn__label">← {t("Voltar aos leads")}</span></button>
+          {!leadSel ? (
+            <div style={{ padding: "16px 0", color: "var(--crasto-text-muted)" }}>{t("Carregando…")}</div>
+          ) : (<>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+              {(() => { const cor = leadSel.interest === "interested" ? FAROL_COR.green : leadSel.interest === "declined" ? FAROL_COR.red : FAROL_COR.mute; const ilbl = leadSel.interest === "interested" ? t("Interessado") : leadSel.interest === "declined" ? t("Recusou") : t("Indefinido"); return <span style={{ color: cor, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 }}><span className="resp-dot" style={{ background: cor }} />{ilbl}</span>; })()}
+              {leadSel.funil_status && <span className="scopepill mute">{t(leadSel.funil_status)}{leadSel.valor ? " · " + money(leadSel.valor) : ""}</span>}
+              {leadSel.phone && <span style={{ fontSize: 12.5, color: "var(--crasto-text-muted)" }}>{leadSel.phone}</span>}
+              {leadSel.email && <span style={{ fontSize: 12.5, color: "var(--crasto-text-muted)" }}>{leadSel.email}</span>}
+              {leadSel.company && <span style={{ fontSize: 12.5, color: "var(--crasto-text-muted)" }}>{leadSel.company}</span>}
+            </div>
+            <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)", marginBottom: 12 }}>{t("{n} conversa(s) no WhatsApp.", { n: leadSel.conversas.length })}</div>
+            <div style={{ background: "var(--crasto-surface-2, #F6F8FC)", border: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))", borderRadius: 12, padding: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: leadResumo ? 10 : 8 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--crasto-text-primary)", display: "inline-flex", alignItems: "center", gap: 8 }}><Sparkles size={15} style={{ color: "var(--crasto-blue, #6E9CE8)" }} />{t("Resumo da conversa (IA)")}</div>
+                <button onClick={gerarResumo} disabled={leadBusy}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "var(--crasto-blue, #6E9CE8)", color: "#fff", border: 0, borderRadius: 999, padding: "8px 16px", fontSize: 12.5, fontWeight: 600, cursor: leadBusy ? "default" : "pointer", opacity: leadBusy ? .7 : 1 }}>
+                  {leadBusy ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />}
+                  {leadBusy ? t("Gerando…") : leadResumo ? t("Regenerar resumo") : t("Gerar resumo")}
+                </button>
+              </div>
+              {leadResumo ? (
+                <div>
+                  <div style={{ fontSize: 13.5, color: "var(--crasto-text-primary)", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{leadResumo}</div>
+                  {leadResumoAt && <div style={{ fontSize: 11, color: "var(--crasto-text-faint)", marginTop: 8 }}>{t("gerado em {d}", { d: brDataHora(leadResumoAt) })}</div>}
+                </div>
+              ) : (
+                <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)" }}>{t("Clique em “Gerar resumo” para a IA (DeepSeek) resumir a conversa deste lead: o que ele quer, o interesse e o próximo passo para converter.")}</div>
+              )}
             </div>
           </>)}
         </>)}

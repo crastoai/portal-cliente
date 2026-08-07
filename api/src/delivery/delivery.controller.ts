@@ -257,6 +257,25 @@ export class DeliveryController {
     return { rows: rows ?? [] };
   }
 
+  // DRILL-DOWN do card "Leads / mês" — lista paginada (abas) de contatos + farol interesse/funil.
+  @Get('cockpit/leads')
+  async leads(@Req() req: any, @Query('from') from?: string, @Query('to') to?: string, @Query('q') q?: string, @Query('page') page?: string) {
+    const orgId = await this.db.asUser(this.uid(req), async (c) => (await c.query('select public.current_org_id() as id')).rows[0]?.id as string | null).catch(() => null);
+    const pageSize = 12;
+    if (!orgId) return { rows: [] as any[], total: 0, pageSize };
+    const pg = Math.max(0, parseInt(page || '0', 10) || 0);
+    const r = await this.wacrm.leadsList(orgId, from || null, to || null, q || null, pageSize, pg * pageSize).catch(() => null);
+    return { rows: r?.rows ?? [], total: r?.total ?? 0, pageSize };
+  }
+
+  // DETALHE de um lead (master-detail no mesmo modal): cabeçalho + interesse/funil + conversas.
+  @Get('cockpit/lead/:id')
+  async lead(@Req() req: any, @Param('id') id: string) {
+    const orgId = await this.db.asUser(this.uid(req), async (c) => (await c.query('select public.current_org_id() as id')).rows[0]?.id as string | null).catch(() => null);
+    if (!orgId) return null;
+    return await this.wacrm.leadDetail(orgId, id).catch(() => null);
+  }
+
   // DRILL-DOWN Fase 2: as conversas de um colaborador (p/ abrir no CRM via /chat/<id>). Escopo por org.
   @Get('cockpit/collab-conversations')
   async collabConversations(@Req() req: any, @Query('kind') kind: string, @Query('id') id: string, @Query('from') from?: string, @Query('to') to?: string, @Query('q') q?: string) {

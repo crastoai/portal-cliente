@@ -139,6 +139,10 @@ export type CockpitMine = {
   fontes: { crm: boolean; agent: boolean };
 };
 export type CollabRow = { kind: "human" | "ai"; id: string | null; nome: string; tmed: number | null; convs: number; respostas: number; last_seen_at: string | null; status?: string | null };
+// Leads (drill do card "Leads / mês") — farol interesse (interested/declined/unknown) + funil (whatsapp.leads).
+export type LeadRow = { id: string; nome: string; phone: string | null; email: string | null; company: string | null; created_at: string; convs: number; interest: string; funil_status: string | null; valor: number | null };
+export type LeadConversa = { id: string; interest: string | null; status: string | null; msgs: number; last_inbound: string | null; last_outbound: string | null };
+export type LeadDetail = { nome: string; phone: string | null; email: string | null; company: string | null; interest: string; funil_status: string | null; valor: number | null; conversas: LeadConversa[] };
 // Relógio de ponto (Fase A): tempo logado real por colaborador (min = minutos) + presença online.
 export type HoursRow = { id: string; nome: string; email: string | null; online: boolean; last_seen_at: string | null; min_hoje: number; min_semana: number; min_mes: number; min_periodo: number; sessoes: number; ultimo: string | null };
 export type SessionRow = { id: string; login: string; logout: string; minutos: number };
@@ -161,6 +165,21 @@ export const cockpit = {
     const s = qs.toString();
     return api.get<{ rows: CollabRow[] }>(`/api/delivery/cockpit/ai-agents${s ? `?${s}` : ""}`);
   },
+  // Drill do card "Leads / mês": lista paginada (abas) + farol. page = índice da aba (0-based).
+  leads: async (from?: string | null, to?: string | null, q?: string | null, page = 0) => {
+    const qs = new URLSearchParams();
+    if (from) qs.set("from", from);
+    if (to) qs.set("to", to);
+    if (q && q.trim()) qs.set("q", q.trim());
+    if (page) qs.set("page", String(page));
+    const s = qs.toString();
+    return api.get<{ rows: LeadRow[]; total: number; pageSize: number }>(`/api/delivery/cockpit/leads${s ? `?${s}` : ""}`);
+  },
+  // Detalhe do lead (master-detail): cabeçalho + interesse/funil + conversas.
+  lead: async (id: string) => api.get<LeadDetail | null>(`/api/delivery/cockpit/lead/${id}`),
+  // Resumo IA da conversa do lead (DeepSeek). GET lê o cache; gerar chama o modelo (force regenera).
+  leadResumoGet: async (id: string) => api.get<{ summary: string | null; generated_at: string | null }>(`/api/psique/lead/${id}/resumo`),
+  leadResumoGerar: async (id: string, force = false) => api.post<{ ok: boolean; summary?: string; generated_at?: string; cached?: boolean; error?: string }>(`/api/psique/lead/${id}/resumo${force ? "?force=1" : ""}`, {}),
   // Drill-down (Fase 2): as conversas de um colaborador — clicar abre /chat/<id> no CRM.
   // from/to = mesmo período do nível 1; q = busca por lead (nome/telefone).
   collabConversations: async (kind: string, id: string | null, from?: string | null, to?: string | null, q?: string | null) => {

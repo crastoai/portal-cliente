@@ -189,4 +189,40 @@ export class PsiqueService implements OnModuleInit {
     });
     return { ok: true, narrative, uso: turn.uso };
   }
+
+  // ── RESUMO DE LEAD (drill do card "Leads / mês") ──────────────────────────────
+  private readonly SYSTEM_RESUMO = [
+    'PAPEL: você é a Psiquê, a inteligência da Crasto.AI. Resuma, para o DONO do negócio, a conversa de um LEAD no WhatsApp — objetivo e útil para VENDER.',
+    'FORMATO: texto corrido curto (máx ~120 palavras), pt-BR. 1 frase de situação e depois o essencial.',
+    'INCLUA quando houver: o que o lead quer/precisa, o nível de interesse (quente/morno/frio), objeções, o PRÓXIMO PASSO sugerido para converter, e dados úteis (produto, valor, prazo).',
+    'FREIO (anti-alucinação): só afirme o que a conversa mostrar; NÃO invente números, nomes ou intenções. Se a conversa for vazia/insuficiente, diga isso em 1 frase.',
+    'Devolva só o resumo — sem títulos, sem JSON.',
+  ].join('\n');
+
+  // Resume a conversa de um LEAD via DeepSeek. Cache por hash da conversa (source_hash): não gasta
+  // token de novo se nada mudou; force=true (botão "Regenerar") ignora o cache. Append-only + is_current.
+  async resumirLead(orgId: string, leadId: string, opts?: { force?: boolean }) {
+    const transcript = await this.wacrm.leadTranscript(orgId, leadId).catch(() => null);
+    if (!transcript) return { ok: false, error: 'Sem conversa para resumir.' };
+    const hash = createHash('sha1').update(transcript).digest('hex').slice(0, 16);
+    const cur = await this.db.asService(async (c) => (await c.query(`select summary, source_hash, generated_at from delivery.lead_summary where organization_id=$1 and lead_id=$2 and is_current limit 1`, [orgId, leadId])).rows[0]);
+    if (!opts?.force && cur?.source_hash === hash && cur?.summary) return { ok: true, summary: cur.summary as string, generated_at: cur.generated_at, cached: true };
+    const turn = await this.llm.complete(this.SYSTEM_RESUMO, transcript.slice(0, 24000), { provider: 'deepseek' });
+    const summary = String(turn.text || '').trim().slice(0, 2000);
+    if (!summary) return { ok: false, error: 'A IA não retornou resumo.' };
+    await this.db.asService(async (c) => {
+      await c.query(`update delivery.lead_summary set is_current=false where organization_id=$1 and lead_id=$2 and is_current`, [orgId, leadId]);
+      await c.query(`insert into delivery.lead_summary(organization_id,lead_id,summary,source_hash,model,tokens_in,tokens_out) values ($1,$2,$3,$4,$5,$6,$7)`,
+        [orgId, leadId, summary, hash, turn.uso?.model ?? null, turn.uso?.tokens_in ?? null, turn.uso?.tokens_out ?? null]);
+    });
+    return { ok: true, summary, generated_at: new Date().toISOString(), cached: false, uso: turn.uso };
+  }
+
+  // Lê o resumo CACHEADO de um lead (não gera). null se ainda não há.
+  async lerResumoLead(orgId: string, leadId: string): Promise<{ summary: string; generated_at: string } | null> {
+    return this.db.asService(async (c) => {
+      const r = (await c.query(`select summary, generated_at from delivery.lead_summary where organization_id=$1 and lead_id=$2 and is_current and summary is not null limit 1`, [orgId, leadId])).rows[0];
+      return r ? { summary: r.summary as string, generated_at: r.generated_at } : null;
+    }).catch(() => null);
+  }
 }
