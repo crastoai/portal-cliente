@@ -130,7 +130,11 @@ export default function Inicio() {
   useEffect(() => {
     if (!drill) { setCollabs(null); return; }
     let alive = true;
-    const load = () => services.delivery.cockpit.responseBreakdown(rFrom, rTo)
+    // "Atendimentos feitos pela IA" (automacao) → SÓ agentes de IA (todos da empresa). Os outros
+    // (1ª resposta / conversas) → breakdown por colaborador (humano + IA).
+    const load = () => (drill === "automacao"
+      ? services.delivery.cockpit.aiAgents(rFrom, rTo)
+      : services.delivery.cockpit.responseBreakdown(rFrom, rTo))
       .then((r) => { if (alive) setCollabs(r.rows || []); })
       .catch(() => { if (alive) setCollabs([]); });
     load();
@@ -693,14 +697,14 @@ export default function Inicio() {
 
       {/* DRILL-DOWN interativo — Nível 1 (colaboradores, ao vivo 30s) → Nível 2 (conversas do
           colaborador) → clique abre /chat/<id> no CRM pra ler o histórico e ver por que demora. */}
-      <Modal title={drillCollab ? `${drillCollab.kind === "ai" ? "🤖 " : "👤 "}${drillCollab.nome}` : (drill === "automacao" ? t("Atendimento por colaborador (humano × IA)") : drill === "atendimentos" ? t("Conversas por colaborador") : t("Tempo de resposta por colaborador"))} open={!!drill} onClose={() => { setDrill(null); setDrillCollab(null); setConvs(null); setLeadQ(""); setCollabQ(""); setRFrom(null); setRTo(null); }} wide>
+      <Modal title={drillCollab ? `${drillCollab.kind === "ai" ? "🤖 " : "👤 "}${drillCollab.nome}` : (drill === "automacao" ? t("Atendimentos por agente de IA") : drill === "atendimentos" ? t("Conversas por colaborador") : t("Tempo de resposta por colaborador"))} open={!!drill} onClose={() => { setDrill(null); setDrillCollab(null); setConvs(null); setLeadQ(""); setCollabQ(""); setRFrom(null); setRTo(null); }} wide>
         {!drillCollab ? (<>
-          <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)", marginBottom: 12 }}>{t("Quem está respondendo no WhatsApp — e em quanto tempo. Clique num colaborador para ver as conversas dele.")} <span style={{ color: "var(--crasto-blue, #6E9CE8)", fontWeight: 600 }}>● {t("ao vivo")}</span></div>
+          <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)", marginBottom: 12 }}>{drill === "automacao" ? t("Todos os agentes de IA da empresa e o atendimento de cada um. Clique num agente para ver as conversas dele.") : t("Quem está respondendo no WhatsApp — e em quanto tempo. Clique num colaborador para ver as conversas dele.")} <span style={{ color: "var(--crasto-blue, #6E9CE8)", fontWeight: 600 }}>● {t("ao vivo")}</span></div>
           <DateRange from={rFrom} to={rTo} onChange={(f, tt) => { setRFrom(f); setRTo(tt); }} />
           {collabs === null ? (
             <div style={{ padding: "16px 0", color: "var(--crasto-text-muted)" }}>{t("Carregando…")}</div>
           ) : collabs.length === 0 ? (
-            <div style={{ padding: "16px 0", color: "var(--crasto-text-muted)" }}>{t("Sem atividade de resposta no período.")}</div>
+            <div style={{ padding: "16px 0", color: "var(--crasto-text-muted)" }}>{drill === "automacao" ? t("Nenhum agente de IA cadastrado nesta empresa.") : t("Sem atividade de resposta no período.")}</div>
           ) : (<>
             <div className="dp-search">
               <Search size={15} style={{ opacity: .5, flexShrink: 0 }} />
@@ -721,10 +725,10 @@ export default function Inicio() {
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 540 }}>
                 <thead><tr style={{ textAlign: "left", fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--crasto-text-muted)" }}>
-                  <SortTh col="nome" sort={collabSort.sort} toggle={collabSort.toggle} style={{ padding: "8px 10px" }}>{t("Colaborador")}</SortTh>
+                  <SortTh col="nome" sort={collabSort.sort} toggle={collabSort.toggle} style={{ padding: "8px 10px" }}>{drill === "automacao" ? t("Agente de IA") : t("Colaborador")}</SortTh>
                   <SortTh col="tmed" sort={collabSort.sort} toggle={collabSort.toggle} style={{ padding: "8px 10px" }} right>{t("1ª resposta")}</SortTh>
                   <SortTh col="convs" sort={collabSort.sort} toggle={collabSort.toggle} style={{ padding: "8px 10px" }} right>{t("Conversas")}</SortTh>
-                  <SortTh col="last" sort={collabSort.sort} toggle={collabSort.toggle} style={{ padding: "8px 10px" }}>{t("Último acesso")}</SortTh>
+                  <SortTh col="last" sort={collabSort.sort} toggle={collabSort.toggle} style={{ padding: "8px 10px" }}>{drill === "automacao" ? t("Status") : t("Último acesso")}</SortTh>
                   <th />
                 </tr></thead>
                 <tbody>
@@ -737,7 +741,9 @@ export default function Inicio() {
                       <td style={{ padding: "11px 10px", fontSize: 13.5, fontWeight: 600, color: "var(--crasto-text-primary)" }}>{c.kind === "ai" ? "🤖 " : "👤 "}{c.nome}{c.nome === "Atendente (não identificado)" && <span title={t("Respostas enviadas fora do fluxo do CRM — sem identificação de quem respondeu.")} style={{ marginLeft: 6, color: "var(--crasto-text-faint)", cursor: "help", fontWeight: 400 }}>ⓘ</span>}</td>
                       <td className="tnum" style={{ padding: "11px 10px", fontSize: 14, textAlign: "right", fontWeight: 700 }}>{c.tmed != null && cor ? <span style={{ color: cor, display: "inline-flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}><span className="resp-dot" style={{ background: cor }} />{fmtSeg(c.tmed)}</span> : <span style={{ color: "var(--crasto-text-faint)" }}>—</span>}</td>
                       <td className="tnum" style={{ padding: "11px 10px", fontSize: 13, textAlign: "right", color: "var(--crasto-text-muted)" }}>{c.convs}</td>
-                      <td style={{ padding: "11px 10px", fontSize: 12.5, color: "var(--crasto-text-muted)" }}>{onlineNow ? <span style={{ color: FAROL_COR.green, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}><span className="resp-dot" style={{ background: FAROL_COR.green }} />{c.kind === "ai" ? t("sempre no ar") : t("agora")}</span> : c.last_seen_at ? relSeen(c.last_seen_at) : "—"}</td>
+                      <td style={{ padding: "11px 10px", fontSize: 12.5, color: "var(--crasto-text-muted)" }}>{drill === "automacao"
+                        ? (() => { const st = c.status || "live"; const cor = st === "live" ? FAROL_COR.green : st === "paused" ? FAROL_COR.amber : FAROL_COR.mute; const lbl = st === "live" ? t("ativo") : st === "paused" ? t("pausado") : st === "implanting" ? t("implantando") : t("offline"); return <span style={{ color: cor, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}><span className="resp-dot" style={{ background: cor }} />{lbl}</span>; })()
+                        : onlineNow ? <span style={{ color: FAROL_COR.green, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}><span className="resp-dot" style={{ background: FAROL_COR.green }} />{c.kind === "ai" ? t("sempre no ar") : t("agora")}</span> : c.last_seen_at ? relSeen(c.last_seen_at) : "—"}</td>
                       <td style={{ padding: "11px 10px", textAlign: "right" }}><ArrowRight size={14} style={{ opacity: .4 }} /></td>
                     </tr>
                     );

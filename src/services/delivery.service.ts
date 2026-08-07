@@ -138,7 +138,7 @@ export type CockpitMine = {
   identity: { full_name: string | null; org_name: string | null; cargo: string | null } | null;
   fontes: { crm: boolean; agent: boolean };
 };
-export type CollabRow = { kind: "human" | "ai"; id: string | null; nome: string; tmed: number | null; convs: number; respostas: number; last_seen_at: string | null };
+export type CollabRow = { kind: "human" | "ai"; id: string | null; nome: string; tmed: number | null; convs: number; respostas: number; last_seen_at: string | null; status?: string | null };
 // Relógio de ponto (Fase A): tempo logado real por colaborador (min = minutos) + presença online.
 export type HoursRow = { id: string; nome: string; email: string | null; online: boolean; last_seen_at: string | null; min_hoje: number; min_semana: number; min_mes: number; min_periodo: number; sessoes: number; ultimo: string | null };
 export type SessionRow = { id: string; login: string; logout: string; minutos: number };
@@ -152,6 +152,14 @@ export const cockpit = {
     if (to) qs.set("to", to);
     const s = qs.toString();
     return api.get<{ rows: CollabRow[] }>(`/api/delivery/cockpit/response-breakdown${s ? `?${s}` : ""}`);
+  },
+  // Drill do card "Atendimentos feitos pela IA": SÓ agentes de IA, todos da empresa. Loop ~30s.
+  aiAgents: async (from?: string | null, to?: string | null) => {
+    const qs = new URLSearchParams();
+    if (from) qs.set("from", from);
+    if (to) qs.set("to", to);
+    const s = qs.toString();
+    return api.get<{ rows: CollabRow[] }>(`/api/delivery/cockpit/ai-agents${s ? `?${s}` : ""}`);
   },
   // Drill-down (Fase 2): as conversas de um colaborador — clicar abre /chat/<id> no CRM.
   // from/to = mesmo período do nível 1; q = busca por lead (nome/telefone).

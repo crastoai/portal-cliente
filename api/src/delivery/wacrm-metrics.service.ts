@@ -197,6 +197,47 @@ export class WacrmMetricsService {
     }
   }
 
+  // DRILL-DOWN do card "Atendimentos feitos pela IA" — SÓ agentes de IA e TODOS da empresa (base =
+  // agents.agents, inclusive os com 0 atendimento no período; humanos NÃO entram). Métricas de
+  // atendimento por agente com a MESMA re-atribuição do responseByCollaborator (acting_agent_id,
+  // senão o agente da conversa). status = live/paused/offline/implanting; IA fica "sempre no ar".
+  async aiAgentsByOrg(orgId: string, from?: string | null, to?: string | null): Promise<{ kind: 'ai'; id: string; nome: string; status: string; tmed: number | null; convs: number; respostas: number; last_seen_at: string | null }[] | null> {
+    const p = this.db();
+    if (!p || !orgId) return null;
+    const c = await p.connect();
+    try {
+      const rows = (await c.query(
+        `with w as (select coalesce($2::date, (now()-'30 days'::interval)::date) f,
+                           coalesce($3::date + 1, now()::date + 1) t),
+         pairs as (
+           select coalesce(r.acting_agent_id, cv.brain_agent_id, cv.agent_id) as eff_agent_id,
+                  r.conversation_id, extract(epoch from (r.created_at - msg.created_at)) sec
+             from whatsapp.messages msg, w
+             join lateral (select acting_agent_id, conversation_id, created_at
+               from whatsapp.messages a
+              where a.conversation_id = msg.conversation_id and a.from_type = 'ai' and a.created_at > msg.created_at
+              order by a.created_at asc limit 1) r on true
+             join whatsapp.conversations cv on cv.id = r.conversation_id
+            where msg.organization_id = $1 and msg.from_type = 'user' and msg.created_at >= w.f and msg.created_at < w.t)
+         select ag.id, ag.name nome, ag.status::text status,
+                coalesce(round(avg(pp.sec) filter (where pp.sec between 0 and 3600)), 0)::int tmed,
+                count(distinct pp.conversation_id)::int convs,
+                count(pp.sec) filter (where pp.sec between 0 and 3600)::int respostas
+           from agents.agents ag
+           left join pairs pp on pp.eff_agent_id = ag.id
+          where ag.organization_id = $1 and ag.archived_at is null
+          group by ag.id, ag.name, ag.status
+          order by convs desc, ag.name`,
+        [orgId, from ?? null, to ?? null])).rows;
+      return rows.map((r: any) => ({
+        kind: 'ai' as const, id: String(r.id), nome: r.nome || 'IA', status: r.status,
+        tmed: r.tmed > 0 ? r.tmed : null, convs: r.convs, respostas: r.respostas, last_seen_at: null,
+      }));
+    } finally {
+      c.release();
+    }
+  }
+
   // DRILL-DOWN de HORAS (Fase A · nível 2) — as SESSÕES (login/logout) de um colaborador no período.
   // login=started_at, logout=coalesce(logout_at, last_active_at, last_ping_at) (fim da atividade). Escopo
   // por org (exists em profiles); o membro só chega aqui com o próprio id (forçado no controller).

@@ -247,6 +247,16 @@ export class DeliveryController {
     return { rows: rows ?? [] };
   }
 
+  // DRILL-DOWN do card "Atendimentos feitos pela IA" — SÓ agentes de IA, TODOS da empresa (não
+  // humanos). Métrica org-level (não é dado pessoal), então aparece a quem vê o card.
+  @Get('cockpit/ai-agents')
+  async aiAgents(@Req() req: any, @Query('from') from?: string, @Query('to') to?: string) {
+    const orgId = await this.db.asUser(this.uid(req), async (c) => (await c.query('select public.current_org_id() as id')).rows[0]?.id as string | null).catch(() => null);
+    if (!orgId) return { rows: [] as any[] };
+    const rows = await this.wacrm.aiAgentsByOrg(orgId, from || null, to || null).catch(() => null);
+    return { rows: rows ?? [] };
+  }
+
   // DRILL-DOWN Fase 2: as conversas de um colaborador (p/ abrir no CRM via /chat/<id>). Escopo por org.
   @Get('cockpit/collab-conversations')
   async collabConversations(@Req() req: any, @Query('kind') kind: string, @Query('id') id: string, @Query('from') from?: string, @Query('to') to?: string, @Query('q') q?: string) {
