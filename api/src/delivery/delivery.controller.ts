@@ -292,8 +292,8 @@ export class DeliveryController {
     // Sessões dos DOIS sistemas (wacrm + Portal), listadas juntas e ordenadas por login (mais recente).
     const wRows = (await this.wacrm.collabSessions(ctx.orgId, targetId, from || null, to || null).catch(() => null)) ?? [];
     const pRows = await this.db.asService(async (c) => (await c.query(
-      `select s.id::text id, s.started_at login, coalesce(s.logout_at, s.last_active_at, s.last_ping_at) logout,
-              round(extract(epoch from (coalesce(s.logout_at, s.last_active_at, s.last_ping_at) - s.started_at)) / 60)::int minutos
+      `select s.id::text id, s.started_at login, coalesce(s.logout_at, s.last_active_at) logout,
+              round(extract(epoch from (coalesce(s.logout_at, s.last_active_at) - s.started_at)) / 60)::int minutos
          from delivery.user_sessions s
         where s.user_id = $1::uuid and s.organization_id = $2
           and s.started_at >= coalesce($3::date, (now()-'30 days'::interval)::date)
@@ -360,7 +360,7 @@ export class DeliveryController {
         [orgId, scopeUid])).rows;
       const sess = (await c.query(
         `select user_id::text uid, extract(epoch from started_at) * 1000 s,
-                extract(epoch from coalesce(logout_at, last_active_at, last_ping_at)) * 1000 e
+                extract(epoch from coalesce(logout_at, last_active_at)) * 1000 e
            from delivery.user_sessions
           where organization_id = $1 and started_at > now() - '180 days'::interval
             and ($2::uuid is null or user_id = $2::uuid)`,
@@ -386,6 +386,7 @@ export class DeliveryController {
 
     const byUser = new Map<string, { s: number; e: number }[]>();
     for (const x of [...portal.sess, ...(w?.sessions ?? [])]) {
+      if (!(x.e > x.s)) continue; // ignora sessão sem atividade real (fim nulo/inválido)
       const arr = byUser.get(x.uid) ?? [];
       arr.push({ s: x.s, e: x.e });
       byUser.set(x.uid, arr);
