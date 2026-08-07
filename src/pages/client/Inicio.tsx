@@ -77,6 +77,7 @@ export default function Inicio() {
   const [leadResumo, setLeadResumo] = useState<string | null>(null);
   const [leadResumoAt, setLeadResumoAt] = useState<string | null>(null);
   const [leadBusy, setLeadBusy] = useState(false);                  // gerando resumo (DeepSeek)
+  const [leadClassRest, setLeadClassRest] = useState(0);            // leads ainda sendo classificados pela IA
   const [self, setSelf] = useState<any>(null);
   const [team, setTeam] = useState<{ scope: string; rows: { id: string; email: string; full_name: string | null; online: boolean; sessoes: number; minutos: number; ultimo: string | null }[] } | null>(null);
   const [reunioes, setReunioes] = useState<import("../../services/delivery.service").Meeting[]>([]);
@@ -224,6 +225,25 @@ export default function Inicio() {
     } catch { /* silencioso — o botão volta ao normal */ }
     finally { setLeadBusy(false); }
   };
+
+  // Ao abrir o modal de Leads (ou trocar período), a IA classifica em LOTE o POTENCIAL dos leads sem
+  // classificação (quente/morno/frio) — o farol enche progressivamente, sem "indefinido". Cacheado.
+  useEffect(() => {
+    if (!leadsOpen) { setLeadClassRest(0); return; }
+    let alive = true;
+    (async () => {
+      for (let i = 0; i < 16 && alive; i++) {
+        const r = await services.delivery.cockpit.leadsClassificar(leadsFrom, leadsTo).catch(() => null);
+        if (!alive || !r) break;
+        setLeadClassRest(r.remaining);
+        await services.delivery.cockpit.leads(leadsFrom, leadsTo, leadsQ, leadPage)
+          .then((rr) => { if (alive) { setLeadRows(rr.rows || []); setLeadTotal(rr.total || 0); } }).catch(() => {});
+        if (r.remaining <= 0) break;
+      }
+      if (alive) setLeadClassRest(0);
+    })();
+    return () => { alive = false; };
+  }, [leadsOpen, leadsFrom, leadsTo]);
 
   const firstName = (profile?.full_name || "").split(" ")[0] || "";
   const daysLeft = impl?.due_date
@@ -955,16 +975,17 @@ export default function Inicio() {
             <div style={{ padding: "16px 0", color: "var(--crasto-text-muted)" }}>{t("Nenhum lead no período.")}</div>
           ) : (<>
             <div style={{ display: "flex", gap: 16, fontSize: 11, color: "var(--crasto-text-muted)", margin: "0 0 10px", flexWrap: "wrap", alignItems: "center" }}>
-              <span style={{ color: "var(--crasto-text-faint)" }}>{t("Interesse:")}</span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span className="resp-dot" style={{ background: FAROL_COR.green }} /> {t("interessado")}</span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span className="resp-dot" style={{ background: FAROL_COR.red }} /> {t("recusou")}</span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span className="resp-dot" style={{ background: FAROL_COR.mute }} /> {t("indefinido")}</span>
+              <span style={{ color: "var(--crasto-text-faint)" }}>{t("Potencial (IA):")}</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span className="resp-dot" style={{ background: FAROL_COR.green }} /> {t("quente")}</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span className="resp-dot" style={{ background: FAROL_COR.amber }} /> {t("morno")}</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span className="resp-dot" style={{ background: FAROL_COR.mute }} /> {t("frio")}</span>
+              {leadClassRest > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--crasto-blue, #6E9CE8)" }}><Loader2 size={12} className="spin" /> {t("classificando {n}…", { n: leadClassRest })}</span>}
             </div>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
                 <thead><tr style={{ textAlign: "left", fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--crasto-text-muted)" }}>
                   <th style={{ padding: "8px 10px" }}>{t("Lead")}</th>
-                  <th style={{ padding: "8px 10px" }}>{t("Interesse")}</th>
+                  <th style={{ padding: "8px 10px" }}>{t("Potencial")}</th>
                   <th style={{ padding: "8px 10px" }}>{t("Funil")}</th>
                   <th style={{ padding: "8px 10px", textAlign: "right" }}>{t("Conversas")}</th>
                   <th style={{ padding: "8px 10px" }}>{t("Entrou em")}</th>
@@ -972,8 +993,10 @@ export default function Inicio() {
                 </tr></thead>
                 <tbody>
                   {leadRows.map((L) => {
-                    const cor = L.interest === "interested" ? FAROL_COR.green : L.interest === "declined" ? FAROL_COR.red : FAROL_COR.mute;
-                    const ilbl = L.interest === "interested" ? t("interessado") : L.interest === "declined" ? t("recusou") : t("indefinido");
+                    const cor = L.potencial === "quente" ? FAROL_COR.green : L.potencial === "morno" ? FAROL_COR.amber : L.potencial === "frio" ? FAROL_COR.mute
+                      : L.interest === "interested" ? FAROL_COR.green : L.interest === "declined" ? FAROL_COR.red : FAROL_COR.mute;
+                    const ilbl = L.potencial === "quente" ? t("Quente") : L.potencial === "morno" ? t("Morno") : L.potencial === "frio" ? t("Frio")
+                      : L.interest === "interested" ? t("interessado") : L.interest === "declined" ? t("recusou") : (leadClassRest > 0 ? t("classificando…") : t("indefinido"));
                     return (
                     <tr key={L.id} className="drillrow" onClick={() => setLeadSelId(L.id)} style={{ borderTop: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))", cursor: "pointer" }}>
                       <td style={{ padding: "11px 10px", fontSize: 13.5, fontWeight: 600, color: "var(--crasto-text-primary)" }}>{L.nome}{L.phone ? <span style={{ fontWeight: 400, color: "var(--crasto-text-muted)", fontSize: 12 }}> · {L.phone}</span> : null}</td>
@@ -1007,7 +1030,14 @@ export default function Inicio() {
             <div style={{ padding: "16px 0", color: "var(--crasto-text-muted)" }}>{t("Carregando…")}</div>
           ) : (<>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
-              {(() => { const cor = leadSel.interest === "interested" ? FAROL_COR.green : leadSel.interest === "declined" ? FAROL_COR.red : FAROL_COR.mute; const ilbl = leadSel.interest === "interested" ? t("Interessado") : leadSel.interest === "declined" ? t("Recusou") : t("Indefinido"); return <span style={{ color: cor, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 }}><span className="resp-dot" style={{ background: cor }} />{ilbl}</span>; })()}
+              {(() => {
+                const pot = leadSel.potencial;
+                const cor = pot === "quente" ? FAROL_COR.green : pot === "morno" ? FAROL_COR.amber : pot === "frio" ? FAROL_COR.mute
+                  : leadSel.interest === "interested" ? FAROL_COR.green : leadSel.interest === "declined" ? FAROL_COR.red : FAROL_COR.mute;
+                const lbl = pot === "quente" ? t("Quente") : pot === "morno" ? t("Morno") : pot === "frio" ? t("Frio")
+                  : leadSel.interest === "interested" ? t("Interessado") : leadSel.interest === "declined" ? t("Recusou") : t("Indefinido");
+                return <span title={leadSel.potencial_motivo || undefined} style={{ color: cor, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6, cursor: leadSel.potencial_motivo ? "help" : "default" }}><span className="resp-dot" style={{ background: cor }} />{lbl}{pot ? <span style={{ fontSize: 10, fontWeight: 600, color: "var(--crasto-text-faint)", letterSpacing: ".04em" }}> · IA</span> : null}</span>;
+              })()}
               {leadSel.funil_status && <span className="scopepill mute">{t(leadSel.funil_status)}{leadSel.valor ? " · " + money(leadSel.valor) : ""}</span>}
               {leadSel.phone && <span style={{ fontSize: 12.5, color: "var(--crasto-text-muted)" }}>{leadSel.phone}</span>}
               {leadSel.email && <span style={{ fontSize: 12.5, color: "var(--crasto-text-muted)" }}>{leadSel.email}</span>}

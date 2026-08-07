@@ -225,4 +225,56 @@ export class PsiqueService implements OnModuleInit {
       return r ? { summary: r.summary as string, generated_at: r.generated_at } : null;
     }).catch(() => null);
   }
+
+  // ── POTENCIAL do lead (farol inteligente: quente/morno/frio) ──────────────────
+  private readonly SYSTEM_CLASSIFICA = [
+    'PAPEL: você é a Psiquê, a inteligência da Crasto.AI. Classifique o POTENCIAL de venda de um LEAD a partir da conversa dele no WhatsApp.',
+    'CRITÉRIO: "quente" = intenção clara de comprar/contratar, ou pede proposta/preço/próximo passo; "morno" = tem interesse mas com dúvidas, objeções ou ainda avaliando; "frio" = sem interesse, recusou, só curiosidade, ou conversa vazia/sem sinal.',
+    'FORMATO: responda SOMENTE um JSON válido: { "potencial": "quente|morno|frio", "motivo": "<motivo curto pt-BR, máx 100 caracteres>" }',
+    'FREIO: baseie-se só na conversa; na dúvida use "morno". Não invente. Devolva só o JSON.',
+  ].join('\n');
+
+  // Classifica o POTENCIAL de um lead (quente/morno/frio) via DeepSeek. Cache por hash da conversa
+  // (source_hash) → não re-gasta token se nada mudou. Sem conversa = 'frio' (evita re-tentar).
+  async classificarLead(orgId: string, leadId: string, opts?: { force?: boolean }): Promise<{ potencial: string; motivo?: string } | null> {
+    const transcript = await this.wacrm.leadTranscript(orgId, leadId).catch(() => null);
+    if (!transcript) {
+      await this.db.asService(async (c) => {
+        await c.query(`update delivery.lead_potencial set is_current=false where organization_id=$1 and lead_id=$2 and is_current`, [orgId, leadId]);
+        await c.query(`insert into delivery.lead_potencial(organization_id,lead_id,potencial,motivo,source_hash) values ($1,$2,'frio','sem conversa','none')`, [orgId, leadId]);
+      }).catch(() => {});
+      return { potencial: 'frio', motivo: 'sem conversa' };
+    }
+    const hash = createHash('sha1').update(transcript).digest('hex').slice(0, 16);
+    const cur = await this.db.asService(async (c) => (await c.query(`select potencial, source_hash, motivo from delivery.lead_potencial where organization_id=$1 and lead_id=$2 and is_current limit 1`, [orgId, leadId])).rows[0]);
+    if (!opts?.force && cur?.source_hash === hash && cur?.potencial) return { potencial: cur.potencial as string, motivo: cur.motivo };
+    let potencial = 'morno', motivo = '';
+    try {
+      const turn = await this.llm.complete(this.SYSTEM_CLASSIFICA, transcript.slice(-6000), { provider: 'deepseek' });
+      const parsed = this.parseJson(turn.text);
+      potencial = ['quente', 'morno', 'frio'].includes(parsed?.potencial) ? parsed.potencial : 'morno';
+      motivo = String(parsed?.motivo || '').slice(0, 200);
+      await this.db.asService(async (c) => {
+        await c.query(`update delivery.lead_potencial set is_current=false where organization_id=$1 and lead_id=$2 and is_current`, [orgId, leadId]);
+        await c.query(`insert into delivery.lead_potencial(organization_id,lead_id,potencial,motivo,source_hash,model) values ($1,$2,$3,$4,$5,$6)`,
+          [orgId, leadId, potencial, motivo, hash, turn.uso?.model ?? null]);
+      });
+    } catch { return null; }
+    return { potencial, motivo };
+  }
+
+  // Classifica em LOTE os leads do período que AINDA não têm potencial. Retorna quantos fez agora e
+  // quantos faltam — o front chama em loop até faltar 0 (preenche o farol progressivamente).
+  async classificarPendentes(orgId: string, from?: string | null, to?: string | null, limit = 8): Promise<{ done: number; remaining: number; total: number }> {
+    const ids = (await this.wacrm.recentLeadIds(orgId, from ?? null, to ?? null, 500).catch(() => null)) || [];
+    const classified: Set<string> = await this.db.asService(async (c) => {
+      const rs = (await c.query(`select lead_id::text id from delivery.lead_potencial where organization_id=$1 and is_current`, [orgId])).rows;
+      return new Set(rs.map((r: any) => r.id));
+    }).catch(() => new Set<string>());
+    const pend = ids.filter((id) => !classified.has(id));
+    const batch = pend.slice(0, Math.max(1, limit));
+    let done = 0;
+    for (const id of batch) { const r = await this.classificarLead(orgId, id).catch(() => null); if (r) done++; }
+    return { done, remaining: Math.max(0, pend.length - done), total: ids.length };
+  }
 }

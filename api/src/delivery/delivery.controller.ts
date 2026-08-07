@@ -265,15 +265,28 @@ export class DeliveryController {
     if (!orgId) return { rows: [] as any[], total: 0, pageSize };
     const pg = Math.max(0, parseInt(page || '0', 10) || 0);
     const r = await this.wacrm.leadsList(orgId, from || null, to || null, q || null, pageSize, pg * pageSize).catch(() => null);
-    return { rows: r?.rows ?? [], total: r?.total ?? 0, pageSize };
+    const rows = (r?.rows ?? []) as any[];
+    // Enriquece com o POTENCIAL classificado pela IA (delivery.lead_potencial, no Portal) → farol inteligente.
+    if (rows.length) {
+      const pot = await this.db.asService(async (c) => (await c.query(
+        `select lead_id::text id, potencial, motivo from delivery.lead_potencial where organization_id=$1 and is_current and lead_id = any($2::uuid[])`,
+        [orgId, rows.map((x) => x.id)])).rows).catch(() => [] as any[]);
+      const pmap: Record<string, any> = {};
+      for (const p of pot) pmap[p.id] = p;
+      for (const x of rows) { const p = pmap[x.id]; x.potencial = p?.potencial ?? null; x.potencial_motivo = p?.motivo ?? null; }
+    }
+    return { rows, total: r?.total ?? 0, pageSize };
   }
 
-  // DETALHE de um lead (master-detail no mesmo modal): cabeçalho + interesse/funil + conversas.
+  // DETALHE de um lead (master-detail no mesmo modal): cabeçalho + interesse/funil + potencial IA + conversas.
   @Get('cockpit/lead/:id')
   async lead(@Req() req: any, @Param('id') id: string) {
     const orgId = await this.db.asUser(this.uid(req), async (c) => (await c.query('select public.current_org_id() as id')).rows[0]?.id as string | null).catch(() => null);
     if (!orgId) return null;
-    return await this.wacrm.leadDetail(orgId, id).catch(() => null);
+    const d = await this.wacrm.leadDetail(orgId, id).catch(() => null);
+    if (!d) return null;
+    const pot = await this.db.asService(async (c) => (await c.query(`select potencial, motivo from delivery.lead_potencial where organization_id=$1 and lead_id=$2 and is_current limit 1`, [orgId, id])).rows[0]).catch(() => null);
+    return { ...d, potencial: (pot as any)?.potencial ?? null, potencial_motivo: (pot as any)?.motivo ?? null };
   }
 
   // DRILL-DOWN Fase 2: as conversas de um colaborador (p/ abrir no CRM via /chat/<id>). Escopo por org.

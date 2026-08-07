@@ -398,4 +398,22 @@ export class WacrmMetricsService {
       c.release();
     }
   }
+
+  // IDs dos leads (contatos) do período — para o classificador de potencial (IA) saber quais existem.
+  async recentLeadIds(orgId: string, from?: string | null, to?: string | null, limit = 500): Promise<string[] | null> {
+    const p = this.db();
+    if (!p || !orgId) return null;
+    const c = await p.connect();
+    try {
+      const rows = (await c.query(
+        `with w as (select coalesce($2::date, (now()-'30 days'::interval)::date) f, coalesce($3::date + 1, now()::date + 1) t)
+         select ct.id::text id from whatsapp.contacts ct, w
+          where ct.organization_id = $1 and ct.created_at >= w.f and ct.created_at < w.t
+          order by ct.created_at desc limit $4`,
+        [orgId, from ?? null, to ?? null, limit])).rows;
+      return rows.map((r: any) => String(r.id));
+    } finally {
+      c.release();
+    }
+  }
 }

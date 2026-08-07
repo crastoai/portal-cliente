@@ -140,9 +140,9 @@ export type CockpitMine = {
 };
 export type CollabRow = { kind: "human" | "ai"; id: string | null; nome: string; tmed: number | null; convs: number; respostas: number; last_seen_at: string | null; status?: string | null };
 // Leads (drill do card "Leads / mês") — farol interesse (interested/declined/unknown) + funil (whatsapp.leads).
-export type LeadRow = { id: string; nome: string; phone: string | null; email: string | null; company: string | null; created_at: string; convs: number; interest: string; funil_status: string | null; valor: number | null };
+export type LeadRow = { id: string; nome: string; phone: string | null; email: string | null; company: string | null; created_at: string; convs: number; interest: string; funil_status: string | null; valor: number | null; potencial?: string | null; potencial_motivo?: string | null };
 export type LeadConversa = { id: string; interest: string | null; status: string | null; msgs: number; last_inbound: string | null; last_outbound: string | null };
-export type LeadDetail = { nome: string; phone: string | null; email: string | null; company: string | null; interest: string; funil_status: string | null; valor: number | null; conversas: LeadConversa[] };
+export type LeadDetail = { nome: string; phone: string | null; email: string | null; company: string | null; interest: string; funil_status: string | null; valor: number | null; conversas: LeadConversa[]; potencial?: string | null; potencial_motivo?: string | null };
 // Relógio de ponto (Fase A): tempo logado real por colaborador (min = minutos) + presença online.
 export type HoursRow = { id: string; nome: string; email: string | null; online: boolean; last_seen_at: string | null; min_hoje: number; min_semana: number; min_mes: number; min_periodo: number; sessoes: number; ultimo: string | null };
 export type SessionRow = { id: string; login: string; logout: string; minutos: number };
@@ -177,6 +177,15 @@ export const cockpit = {
   },
   // Detalhe do lead (master-detail): cabeçalho + interesse/funil + conversas.
   lead: async (id: string) => api.get<LeadDetail | null>(`/api/delivery/cockpit/lead/${id}`),
+  // Classifica em lote o POTENCIAL (quente/morno/frio) dos leads do período sem classificação (IA).
+  // Chamar em loop até remaining=0 → o farol enche progressivamente. Retorna {done, remaining, total}.
+  leadsClassificar: async (from?: string | null, to?: string | null) => {
+    const qs = new URLSearchParams();
+    if (from) qs.set("from", from);
+    if (to) qs.set("to", to);
+    const s = qs.toString();
+    return api.post<{ done: number; remaining: number; total: number }>(`/api/psique/leads/classificar${s ? `?${s}` : ""}`, {});
+  },
   // Resumo IA da conversa do lead (DeepSeek). GET lê o cache; gerar chama o modelo (force regenera).
   leadResumoGet: async (id: string) => api.get<{ summary: string | null; generated_at: string | null }>(`/api/psique/lead/${id}/resumo`),
   leadResumoGerar: async (id: string, force = false) => api.post<{ ok: boolean; summary?: string; generated_at?: string; cached?: boolean; error?: string }>(`/api/psique/lead/${id}/resumo${force ? "?force=1" : ""}`, {}),

@@ -38,4 +38,14 @@ export class PsiqueClientController {
     try { return await this.psique.resumirLead(org, id, { force: force === '1' || force === 'true' }); }
     catch (e: any) { return { ok: false, error: String(e?.message || 'não foi possível gerar o resumo agora') }; }
   }
+
+  // Classifica em LOTE os leads do período que ainda não têm potencial (farol quente/morno/frio).
+  // O front chama em loop até `remaining` = 0 → o farol enche progressivamente (sem "indefinido").
+  @Post('leads/classificar')
+  async classificarLeads(@Req() req: any, @Query('from') from?: string, @Query('to') to?: string) {
+    const org = await this.orgId(req);
+    if (!org) return { done: 0, remaining: 0, total: 0 };
+    try { return await this.psique.classificarPendentes(org, from || null, to || null, 8); }
+    catch { return { done: 0, remaining: 0, total: 0 }; }
+  }
 }
