@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageCircle, Search, Send, Wallet, ArrowRight, AlertTriangle, Clock, FileSignature, Headphones, Bot, Activity, Trophy, Package, Users, X, Sparkles, Loader2 } from "lucide-react";
+import { MessageCircle, Search, Send, Wallet, ArrowRight, AlertTriangle, Clock, FileSignature, Headphones, Bot, Activity, Trophy, Package, Users, X, Sparkles, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { services } from "../../services";
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
@@ -1014,11 +1014,22 @@ export default function Inicio() {
             {(() => {
               const pages = Math.max(1, Math.ceil(leadTotal / (leadPageSize || 12)));
               if (pages <= 1) return null;
+              const c = leadPage;
+              // Janela compacta: 1 … (c-1) c (c+1) … N  (primeiro/último + vizinhos, resto vira "…").
+              const set = new Set<number>([0, pages - 1, c - 1, c, c + 1]);
+              const shown = [...set].filter((i) => i >= 0 && i < pages).sort((a, b) => a - b);
+              const items: (number | "dots")[] = [];
+              let prev = -1;
+              for (const i of shown) { if (i - prev > 1) items.push("dots"); items.push(i); prev = i; }
+              const btn: React.CSSProperties = { minWidth: 30, height: 30, borderRadius: 8, border: "1px solid var(--crasto-border-soft, rgba(1,14,38,.12))", background: "#fff", color: "var(--crasto-text-primary)", fontSize: 13, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 8px" };
               return (
-                <div className="dashtabs" role="tablist" style={{ marginTop: 12, flexWrap: "wrap" }}>
-                  {Array.from({ length: pages }).map((_, i) => (
-                    <button key={i} role="tab" aria-selected={i === leadPage} className={"dashtab" + (i === leadPage ? " on" : "")} onClick={() => setLeadPage(i)}>{t("Parte {n}", { n: i + 1 })}</button>
-                  ))}
+                <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "center", marginTop: 14, flexWrap: "wrap" }}>
+                  <button style={{ ...btn, opacity: c === 0 ? .35 : 1, cursor: c === 0 ? "default" : "pointer" }} disabled={c === 0} onClick={() => setLeadPage(c - 1)} aria-label={t("Página anterior")}><ChevronLeft size={16} /></button>
+                  {items.map((it, k) => it === "dots"
+                    ? <span key={"e" + k} style={{ color: "var(--crasto-text-faint)", padding: "0 2px", letterSpacing: 1, fontSize: 13 }}>…</span>
+                    : <button key={it} onClick={() => setLeadPage(it)} aria-current={it === c ? "page" : undefined}
+                        style={{ ...btn, cursor: "pointer", ...(it === c ? { background: "var(--crasto-navy, #010E26)", color: "#fff", borderColor: "var(--crasto-navy, #010E26)", fontWeight: 700 } : {}) }}>{it + 1}</button>)}
+                  <button style={{ ...btn, opacity: c >= pages - 1 ? .35 : 1, cursor: c >= pages - 1 ? "default" : "pointer" }} disabled={c >= pages - 1} onClick={() => setLeadPage(c + 1)} aria-label={t("Próxima página")}><ChevronRight size={16} /></button>
                 </div>
               );
             })()}
