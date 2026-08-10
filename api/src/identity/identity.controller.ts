@@ -68,6 +68,22 @@ export class IdentityController {
   @UseGuards(AdminGuard)
   resendUser(@Req() req: any, @Param('id') id: string) { return this.users.resend(req, id); }
 
+  /** DONO/ADMIN-LEVEL reenvia o acesso de alguém da PRÓPRIA empresa (sem AdminGuard). A guarda é
+   *  no código: crasto_admin, o dono, ou admin-level da mesma org. Não redefine a senha atual. */
+  @Post('users/:id/resend-owner')
+  async resendByOwner(@Req() req: any, @Param('id') id: string) {
+    const ok = await this.db.asService(async (c) => {
+      const caller = (await c.query(`select role::text r, organization_id o, access_level al from public.profiles where id=$1`, [this.uid(req)])).rows[0];
+      const target = (await c.query(`select organization_id o from public.profiles where id=$1`, [id])).rows[0];
+      if (!caller || !target) return false;
+      if (caller.r === 'crasto_admin') return true;
+      if (caller.o !== target.o) return false;
+      return caller.r === 'client_owner' || (caller.r === 'client_member' && caller.al === 'admin');
+    });
+    if (!ok) return { ok: false, error: 'sem permissão' };
+    return this.users.resend(req, id);
+  }
+
   /** Admin exclui um usuário do Portal (Auth + profiles). */
   @Delete('users/:id')
   @UseGuards(AdminGuard)

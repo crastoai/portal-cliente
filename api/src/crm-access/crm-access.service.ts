@@ -176,10 +176,41 @@ export class CrmAccessService {
       module: { id: mod.id, name: mod.name },
       agent_id: mod.crm_agent_id,
       agents: detail.agents || [],
+      units: detail.units || [],
       users: users.users || [],
       crm_url: this.crmWeb,
       crm_error: detail._error ?? null,
     };
+  }
+
+  // ---- Unidades (CNPJs) da empresa — "Unidades dentro da empresa" (multi-CNPJ) ----
+  // Repassadas à API do CRM (dona do dado); o admin gerencia, o cliente só escolhe na topbar.
+  listUnits(orgId: string, auth: string) {
+    return this.crm(`/admin/client/${orgId}/units`, auth).catch((e: any) => ({ units: [], error: e?.message }));
+  }
+  async createUnit(req: any, orgId: string, auth: string, b: { name?: string; cnpj?: string; legal_name?: string }) {
+    await this.requireModule(orgId);
+    const r = await this.crm(`/admin/client/${orgId}/units`, auth, { method: 'POST', body: JSON.stringify({ name: b?.name, cnpj: b?.cnpj, legal_name: b?.legal_name }) });
+    await this.audit.log(req, 'crm_unit_created', { targetType: 'business_unit', targetId: r?.unit?.id, org: orgId, system: 'crm', ctx: { name: b?.name ?? null, cnpj: b?.cnpj ?? null } });
+    return r;
+  }
+  async updateUnit(req: any, orgId: string, auth: string, unitId: string, b: { name?: string; cnpj?: string; legal_name?: string; status?: string }) {
+    await this.requireModule(orgId);
+    const r = await this.crm(`/admin/client/${orgId}/units/${unitId}`, auth, { method: 'PUT', body: JSON.stringify({ name: b?.name, cnpj: b?.cnpj, legal_name: b?.legal_name, status: b?.status }) });
+    await this.audit.log(req, 'crm_unit_updated', { targetType: 'business_unit', targetId: unitId, org: orgId, system: 'crm', ctx: { name: b?.name ?? null, status: b?.status ?? null } });
+    return r;
+  }
+  async deleteUnit(req: any, orgId: string, auth: string, unitId: string) {
+    await this.requireModule(orgId);
+    const r = await this.crm(`/admin/client/${orgId}/units/${unitId}`, auth, { method: 'DELETE' });
+    await this.audit.log(req, 'crm_unit_deleted', { targetType: 'business_unit', targetId: unitId, org: orgId, system: 'crm' });
+    return r;
+  }
+  async setAgentUnit(req: any, orgId: string, auth: string, agentId: string, unitId: string | null) {
+    await this.requireModule(orgId);
+    const r = await this.crm(`/admin/client/${orgId}/agents/${agentId}/unit`, auth, { method: 'PUT', body: JSON.stringify({ unit_id: unitId }) });
+    await this.audit.log(req, 'crm_agent_unit_set', { targetType: 'agent', targetId: agentId, org: orgId, system: 'crm', ctx: { unit_id: unitId } });
+    return r;
   }
 
   /** Vincula o agente do CRM que atende este módulo. Valida que o agente é DESTA org. */

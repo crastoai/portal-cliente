@@ -71,9 +71,7 @@
      Light = gradiente claro sutil com brilhos azul-acinzentados nos cantos: é o "palco"
      que faz o vidro (backdrop-filter dos cards) aparecer. Dark tem o gradiente navy. */
   --crasto-page-bg:
-    radial-gradient(ellipse 85% 55% at 8% -8%,   rgba(110, 156, 232, 0.10) 0%, transparent 55%),
-    radial-gradient(ellipse 75% 65% at 106% 108%, rgba(110, 156, 232, 0.06) 0%, transparent 55%),
-    linear-gradient(162deg, #FBFCFE 0%, #F4F7FB 52%, #EEF2F8 100%);
+    linear-gradient(180deg, #FAFBFC 0%, #F3F5F8 100%);   /* cinza-claro neutro, limpo · sem glow azul */
   --crasto-page-bg-flat: var(--crasto-bg);   /* opção 2 (chapado) */
 
   /* Semantic text */
@@ -138,11 +136,11 @@
      SURFACES · escala com mais separação entre camadas
      Tons levemente warm pra não ficar "preto técnico"
      ================================================= */
-  --crasto-bg:           #0B1220;    /* canvas principal · warm dark */
-  --crasto-bg-2:         #131C30;    /* surface alt · separação clara */
-  --crasto-bg-3:         #1B273F;    /* surface elevated */
-  --crasto-surface:      #131C30;    /* card base */
-  --crasto-surface-elev: #1B273F;    /* card elevado · modals/popovers */
+  --crasto-bg:           #0B0D12;    /* canvas · dark NEUTRO (Hostinger-like), sem cast navy/glow */
+  --crasto-bg-2:         #14161C;    /* surface alt · 1 passo sutil */
+  --crasto-bg-3:         #1C1F27;    /* surface elevated */
+  --crasto-surface:      #14161C;    /* card base */
+  --crasto-surface-elev: #1C1F27;    /* card elevado · modals/popovers */
   --crasto-bg-soft:      rgba(255, 255, 255, 0.04);
 
   /* ===== PAGE CANVAS · DARK =========================================
@@ -153,10 +151,8 @@
      Opção 2: navy chapado via --crasto-page-bg-flat (.crasto-bg-navy-flat).
      --crasto-bg continua SÓLIDO (#0B1220) p/ preenchimentos de componente. */
   --crasto-page-bg:
-    radial-gradient(ellipse 90% 70% at 6% -6%,   rgba(110, 156, 232, 0.22) 0%, transparent 56%),
-    radial-gradient(ellipse 85% 75% at 106% 108%, rgba(110, 156, 232, 0.13) 0%, transparent 56%),
-    linear-gradient(157deg, #031238 0%, #021A4A 50%, #010E26 100%);
-  --crasto-page-bg-flat: var(--crasto-navy);   /* navy chapado · opção 2 */
+    radial-gradient(150% 120% at 50% -25%, #12141C 0%, #0A0B10 58%);   /* plano/neutro · sem glow azul */
+  --crasto-page-bg-flat: var(--crasto-bg);   /* chapado · opção 2 */
 
   /* =================================================
      GRAYS CLAROS como SUPERFÍCIE · adaptam no dark
@@ -196,10 +192,10 @@
   /* =================================================
      BORDERS · mais visíveis que antes (0.06 → 0.12)
      ================================================= */
-  --crasto-border-hairline: rgba(255, 255, 255, 0.10);
-  --crasto-border:          rgba(255, 255, 255, 0.18);
-  --crasto-border-soft:     rgba(255, 255, 255, 0.12);
-  --crasto-border-strong:   rgba(255, 255, 255, 0.30);
+  --crasto-border-hairline: rgba(255, 255, 255, 0.06);
+  --crasto-border:          rgba(255, 255, 255, 0.12);
+  --crasto-border-soft:     rgba(255, 255, 255, 0.07);   /* hairline bem sutil (Hostinger) */
+  --crasto-border-strong:   rgba(255, 255, 255, 0.24);
 
   /* =================================================
      NAVY ALPHAS · TODOS invertidos pra rgba(white, X)
@@ -235,15 +231,12 @@
     /* Note: light é nosso padrão da marca · esse bloco só ativa
        quando NÃO há [data-theme] no <html> · útil pra evitar flash
        em casos extremos (SSR sem hidratação) */
-    --crasto-bg:           #0B1220;
-    --crasto-bg-2:         #131C30;
-    --crasto-surface:      #131C30;
-    /* canvas dark · opção 1 (gradiente navy) espelhado p/ dark automático */
+    --crasto-bg:           #0B0D12;
+    --crasto-bg-2:         #14161C;
+    --crasto-surface:      #14161C;
     --crasto-page-bg:
-      radial-gradient(ellipse 90% 70% at 6% -6%,   rgba(110, 156, 232, 0.22) 0%, transparent 56%),
-      radial-gradient(ellipse 85% 75% at 106% 108%, rgba(110, 156, 232, 0.13) 0%, transparent 56%),
-      linear-gradient(157deg, #031238 0%, #021A4A 50%, #010E26 100%);
-    --crasto-page-bg-flat: var(--crasto-navy);
+      radial-gradient(150% 120% at 50% -25%, #12141C 0%, #0A0B10 58%);
+    --crasto-page-bg-flat: var(--crasto-bg);
     --crasto-text-primary: #F4F6FA;
     --crasto-text-body:    #D0D5DD;
     --crasto-text:         #D0D5DD;
@@ -513,6 +506,37 @@
    ============================================================= */
 
 html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+
+/* =============================================================
+   SCROLLBARS · finos e discretos (Hostinger-like): trilho invisível,
+   thumb sutil e fino, colado na borda. Substitui o scrollbar GROSSO
+   nativo do Windows por um mínimo — o sistema fica mais harmônico.
+   ============================================================= */
+* { scrollbar-width: thin; scrollbar-color: rgba(1,14,38,.20) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: rgba(1,14,38,.18); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(1,14,38,.32); }
+*::-webkit-scrollbar-corner { background: transparent; }
+[data-theme="dark"] * { scrollbar-color: rgba(255,255,255,.15) transparent; }
+[data-theme="dark"] *::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); }
+[data-theme="dark"] *::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.26); }
+
+/* =============================================================
+   TRANSIÇÃO DE TEMA · reveal em CÍRCULO (View Transitions API)
+   O novo tema entra num círculo que expande do ponto do clique no
+   toggle (--tt-x/--tt-y/--tt-r setados no ThemeToggle). Sem suporte
+   ou com "reduzir movimento" → troca direta (sem animação).
+   ============================================================= */
+::view-transition-old(root) { animation: none; }
+::view-transition-new(root) { animation: crasto-tt-reveal .5s cubic-bezier(.16, 1, .3, 1); }
+@keyframes crasto-tt-reveal {
+  from { clip-path: circle(0 at var(--tt-x, 50%) var(--tt-y, 50%)); }
+  to   { clip-path: circle(var(--tt-r, 150%) at var(--tt-x, 50%) var(--tt-y, 50%)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+}
 
 body {
   font-family: var(--crasto-font);

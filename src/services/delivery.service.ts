@@ -73,6 +73,45 @@ export const userScreens = {
   set: async (userId: string, screens: string[]) => api.post(`/api/delivery/user-screens`, { user_id: userId, screens }),
 };
 
+// Ficha do colaborador ("Editar Colaborador"): access_level (4 papéis) + WhatsApp + RH.
+// Um só par p/ cliente e admin — o backend valida dono/admin-level (gerenciaModulos).
+export type CollaboratorTeam = {
+  cpf_cnpj?: string | null; telefone?: string | null; cargo?: string | null; departamento?: string | null;
+  salario?: number | string | null; data_admissao?: string | null; tipo_contrato?: string | null;
+  cnpj_vinculado?: string | null; observacoes?: string | null;
+};
+export type CollaboratorInfo = { access_level: string | null; wa_sender_name: string | null; wa_number: string | null; team: CollaboratorTeam };
+// Linha da LISTA de colaboradores (Gestão de Acessos) — perfil + ficha + último acesso, num JOIN.
+export type CollaboratorRow = {
+  id: string; full_name: string | null; email: string | null; role: string;
+  access_level: string | null; active: boolean;
+  cargo: string | null; departamento: string | null; tipo_contrato: string | null; telefone: string | null;
+  last_login: string | null;
+};
+// Auto-edição: o próprio usuário lê/edita os SEUS dados (tela Configurações). Só o que é dele
+// (contato + nome de exibição no WhatsApp); cargo/departamento/tipo vêm read-only (o admin define).
+export type MyCollab = { wa_sender_name: string | null; wa_number: string | null; team: { cpf_cnpj?: string | null; telefone?: string | null; cargo?: string | null; departamento?: string | null; tipo_contrato?: string | null } };
+export const myCollaborator = {
+  get: async () => api.get<MyCollab>(`/api/delivery/my-collaborator`),
+  set: async (b: { wa_sender_name?: string | null; wa_number?: string | null; team?: { cpf_cnpj?: string | null; telefone?: string | null } }) =>
+    api.post<{ ok?: boolean; error?: string }>(`/api/delivery/my-collaborator`, b),
+};
+export const collaborator = {
+  get: async (userId: string) => api.get<CollaboratorInfo>(`/api/delivery/collaborator?user=${encodeURIComponent(userId)}`),
+  set: async (userId: string, b: { access_level?: string | null; wa_sender_name?: string | null; wa_number?: string | null; team?: CollaboratorTeam }) =>
+    api.post<{ ok?: boolean; error?: string }>(`/api/delivery/collaborator`, { user_id: userId, ...b }),
+  list: async (orgId: string) => api.get<{ collaborators: CollaboratorRow[]; error?: string }>(`/api/delivery/collaborators?org=${encodeURIComponent(orgId)}`),
+  setActive: async (userId: string, active: boolean) => api.post<{ ok?: boolean; active?: boolean; error?: string }>(`/api/delivery/collaborator/active`, { user_id: userId, active }),
+};
+
+// Subtelas do WhatsApp CRM por usuário — caminho DONO/ADMIN (proxy interno p/ o wacrm).
+// Espelha o shape de crmAccess.crmScreens, mas passa pela guarda do delivery (não exige admin).
+export const crmScreens = {
+  get: async (userId: string) =>
+    api.get<{ catalog: { key: string; label: string }[]; has_access: boolean; owner: boolean; screens: string[] | null; error?: string }>(`/api/delivery/crm-screens?user=${encodeURIComponent(userId)}`),
+  set: async (userId: string, screens: string[]) => api.post<{ ok?: boolean; screens?: string[]; error?: string }>(`/api/delivery/crm-screens`, { user_id: userId, screens }),
+};
+
 export const selfService = {
   getMine: async () => api.get<any>(`/api/delivery/self-service/mine`),
 };
@@ -129,9 +168,19 @@ export const moduleSessions = {
 // O "depois" das métricas vem AO VIVO do wacrm; o "antes" (baseline declarado) entra no item 1.3
 // (por ora null → o front mostra a evolução/trend). Sem fonte = null → a tela vira "—", nunca inventa.
 export type CockpitMetric = { key: string; label: string; unidade: string; melhor: "maior" | "menor"; antes: number | null; fonte_antes: string | null; depois: number | null; trend: number | null };
+export type KpiAnalise = { tom: "green" | "amber" | "red"; motivo: string; impacto: string; acao: string };
+export type CockpitKpis = {
+  funil: { leads: number; qualificados: number; oportunidades: number; vendas: number } | null;
+  sla: { pct5: number | null; mediana_s: number; respondidas: number; sem_resposta: number } | null;
+  pico: number[][] | null;
+  roi_horas_ia: number | null;
+  horas_equipe_mes: number | null;
+  analises?: Record<string, KpiAnalise> | null; // sugestão da IA (DeepSeek) por card; null até gerar
+};
 export type CockpitMine = {
   metrics: CockpitMetric[];
   volume: { label: string; n: number }[];
+  kpis?: CockpitKpis | null;
   jornada: { happened_at: string; title: string; detail: string | null; module_name: string | null }[];
   conquistas: { titulo: string; status: string | null; rollout_status: string | null; tipo: "module" | "service" }[];
   narrativa: any | null;
@@ -233,4 +282,4 @@ export const userSession = {
   close: async () => api.post(`/api/delivery/session-close`, {}),
 };
 
-export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, selfService, moduleSessions, teamUsage, meetings, implEvents, agentUsage, cockpit, crmLive, userSession };
+export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, collaborator, myCollaborator, crmScreens, selfService, moduleSessions, teamUsage, meetings, implEvents, agentUsage, cockpit, crmLive, userSession };

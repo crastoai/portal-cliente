@@ -7,6 +7,7 @@ import IdleModal from "./ui/IdleModal";
 import Splash from "./ui/Splash";
 import { preview } from "./lib/preview";
 import Login from "./pages/Login";
+import TwoFactorChallenge from "./pages/TwoFactorChallenge";
 import ResetRequest from "./pages/ResetRequest";
 import NewPassword from "./pages/NewPassword";
 import ClientShell from "./layout/ClientShell";
@@ -20,6 +21,7 @@ import Catalogo from "./pages/client/Catalogo";
 import Financeiro from "./pages/client/Financeiro";
 import Usuarios from "./pages/client/Usuarios";
 import Suporte from "./pages/client/Suporte";
+import Notificacoes from "./pages/client/Notificacoes";
 import CrmEmbed from "./pages/client/CrmEmbed";
 import ModuleEmbed from "./pages/client/ModuleEmbed";
 import Perfil from "./pages/Perfil";
@@ -60,7 +62,7 @@ function homeFor(role?: string) {
 }
 
 export default function App() {
-  const { session, profile, loading, signOut } = useAuth();
+  const { session, profile, loading, mfaPending, mfaChecked, signOut } = useAuth();
   const isAdmin = !!session && profile?.role === "crasto_admin";
   // Segurança: "Ver como cliente" é só para admin — qualquer outro papel (ou sem sessão) limpa o preview.
   useEffect(() => { if (!isAdmin) preview.clear(); }, [isAdmin]);
@@ -79,7 +81,8 @@ export default function App() {
     const iv = setInterval(bater, 60_000);
     return () => clearInterval(iv);
   }, [!!session]);
-  if (loading || (session && !profile)) {
+  // Espera o check do AAL do 2FA antes de decidir (evita piscar o app antes da tela de código).
+  if (loading || (session && !profile) || (session && !mfaChecked)) {
     return <Splash />;
   }
   const aviso = idle.avisando && !!session ? (
@@ -98,6 +101,12 @@ export default function App() {
     );
   }
 
+  // 2FA: o usuário tem verificação em duas etapas ativa e ainda não passou o código nesta sessão →
+  // segura tudo na tela de código (per-usuário; quem não ativou nunca cai aqui).
+  if (session && mfaPending) {
+    return <TwoFactorChallenge />;
+  }
+
   return (
     <>
       {aviso}
@@ -109,14 +118,16 @@ export default function App() {
 
       {session && (
         <>
-          {/* WhatsApp CRM embarcado = TELA CHEIA (fora da casca do Portal): a sidebar do
-              Portal some, aparece a do CRM, e no topo a faixa "Voltar ao Portal". */}
-          <Route path="/app/crm" element={<CrmEmbed />} />
-          {/* Qualquer outro módulo embarcado (hoje apps do Lovable) — mesma tela cheia.
-              :id é o client_module_id, ou seja, a INSTÂNCIA daquele cliente. */}
+          {/* Módulo embarcado (apps do Lovable) — tela cheia. :id = client_module_id (a instância). */}
           <Route path="/app/m/:id" element={<ModuleEmbed />} />
           <Route path="/app" element={<ClientShell />}>
             <Route index element={<Inicio />} />
+            {/* WhatsApp CRM embarcado DENTRO da casca do Portal (sidebar + topbar do Portal ficam
+                visíveis). As SEÇÕES do wacrm (Conversas/Dashboard/…/Config) são sub-itens da sidebar
+                do Portal → viram /app/crm/<seção>; a raiz /app/crm = Conversas. O seletor de agente
+                fica no topo do módulo; o iframe (sem a sidebar própria do wacrm) preenche o .canvas. */}
+            <Route path="crm" element={<CrmEmbed />} />
+            <Route path="crm/:section" element={<CrmEmbed />} />
             <Route path="modulos" element={<Modulos />} />
             <Route path="implementacao" element={<Implementacao />} />
             <Route path="solucoes" element={<Catalogo />} />
@@ -124,6 +135,7 @@ export default function App() {
             <Route path="usuarios" element={<Usuarios />} />
             <Route path="suporte" element={<Suporte />} />
             <Route path="perfil" element={<Perfil />} />
+            <Route path="notificacoes" element={<Notificacoes />} />
           </Route>
 
           <Route path="/admin" element={<AdminShell />}>

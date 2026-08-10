@@ -12,12 +12,19 @@ export type Profile = {
   role: string;
   organization_id: string | null;
   avatar_url?: string | null;
+  access_level?: string | null;
+  active?: boolean;
 };
 
 type AuthCtx = {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
+  // 2FA: mfaPending = a sessão está em aal1 mas o usuário TEM 2FA (precisa do código). mfaChecked =
+  // já consultamos o AAL após esta sessão (evita piscar o app antes da tela de código).
+  mfaPending: boolean;
+  mfaChecked: boolean;
+  recheckMfa: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   signOut: (motivo?: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -30,10 +37,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mfaPending, setMfaPending] = useState(false);
+  const [mfaChecked, setMfaChecked] = useState(false);
+
+  // 2FA: consulta o nível de garantia (AAL). nextLevel='aal2' + currentLevel='aal1' = o usuário tem
+  // 2FA e ainda não passou o código → segura o app na tela de código. Sem 2FA → aal1/aal1 → segue.
+  async function checkMfa(hasSession: boolean) {
+    if (!hasSession) { setMfaPending(false); setMfaChecked(true); return; }
+    try {
+      const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      setMfaPending(!!data && data.nextLevel === "aal2" && data.currentLevel !== "aal2");
+    } catch { setMfaPending(false); }
+    finally { setMfaChecked(true); }
+  }
+  async function recheckMfa() {
+    const { data } = await supabase.auth.getSession();
+    await checkMfa(!!data.session);
+  }
 
   async function loadProfile(uid: string) {
     try {
       const p = await services.identity.profiles.getById(uid);
+      // Colaborador SUSPENSO (active=false): perde o acesso ao Portal no boot, sem excluir a
+      // conta. É a "trava no login" do toggle Ativo/Inativo — o dono/admin pode reativar depois.
+      if (p && (p as Profile).active === false) {
+        try { sessionStorage.setItem("conta_suspensa", "1"); } catch { /* ignora */ }
+        setProfile(null);
+        await signOut("suspenso");
+        return;
+      }
       setProfile((p as Profile) ?? null);
     } catch {
       setProfile(null);
@@ -44,12 +76,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(async ({ data }) => {
       setSession(data.session);
       if (data.session) await loadProfile(data.session.user.id);
+      await checkMfa(!!data.session);
       setLoading(false);
     });
     const { data: sub } = supabase.auth.onAuthStateChange(async (_e, s) => {
       setSession(s);
       if (s) await loadProfile(s.user.id);
       else setProfile(null);
+      await checkMfa(!!s);
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -91,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <Ctx.Provider value={{ session, profile, loading, signIn, signOut, refreshProfile }}>
+    <Ctx.Provider value={{ session, profile, loading, mfaPending, mfaChecked, recheckMfa, signIn, signOut, refreshProfile }}>
       {children}
     </Ctx.Provider>
   );

@@ -29,11 +29,13 @@
 .mobilebar, .side-close, .side-overlay { display: none; }
 
 .side {
-  position: fixed; top: 0; left: 0; width: 248px; height: 100vh; z-index: 30;
-  display: flex; flex-direction: column; gap: 2px; padding: 20px 14px;
+  position: fixed; top: 56px; left: 0; width: 248px; height: calc(100vh - 56px); z-index: 30;
+  display: flex; flex-direction: column; gap: 2px; padding: 14px 14px;
   border-right: 1px solid var(--crasto-border-soft);
-  background: linear-gradient(180deg, rgba(255,255,255,.72), rgba(247,248,250,.42));
-  backdrop-filter: var(--crasto-blur-md); -webkit-backdrop-filter: var(--crasto-blur-md);
+  background: var(--crasto-surface);
+  /* recolher/expandir SUAVE (antes era instantâneo, "pulava"). */
+  transition: width .28s cubic-bezier(.22,1,.36,1), padding .28s cubic-bezier(.22,1,.36,1);
+  will-change: width;
 }
 /* marca no topo da sidebar */
 .side-brand { display: flex; align-items: center; gap: 11px; padding: 6px 10px 18px; }
@@ -75,9 +77,36 @@
 .navlink-lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .navlink:hover { background: var(--crasto-navy-05); color: var(--crasto-text-primary); }
 .navlink:hover svg { opacity: 1; }
-.navlink.on { background: var(--crasto-navy); color: #fff; box-shadow: 0 8px 18px -8px var(--crasto-navy-40); }
+.navlink.on { background: var(--crasto-navy-05); color: var(--crasto-text-primary); box-shadow: none; font-weight: 600; }
 .navlink.on svg { opacity: 1; }
 .navlink .tag { margin-left: auto; font-size: 11px; }
+/* Item de menu EXPANSÍVEL (pai + filhos) — WhatsApp CRM e suas seções viram sub-itens da sidebar. */
+.navtree { display: flex; flex-direction: column; gap: 2px; }
+.navlink--parent { cursor: pointer; }
+.navtree-chev { margin-left: auto; opacity: .6; transition: transform .2s ease; }
+.navtree.open .navtree-chev { transform: rotate(180deg); }
+.navtree-kids { display: none; flex-direction: column; gap: 2px; margin-top: 2px; }
+.navtree.open .navtree-kids { display: flex; }
+.navlink--child { padding: 8px 12px 8px 40px; font-size: 13px; font-weight: 500; position: relative; }
+@media (prefers-reduced-motion: reduce) { .navtree-chev { transition: none; } }
+/* SELEÇÃO LEVE (padrão de sistema profissional — nada de bloco navy cheio). Pai ativo = só texto
+   forte + ícone opaco; filho ativo = fundo bem suave + barra fininha azul da marca à esquerda.
+   `.navtree` na frente eleva a especificidade acima do `.navlink.on` pesado (light e dark). */
+.navtree .navlink--parent.on { background: transparent; color: var(--crasto-text-primary); font-weight: 600; box-shadow: none; }
+.navtree .navlink--parent.on svg { opacity: 1; }
+.navtree .navlink--child.on { background: var(--crasto-navy-05); color: var(--crasto-text-primary); font-weight: 600; box-shadow: none; }
+.navtree .navlink--child.on::before { content: ""; position: absolute; left: 20px; top: 7px; bottom: 7px; width: 3px; border-radius: 3px; background: var(--crasto-blue, #6E9CE8); }
+.navtree .navlink--child.on:hover { background: var(--crasto-navy-05); }
+[data-theme="dark"] .navtree .navlink--parent.on { color: #fff; }
+[data-theme="dark"] .navtree .navlink--child.on { background: rgba(255,255,255,.06); color: #fff; }
+/* Flyout do sidebar RECOLHIDO — popup à direita do ícone (rótulo dos itens simples OU sub-abas do
+   WhatsApp CRM). fixed + top vindo do JS, p/ não ser cortado pelo overflow da sidebar. */
+.navfly { position: fixed; left: 64px; z-index: 80; min-width: 190px; max-width: 244px; max-height: 84vh; overflow-y: auto; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: 12px; box-shadow: var(--crasto-shadow-lg); padding: 6px; display: flex; flex-direction: column; gap: 2px; animation: navfly-in .12s ease-out; }
+@keyframes navfly-in { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: none; } }
+.navfly-h { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--crasto-text-muted); padding: 6px 10px 4px; }
+.navfly-item { display: block; padding: 8px 11px; border-radius: 8px; font-size: 13.5px; font-weight: 500; color: var(--crasto-text-body); border: 0; background: transparent; text-align: left; width: 100%; cursor: pointer; white-space: nowrap; }
+.navfly-item:hover { background: var(--crasto-navy-05); color: var(--crasto-text-primary); }
+.navfly-item.on { background: var(--crasto-navy-05); color: var(--crasto-text-primary); font-weight: 600; }
 /* Módulo embarcado em TELA CHEIA (WhatsApp CRM dentro do Portal — Fase 3) */
 .crm-fs { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; background: var(--crasto-bg, #f6f7f9); }
 .crm-fs-top { flex: none; height: 46px; display: flex; align-items: center; gap: 12px; padding: 0 12px; border-bottom: 1px solid var(--crasto-border-soft); background: var(--crasto-glass-card, #fff); }
@@ -95,6 +124,12 @@
    preenche 100% da altura do .canvas sem o bug de %height dentro de flex, e acompanha o recolher
    do sidebar (o .canvas reflui). Cobre o padding do card pra ficar de borda a borda. */
 .admin-crm-fill { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; overflow: hidden; border-radius: var(--crasto-radius-xl); background: var(--crasto-glass-card, #fff); }
+/* MÓDULO FULL-BLEED (WhatsApp CRM): integra de BORDA A BORDA — sem o "cartão" do .canvas. Some o
+   padding/borda/raio/sombra/gradiente do canvas e o padding do .main; o CRM ocupa a área toda. As
+   demais telas do Portal seguem com o cartão normal. (.canvas mantém position:relative p/ o embed.) */
+.shell--flush .main { padding: 0; }
+.shell--flush .canvas { padding: 0; border: 0; border-radius: 0; box-shadow: none; background: none; }
+.shell--flush .admin-crm-fill { border-radius: 0; }
 /* Seletor de CLIENTE no topo do CRM interno (admin vê qualquer WhatsApp CRM daqui). O top bar
    precisa ficar ACIMA do iframe pra o dropdown não sumir atrás dele. */
 .admin-crm-fill .crm-fs-top { position: relative; z-index: 3; }
@@ -105,6 +140,9 @@
 .crm-switch-tag { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--crasto-navy); background: var(--crasto-navy-05); border-radius: 999px; padding: 2px 7px; }
 .crm-switch-ovl { position: fixed; inset: 0; z-index: 1; }
 .crm-switch-panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 2; width: 320px; max-height: 62vh; overflow-y: auto; background: var(--crasto-glass-card, #fff); border: 1px solid var(--crasto-border-soft); border-radius: 14px; box-shadow: 0 30px 60px -30px var(--crasto-navy-18); padding: 8px; }
+/* Dropdown do seletor de agente renderizado via PORTAL no body: fica ACIMA do iframe do CRM (que
+   engolia o clique) — fundo sólido (nada de vidro translúcido sobre o iframe) e sombra forte. */
+.crm-switch-panel--portal { background: var(--crasto-surface, #fff) !important; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: 0 24px 60px -12px rgba(1,14,38,.28); }
 .crm-switch-search { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--crasto-border-soft); border-radius: 10px; margin-bottom: 6px; color: var(--crasto-text-muted); }
 .crm-switch-search input { border: 0; outline: 0; background: transparent; width: 100%; font-size: 13px; color: var(--crasto-text-body); }
 .crm-switch-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 9px 10px; border: 0; background: transparent; border-radius: 9px; cursor: pointer; font-size: 13px; color: var(--crasto-text-body); }
@@ -160,21 +198,78 @@
 .su-out:hover { background: var(--crasto-bg-3); color: var(--crasto-text-primary); }
 
 /* área principal + canvas arredondado (assinatura de sistema do DS) */
-.main { margin-left: 248px; padding: 18px; min-width: 0; min-height: 100vh; display: flex; flex-direction: column; }
+.main { margin-left: 248px; margin-top: 56px; padding: 18px; min-width: 0; min-height: calc(100vh - 56px); display: flex; flex-direction: column; transition: margin-left .28s cubic-bezier(.22,1,.36,1); }
 
-/* barra superior — identidade + sistema (idioma/tema/usuário) no canto direito */
-.topbar { display: flex; align-items: center; gap: 10px; height: 52px; flex: none; margin-bottom: 12px; padding: 0 6px; }
-.tb-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-.tb-burger, .tb-brand { display: none; }
+/* ENTRADA SUAVE DE TELA — o conteúdo surge (fade + leve subida) a cada troca de rota. */
+@keyframes page-enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.page-enter { animation: page-enter .42s cubic-bezier(.16,1,.3,1) both; }
+@media (prefers-reduced-motion: reduce) { .page-enter { animation: none; } .side, .main { transition: none; } }
+
+/* TOPBAR FULL-WIDTH — uma barra só: logo à esquerda, sistema (idioma/tema/perfil) à direita. */
+.topbar { position: fixed; top: 0; left: 0; right: 0; height: 56px; z-index: 45; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px 0 18px; background: var(--crasto-surface); border-bottom: 1px solid var(--crasto-border-soft); }
+.tb-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.tb-brand { display: flex; align-items: center; }
+.tb-brand-sub { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--crasto-text-faint); white-space: nowrap; }
+.tb-burger { display: none; }
+/* Recolher/expandir: handle circular FLUTUANTE, centrado na linha que separa a topbar do
+   conteúdo (y=56) e cravado na borda direita da sidebar (x = largura da sidebar). Fica FORA do
+   fluxo (position:fixed) → não empurra os itens do menu; z acima da topbar p/ não ser cortado. */
+.side-toggle { position: fixed; top: 56px; left: 248px; transform: translate(-50%, -50%); z-index: 46; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--crasto-border-soft); background: var(--crasto-surface); color: var(--crasto-text-muted); cursor: pointer; transition: background .15s, color .15s, left .28s cubic-bezier(.22,1,.36,1); box-shadow: 0 1px 3px rgba(1,14,38,.10); }
+.side-toggle:hover { background: var(--crasto-navy-05); color: var(--crasto-text-primary); }
+.shell.collapsed .side-toggle { left: 66px; }
+
+/* Seletor de UNIDADE (CNPJ) na topbar — multi-CNPJ. Aparece só com >1 unidade. */
+.unitdd { position: relative; margin-left: 12px; }
+.unitdd-btn { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--crasto-border-soft); background: var(--crasto-surface); color: var(--crasto-text-body); font-size: 13px; font-weight: 600; cursor: pointer; max-width: 230px; transition: background .15s, border-color .15s; }
+.unitdd-btn:hover, .unitdd-btn.open { background: var(--crasto-navy-05); border-color: var(--crasto-border); }
+.unitdd-ico { opacity: .7; flex: none; }
+.unitdd-lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.unitdd-chev { opacity: .6; flex: none; }
+.unitdd-menu { position: absolute; top: calc(100% + 6px); left: 0; min-width: 240px; max-width: 330px; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: 12px; box-shadow: 0 14px 40px -8px var(--crasto-navy-40); padding: 6px; z-index: 60; }
+.unitdd-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: none; background: transparent; border-radius: 8px; cursor: pointer; text-align: left; color: var(--crasto-text-body); font-size: 13px; }
+.unitdd-item:hover { background: var(--crasto-navy-05); }
+.unitdd-item.on { color: var(--crasto-text-primary); font-weight: 700; }
+.unitdd-item-nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.unitdd-item-cnpj { font-size: 11.5px; color: var(--crasto-text-muted); font-variant-numeric: tabular-nums; }
+.unitdd-check { color: var(--crasto-navy); flex: none; }
+.unitdd-sep { height: 1px; background: var(--crasto-border-soft); margin: 5px 4px; }
+[data-theme="dark"] .unitdd-btn { background: #14161C; border-color: rgba(255,255,255,.08); }
+[data-theme="dark"] .unitdd-menu { background: #14161C; border-color: rgba(255,255,255,.08); }
+[data-theme="dark"] .unitdd-check { color: var(--crasto-navy-lift, #6E9CE8); }
+@media (max-width: 600px) { .unitdd-lbl { display: none; } .unitdd { margin-left: 8px; } }
+/* Botão do perfil — avatar + SETA que aparece/expande no hover (sinaliza que é clicável). */
+.tb-av { border-radius: 50%; }
+.tb-prof-btn { display: inline-flex; align-items: center; padding: 3px; border: 0; background: transparent; border-radius: 999px; cursor: pointer; transition: background .15s; }
+.tb-prof-btn:hover, .tb-prof-btn.open { background: var(--crasto-navy-05); }
+.tb-prof-chev { color: var(--crasto-text-muted); width: 0; opacity: 0; margin: 0; overflow: hidden; flex: none; transition: width .18s ease, opacity .18s ease, margin .18s ease, transform .18s ease; }
+.tb-prof-btn:hover .tb-prof-chev, .tb-prof-btn.open .tb-prof-chev { width: 14px; opacity: 1; margin: 0 3px; }
+.tb-prof-btn.open .tb-prof-chev { transform: rotate(180deg); }
+.tb-right { display: flex; align-items: center; gap: 8px; flex: none; }
 .tb-av { position: relative; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; color: #fff; font-size: 13px; background: linear-gradient(145deg, var(--crasto-navy), #0a2350); flex-shrink: 0; padding: 0; border: none; cursor: pointer; overflow: hidden; }
 .tb-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Perfil — dropdown consolidado no topbar (Hostinger-like) */
+.tb-prof { position: relative; }
+.tb-prof__ovl { position: fixed; inset: 0; z-index: 40; }
+.tb-prof__panel { position: absolute; top: calc(100% + 8px); right: 0; z-index: 50; width: 262px; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: 14px; box-shadow: var(--crasto-shadow-lg); padding: 6px; animation: navfly-in .12s ease-out; }
+.tb-prof__head { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px; border: 0; background: transparent; cursor: pointer; border-radius: 10px; }
+.tb-prof__head:hover { background: var(--crasto-navy-05); }
+.tb-prof__av { position: relative; width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; font-weight: 700; color: #fff; font-size: 14px; background: linear-gradient(145deg, var(--crasto-navy), #0a2350); flex: none; overflow: hidden; }
+.tb-prof__av img { width: 100%; height: 100%; object-fit: cover; }
+.tb-prof__id { min-width: 0; display: grid; gap: 1px; }
+.tb-prof__id b { color: var(--crasto-text-primary); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb-prof__id span { color: var(--crasto-text-muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb-prof__sep { height: 1px; background: var(--crasto-border-soft); margin: 4px 6px; }
+.pm-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 9px 10px; border: 0; background: transparent; border-radius: 9px; cursor: pointer; font-size: 13.5px; font-weight: 500; color: var(--crasto-text-body); }
+.pm-item svg { opacity: .7; flex: none; }
+.pm-item:hover { background: var(--crasto-navy-05); color: var(--crasto-text-primary); }
+.pm-item:hover svg { opacity: 1; }
+.pm-item--out { color: var(--crasto-danger); }
+.pm-item--out:hover { background: rgba(184,58,58,.08); color: var(--crasto-danger); }
 .tb-user { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; background: transparent; border: none; cursor: pointer; padding: 3px 8px; border-radius: 9px; max-width: 200px; min-width: 0; transition: background .15s; }
 .tb-user:hover { background: var(--crasto-bg-3); }
 /* seta de recolher/expandir CRAVADA na borda do sidebar — handle circular, SEMPRE visível,
    fixo na linha da sidebar; acompanha a largura ao recolher (248−13=235 · 66−13=53). */
-.side-collapse { position: fixed; top: 20px; left: 235px; z-index: 31; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--crasto-border); background: var(--crasto-surface); color: var(--crasto-text-muted); cursor: pointer; box-shadow: 0 2px 8px -2px rgba(1,14,38,.22); transition: left .18s ease, background .15s, color .15s, box-shadow .15s; }
-.side-collapse:hover { background: var(--crasto-navy, #010E26); color: #fff; box-shadow: 0 4px 12px -3px rgba(1,14,38,.35); }
-.shell.collapsed .side-collapse { left: 53px; }
+.side-collapse { display: none; }  /* recolher agora é o .tb-collapse no topbar full-width */
 /* sidebar recolhida — só ícones (desktop) */
 @media (min-width: 901px) {
   .shell.collapsed .side { width: 66px; padding: 20px 8px; }
@@ -198,14 +293,11 @@
 @media (max-width: 900px) {
   .main { margin-left: 0; }
 
-  /* topbar no celular: hambúrguer + marca à esquerda; identidade à direita; full-width sticky */
-  .topbar { position: sticky; top: 0; z-index: 20; margin: -18px -18px 12px; padding: 8px 12px; height: auto;
-    background: var(--crasto-glass-card); backdrop-filter: var(--crasto-blur-md); -webkit-backdrop-filter: var(--crasto-blur-md);
-    border-bottom: 1px solid var(--crasto-border-soft); }
+  /* topbar no celular: o full-width (base) já serve — só troca o botão de recolher pelo hambúrguer. */
+  .topbar { padding: 0 12px; }
   .tb-burger { display: grid; width: 38px; height: 38px; border-radius: 10px; place-items: center; border: 1px solid var(--crasto-border-soft); background: transparent; color: var(--crasto-text-body); flex: none; }
-  .side-collapse { display: none; }
-  .tb-brand { display: flex; align-items: center; }
-  .tb-user .su-em { display: none; }
+  .tb-collapse { display: none; }
+  .side-toggle { display: none; } /* no mobile a sidebar é gaveta (hambúrguer), não recolhe */
 
   /* barra superior mobile (legado — não usada; mantida sem efeito) */
   .mobilebar {
@@ -222,7 +314,7 @@
 
   /* sidebar vira drawer deslizante */
   .side {
-    position: fixed; left: 0; top: 0; height: 100dvh; width: 284px; max-width: 86vw;
+    position: fixed; left: 0; top: 56px; height: calc(100dvh - 56px); width: 284px; max-width: 86vw;
     transform: translateX(-100%); transition: transform .28s cubic-bezier(.2,.7,.2,1);
     z-index: 70; box-shadow: 0 20px 60px -10px var(--crasto-navy-40);
   }
@@ -235,22 +327,24 @@
 }
 
 /* ===== DARK MODE — sistema TODO escuro (DS): sidebar + canvas + cards ===== */
+/* Topbar segue o MESMO tom da sidebar no dark → chrome coeso (o menu destoava do resto). */
+[data-theme="dark"] .topbar { background: #0C0E13; border-bottom-color: rgba(255,255,255,.05); }
+[data-theme="dark"] .side-toggle { background: #14161C; border-color: rgba(255,255,255,.08); }
 [data-theme="dark"] .side {
-  background: linear-gradient(180deg, rgba(11,18,36,.94), rgba(8,13,28,.94));
-  border-right-color: rgba(255,255,255,.08);
+  background: #0C0E13;                 /* neutro, quase igual ao canvas → sidebar SEM COSTURA (Hostinger) */
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  border-right-color: rgba(255,255,255,.05);
 }
-[data-theme="dark"] .side-user { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.10); }
-[data-theme="dark"] .navlink.on { background: rgba(255,255,255,.13); color: #fff; box-shadow: none; }
+[data-theme="dark"] .side-user { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.08); }
+[data-theme="dark"] .navlink.on { background: rgba(255,255,255,.06); color: #F4F6FA; box-shadow: none; }
 [data-theme="dark"] .navlink.on svg { opacity: 1; }
 [data-theme="dark"] .mobilebar { background: linear-gradient(180deg, rgba(11,18,36,.92), rgba(9,15,32,.92)); }
 
 /* canvas escuro (os textos já usam --crasto-text-primary, que vira claro no dark) */
 [data-theme="dark"] .canvas {
-  background:
-    radial-gradient(900px 380px at 100% 0%, rgba(110,156,232,.10), transparent 60%),
-    linear-gradient(180deg, #0d1526, #0b1120);
-  border-color: rgba(255,255,255,.07);
-  box-shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 30px 60px -40px #000;
+  background: #14161C;                 /* superfície neutra plana · sem glow azul */
+  border-color: rgba(255,255,255,.06);
+  box-shadow: 0 1px 0 rgba(255,255,255,.03) inset, 0 24px 50px -40px #000;
 }
 /* cards escuros: brilho interno sutil (não branco forte) */
 [data-theme="dark"] .card,
@@ -576,9 +670,14 @@
 .scoperow strong { color: var(--crasto-text-primary); font-size: 13.5px; }
 .scoperow small { color: var(--crasto-text-muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .scopedot { width: 9px; height: 9px; border-radius: 50%; background: var(--crasto-text-faint); box-shadow: 0 0 0 4px var(--crasto-bg-3); }
-.scopedot.green { background: var(--crasto-success); }.scopedot.amber { background: var(--crasto-warning); }.scopedot.red { background: var(--crasto-danger); }
+.scopedot.green { background: var(--crasto-success); }.scopedot.amber { background: #B54708; }.scopedot.red { background: var(--crasto-danger); }
+[data-theme="dark"] .scopedot.amber { background: #E6A54D; }
 .scopepill { padding: 4px 9px; border-radius: var(--crasto-radius-pill); background: var(--crasto-bg-3); color: var(--crasto-text-body); font-size: 10.5px; font-weight: 700; }
-.scopepill.green { color: var(--crasto-success); }.scopepill.amber { color: var(--crasto-warning); }.scopepill.red { color: var(--crasto-danger); }
+.scopepill.green { color: var(--crasto-success); }.scopepill.amber { color: #B54708; }.scopepill.red { color: var(--crasto-danger); }
+/* Dark: cores de status CLAREADAS p/ contraste sobre o fundo escuro (amber navy sumia; verde/vermelho fracos). */
+[data-theme="dark"] .scopepill.green { color: #34D399; }
+[data-theme="dark"] .scopepill.amber { color: #E6A54D; }
+[data-theme="dark"] .scopepill.red { color: #F98A8A; }
 .scopeempty { padding: 22px 16px; color: var(--crasto-text-muted); text-align: center; font-size: 13px; }
 @media (max-width: 900px) { .selfgrid { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .scopehead { align-items: flex-start; flex-direction: column; } .scoperow { grid-template-columns: auto minmax(0,1fr); } .scopepill { grid-column: 2; justify-self: start; } }
@@ -593,10 +692,10 @@
 
 /* ---- Seletor de idioma (dropdown i18n) ---- */
 .langdd { position: relative; display: inline-block; }
-.langdd-btn { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; padding: 5px 8px; border-radius: 9px; border: 1px solid var(--crasto-border-soft); background: var(--crasto-bg-3); color: var(--crasto-text-body); font-size: 11.5px; font-weight: 700; line-height: 1; transition: border-color .15s, background .15s; }
-.langdd-btn:hover { border-color: var(--crasto-border); }
-.langdd-btn.open { border-color: var(--crasto-navy); }
-.langdd-flag { font-size: 13px; line-height: 1; }
+.langdd-btn { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 4px 9px 4px 5px; border-radius: 999px; border: 1px solid transparent; background: transparent; color: var(--crasto-text-body); font-size: 12px; font-weight: 700; line-height: 1; transition: background .15s; }
+.langdd-btn:hover, .langdd-btn.open { background: var(--crasto-navy-05); }
+.langdd-flag { width: 18px; height: 18px; border-radius: 50%; overflow: hidden; display: inline-grid; place-items: center; flex: none; box-shadow: 0 0 0 1px var(--crasto-border-soft) inset; }
+.langdd-flag svg { width: 100%; height: 100%; display: block; }
 .langdd-code { letter-spacing: .02em; }
 .langdd-chev { color: var(--crasto-text-muted); transition: transform .15s; }
 .langdd-btn.open .langdd-chev { transform: rotate(180deg); }
@@ -773,3 +872,9 @@
   /* espaço p/ a barra não cobrir o conteúdo (altura + barra de gestos do aparelho) */
   .canvas { padding-bottom: calc(72px + env(safe-area-inset-bottom)) !important; }
 }
+
+/* POPUP do CRM no CENTRO DA TELA: o iframe que abriu um modal vira tela-cheia por cima de tudo
+   (topbar/sidebar do Portal), pra o escurecimento cobrir o Portal inteiro e o modal centralizar
+   na tela. Removido ao fechar. Some a sensação de "sistema separado". */
+html.crm-modal-open .main { position: relative; z-index: 9998; }
+.crm-frame-fs { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 9999 !important; border: 0 !important; }

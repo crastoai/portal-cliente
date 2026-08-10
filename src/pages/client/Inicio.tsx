@@ -5,6 +5,7 @@ import { services } from "../../services";
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
 import AmpliarOperacao from "./AmpliarOperacao";
+import CockpitCharts from "./CockpitCharts";
 import { money, useSort, SortTh } from "../../ui/ui";
 import Modal from "../../ui/Modal";
 import { DateRange } from "../../ui/DatePicker";
@@ -465,6 +466,9 @@ export default function Inicio() {
             </div>
           ); })}
         </div>
+
+        {/* Painel de KPIs — gráficos animados (semáforo verde/amarelo/vermelho) da operação real. */}
+        <CockpitCharts cock={cock} agent={agent} t={t} />
 
         {/* Você não tinha, agora tem — conquistas reais (módulos/serviços contratados). */}
         {(cock?.conquistas || []).length > 0 && (

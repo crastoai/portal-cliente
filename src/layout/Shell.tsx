@@ -1,12 +1,56 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { LogOut, Menu, X, Camera, Lock, ChevronLeft, ChevronRight, ChevronDown, Bell, Rocket, Sparkles, AlertTriangle, DollarSign, MessageCircle, type LucideIcon } from "lucide-react";
+import { LogOut, Menu, X, Camera, Lock, ChevronLeft, ChevronRight, ChevronDown, Bell, Rocket, Sparkles, AlertTriangle, DollarSign, MessageCircle, IdCard, ShieldCheck, Wallet, Building2, Check, type LucideIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { services } from "../services";
 import ThemeToggle from "../ui/ThemeToggle";
 import LangSwitcher from "../ui/LangSwitcher";
 import { useT } from "../lib/i18n";
+import { useUnitScope } from "../lib/unitScope";
+import { playNotifSound, getNotifPrefs } from "../lib/notifPrefs";
 import { initials } from "../ui/ui";
+
+// Seletor de UNIDADE (CNPJ) na topbar — multi-CNPJ. Só aparece quando a empresa tem mais de
+// uma unidade; escopa a visão do CRM à unidade escolhida (null = "Todas as unidades").
+function UnitSwitcher() {
+  const t = useT();
+  const { units, unitId, setUnitId } = useUnitScope();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+  if (units.length < 2) return null; // 1 unidade (matriz) → nada a escolher
+  const cur = unitId ? units.find((u) => u.id === unitId) : null;
+  return (
+    <div className="unitdd" ref={ref}>
+      <button type="button" className={"unitdd-btn" + (open ? " open" : "")} onClick={() => setOpen((o) => !o)} title={t("Unidade (CNPJ)")}>
+        <Building2 size={15} className="unitdd-ico" />
+        <span className="unitdd-lbl">{cur ? cur.name : t("Todas as unidades")}</span>
+        <ChevronDown size={13} className="unitdd-chev" />
+      </button>
+      {open && (
+        <div className="unitdd-menu" role="listbox">
+          <button type="button" className={"unitdd-item" + (!unitId ? " on" : "")} onClick={() => { setUnitId(null); setOpen(false); }}>
+            <span className="unitdd-item-nm">{t("Todas as unidades")}</span>
+            {!unitId && <Check size={14} className="unitdd-check" />}
+          </button>
+          <div className="unitdd-sep" />
+          {units.map((u) => (
+            <button key={u.id} type="button" className={"unitdd-item" + (u.id === unitId ? " on" : "")} onClick={() => { setUnitId(u.id); setOpen(false); }}>
+              <span className="unitdd-item-nm">{u.name}{u.is_primary ? ` · ${t("Matriz")}` : ""}</span>
+              {u.cnpj && <span className="unitdd-item-cnpj">{u.cnpj}</span>}
+              {u.id === unitId && <Check size={14} className="unitdd-check" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Central de notificações: ícone por tipo + rótulo de quem está atuando.
 function notifIcon(type: string) {
@@ -33,7 +77,7 @@ function Wordmark() {
 
 // `to` = rota interna (NavLink). `onClick` sem `to` = ação (abrir módulo externo/SSO).
 // `locked` = módulo não contratado (cadeado + upsell) — o clique chama `onClick`.
-export type NavItem = { to?: string; end?: boolean; icon: LucideIcon; label: string; tag?: string; section?: string; locked?: boolean; onClick?: () => void };
+export type NavItem = { to?: string; end?: boolean; icon: LucideIcon; label: string; tag?: string; section?: string; locked?: boolean; onClick?: () => void; children?: { to: string; label: string; end?: boolean }[] };
 
 export default function Shell({ nav, who, sub, logoTone, bottomNav }: { nav: NavItem[]; who: string; sub: string; logoTone?: string; bottomNav?: NavItem[] }) {
   const { profile, signOut, refreshProfile } = useAuth();
@@ -41,8 +85,9 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav }: { nav: Nav
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState<boolean>(() => localStorage.getItem("portal.sidebar") === "1");
-  useEffect(() => { localStorage.setItem("portal.sidebar", collapsed ? "1" : "0"); }, [collapsed]);
+  // Barra lateral SEMPRE entra ABERTA (pedido do Crasto, reunião Connect): recolher é uma ação
+  // temporária da sessão — não persiste entre entradas, para nunca "entrar recolhido".
+  const [collapsed, setCollapsed] = useState<boolean>(false);
   const [avBusy, setAvBusy] = useState(false);
   const avInput = useRef<HTMLInputElement>(null);
   const ini = initials(profile?.full_name || profile?.email);
@@ -84,17 +129,69 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav }: { nav: Nav
       setSecOpen((o) => ({ ...o, [alvo.section!]: true }));
   }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Item de menu EXPANSÍVEL (pai com filhos) — hoje só o WhatsApp CRM, cujas seções (Conversas,
+  // Dashboard, …, Configurações) viram sub-itens DENTRO da sidebar do Portal. Abre por padrão;
+  // a seta recolhe. Persiste a preferência.
+  const [treeOpen, setTreeOpen] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem("portal.nav.tree") || "{}"); } catch { return {}; }
+  });
+  const toggleTree = (k: string) => setTreeOpen((o) => {
+    const next = { ...o, [k]: !(o[k] ?? true) };
+    try { localStorage.setItem("portal.nav.tree", JSON.stringify(next)); } catch { /* storage cheio */ }
+    return next;
+  });
+
+  // FLYOUT do sidebar RECOLHIDO: hover num ícone abre um popup à direita — com o rótulo (itens
+  // simples) OU as sub-abas (WhatsApp CRM). Posicionado por JS (fixed) p/ não ser cortado pelo
+  // overflow da sidebar. Fecha com pequeno atraso (dá tempo de ir do ícone até o popup).
+  const [fly, setFly] = useState<{ top: number; item: NavItem } | null>(null);
+  const flyT = useRef<number>();
+  const openFly = (e: React.MouseEvent, n: NavItem) => {
+    if (!collapsed) return;
+    window.clearTimeout(flyT.current);
+    setFly({ top: (e.currentTarget as HTMLElement).getBoundingClientRect().top, item: n });
+  };
+  const closeFly = () => { flyT.current = window.setTimeout(() => setFly(null), 130); };
+  const keepFly = () => window.clearTimeout(flyT.current);
+  const hoverProps = (n: NavItem) => ({ onMouseEnter: (e: React.MouseEvent) => openFly(e, n), onMouseLeave: closeFly });
+
   const renderItem = (n: NavItem) => {
+    // Item EXPANSÍVEL (pai + filhos): o WhatsApp CRM e suas seções. Recolhido (só ícones) o pai
+    // vira atalho pro módulo e os filhos somem; expandido, mostra a árvore.
+    if (n.children?.length) {
+      const aberto = treeOpen[n.label] ?? true;
+      const paiAtivo = !!n.to && (pathname === n.to || pathname.startsWith(n.to + "/"));
+      if (collapsed) return (
+        <NavLink key={n.label} to={n.to || n.children[0].to} onClick={() => setOpen(false)} className={"navlink" + (paiAtivo ? " on" : "")} title={t(n.label)} {...hoverProps(n)}>
+          <n.icon size={17} /> <span className="navlink-lbl">{t(n.label)}</span>
+        </NavLink>
+      );
+      return (
+        <div key={n.label} className={"navtree" + (aberto ? " open" : "")}>
+          <button type="button" className={"navlink navlink--parent" + (paiAtivo ? " on" : "")} aria-expanded={aberto} onClick={() => toggleTree(n.label)}>
+            <n.icon size={17} /> <span className="navlink-lbl">{t(n.label)}</span>
+            <ChevronDown size={14} className="navtree-chev" />
+          </button>
+          <div className="navtree-kids">
+            {n.children.map((c) => (
+              <NavLink key={c.to} to={c.to} end={c.end} onClick={() => setOpen(false)} className={({ isActive }) => "navlink navlink--child" + (isActive ? " on" : "")}>
+                <span className="navlink-lbl">{t(c.label)}</span>
+              </NavLink>
+            ))}
+          </div>
+        </div>
+      );
+    }
     const inner = <><n.icon size={17} /> <span className="navlink-lbl">{t(n.label)}</span>
       {n.locked ? <Lock size={13} className="navlink-lock" /> : n.tag ? <span className="tag">{n.tag}</span> : null}</>;
     if (n.locked) return (
-      <button key={n.label} type="button" className="navlink navlink--locked" title={t("Módulo não contratado — fale com a Crasto.AI para liberar")} onClick={() => { setOpen(false); n.onClick?.(); }}>{inner}</button>
+      <button key={n.label} type="button" className="navlink navlink--locked" title={t("Módulo não contratado — fale com a Crasto.AI para liberar")} onClick={() => { setOpen(false); n.onClick?.(); }} {...hoverProps(n)}>{inner}</button>
     );
     if (!n.to && n.onClick) return (
-      <button key={n.label} type="button" className="navlink" onClick={() => { setOpen(false); n.onClick?.(); }}>{inner}</button>
+      <button key={n.label} type="button" className="navlink" onClick={() => { setOpen(false); n.onClick?.(); }} {...hoverProps(n)}>{inner}</button>
     );
     return (
-      <NavLink key={n.to} to={n.to!} end={n.end} onClick={() => setOpen(false)} className={({ isActive }) => {
+      <NavLink key={n.to} to={n.to!} end={n.end} onClick={() => setOpen(false)} {...hoverProps(n)} className={({ isActive }) => {
         const match = isActive || (n.to === "/admin/clientes" && pathname.startsWith("/admin/cliente/"));
         return "navlink" + (match ? " on" : "");
       }}>{inner}</NavLink>
@@ -104,10 +201,27 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav }: { nav: Nav
   const [notifs, setNotifs] = useState<any[]>([]);
   const [notifCount, setNotifCount] = useState(0);
   const [bellOpen, setBellOpen] = useState(false);
+  const [profOpen, setProfOpen] = useState(false); // dropdown do perfil (Hostinger-like)
+  const prevNotif = useRef<number | null>(null);
   useEffect(() => {
     if (!profile?.id) return;
     let alive = true;
-    const load = () => services.support.notifications.list().then((r: any) => { if (alive) { setNotifs(r?.items || []); setNotifCount(r?.count || 0); } }).catch(() => {});
+    const load = () => services.support.notifications.list().then((r: any) => {
+      if (!alive) return;
+      const c = r?.count || 0;
+      // Aviso NOVO (contagem subiu) → toca o som escolhido + notificação do desktop (se ligados).
+      // O 1º load só registra a base (não toca) — evita "tocar" ao abrir a página.
+      if (prevNotif.current !== null && c > prevNotif.current) {
+        playNotifSound();
+        try {
+          if (getNotifPrefs().desktop && "Notification" in window && Notification.permission === "granted") {
+            new Notification(t("Crasto.AI"), { body: t("Você tem {n} nova(s) notificação(ões)", { n: c }) });
+          }
+        } catch { /* ignore */ }
+      }
+      prevNotif.current = c;
+      setNotifs(r?.items || []); setNotifCount(c);
+    }).catch(() => {});
     load();
     const iv = setInterval(load, 60000);
     return () => { alive = false; clearInterval(iv); };
@@ -118,6 +232,8 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav }: { nav: Nav
     if (opening && notifCount > 0) { setNotifCount(0); services.support.notifications.markSeen(); }
   }
 
+  const goProfile = profile?.role === "crasto_admin" ? "/admin/perfil" : "/app/perfil";
+  const goFinance = profile?.role === "crasto_admin" ? "/admin/financeiro" : "/app/financeiro";
   const userCluster = (
     <>
       {profile?.id && (
@@ -141,30 +257,66 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav }: { nav: Nav
           </>)}
         </div>
       )}
-      <button type="button" className="tb-av su-av--btn" title={t("Trocar foto de perfil")} disabled={avBusy} onClick={() => avInput.current?.click()} style={!profile?.avatar_url && logoTone ? { background: logoTone } : undefined}>
-        {profile?.avatar_url ? <img src={profile.avatar_url} alt="" /> : ini}
-        <span className="su-av__cam"><Camera size={12} /></span>
-      </button>
-      <input ref={avInput} type="file" accept="image/*" hidden onChange={onAvatar} />
-      <button type="button" className="tb-user" title={t("Ver meus dados")} onClick={() => navigate(profile?.role === "crasto_admin" ? "/admin/perfil" : "/app/perfil")}>
-        <span className="su-nm">{who}</span>
-        <span className="su-em">{profile?.email}</span>
-      </button>
-      <button className="su-out" title={t("Sair")} onClick={() => signOut()}><LogOut size={16} /></button>
+      {/* PERFIL — dropdown consolidado (Hostinger-like). Tema/idioma ficam FORA (visíveis no topbar). */}
+      <div className="tb-prof">
+        <button type="button" className={"tb-prof-btn" + (profOpen ? " open" : "")} title={t("Menu do perfil")} onClick={() => setProfOpen((v) => !v)}>
+          <span className="tb-av" style={!profile?.avatar_url && logoTone ? { background: logoTone } : undefined}>
+            {profile?.avatar_url ? <img src={profile.avatar_url} alt="" /> : ini}
+          </span>
+          <ChevronDown size={14} className="tb-prof-chev" />
+        </button>
+        {profOpen && (<>
+          <div className="tb-prof__ovl" onClick={() => setProfOpen(false)} />
+          <div className="tb-prof__panel">
+            <button type="button" className="tb-prof__head" disabled={avBusy} onClick={() => avInput.current?.click()} title={t("Trocar foto de perfil")}>
+              <span className="tb-prof__av" style={!profile?.avatar_url && logoTone ? { background: logoTone } : undefined}>
+                {profile?.avatar_url ? <img src={profile.avatar_url} alt="" /> : ini}
+                <span className="su-av__cam"><Camera size={11} /></span>
+              </span>
+              <span className="tb-prof__id"><b>{who}</b><span>{profile?.email}</span></span>
+            </button>
+            <input ref={avInput} type="file" accept="image/*" hidden onChange={onAvatar} />
+            <div className="tb-prof__sep" />
+            <button className="pm-item" onClick={() => { setProfOpen(false); navigate(goProfile); }}><IdCard size={16} /> {t("Configurações")}</button>
+            <button className="pm-item" onClick={() => { setProfOpen(false); navigate(profile?.role === "crasto_admin" ? goProfile : `${goProfile}?sec=notif`); }}><Bell size={16} /> {t("Notificações")}</button>
+            <button className="pm-item" onClick={() => { setProfOpen(false); navigate(`${goProfile}?sec=seguranca`); }}><ShieldCheck size={16} /> {t("Autenticação em duas etapas")}</button>
+            <button className="pm-item" onClick={() => { setProfOpen(false); navigate(goFinance); }}><Wallet size={16} /> {t("Financeiro")}</button>
+            <div className="tb-prof__sep" />
+            <button className="pm-item pm-item--out" onClick={() => signOut()}><LogOut size={16} /> {t("Sair")}</button>
+          </div>
+        </>)}
+      </div>
     </>
   );
 
+  // Módulo full-bleed: o WhatsApp CRM embarcado integra de BORDA A BORDA na área de conteúdo (sem o
+  // "cartão" arredondado do .canvas, que fazia o CRM parecer uma caixa flutuando e desperdiçava espaço).
+  const flush = /^\/(app|admin)\/crm(\/|$)/.test(pathname);
   return (
-    <div className={"shell" + (collapsed ? " collapsed" : "")}>
+    <div className={"shell" + (collapsed ? " collapsed" : "") + (flush ? " shell--flush" : "")}>
       {open && <div className="side-overlay" onClick={() => setOpen(false)} />}
+
+      {/* TOPBAR FULL-WIDTH (uma barra só): logo à esquerda, controles à direita — atravessa a sidebar. */}
+      <header className="topbar">
+        <div className="tb-left">
+          <button className="tb-burger" onClick={() => setOpen(true)} aria-label={t("Abrir menu")}><Menu size={20} /></button>
+          <span className="tb-brand" title={t(sub)}><Wordmark /></span>
+          <UnitSwitcher />
+        </div>
+        <div className="tb-right">
+          <LangSwitcher />
+          <ThemeToggle />
+          {userCluster}
+        </div>
+      </header>
+
+      {/* Recolher/expandir: handle circular FLUTUANTE, cravado na borda direita da sidebar e
+          centrado na linha que separa a topbar do conteúdo. Fora da .side de propósito — assim
+          não é cortado pela topbar (empilhamento) e NÃO empurra os itens do menu pra baixo. */}
+      <button className="side-toggle" onClick={() => setCollapsed((c) => !c)} title={collapsed ? t("Expandir menu") : t("Recolher menu")} aria-label={collapsed ? t("Expandir menu") : t("Recolher menu")}>{collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}</button>
 
       <aside className={"side" + (open ? " open" : "")}>
         <button className="side-close" onClick={() => setOpen(false)} aria-label={t("Fechar menu")}><X size={18} /></button>
-
-        <div className="side-brand side-brand--logo">
-          <Wordmark />
-          <div className="side-brand-sub">{t(sub)}</div>
-        </div>
 
         <nav className="side-nav">
           {groups.map((g, gi) => {
@@ -187,27 +339,27 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav }: { nav: Nav
         </nav>
       </aside>
 
-      {/* Seta de recolher/expandir CRAVADA na borda do sidebar (handle), sempre visível.
-          Fica fixa na linha da sidebar e acompanha a largura ao recolher. No mobile some
-          (lá o menu é drawer pelo hambúrguer). */}
-      <button className="side-collapse" onClick={() => setCollapsed((c) => !c)} title={collapsed ? t("Expandir menu") : t("Recolher menu")} aria-label={collapsed ? t("Expandir menu") : t("Recolher menu")}>
-        {collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
-      </button>
+      {/* FLYOUT do sidebar recolhido: popup à direita do ícone com o rótulo ou as sub-abas. */}
+      {collapsed && fly && (
+        <div className="navfly" style={{ top: fly.top }} onMouseEnter={keepFly} onMouseLeave={closeFly}>
+          {fly.item.children?.length ? (
+            <>
+              <div className="navfly-h">{t(fly.item.label)}</div>
+              {fly.item.children.map((c) => (
+                <NavLink key={c.to} to={c.to} end={c.end} onClick={() => setFly(null)} className={({ isActive }) => "navfly-item" + (isActive ? " on" : "")}>{t(c.label)}</NavLink>
+              ))}
+            </>
+          ) : fly.item.to ? (
+            <NavLink to={fly.item.to} end={fly.item.end} onClick={() => setFly(null)} className={({ isActive }) => "navfly-item" + (isActive ? " on" : "")}>{t(fly.item.label)}</NavLink>
+          ) : (
+            <button className="navfly-item" onClick={() => { setFly(null); fly.item.onClick?.(); }}>{t(fly.item.label)}{fly.item.locked ? " 🔒" : ""}</button>
+          )}
+        </div>
+      )}
 
       <main className="main">
-        {/* Barra superior: navegação fica na sidebar; identidade + sistema (idioma, tema,
-            usuário) no canto SUPERIOR DIREITO — padrão internacional (Gmail/HubSpot/Salesforce).
-            No celular, o hambúrguer abre o drawer e a marca aparece à esquerda. */}
-        <header className="topbar">
-          <button className="tb-burger" onClick={() => setOpen(true)} aria-label={t("Abrir menu")}><Menu size={20} /></button>
-          <span className="tb-brand"><Wordmark /></span>
-          <div className="tb-right">
-            <LangSwitcher />
-            <ThemeToggle />
-            {userCluster}
-          </div>
-        </header>
-        <div className="canvas"><Outlet /></div>
+        {/* key = rota → o conteúdo remonta e reproduz a entrada suave a cada troca de tela. */}
+        <div className="canvas page-enter" key={pathname}><Outlet /></div>
         {/* ── BARRA INFERIOR (só celular, só no app do cliente) — navegação no alcance do polegar ── */}
         {bottomNav && bottomNav.length > 0 && (
           <nav className="pbottom-nav" aria-label={t("Navegação")}>

@@ -1,0 +1,30 @@
+/* =============================================================
+   Tela Configurações — layout com sub-navegação à esquerda (padrão Hostinger).
+   Tokens do DS → adapta claro/escuro sozinho.
+   ============================================================= */
+.set-layout { display: grid; grid-template-columns: 248px 1fr; gap: 20px; align-items: start; }
+@media (max-width: 860px) { .set-layout { grid-template-columns: 1fr; } }
+
+.set-nav {
+  display: flex; flex-direction: column; gap: 3px; padding: 8px;
+  background: var(--crasto-surface); border: 1px solid var(--crasto-border-hairline);
+  border-radius: var(--crasto-radius-md); position: sticky; top: 74px;
+}
+@media (max-width: 860px) { .set-nav { position: static; flex-direction: row; flex-wrap: wrap; } }
+.set-nav-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 10px 12px; border: 0; background: transparent; border-radius: var(--crasto-radius-sm);
+  color: var(--crasto-text-body); font-family: var(--crasto-font); font-size: 14px; font-weight: var(--crasto-fw-medium);
+  cursor: pointer; transition: background var(--crasto-t-fast), color var(--crasto-t-fast);
+}
+.set-nav-item:hover { background: var(--crasto-navy-04); color: var(--crasto-text-primary); }
+.set-nav-item.on { background: var(--crasto-navy-08); color: var(--crasto-text-primary); font-weight: var(--crasto-fw-semibold); }
+.set-nav-item > svg { flex: none; opacity: .85; }
+
+.set-main { min-width: 0; }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.set-sub-h { display: flex; align-items: center; gap: 7px; font-size: var(--crasto-fs-label); font-weight: var(--crasto-fw-semibold); letter-spacing: var(--crasto-ls-label); text-transform: uppercase; color: var(--crasto-text-muted); }
+.set-badge {
+  font-size: 11px; font-weight: var(--crasto-fw-semibold); letter-spacing: .04em; text-transform: uppercase;
+  color: var(--crasto-text-muted); background: var(--crasto-navy-06); border-radius: var(--crasto-radius-pill); padding: 4px 10px; white-space: nowrap;
+}

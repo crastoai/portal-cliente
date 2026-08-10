@@ -5,7 +5,11 @@
 // ============================================================================
 import { api } from "../lib/api";
 
-export type CrmAgent = { id: string; name: string; status?: string | null; plan?: string | null };
+export type CrmAgent = { id: string; name: string; status?: string | null; plan?: string | null; business_unit_id?: string | null };
+export type CrmUnit = {
+  id: string; name: string; cnpj: string | null; legal_name: string | null;
+  is_primary: boolean; status: "active" | "inactive"; agentes?: number;
+};
 export type CrmUser = {
   id: string; email: string; full_name: string | null;
   role: "client_owner" | "client_member" | "crasto_admin";
@@ -17,6 +21,7 @@ export type CrmAccessOverview = {
   module: { id: string; name: string } | null;
   agent_id: string | null;
   agents: CrmAgent[];
+  units: CrmUnit[];
   users: CrmUser[];
   crm_url: string;
   crm_error?: string | null;
@@ -30,6 +35,15 @@ export const crmAccess = {
   // sessão na origem dele. Nunca devolve/transporta o bearer.
   enter: () => api.post<{ token: string; type: string }>(`/api/crm-access/enter`),
   linkAgent: (orgId: string, agentId: string | null) => api.put(`/api/crm-access/${orgId}/agent`, { agent_id: agentId }),
+  // Unidades (CNPJs) da empresa — multi-CNPJ. O admin gerencia; o cliente só escolhe na topbar.
+  listUnits: (orgId: string) => api.get<{ units: CrmUnit[]; error?: string }>(`/api/crm-access/${orgId}/units`),
+  createUnit: (orgId: string, b: { name: string; cnpj?: string; legal_name?: string }) =>
+    api.post<{ unit?: CrmUnit; error?: string }>(`/api/crm-access/${orgId}/units`, b),
+  updateUnit: (orgId: string, unitId: string, b: { name?: string; cnpj?: string; legal_name?: string; status?: string }) =>
+    api.put<{ unit?: CrmUnit; error?: string }>(`/api/crm-access/${orgId}/units/${unitId}`, b),
+  deleteUnit: (orgId: string, unitId: string) => api.del<{ ok?: boolean; error?: string }>(`/api/crm-access/${orgId}/units/${unitId}`),
+  setAgentUnit: (orgId: string, agentId: string, unitId: string | null) =>
+    api.put<{ ok?: boolean; error?: string; business_unit_id?: string | null }>(`/api/crm-access/${orgId}/agents/${agentId}/unit`, { unit_id: unitId }),
   invite: (orgId: string, b: { email: string; full_name?: string; role?: string; notify?: boolean }) =>
     api.post<{ user: CrmUser; email_sent: boolean; email_error?: string; password_link_sent: boolean }>(`/api/crm-access/${orgId}/users`, b),
   // Telas do WhatsApp CRM de um usuário (o dono vê tudo e não é configurável).

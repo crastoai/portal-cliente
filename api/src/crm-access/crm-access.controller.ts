@@ -45,6 +45,29 @@ export class CrmAccessController {
   @Delete(':orgId/users/:id')
   revoke(@Req() req: any, @Param('orgId') orgId: string, @Param('id') id: string) { return this.svc.revoke(req, orgId, this.auth(req), id); }
 
+  // ---- Unidades (CNPJs) da empresa — multi-CNPJ (admin gerencia; cliente só escolhe) ----
+  @Get(':orgId/units')
+  listUnits(@Req() req: any, @Param('orgId') orgId: string) { return this.svc.listUnits(orgId, this.auth(req)); }
+
+  @Post(':orgId/units')
+  createUnit(@Req() req: any, @Param('orgId') orgId: string, @Body() b: any) { return this.svc.createUnit(req, orgId, this.auth(req), b); }
+
+  @Put(':orgId/units/:unitId')
+  updateUnit(@Req() req: any, @Param('orgId') orgId: string, @Param('unitId') unitId: string, @Body() b: any) {
+    return this.svc.updateUnit(req, orgId, this.auth(req), unitId, b);
+  }
+
+  @Delete(':orgId/units/:unitId')
+  deleteUnit(@Req() req: any, @Param('orgId') orgId: string, @Param('unitId') unitId: string) {
+    return this.svc.deleteUnit(req, orgId, this.auth(req), unitId);
+  }
+
+  // Vincula um agente a uma unidade (unit_id null → volta pra matriz).
+  @Put(':orgId/agents/:id/unit')
+  setAgentUnit(@Req() req: any, @Param('orgId') orgId: string, @Param('id') id: string, @Body() b: any) {
+    return this.svc.setAgentUnit(req, orgId, this.auth(req), id, b?.unit_id ?? null);
+  }
+
   // Telas do WhatsApp CRM daquele usuário — repassadas ao CRM (dono das próprias telas).
   @Get(':orgId/users/:id/crm-screens')
   getCrmScreens(@Req() req: any, @Param('orgId') orgId: string, @Param('id') id: string) {

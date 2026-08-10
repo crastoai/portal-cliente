@@ -5,9 +5,11 @@ import { Home, LayoutGrid, Activity, Sparkles, Wallet, Users, LifeBuoy, Eye, IdC
 import { useAuth } from "../lib/auth";
 import { useAsync } from "../ui/ui";
 import { services } from "../services";
+import { supabase } from "../lib/supabase";
 import { preview } from "../lib/preview";
 import { useT } from "../lib/i18n";
 import { CLIENT_SCREENS, allowedScreens, firstAllowedPath } from "../lib/screens";
+import { UnitScopeContext, type Unit } from "../lib/unitScope";
 import Shell, { type NavItem } from "./Shell";
 
 const SCREEN_ICON: Record<string, any> = {
@@ -30,6 +32,22 @@ const MODULES: { key: string; label: string; icon: LucideIcon; rx: RegExp; crm?:
   { key: "importacao", label: "Importação", icon: PackageOpen, rx: /importa[çc][ãa]o|import\b/i },
 ];
 
+// API do wacrm (fonte das permissões de tela do CRM). Mesmo domínio próprio usado pelo CrmEmbed.
+// DEV: VITE_WACRM_API_LOCAL aponta pra uma wacrm api local (validar units/crm_screens sem prod).
+const WACRM_API = (import.meta.env.DEV && (import.meta.env.VITE_WACRM_API_LOCAL as string | undefined)) || "https://api.wacrm.crasto.ai";
+// Seções do WhatsApp CRM que viram SUB-ITENS da sidebar do Portal — MESMA estrutura e ordem do
+// wacrm (Shell.OPERACAO): Dashboard é a home, então é a raiz /app/crm (por isso `end`); as demais
+// entram como /app/crm/<seção>. `screen` casa com `crm_screens` (dono = ['*'] = tudo).
+const CRM_SECTIONS: { screen: string; label: string; to: string; end?: boolean }[] = [
+  { screen: "dashboard", label: "Dashboard", to: "/app/crm", end: true },
+  { screen: "mesa", label: "Minhas Tarefas", to: "/app/crm/tarefas" },
+  { screen: "crm", label: "CRM", to: "/app/crm/funil" },
+  { screen: "chat", label: "Conversas", to: "/app/crm/conversas" },
+  { screen: "contatos", label: "Contatos", to: "/app/crm/contatos" },
+  { screen: "agenda", label: "Agendamentos", to: "/app/crm/agenda" },
+  { screen: "config", label: "Configurações", to: "/app/crm/config" },
+];
+
 export default function ClientShell() {
   const { profile } = useAuth();
   const t = useT();
@@ -45,6 +63,39 @@ export default function ClientShell() {
   // Permissão POR TELA: o menu mostra só as telas que este usuário pode ver (dono = todas).
   const { data: myScreens } = useAsync(() => services.identity.access.myScreens(), [pv.active]);
   const allowed = allowedScreens(myScreens as string[] | null);
+
+  // Permissões de tela do WhatsApp CRM + UNIDADES (CNPJs) da empresa — ambos vêm do /api/me
+  // (fonte = wacrm), numa chamada só. `crm_screens` filtra os sub-itens; `units` alimenta o
+  // seletor de CNPJ da topbar. null enquanto carrega OU dono (['*']) → mostra todas as seções.
+  const { data: crmMe } = useAsync(async () => {
+    const { data } = await supabase.auth.getSession();
+    const tk = data.session?.access_token;
+    if (!tk) return null;
+    try {
+      const r = await fetch(`${WACRM_API}/api/me`, { headers: { Authorization: "Bearer " + tk } });
+      const j = await r.json();
+      return {
+        crm_screens: Array.isArray(j?.crm_screens) ? (j.crm_screens as string[]) : null,
+        units: Array.isArray(j?.units) ? (j.units as Unit[]) : [],
+      };
+    } catch { return null; }
+  }, [pv.active]);
+  const crmScreens = crmMe?.crm_screens ?? null;
+  const units = crmMe?.units ?? [];
+  const crmScreenSet = crmScreens && !crmScreens.includes("*") ? new Set(crmScreens) : null; // null = todas
+  const crmChildren = CRM_SECTIONS.filter((s) => !crmScreenSet || crmScreenSet.has(s.screen)).map((s) => ({ to: s.to, label: s.label, end: s.end }));
+
+  // Unidade (CNPJ) ATIVA — escolhida no seletor da topbar. Persistida por org; null = "Todas
+  // as unidades". Se a guardada não existe mais (ou trocou de empresa), volta pra null.
+  const scopeKey = `crasto_active_unit_${pv.active ? preview.orgId() || "self" : "self"}`;
+  const [unitId, setUnitIdState] = useState<string | null>(() => localStorage.getItem(scopeKey));
+  useEffect(() => {
+    if (unitId && units.length && !units.some((u) => u.id === unitId)) setUnitIdState(null);
+  }, [units]); // eslint-disable-line react-hooks/exhaustive-deps
+  const setUnitId = (id: string | null) => {
+    setUnitIdState(id);
+    if (id) localStorage.setItem(scopeKey, id); else localStorage.removeItem(scopeKey);
+  };
 
   // Módulos contratados (para a seção "Módulos" da sidebar, estilo Conta Azul).
   const { data: contratados } = useAsync(async () => {
@@ -97,7 +148,7 @@ export default function ClientShell() {
       // WhatsApp CRM abre EMBARCADO (rota interna → iframe, sem nova aba); demais externos/SSO.
       if (m.crm) return emAndamento(owned)
         ? { icon: m.icon, label: m.label, section: "Módulos", tag: t("em andamento"), onClick: () => navigate("/app/modulos") }
-        : { icon: m.icon, label: m.label, section: "Módulos", to: "/app/crm" };
+        : { icon: m.icon, label: m.label, section: "Módulos", to: "/app/crm", children: crmChildren };
       return { icon: m.icon, label: m.label, section: "Módulos", ...abrir(owned) };
     }
     if (owned) return { icon: m.icon, label: m.label, section: "Módulos", tag: t("em breve"), onClick: () => navigate("/app/modulos") };
@@ -160,7 +211,7 @@ export default function ClientShell() {
   }
 
   return (
-    <>
+    <UnitScopeContext.Provider value={{ units, unitId, setUnitId }}>
       <Shell nav={nav} bottomNav={bottomNav} who={pv.active ? pv.name : (profile?.full_name || "Cliente")} sub={pv.active ? t("Visualização (admin)") : "Portal do Cliente"} logoTone="linear-gradient(145deg,#1F8A5B,#0d5c3a)" />
       {pv.active && (
         <div style={{ position: "fixed", top: 14, left: "50%", transform: "translateX(-50%)", zIndex: 9999, display: "flex", alignItems: "center", gap: 12, background: "var(--crasto-text-primary)", color: "#fff", padding: "10px 8px 10px 16px", borderRadius: 999, boxShadow: "0 10px 34px rgba(1,14,38,.34)", fontSize: 13.5, maxWidth: "92vw" }}>
@@ -169,6 +220,6 @@ export default function ClientShell() {
           <button onClick={exitPreview} style={{ flex: "none", background: "rgba(255,255,255,.16)", color: "#fff", border: "none", borderRadius: 999, padding: "6px 14px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>{t("Sair da visualização")}</button>
         </div>
       )}
-    </>
+    </UnitScopeContext.Provider>
   );
 }

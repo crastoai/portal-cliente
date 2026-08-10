@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuard
 import { JwtOrgGuard } from '../common/jwt-org.guard';
 import { RlsDbService } from '../common/rls-db.service';
 import { WacrmMetricsService } from './wacrm-metrics.service';
+import { KpiAiService } from './kpi-ai.service';
 
 // RELÓGIO DE PONTO — soma a UNIÃO de intervalos [s,e] (epoch ms) recortada a uma janela → minutos.
 // Merge Portal+wacrm: quando o mesmo usuário está ativo nos dois ao mesmo tempo (ex.: CRM embarcado
@@ -24,7 +25,7 @@ function unionMinutes(intervals: { s: number; e: number }[], winStart: number, w
 @Controller('delivery')
 @UseGuards(JwtOrgGuard)
 export class DeliveryController {
-  constructor(private readonly db: RlsDbService, private readonly wacrm: WacrmMetricsService) {}
+  constructor(private readonly db: RlsDbService, private readonly wacrm: WacrmMetricsService, private readonly kpiAi: KpiAiService) {}
   private uid(req: any): string { return req.user.id; }
   private set(patch: Record<string, any>, startAt: number) {
     const keys = Object.keys(patch || {}).filter((k) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k));
@@ -221,9 +222,41 @@ export class DeliveryController {
       { key: 'cobertura', label: 'Cobertura de atendimento', unidade: '', melhor: 'maior', antes: null, fonte_antes: null, depois: crmOk ? '24/7' : null, trend: null, texto: true },
     ];
 
+    // KPIs EXTRA (funil/SLA/pico) + ROI (horas que a IA poupou = conversas conduzidas × duração média).
+    const kx = db?.orgId ? await this.wacrm.kpisExtra(db.orgId).catch(() => null) : null;
+    const roiHoras = r?.conversas_ia && r?.dur_media ? Math.round((r.conversas_ia * r.dur_media) / 3600) : null;
+
+    // ANÁLISE DE IA por KPI (DeepSeek, chave dos agentes) — números reais → sugestão do dono em cada
+    // card. Não bloqueia: gera em background e cacheia; até vir, o front usa a análise determinística.
+    const volN = (r?.volume || []).map((v) => v.n);
+    const baForAi = metrics.filter((m: any) => m.antes != null && typeof m.depois === 'number' && !m.texto)
+      .map((m: any) => ({ metrica: m.label, antes: m.antes, depois: m.depois, melhor: m.melhor }));
+    const aiInput: any = {};
+    if (r?.automacao != null) aiInput.automacao = { pct_automacao: r.automacao, atendimentos_mes: r.atendimentos, conversas_ia: r.conversas_ia };
+    if (kx?.sla?.pct5 != null) aiInput.sla = { pct_em_5min: kx.sla.pct5, mediana_segundos: kx.sla.mediana_s, respondidas: kx.sla.respondidas, sem_resposta: kx.sla.sem_resposta };
+    if (kx?.funil && kx.funil.leads > 0) aiInput.funil = kx.funil;
+    if (volN.some((n) => n > 0)) aiInput.volume = { serie_ultimos_dias: volN.slice(-14), total: volN.reduce((s, n) => s + n, 0) };
+    if (roiHoras) aiInput.roi = { horas_economizadas_ia: roiHoras, horas_equipe_mes: horasMes ?? null };
+    if (baForAi.length) aiInput.antesdepois = baForAi;
+    if (kx?.pico) {
+      const dias = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo'];
+      let bd = 0, bb = 0, bv = 0;
+      kx.pico.forEach((row, d) => row.forEach((v, b) => { if (v > bv) { bv = v; bd = d; bb = b; } }));
+      if (bv > 0) aiInput.pico = { dia_de_maior_movimento: dias[bd], faixa_horaria: `${bb * 3}h-${bb * 3 + 3}h` };
+    }
+    const analises = this.kpiAi.analisar(db?.orgId ?? null, aiInput);
+
     return {
       metrics,
       volume: r?.volume ?? [],
+      kpis: {
+        funil: kx?.funil ?? null,
+        sla: kx?.sla ?? null,
+        pico: kx?.pico ?? null,
+        roi_horas_ia: roiHoras,
+        horas_equipe_mes: horasMes ?? null,
+        analises: analises ?? null,
+      },
       jornada: db?.jornada ?? [],
       conquistas: db?.conquistas ?? [],
       narrativa: db?.narrativa ?? null,       // Psiquê (item 1.4) — headline/destaques/resumo
@@ -489,16 +522,34 @@ export class DeliveryController {
   }
 
   // ── Permissão módulo × USUÁRIO (sub-acessos — Blueprint v1.1 Fase 2) ──────────────────────
-  // Quem gerencia: o DONO da org do usuário-alvo (client_owner) ou o crasto_admin. Validado no
-  // código + escrita via service_role (a tabela é RLS deny-default). Retorna a org do alvo se
-  // permitido, senão null.
+  // Quem gerencia (decisão Crasto 2026-08-09): o crasto_admin, o DONO (client_owner) da org do
+  // alvo, OU um colaborador ADMIN-LEVEL (client_member com access_level='admin') da mesma org —
+  // mas o admin-level NUNCA edita o Dono (a conta-dona é imutável por baixo dele). Validado no
+  // código + escrita via service_role (tabelas RLS deny-default). Retorna a org do alvo, ou null.
   private async gerenciaModulos(c: any, callerId: string, targetId: string): Promise<string | null> {
-    const caller = (await c.query(`select role, organization_id from public.profiles where id=$1`, [callerId])).rows[0];
-    const target = (await c.query(`select organization_id from public.profiles where id=$1`, [targetId])).rows[0];
+    const caller = (await c.query(`select role::text r, organization_id o, access_level al from public.profiles where id=$1`, [callerId])).rows[0];
+    const target = (await c.query(`select role::text r, organization_id o from public.profiles where id=$1`, [targetId])).rows[0];
     if (!caller || !target) return null;
-    if (caller.role === 'crasto_admin') return target.organization_id;
-    if (caller.role === 'client_owner' && caller.organization_id === target.organization_id) return target.organization_id;
+    if (caller.r === 'crasto_admin') return target.o;
+    if (caller.o !== target.o) return null;                       // fora da própria org: nunca
+    if (caller.r === 'client_owner') return target.o;             // o dono manda na própria org
+    if (caller.r === 'client_member' && caller.al === 'admin' && target.r !== 'client_owner') return target.o;
     return null;
+  }
+
+  // Chama um endpoint INTERNO do wacrm (service-to-service, X-Service-Key — sem bearer). É como
+  // o dono/admin do CLIENTE (que não passa pelo AdminGuard do crm-access) grava telas do CRM.
+  private async callCrmInternal(path: string, body: any): Promise<any | null> {
+    const url = process.env.CRM_API_URL, key = process.env.INTERNAL_SERVICE_KEY;
+    if (!url || !key) return null;
+    try {
+      const r = await fetch(`${url.replace(/\/$/, '')}/api${path}`, {
+        method: 'POST',
+        headers: { 'X-Service-Key': key, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return await r.json().catch(() => null);
+    } catch { return null; }
   }
 
   /** Módulos liberados para um usuário (lista de vdi_module_id). Vazio = vê TODOS. */
@@ -559,6 +610,184 @@ export class DeliveryController {
       return { ok: true, count: ids.length };
     });
   }
+
+  // ── FICHA DO COLABORADOR — "Editar Colaborador" (access_level + WhatsApp + RH) ─────────────
+  // Um só par GET/POST usado pelo modal no CLIENTE e no ADMIN — a autorização é a MESMA guarda
+  // (gerenciaModulos: crasto_admin | dono | admin-level). access_level e WhatsApp vivem em
+  // public.profiles; a ficha profissional/RH (inclui salário) na public.team_members (deny-default).
+  private static readonly ACCESS_LEVELS = ['admin', 'supervisor', 'agente', 'visualizador'];
+  private static readonly TEAM_FIELDS = ['cpf_cnpj', 'telefone', 'cargo', 'departamento', 'salario', 'data_admissao', 'tipo_contrato', 'cnpj_vinculado', 'observacoes'];
+
+  @Get('collaborator')
+  collabGet(@Req() req: any, @Query('user') user: string) {
+    return this.db.asService(async (c) => {
+      const org = await this.gerenciaModulos(c, this.uid(req), user);
+      if (!org) return { error: 'sem permissão' };
+      const p = (await c.query('select access_level, wa_sender_name, wa_number from public.profiles where id=$1', [user])).rows[0] || {};
+      const t = (await c.query(`select ${DeliveryController.TEAM_FIELDS.join(', ')} from public.team_members where user_id=$1`, [user])).rows[0] || {};
+      return { access_level: p.access_level ?? null, wa_sender_name: p.wa_sender_name ?? null, wa_number: p.wa_number ?? null, team: t };
+    });
+  }
+
+  @Post('collaborator')
+  collabSet(@Req() req: any, @Body() b: any) {
+    const user = String(b?.user_id || '');
+    return this.db.asService(async (c) => {
+      const org = await this.gerenciaModulos(c, this.uid(req), user);
+      if (!org) return { error: 'sem permissão' };
+      const alvo = (await c.query('select role::text r from public.profiles where id=$1', [user])).rows[0];
+      const ehDono = alvo?.r === 'client_owner';
+
+      // profiles: access_level (só p/ MEMBRO — o dono é imutável e não tem nível fino) + WhatsApp.
+      const prof: Record<string, any> = {};
+      if ('access_level' in b && !ehDono) {
+        const lv = b.access_level;
+        if (lv === null || lv === '' ) prof.access_level = null;
+        else if (DeliveryController.ACCESS_LEVELS.includes(lv)) prof.access_level = lv;
+        else return { error: 'nível de acesso inválido' };
+      }
+      if ('wa_sender_name' in b) prof.wa_sender_name = b.wa_sender_name ? String(b.wa_sender_name).slice(0, 120) : null;
+      if ('wa_number' in b) prof.wa_number = b.wa_number ? String(b.wa_number).slice(0, 40) : null;
+      if (Object.keys(prof).length) {
+        const s = this.set(prof, 2);
+        if (s.ok) await c.query(`update public.profiles set ${s.sets}, updated_at=now() where id=$1`, [user, ...s.vals]);
+      }
+      // Espelha o nome de exibição do WhatsApp no wacrm (banco separado) — é lá que a assinatura
+      // do envio lê. Assim, quando o dono muda o sender name aqui, o topo da mensagem acompanha.
+      if ('wa_sender_name' in prof) await this.callCrmInternal('/internal/set-wa-sender', { id: user, wa_sender_name: prof.wa_sender_name });
+
+      // team_members (ficha profissional/RH) — upsert só dos campos que vieram; '' vira null.
+      const team = (b && typeof b.team === 'object' && b.team) || {};
+      const tm: Record<string, any> = {};
+      for (const k of DeliveryController.TEAM_FIELDS) if (k in team) tm[k] = team[k] === '' ? null : team[k];
+      if (Object.keys(tm).length) {
+        const cols = Object.keys(tm);
+        const insCols = ['user_id', 'organization_id', ...cols];
+        const ph = insCols.map((_, i) => `$${i + 1}`).join(', ');
+        const upd = cols.map((k, i) => `"${k}"=$${i + 3}`).join(', ');
+        await c.query(
+          `insert into public.team_members (${insCols.map((x) => `"${x}"`).join(', ')}) values (${ph})
+             on conflict (user_id) do update set ${upd}, updated_at=now()`,
+          [user, org, ...cols.map((k) => tm[k])]);
+      }
+      return { ok: true };
+    });
+  }
+
+  // ── AUTO-EDIÇÃO (o próprio usuário edita os SEUS dados na tela Configurações) ─────────────
+  // Sem gerenciaModulos: é a própria linha (req.user.id). Campos sensíveis/organizacionais
+  // (salário, observações, cargo, departamento, tipo) NÃO são editáveis pelo próprio — só o
+  // dono/admin muda pelo modal. Aqui a pessoa mexe no que é dela: contato + nome no WhatsApp.
+  private static readonly SELF_TEAM_FIELDS = ['cpf_cnpj', 'telefone'];
+
+  @Get('my-collaborator')
+  myCollab(@Req() req: any) {
+    const uid = this.uid(req);
+    return this.db.asService(async (c) => {
+      const p = (await c.query('select wa_sender_name, wa_number from public.profiles where id=$1', [uid])).rows[0] || {};
+      const t = (await c.query('select cpf_cnpj, telefone, cargo, departamento, tipo_contrato from public.team_members where user_id=$1', [uid])).rows[0] || {};
+      return { wa_sender_name: p.wa_sender_name ?? null, wa_number: p.wa_number ?? null, team: t };
+    });
+  }
+
+  @Post('my-collaborator')
+  myCollabSet(@Req() req: any, @Body() b: any) {
+    const uid = this.uid(req);
+    return this.db.asService(async (c) => {
+      const prof: Record<string, any> = {};
+      if ('wa_sender_name' in b) prof.wa_sender_name = b.wa_sender_name ? String(b.wa_sender_name).slice(0, 120) : null;
+      if ('wa_number' in b) prof.wa_number = b.wa_number ? String(b.wa_number).slice(0, 40) : null;
+      if (Object.keys(prof).length) {
+        const s = this.set(prof, 2);
+        if (s.ok) await c.query(`update public.profiles set ${s.sets}, updated_at=now() where id=$1`, [uid, ...s.vals]);
+        if ('wa_sender_name' in prof) await this.callCrmInternal('/internal/set-wa-sender', { id: uid, wa_sender_name: prof.wa_sender_name });
+      }
+      const team = (b && typeof b.team === 'object' && b.team) || {};
+      const tm: Record<string, any> = {};
+      for (const k of DeliveryController.SELF_TEAM_FIELDS) if (k in team) tm[k] = team[k] === '' ? null : team[k];
+      if (Object.keys(tm).length) {
+        const org = (await c.query('select organization_id from public.profiles where id=$1', [uid])).rows[0]?.organization_id;
+        if (org) {
+          const cols = Object.keys(tm);
+          const insCols = ['user_id', 'organization_id', ...cols];
+          const ph = insCols.map((_, i) => `$${i + 1}`).join(', ');
+          const upd = cols.map((k, i) => `"${k}"=$${i + 3}`).join(', ');
+          await c.query(
+            `insert into public.team_members (${insCols.map((x) => `"${x}"`).join(', ')}) values (${ph})
+               on conflict (user_id) do update set ${upd}, updated_at=now()`,
+            [uid, org, ...cols.map((k) => tm[k])]);
+        }
+      }
+      return { ok: true };
+    });
+  }
+
+  // Subtelas do WhatsApp CRM por usuário — caminho DONO/ADMIN (proxy interno p/ o wacrm, que é a
+  // fonte da verdade dessas telas). O admin do Portal continua tendo o caminho /crm-access (bearer).
+  @Get('crm-screens')
+  async crmScreensGet(@Req() req: any, @Query('user') user: string) {
+    return this.db.asService(async (c) => {
+      const org = await this.gerenciaModulos(c, this.uid(req), user);
+      if (!org) return { error: 'sem permissão' };
+      return (await this.callCrmInternal('/internal/get-crm-screens', { id: user, organization_id: org })) ?? { error: 'CRM indisponível' };
+    });
+  }
+  @Post('crm-screens')
+  async crmScreensSet(@Req() req: any, @Body() b: any) {
+    const user = String(b?.user_id || '');
+    const screens: string[] = Array.isArray(b?.screens) ? b.screens.filter((x: any) => typeof x === 'string') : [];
+    return this.db.asService(async (c) => {
+      const org = await this.gerenciaModulos(c, this.uid(req), user);
+      if (!org) return { error: 'sem permissão' };
+      return (await this.callCrmInternal('/internal/set-crm-screens', { id: user, organization_id: org, screens })) ?? { error: 'CRM indisponível' };
+    });
+  }
+
+  // Quem gerencia a org INTEIRA (lista de colaboradores): crasto_admin, o dono, ou admin-level
+  // dessa org. Igual ao gerenciaModulos, mas por ORG (não por alvo). Retorna true/false.
+  private async gerenciaOrg(c: any, callerId: string, orgId: string): Promise<boolean> {
+    const caller = (await c.query(`select role::text r, organization_id o, access_level al from public.profiles where id=$1`, [callerId])).rows[0];
+    if (!caller) return false;
+    if (caller.r === 'crasto_admin') return true;
+    if (caller.o !== orgId) return false;
+    return caller.r === 'client_owner' || (caller.r === 'client_member' && caller.al === 'admin');
+  }
+
+  // Lista de colaboradores da org (a "Gestão de Acessos" do cliente): perfil + ficha + último
+  // acesso, num JOIN só. Só dono/admin da org (via service_role, RLS bypass — guarda no código).
+  @Get('collaborators')
+  collaborators(@Req() req: any, @Query('org') org: string) {
+    return this.db.asService(async (c) => {
+      if (!org || !(await this.gerenciaOrg(c, this.uid(req), org))) return { error: 'sem permissão' };
+      const rows = (await c.query(
+        `select p.id, p.full_name, p.email, p.role::text as role, p.access_level, p.active,
+                t.cargo, t.departamento, t.tipo_contrato, t.telefone,
+                (select last_sign_in_at from auth.users u where u.id = p.id) as last_login
+           from public.profiles p
+           left join public.team_members t on t.user_id = p.id
+          where p.organization_id = $1 and p.role <> 'crasto_admin'
+          order by (p.role = 'client_owner') desc, coalesce(p.full_name, p.email)`, [org])).rows;
+      return { collaborators: rows };
+    });
+  }
+
+  // Suspende/reativa um colaborador (active=false → perde o Portal no boot, SEM excluir). O dono
+  // nunca é suspenso, e ninguém suspende a si mesmo.
+  @Post('collaborator/active')
+  collabActive(@Req() req: any, @Body() b: any) {
+    const user = String(b?.user_id || '');
+    const active = b?.active === true;
+    return this.db.asService(async (c) => {
+      const org = await this.gerenciaModulos(c, this.uid(req), user);
+      if (!org) return { error: 'sem permissão' };
+      if (user === this.uid(req)) return { error: 'você não pode suspender a si mesmo' };
+      const alvo = (await c.query('select role::text r from public.profiles where id=$1', [user])).rows[0];
+      if (alvo?.r === 'client_owner') return { error: 'o dono da conta não pode ser suspenso' };
+      await c.query('update public.profiles set active=$2, updated_at=now() where id=$1', [user, active]);
+      return { ok: true, active };
+    });
+  }
+
   @Get('client-modules/all')
   cmAll(@Req() req: any) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select organization_id from delivery.client_modules')).rows); }
   @Get('client-modules')

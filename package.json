@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host --port 5178",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "i18n": "node scripts/i18n-sync.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

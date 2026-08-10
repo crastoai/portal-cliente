@@ -8,6 +8,7 @@ import Modal from "../../ui/Modal";
 import { supabase } from "../../lib/supabase";
 import { CLIENT_SCREENS, ALL_SCREEN_KEYS, BASE_SCREEN, allowedScreens } from "../../lib/screens";
 import type { CrmUser } from "../../services/crmAccess.service";
+import EditarColaborador, { type EditUser } from "../client/EditarColaborador";
 
 // Permissões & Acessos — UMA PESSOA, UMA LINHA (refeito em 24/07/2026).
 //
@@ -113,6 +114,9 @@ export default function ConsolePermissoes() {
   const [cfgCrm, setCfgCrm] = useState<{ user: CrmUser; orgName: string; orgId: string } | null>(null);
   type CrmState = { loading: boolean; hasAccess: boolean; owner: boolean; catalog: { key: string; label: string }[]; screens: Set<string> };
   const [crm, setCrm] = useState<CrmState | null>(null);
+  // Editor 4-abas (mesmo do cliente) para quem TEM perfil no Portal. O modal antigo (abaixo)
+  // segue só para o caso CRM-only (pessoa que opera o CRM mas não entra pelo Portal).
+  const [edic4, setEdic4] = useState<{ orgId: string; user: EditUser } | null>(null);
   // Pessoa cujas permissões estão abertas (a janela é uma só, para Portal + módulos).
   const [alvo, setAlvo] = useState<{ pessoa: Pessoa; orgName: string; orgId: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -447,7 +451,9 @@ export default function ConsolePermissoes() {
                           <span className="crasto-btn__icon"><RefreshCw size={13} /></span><span className="crasto-btn__label">{t("Reenviar")}</span>
                         </button>
                       )}
-                      <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => abrirPermissoes(pe, c.name, c.organization_id)}>
+                      <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => pe.portal
+                        ? setEdic4({ orgId: c.organization_id, user: { id: pe.portal.id, full_name: pe.nome, email: pe.email, role: pe.portal.role } })
+                        : abrirPermissoes(pe, c.name, c.organization_id)}>
                         <span className="crasto-btn__icon"><SlidersHorizontal size={14} /></span><span className="crasto-btn__label">{t("Permissões")}</span>
                       </button>
                     </div>
@@ -638,6 +644,10 @@ export default function ConsolePermissoes() {
           {t("A pessoa entra pelo Portal com a própria senha. As telas escolhidas aqui já valem no convite.")}
         </p>
       </Modal>
+
+      {edic4 && <EditarColaborador context="admin" orgId={edic4.orgId} user={edic4.user}
+        onClose={() => setEdic4(null)}
+        onSaved={(m) => { const o = edic4.orgId; setEdic4(null); if (m) toast.ok(m); reload(); loadCrmUsers(o); }} />}
 
       {toast.node}
     </div>

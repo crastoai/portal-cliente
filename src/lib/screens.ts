@@ -1,17 +1,33 @@
 // Catálogo canônico das telas do PORTAL DO CLIENTE — fonte única para:
-// (1) o popup de permissões (Console) e (2) a filtragem do menu do cliente (ClientShell).
+// (1) o modal "Editar Colaborador" (aba Permissões, árvore categorizada) e
+// (2) a filtragem do menu do cliente (ClientShell).
 // A permissão é por-tela: o dono vê todas; o membro vê só as telas liberadas.
-export type ClientScreen = { key: string; to: string; label: string };
+//
+// TAXONOMIA (decisão #2 do Crasto — reconfirmada 2026-08-09): telas REAIS do Portal AGRUPADAS.
+// NÃO copiamos as categorias do hub antigo (CEO Cockpit/Vendas/Compras são de outro produto e
+// ficariam vazias). As SUBTELAS do WhatsApp CRM e os MÓDULOS contratados são grupos à parte,
+// montados no modal a partir das suas próprias fontes (wacrm crm-screens + client_modules).
+export type ClientScreen = { key: string; to: string; label: string; category: string; order: number };
+
+// Categorias das telas do Portal, na ordem do menu. (O `key` aqui é slug de categoria — namespace
+// diferente das keys de tela; a sobreposição textual com "financeiro"/"solucoes" é só cosmética.)
+export const SCREEN_CATEGORIES: { key: string; label: string }[] = [
+  { key: "cockpit", label: "Cockpit" },
+  { key: "solucoes", label: "Soluções & Implantação" },
+  { key: "financeiro", label: "Financeiro" },
+  { key: "acessos", label: "Gestão de Acessos" },
+  { key: "conta", label: "Conta" },
+];
 
 export const CLIENT_SCREENS: ClientScreen[] = [
-  { key: "inicio", to: "/app", label: "Cockpit" },
-  { key: "modulos", to: "/app/modulos", label: "Minhas Soluções" },
-  { key: "implementacao", to: "/app/implementacao", label: "Minha Implementação" },
-  { key: "solucoes", to: "/app/solucoes", label: "Catálogo de soluções" },
-  { key: "financeiro", to: "/app/financeiro", label: "Financeiro" },
-  { key: "usuarios", to: "/app/usuarios", label: "Gestão de Acessos" },
-  { key: "perfil", to: "/app/perfil", label: "Dados cadastrais" },
-  { key: "suporte", to: "/app/suporte", label: "Suporte & Ajuda" },
+  { key: "inicio",        to: "/app",               label: "Cockpit",              category: "cockpit",    order: 1 },
+  { key: "modulos",       to: "/app/modulos",       label: "Minhas Soluções",      category: "solucoes",   order: 2 },
+  { key: "implementacao", to: "/app/implementacao", label: "Minha Implementação",  category: "solucoes",   order: 3 },
+  { key: "solucoes",      to: "/app/solucoes",      label: "Catálogo de soluções", category: "solucoes",   order: 4 },
+  { key: "financeiro",    to: "/app/financeiro",    label: "Financeiro",           category: "financeiro", order: 5 },
+  { key: "usuarios",      to: "/app/usuarios",      label: "Gestão de Acessos",    category: "acessos",    order: 6 },
+  { key: "perfil",        to: "/app/perfil",        label: "Dados cadastrais",     category: "conta",      order: 7 },
+  { key: "suporte",       to: "/app/suporte",       label: "Suporte & Ajuda",      category: "conta",      order: 8 },
 ];
 
 export const ALL_SCREEN_KEYS = CLIENT_SCREENS.map((s) => s.key);
@@ -20,6 +36,13 @@ export const ALL_SCREEN_KEYS = CLIENT_SCREENS.map((s) => s.key);
 // Início para um membro (o Início tem financeiro/negócios do dono) sem deixar o membro sem chão.
 export const BASE_SCREEN = "perfil";
 export const screenLabel = (key: string) => CLIENT_SCREENS.find((s) => s.key === key)?.label ?? key;
+
+// Telas do Portal agrupadas por categoria (ordem do menu, sem categoria vazia). Usado pela
+// árvore da aba Permissões: cada grupo ganha "Selecionar todos" + contador marcadas/total.
+export const SCREENS_BY_CATEGORY: { key: string; label: string; screens: ClientScreen[] }[] =
+  SCREEN_CATEGORIES
+    .map((cat) => ({ ...cat, screens: CLIENT_SCREENS.filter((s) => s.category === cat.key).sort((a, b) => a.order - b.order) }))
+    .filter((g) => g.screens.length > 0);
 
 /** Resolve as telas permitidas a partir do retorno de my_screens (['*'] = todas). */
 export function allowedScreens(list: string[] | null | undefined): Set<string> {

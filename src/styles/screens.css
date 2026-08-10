@@ -200,8 +200,13 @@
 
 /* MODAL */
 .modal-overlay { position: fixed; inset: 0; background: rgba(1,14,38,.5); backdrop-filter: blur(3px); display: grid; place-items: center; z-index: 200; padding: 20px; }
-.modal { background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-lg); width: 100%; max-width: 460px; box-shadow: var(--crasto-shadow-xl); max-height: 90vh; overflow-y: auto; }
-.modal--wide { max-width: 920px; }
+/* Dark: scrim NEUTRO (preto suave) em vez do navy — o navy sobre o dark virava um "filtro azul". */
+[data-theme="dark"] .modal-overlay { background: rgba(0,0,0,.62); }
+/* LARGURA DOS MODAIS — responsiva ao viewport (numa tela grande, aproveita o espaço; não fica
+   "fininho" no meio). Base = formulários simples; --wide = formulários ricos (Editar Colaborador,
+   convite com telas). Escala com vw e só limita no máximo. max-height maior = menos scroll. */
+.modal { background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-lg); width: 100%; max-width: min(620px, 94vw); box-shadow: var(--crasto-shadow-xl); max-height: 92vh; overflow-y: auto; }
+.modal--wide { max-width: min(1200px, 95vw); }
 /* No convite largo, as telas ficam em 3 colunas → cabe sem scroll. Colapsa em telas menores. */
 .modal--wide .screengrid { grid-template-columns: repeat(3, 1fr); }
 @media (max-width: 760px) { .modal--wide .screengrid { grid-template-columns: 1fr 1fr; } }

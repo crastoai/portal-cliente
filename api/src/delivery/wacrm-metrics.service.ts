@@ -78,6 +78,55 @@ export class WacrmMetricsService {
     }
   }
 
+  // KPIs EXTRA do cockpit (funil de conversão · SLA de 1ª resposta · pico de atendimento). 30 dias,
+  // escopo por org. Alimenta os gráficos do Painel de KPIs do dono. Sem dado → zeros/null (front degrada).
+  async kpisExtra(orgId: string): Promise<{
+    funil: { leads: number; qualificados: number; oportunidades: number; vendas: number };
+    sla: { pct5: number | null; mediana_s: number; respondidas: number; sem_resposta: number };
+    pico: number[][];
+  } | null> {
+    const p = this.db();
+    if (!p || !orgId) return null;
+    const c = await p.connect();
+    try {
+      const f = (await c.query(
+        `select count(*)::int leads,
+                count(*) filter (where status in ('respondeu','oportunidade','convertido'))::int qualificados,
+                count(*) filter (where status in ('oportunidade','convertido'))::int oportunidades,
+                count(*) filter (where status='convertido')::int vendas
+           from whatsapp.leads where organization_id=$1`, [orgId])).rows[0];
+      const s = (await c.query(
+        `select count(*) filter (where resp_s is not null)::int respondidas,
+                count(*) filter (where resp_s is not null and resp_s<=300)::int em5,
+                count(*) filter (where resp_s is null)::int sem,
+                coalesce(percentile_cont(0.5) within group (order by resp_s) filter (where resp_s is not null),0)::int mediana
+           from (
+             select extract(epoch from (
+               (select min(o.created_at) from whatsapp.messages o
+                 where o.conversation_id=cv.id and o.from_type in ('ai','human') and coalesce(o.internal,false)=false and o.created_at>=fi.first_in)
+               - fi.first_in)) resp_s
+               from whatsapp.conversations cv
+               join lateral (select min(u.created_at) first_in from whatsapp.messages u
+                              where u.conversation_id=cv.id and u.from_type='user') fi on true
+              where cv.organization_id=$1 and fi.first_in >= now()-'30 days'::interval
+           ) t`, [orgId])).rows[0];
+      const pk = (await c.query(
+        `select extract(isodow from created_at)::int d, floor(extract(hour from created_at)/3)::int b, count(*)::int n
+           from whatsapp.messages where organization_id=$1 and created_at >= now()-'30 days'::interval
+          group by 1,2`, [orgId])).rows;
+      const grid = Array.from({ length: 7 }, () => Array(8).fill(0));
+      let mx = 1;
+      for (const row of pk) { const d = row.d - 1, b = row.b; if (d >= 0 && d < 7 && b >= 0 && b < 8) { grid[d][b] = row.n; if (row.n > mx) mx = row.n; } }
+      return {
+        funil: { leads: f.leads, qualificados: f.qualificados, oportunidades: f.oportunidades, vendas: f.vendas },
+        sla: { pct5: s.respondidas > 0 ? Math.round((s.em5 * 100) / s.respondidas) : null, mediana_s: s.mediana, respondidas: s.respondidas, sem_resposta: s.sem },
+        pico: grid.map((r) => r.map((n) => +(n / mx).toFixed(3))),
+      };
+    } finally {
+      c.release();
+    }
+  }
+
   // MINI-COCKPIT do WhatsApp CRM — pulso AO VIVO AGORA (para o topo do módulo). Escopo por org.
   async liveNow(orgId: string): Promise<{ agentesOnline: number; agentesTotal: number; conversasAtivas: number; fila: number; automacaoHoje: number | null } | null> {
     const p = this.db();
