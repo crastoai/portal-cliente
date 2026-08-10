@@ -162,6 +162,9 @@ export const moduleSessions = {
   close: async (id: string) => api.post(`/api/delivery/module-sessions/${id}/close`, {}),
   summary: async (dias = 30, orgId?: string) =>
     api.get<any[]>(`/api/delivery/module-sessions/summary?dias=${dias}${orgId ? `&org=${orgId}` : ""}`),
+  // Log de acessos (eventos individuais, mais recente primeiro) — a "trilha em tempo real".
+  recent: async (dias = 30, orgId?: string, limit = 60) =>
+    api.get<any[]>(`/api/delivery/module-sessions/recent?dias=${dias}&limit=${limit}${orgId ? `&org=${orgId}` : ""}`),
 };
 
 // COCKPIT · "Meus Resultados" (Fase 1) — consolida os dados de RESULTADO do cliente.

@@ -141,6 +141,10 @@ export default function CrmEmbed() {
   const [live, setLive] = useState<import("../../services/delivery.service").CrmLive | null>(null);
   const [visited, setVisited] = useState<string[]>([]); // seções multi já abertas → ficam MONTADAS (quentes)
   const frameRef = useRef<HTMLIFrameElement>(null);
+  // Medição de uso: o WhatsApp CRM é o módulo mais usado, mas abre por AQUI (/app/crm), não pelo
+  // ModuleEmbed — então até então NÃO entrava em "Uso dos módulos". sessRef guarda a sessão aberta
+  // no mount para pulsar (ping 60s) e fechar na saída — igual ao ModuleEmbed dos demais módulos.
+  const sessRef = useRef<string | null>(null);
 
   // Escopo de UNIDADE (CNPJ) — multi-CNPJ. A topbar escolhe a unidade; aqui os seletores e a
   // auto-distribuição de painéis passam a oferecer só os agentes daquela unidade (null = todas).
@@ -183,6 +187,11 @@ export default function CrmEmbed() {
         const cms = (await services.delivery.clientModules.listMine()) as any[];
         const crm = (cms || []).find((c) => c.crm_url);
         if (!crm?.crm_url) { setErr(t("O WhatsApp CRM não está liberado para o seu acesso.")); return; }
+        // Registra a abertura do CRM em delivery.module_sessions (o dono vê em "Uso dos módulos").
+        if (crm.id && !sessRef.current) {
+          const s = await services.delivery.moduleSessions.open(crm.id, "embed").catch(() => null);
+          if (s?.id) sessRef.current = s.id;
+        }
         const { data } = await supabase.auth.getSession();
         const tk = data.session?.access_token;
         if (!tk) { setErr(t("Sessão expirada — recarregue a página.")); return; }
@@ -201,6 +210,15 @@ export default function CrmEmbed() {
       } catch (e: any) { setErr(e?.message || t("Não foi possível abrir o WhatsApp CRM.")); }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pulso (60s) + fechamento da sessão do CRM. `pagehide` cobre fechar aba/navegar para fora; o
+  // retorno do efeito cobre a navegação interna do Portal. Mesma trava do ModuleEmbed.
+  useEffect(() => {
+    const pulso = setInterval(() => { if (sessRef.current) services.delivery.moduleSessions.ping(sessRef.current).catch(() => {}); }, 60_000);
+    const fechar = () => { if (sessRef.current) { services.delivery.moduleSessions.close(sessRef.current).catch(() => {}); sessRef.current = null; } };
+    window.addEventListener("pagehide", fechar);
+    return () => { clearInterval(pulso); window.removeEventListener("pagehide", fechar); fechar(); };
+  }, []);
 
   useEffect(() => { try { localStorage.setItem(PANELS_KEY, JSON.stringify({ version: 2, store })); } catch { /* ignore */ } }, [store]);
   // Ao carregar agentes, descarta ids de painel que não existem mais (troca de cliente/agente removido).

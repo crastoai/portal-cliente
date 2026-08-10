@@ -1069,6 +1069,35 @@ export class DeliveryController {
     )).rows);
   }
 
+  /**
+   * LOG DE ACESSOS (tempo real) — cada abertura de módulo é um evento, do mais recente para o mais
+   * antigo. Diferente do summary (agregado por pessoa+módulo), aqui o dono vê a TRILHA: "quem abriu
+   * o quê e quando", inclusive sessões ainda ABERTAS (ao vivo). RLS igual ao summary (asUser): o dono
+   * vê a org, o membro só o próprio. `ao_vivo` = sem ended_at e com pulso nos últimos 3 minutos.
+   */
+  @Get('module-sessions/recent')
+  msRecent(@Req() req: any, @Query('org') org: string, @Query('dias') dias: string, @Query('limit') limit: string) {
+    const d = Math.max(1, Math.min(365, Number(dias) || 30));
+    const lim = Math.max(1, Math.min(200, Number(limit) || 60));
+    return this.db.asUser(this.uid(req), async (c) => (await c.query(
+      `select s.id, s.user_id, p.full_name, p.email,
+              coalesce(cm.label, v.name, 'Módulo') as modulo,
+              s.started_at,
+              coalesce(s.ended_at, s.last_seen_at) as fim,
+              extract(epoch from (coalesce(s.ended_at, s.last_seen_at) - s.started_at))::int as segundos,
+              (s.ended_at is null and s.last_seen_at > now() - interval '3 minutes') as ao_vivo
+         from delivery.module_sessions s
+         left join public.profiles p on p.id = s.user_id
+         left join delivery.client_modules cm on cm.id = s.client_module_id
+         left join catalog.vdi_modules v on v.id = s.vdi_module_id
+        where s.started_at > now() - ($1 || ' days')::interval
+          and ($2::uuid is null or s.organization_id = $2::uuid)
+        order by s.started_at desc
+        limit ${lim}`,
+      [String(d), org || null],
+    )).rows);
+  }
+
   // ── client_services ──
   private readonly SVC = 'id,service_id,status,notes,service_name,service_description,service_category,service_unit,situacao,periodo,modalidade,cost_allocation,especificacoes';
   @Get('services/mine')

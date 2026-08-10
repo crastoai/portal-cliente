@@ -178,20 +178,21 @@ export default function ClientShell() {
   // Seções do protótipo aprovado (Minha Crasto.AI · Módulos · Ajuda). O Shell agrupa por seção
   // CONSECUTIVA — por isso a montagem do nav abaixo mantém cada seção junta e na ordem certa.
   const REL = "Minha Crasto.AI";
+  const COLAB = "Colaboradores"; // grupo próprio: gente/equipe ≠ módulos contratados (pedido do Crasto).
   const SECAO: Record<string, string | undefined> = {
     inicio: REL, modulos: REL, implementacao: REL, solucoes: REL, financeiro: REL, perfil: REL,
-    usuarios: "Módulos",       // Gestão de Acessos entra no fim de "Módulos"
+    usuarios: COLAB,           // Gestão de Acessos vive no grupo "Colaboradores", NÃO em "Módulos".
     suporte: "Ajuda",
   };
   const telas = CLIENT_SCREENS
     .filter((s) => allowed.has(s.key))
     .filter((s) => s.key !== "implementacao" || !implDone)
     .map((s) => ({ to: s.to, end: s.key === "inicio", icon: SCREEN_ICON[s.key], label: s.label, section: SECAO[s.key] }));
-  // Ordem: Minha Crasto.AI (Cockpit no topo) → Módulos (os módulos + Gestão de Acessos) → Ajuda.
+  // Ordem: Minha Crasto.AI (Cockpit no topo) → Módulos (contratados) → Colaboradores (equipe) → Ajuda.
   const nav: NavItem[] = [
     ...telas.filter((s) => s.section === REL),
     ...modItems,
-    ...telas.filter((s) => s.section === "Módulos"),
+    ...telas.filter((s) => s.section === COLAB),
     ...telas.filter((s) => s.section === "Ajuda"),
   ];
 

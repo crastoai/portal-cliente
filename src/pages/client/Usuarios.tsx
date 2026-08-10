@@ -120,7 +120,9 @@ export default function Usuarios() {
                   <td>
                     <div className="collab-actions">
                       <button title={t("Editar")} disabled={busyId === u.id} onClick={() => setEdit({ user: u })}><Pencil size={15} /></button>
-                      <button title={t("Reenviar acesso")} disabled={busyId === u.id} onClick={() => reenviar(u)}><RefreshCw size={15} /></button>
+                      <button className="collab-resend" title={t("Reenviar o e-mail de acesso ao Portal")} disabled={busyId === u.id} onClick={() => reenviar(u)}>
+                        <RefreshCw size={14} /> {t("Reenviar acesso")}
+                      </button>
                       {u.role !== "client_owner" && (
                         <button title={u.active ? t("Suspender") : t("Reativar")} className={"collab-toggle" + (u.active ? " on" : "")} disabled={busyId === u.id} onClick={() => toggleAtivo(u)} />
                       )}

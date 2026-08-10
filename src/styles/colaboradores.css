@@ -111,5 +111,38 @@
 .collab-actions > button:hover { color: var(--crasto-text-primary); border-color: var(--crasto-border); }
 .collab-actions > button:disabled { opacity: .5; cursor: default; }
 .collab-actions .collab-del:hover { color: var(--crasto-coral); border-color: var(--crasto-coral); }
-.collab-actions .collab-toggle { width: 40px; }
-.collab-actions .collab-toggle:hover { border: 0; }
+/* O toggle é um SWITCH (pílula redonda), não um botão-caixa: retoma o formato do .ec-switch
+   (a regra genérica `.collab-actions > button` acima punha borda + cantos retos = "quadrado"). */
+.collab-actions .collab-toggle {
+  width: var(--sw-w); height: var(--sw-h); border: 0; border-radius: 999px;
+  background: var(--crasto-navy-20); box-shadow: none;
+}
+.collab-actions .collab-toggle.on { background: var(--crasto-blue); }
+.collab-actions .collab-toggle:hover { border: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--crasto-blue) 16%, transparent); }
+/* "Reenviar acesso": botão com TEXTO (o ícone sozinho não é claro — pedido do Crasto). */
+.collab-actions .collab-resend {
+  width: auto; gap: 6px; padding: 0 10px; font-size: 12px; font-weight: 600;
+  color: var(--crasto-success); border-color: color-mix(in srgb, var(--crasto-success) 40%, var(--crasto-border-hairline));
+}
+.collab-actions .collab-resend:hover { color: var(--crasto-success); border-color: var(--crasto-success); background: color-mix(in srgb, var(--crasto-success) 8%, var(--crasto-surface)); }
+
+/* =============================================================
+   USO DOS MÓDULOS — alternador Resumo/Log + trilha de acessos
+   ============================================================= */
+.uso-seg { display: inline-flex; margin-left: auto; background: var(--crasto-navy-08, var(--crasto-navy-20)); border-radius: 999px; padding: 3px; gap: 2px; }
+.uso-seg button { border: 0; background: transparent; color: var(--crasto-text-muted); font-size: 12.5px; font-weight: 600; padding: 5px 14px; border-radius: 999px; cursor: pointer; transition: all var(--crasto-t-fast); }
+.uso-seg button:hover { color: var(--crasto-text-primary); }
+.uso-seg button.on { background: var(--crasto-surface); color: var(--crasto-text-primary); box-shadow: var(--crasto-shadow-xs); }
+
+.acc-log { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; }
+.acc-row { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--crasto-border-hairline); }
+.acc-row:last-child { border-bottom: 0; }
+.acc-main { min-width: 0; flex: 1; }
+.acc-top { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 13.5px; color: var(--crasto-text-primary); }
+.acc-verb { color: var(--crasto-text-muted); font-size: 12.5px; }
+.acc-mod { font-weight: 600; }
+.acc-live { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--crasto-success); background: color-mix(in srgb, var(--crasto-success) 12%, transparent); padding: 2px 8px; border-radius: 999px; }
+.acc-live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--crasto-success); box-shadow: 0 0 0 0 color-mix(in srgb, var(--crasto-success) 70%, transparent); animation: acc-pulse 1.6s ease-out infinite; }
+.acc-sub { margin-top: 2px; font-size: 12px; color: var(--crasto-text-muted); }
+@keyframes acc-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--crasto-success) 70%, transparent); } 70% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--crasto-success) 0%, transparent); } 100% { box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { .acc-live::before { animation: none; } }
