@@ -77,7 +77,10 @@ function Wordmark() {
 
 // `to` = rota interna (NavLink). `onClick` sem `to` = ação (abrir módulo externo/SSO).
 // `locked` = módulo não contratado (cadeado + upsell) — o clique chama `onClick`.
-export type NavItem = { to?: string; end?: boolean; icon: LucideIcon; label: string; tag?: string; section?: string; locked?: boolean; onClick?: () => void; children?: { to: string; label: string; end?: boolean }[] };
+// Filho de um grupo colapsável. Antes só link simples (to obrigatório); agora suporta também
+// filho BLOQUEADO (cadeado + upsell) e AÇÃO (onClick sem to) — p/ agrupar módulos como Marketing.
+export type NavChild = { to?: string; label: string; end?: boolean; tag?: string; locked?: boolean; onClick?: () => void };
+export type NavItem = { to?: string; end?: boolean; icon: LucideIcon; label: string; tag?: string; section?: string; locked?: boolean; onClick?: () => void; children?: NavChild[] };
 
 export default function Shell({ nav, who, sub, logoTone, bottomNav }: { nav: NavItem[]; who: string; sub: string; logoTone?: string; bottomNav?: NavItem[] }) {
   const { profile, signOut, refreshProfile } = useAuth();
@@ -158,14 +161,21 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav }: { nav: Nav
   const renderItem = (n: NavItem) => {
     // Item EXPANSÍVEL (pai + filhos): o WhatsApp CRM e suas seções. Recolhido (só ícones) o pai
     // vira atalho pro módulo e os filhos somem; expandido, mostra a árvore.
-    if (n.children?.length) {
+    if (n.children && n.children.length) {
       const aberto = treeOpen[n.label] ?? true;
       const paiAtivo = !!n.to && (pathname === n.to || pathname.startsWith(n.to + "/"));
-      if (collapsed) return (
-        <NavLink key={n.label} to={n.to || n.children[0].to} onClick={() => setOpen(false)} className={"navlink" + (paiAtivo ? " on" : "")} title={t(n.label)} {...hoverProps(n)}>
-          <n.icon size={17} /> <span className="navlink-lbl">{t(n.label)}</span>
-        </NavLink>
-      );
+      if (collapsed) {
+        // recolhido: pai vira atalho. Se o grupo não tem rota própria, mira o 1º filho navegável;
+        // se todos os filhos são bloqueados (sem to), vira botão que dispara a ação do 1º filho.
+        const kids = n.children;
+        const alvo = n.to || kids.find((c) => c.to)?.to;
+        const ic = <><n.icon size={17} /> <span className="navlink-lbl">{t(n.label)}</span></>;
+        return alvo ? (
+          <NavLink key={n.label} to={alvo} onClick={() => setOpen(false)} className={"navlink" + (paiAtivo ? " on" : "")} title={t(n.label)} {...hoverProps(n)}>{ic}</NavLink>
+        ) : (
+          <button key={n.label} type="button" className="navlink" onClick={() => { setOpen(false); (kids.find((c) => c.onClick) || kids[0])?.onClick?.(); }} title={t(n.label)} {...hoverProps(n)}>{ic}</button>
+        );
+      }
       return (
         <div key={n.label} className={"navtree" + (aberto ? " open" : "")}>
           <button type="button" className={"navlink navlink--parent" + (paiAtivo ? " on" : "")} aria-expanded={aberto} onClick={() => toggleTree(n.label)}>
@@ -173,11 +183,15 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav }: { nav: Nav
             <ChevronDown size={14} className="navtree-chev" />
           </button>
           <div className="navtree-kids">
-            {n.children.map((c) => (
-              <NavLink key={c.to} to={c.to} end={c.end} onClick={() => setOpen(false)} className={({ isActive }) => "navlink navlink--child" + (isActive ? " on" : "")}>
-                <span className="navlink-lbl">{t(c.label)}</span>
-              </NavLink>
-            ))}
+            {n.children.map((c) => {
+              const ci = <><span className="navlink-lbl">{t(c.label)}</span>{c.locked ? <Lock size={12} className="navlink-lock" /> : c.tag ? <span className="tag">{c.tag}</span> : null}</>;
+              if (c.to) return (
+                <NavLink key={c.label} to={c.to} end={c.end} onClick={() => setOpen(false)} className={({ isActive }) => "navlink navlink--child" + (isActive ? " on" : "")}>{ci}</NavLink>
+              );
+              return (
+                <button key={c.label} type="button" className={"navlink navlink--child" + (c.locked ? " navlink--locked" : "")} title={c.locked ? t("Módulo não contratado — fale com a Crasto.AI para liberar") : undefined} onClick={() => { setOpen(false); c.onClick?.(); }}>{ci}</button>
+              );
+            })}
           </div>
         </div>
       );
@@ -346,7 +360,11 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav }: { nav: Nav
             <>
               <div className="navfly-h">{t(fly.item.label)}</div>
               {fly.item.children.map((c) => (
-                <NavLink key={c.to} to={c.to} end={c.end} onClick={() => setFly(null)} className={({ isActive }) => "navfly-item" + (isActive ? " on" : "")}>{t(c.label)}</NavLink>
+                c.to ? (
+                  <NavLink key={c.label} to={c.to} end={c.end} onClick={() => setFly(null)} className={({ isActive }) => "navfly-item" + (isActive ? " on" : "")}>{t(c.label)}</NavLink>
+                ) : (
+                  <button key={c.label} className="navfly-item" onClick={() => { setFly(null); c.onClick?.(); }}>{t(c.label)}{c.locked ? " 🔒" : ""}</button>
+                )
               ))}
             </>
           ) : fly.item.to ? (

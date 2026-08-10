@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Home, LayoutGrid, Activity, Sparkles, Wallet, Users, LifeBuoy, Eye, IdCard,
-  MessageCircle, Megaphone, Share2, Target, ShoppingCart, PackageOpen, type LucideIcon } from "lucide-react";
+  MessageCircle, Megaphone, Share2, Target, ShoppingCart, PackageOpen, TrendingUp, type LucideIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { useAsync } from "../ui/ui";
 import { services } from "../services";
@@ -141,19 +141,28 @@ export default function ClientShell() {
     if (c.isSocial || c.mode === "embed" || c.mode === "sso") return { to: `/app/m/${c.id}` };
     return { onClick: () => window.open(c.url as string, "_blank", "noopener") };
   };
-  const modItems: NavItem[] = MODULES.map((m) => {
-    // WhatsApp CRM: casa pelo sinal isCrm; demais slots: por categoria/nome.
+  // props de UM módulo (destravado→abre · em breve · bloqueado→cadeado). Extraído p/ reusar tanto
+  // como item de topo quanto como FILHO do grupo "Marketing & Growth".
+  const slotFor = (m: (typeof MODULES)[number]): Partial<NavItem> => {
     const owned = m.crm ? cs.find((c) => c.isCrm) : cs.find((c) => m.rx.test(c.text));
     if (owned && owned.active) {
-      // WhatsApp CRM abre EMBARCADO (rota interna → iframe, sem nova aba); demais externos/SSO.
-      if (m.crm) return emAndamento(owned)
-        ? { icon: m.icon, label: m.label, section: "Módulos", tag: t("em andamento"), onClick: () => navigate("/app/modulos") }
-        : { icon: m.icon, label: m.label, section: "Módulos", to: "/app/crm", children: crmChildren };
-      return { icon: m.icon, label: m.label, section: "Módulos", ...abrir(owned) };
+      // WhatsApp CRM abre EMBARCADO (rota interna → iframe); demais externos/SSO.
+      if (m.crm) return emAndamento(owned) ? { tag: t("em andamento"), onClick: () => navigate("/app/modulos") } : { to: "/app/crm", children: crmChildren };
+      return abrir(owned);
     }
-    if (owned) return { icon: m.icon, label: m.label, section: "Módulos", tag: t("em breve"), onClick: () => navigate("/app/modulos") };
-    return { icon: m.icon, label: m.label, section: "Módulos", locked: true, onClick: () => navigate("/app/catalogo") };
-  });
+    if (owned) return { tag: t("em breve"), onClick: () => navigate("/app/modulos") };
+    return { locked: true, onClick: () => navigate("/app/catalogo") };
+  };
+  // Marketing/Social/Tráfego agrupados sob um subgrupo colapsável "Marketing & Growth" (mesmo padrão
+  // do WhatsApp CRM). Cada filho preserva seu estado real (aberto / em breve / bloqueado).
+  const MKT_KEYS = new Set(["marketing", "social", "trafego"]);
+  const mktChildren = MODULES.filter((m) => MKT_KEYS.has(m.key)).map((m) => ({ label: m.label, ...slotFor(m) }));
+  const modItems: NavItem[] = [];
+  for (const m of MODULES) {
+    if (m.key === "social" || m.key === "trafego") continue; // entram dentro do grupo
+    if (m.key === "marketing") { modItems.push({ icon: TrendingUp, label: "Marketing & Growth", section: "Módulos", children: mktChildren }); continue; }
+    modItems.push({ icon: m.icon, label: m.label, section: "Módulos", ...slotFor(m) });
+  }
   // Extras: contratados que NÃO são o CRM e NÃO casam com nenhum canônico → pelo nome real.
   // SEM exigir URL: módulo liberado tem de aparecer para o cliente mesmo antes de ter
   // endereço publicado (antes ele sumia do menu e o cliente não via o que já era dele).
