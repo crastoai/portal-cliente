@@ -70,12 +70,32 @@
 .cc-ba-bar.depois span{color:#fff}
 .cc-ba-up{font-size:12px;font-weight:800;white-space:nowrap}
 
-/* funil */
-.cc-fn{display:flex;flex-direction:column;gap:8px;margin-top:12px}
-.cc-fn-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
-.cc-fn-bar{height:26px;border-radius:8px;background:linear-gradient(90deg,var(--sem-green-soft),var(--sem-green));display:flex;align-items:center;padding-left:10px;color:#fff;font-weight:700;font-size:12.5px;overflow:hidden;white-space:nowrap;transition:width 1.5s cubic-bezier(.16,1,.3,1)}
+/* funil — rótulo em COLUNA PRÓPRIA (antes ia dentro da barra e sumia quando a etapa era pequena) */
+.cc-fn{display:flex;flex-direction:column;gap:9px;margin-top:12px}
+.cc-fn-row{display:grid;grid-template-columns:96px 1fr auto;gap:10px;align-items:center}
+@media(max-width:600px){.cc-fn-row{grid-template-columns:80px 1fr auto}}
+.cc-fn-lab{font-size:12.5px;font-weight:700;color:var(--crasto-text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cc-fn-track{height:22px;border-radius:7px;background:var(--cc-track);overflow:hidden}
+.cc-fn-fill{height:100%;min-width:4px;border-radius:7px;background:linear-gradient(90deg,var(--sem-green-soft),var(--sem-green));transition:width 1.5s cubic-bezier(.16,1,.3,1)}
 .cc-fn-n{font-size:12px;font-weight:700;color:var(--crasto-text-muted);white-space:nowrap}
+.cc-fn-row.garg .cc-fn-lab{color:var(--sem-red)}
 .cc-gargalo{color:var(--sem-red);font-weight:800}
+
+/* donut lado a lado com os números (antes: aro pequeno perdido num card grande) */
+.cc-donutwrap{display:flex;align-items:center;gap:16px;margin-top:10px}
+.cc-gauge--donut{width:128px;height:128px;margin:0;flex:none}
+.cc-donut-side{display:flex;flex-direction:column;gap:14px;flex:1;min-width:0}
+.cc-donut-stat{display:grid;grid-template-columns:12px 1fr auto;align-items:center;gap:9px}
+.cc-donut-nm{font-size:13px;font-weight:600;color:var(--crasto-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cc-donut-r b{font-size:20px;font-weight:800;letter-spacing:-.02em;color:var(--crasto-text-primary)}
+.cc-donut-r i{font-size:12px;font-weight:700;font-style:normal;color:var(--crasto-text-faint);margin-left:4px}
+
+/* ROI — KPIs de dono no rodapé (projeção anual + capacidade liberada) */
+.cc-roi-extra{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;padding-top:14px;border-top:1px solid var(--crasto-border-soft)}
+.cc-roi-x{display:flex;flex-direction:column;gap:2px;min-width:0}
+.cc-roi-xl{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--crasto-text-faint)}
+.cc-roi-xv{font-size:18px;font-weight:800;letter-spacing:-.02em;color:var(--crasto-text-primary);white-space:nowrap}
+.cc-roi-xs{font-size:11px;color:var(--crasto-text-muted)}
 
 /* ROI */
 .cc-roi{margin-top:10px}

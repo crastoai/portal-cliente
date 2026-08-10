@@ -147,16 +147,28 @@ function Donut({ label, parts, diag, on, t }: { label: string; parts: { name: st
   const R = 54, C = 2 * Math.PI * R, total = parts.reduce((s, p) => s + p.val, 0);
   const shown = useCountUp(total, on);
   let acc = 0;
+  // Donut + estatísticas LADO A LADO (antes: aro pequeno perdido num card grande — o Crasto
+  // apontou a desproporção). Agora o anel divide o espaço com os números por fatia, preenchendo.
   return (
     <div className="cc-card">
       <div className="cc-lbl">{label}</div><CardInfo diag={diag} t={t} />
-      <div className="cc-gauge"><svg viewBox="0 0 132 132" aria-hidden>
-        <circle cx="66" cy="66" r={R} className="cc-track" />
-        {total > 0 && parts.map((p, i) => { const seg = C * (p.val / total), rot = (acc / total) * 360 - 90; acc += p.val; return <circle key={i} cx="66" cy="66" r={R} className="cc-arc cc-seg" style={{ stroke: COR[p.tom], strokeDasharray: `${on ? seg : 0} ${C}`, transform: `rotate(${rot}deg)`, transformOrigin: "66px 66px", transitionDelay: `${i * 160}ms` }} />; })}
-      </svg>
-        <div className="cc-gc"><span className="cc-gn cc-gn--sm">{Math.round(shown)}</span><span className="cc-cap">total</span></div>
+      <div className="cc-donutwrap">
+        <div className="cc-gauge cc-gauge--donut"><svg viewBox="0 0 132 132" aria-hidden>
+          <circle cx="66" cy="66" r={R} className="cc-track" />
+          {total > 0 && parts.map((p, i) => { const seg = C * (p.val / total), rot = (acc / total) * 360 - 90; acc += p.val; return <circle key={i} cx="66" cy="66" r={R} className="cc-arc cc-seg" style={{ stroke: COR[p.tom], strokeDasharray: `${on ? seg : 0} ${C}`, transform: `rotate(${rot}deg)`, transformOrigin: "66px 66px", transitionDelay: `${i * 160}ms` }} />; })}
+        </svg>
+          <div className="cc-gc"><span className="cc-gn cc-gn--sm">{Math.round(shown)}</span><span className="cc-cap">{t("respostas")}</span></div>
+        </div>
+        <div className="cc-donut-side">
+          {parts.map((p, i) => (
+            <div className="cc-donut-stat" key={i}>
+              <span className="cc-dot" style={{ background: COR[p.tom] }} />
+              <span className="cc-donut-nm">{p.name}</span>
+              <span className="cc-donut-r"><b>{p.val}</b> <i>{total > 0 ? Math.round((p.val / total) * 100) : 0}%</i></span>
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="cc-legend">{parts.map((p, i) => <span className="cc-leg" key={i}><span className="cc-dot" style={{ background: COR[p.tom] }} />{p.name} <b>{total > 0 ? Math.round((p.val / total) * 100) : 0}%</b></span>)}</div>
     </div>
   );
 }
@@ -228,10 +240,16 @@ function Funil({ funil, diag, gargaloIdx, on, t }: { funil: { leads: number; qua
       <div className="cc-fn">
         {rows.map((r, i) => {
           const gargalo = i === gargaloIdx;
+          const pct = mx > 0 ? Math.round((r.n / mx) * 100) : 0;
+          // Rótulo FORA da barra (coluna própria): antes ele ia DENTRO da barra e, quando a etapa
+          // era pequena, a barra encolhia (~14%) e o texto ficava cortado/apagado — ilegível.
           return (
-            <div className="cc-fn-row" key={i}>
-              <div className="cc-fn-bar" style={{ width: on ? `${Math.max(14, (r.n / mx) * 100)}%` : 0, transitionDelay: `${180 + i * 110}ms`, background: gargalo ? "linear-gradient(90deg,var(--sem-amber),var(--sem-red))" : undefined }}>{r.l}</div>
-              <div className="cc-fn-n">{r.n} · {mx > 0 ? Math.round((r.n / mx) * 100) : 0}%{gargalo && <span className="cc-gargalo"> {t("gargalo")}</span>}</div>
+            <div className={"cc-fn-row" + (gargalo ? " garg" : "")} key={i}>
+              <div className="cc-fn-lab">{r.l}</div>
+              <div className="cc-fn-track">
+                <div className="cc-fn-fill" style={{ width: on ? `${Math.max(4, (r.n / mx) * 100)}%` : 0, transitionDelay: `${180 + i * 110}ms`, background: gargalo ? "linear-gradient(90deg,var(--sem-amber),var(--sem-red))" : undefined }} />
+              </div>
+              <div className="cc-fn-n">{r.n} · {pct}%{gargalo && <span className="cc-gargalo"> {t("gargalo")}</span>}</div>
             </div>
           );
         })}
@@ -246,6 +264,10 @@ function Roi({ horasIa, horasEquipe, diag, on, t }: { horasIa: number; horasEqui
   const totalHrs = horasIa + (horasEquipe || 0);
   const pctIa = totalHrs > 0 ? Math.round((horasIa / totalHrs) * 100) : 0;
   const money = Math.round(horasIa * 20);
+  // KPIs de DONO no espaço que sobrava (pedido do Crasto): projeção anual da economia (no ritmo
+  // atual) e capacidade liberada em dias de trabalho — ambos derivados de horasIa (nada inventado).
+  const anual = money * 12;
+  const dias = Math.round((horasIa / 8) * 10) / 10; // 8h = 1 dia útil
   return (
     <div className="cc-card">
       <div className="cc-lbl">{t("Horas economizadas (ROI)")}</div><CardInfo diag={diag} t={t} />
@@ -253,6 +275,18 @@ function Roi({ horasIa, horasEquipe, diag, on, t }: { horasIa: number; horasEqui
         <div className="cc-money" style={{ color: "var(--sem-green)" }}>{Math.round(shown)}<b>h</b><small>≈ R$ {money.toLocaleString("pt-BR")} {t("em folha/mês")}</small></div>
         <div className="cc-roibar"><i style={{ width: on ? `${pctIa}%` : 0, background: "var(--sem-green)" }} /><i style={{ width: on ? `${100 - pctIa}%` : 0, background: "var(--sem-amber)" }} /></div>
         <div className="cc-roil"><span>{t("IA")}: <b>{horasIa}h</b></span>{horasEquipe != null && <span>{t("Equipe")}: <b>{horasEquipe}h</b></span>}</div>
+        <div className="cc-roi-extra">
+          <div className="cc-roi-x">
+            <span className="cc-roi-xl">{t("Projeção no ano")}</span>
+            <b className="cc-roi-xv">R$ {anual.toLocaleString("pt-BR")}</b>
+            <span className="cc-roi-xs">{t("no ritmo atual")}</span>
+          </div>
+          <div className="cc-roi-x">
+            <span className="cc-roi-xl">{t("Capacidade liberada")}</span>
+            <b className="cc-roi-xv">{dias} {dias === 1 ? t("dia") : t("dias")}</b>
+            <span className="cc-roi-xs">{t("de trabalho/mês")}</span>
+          </div>
+        </div>
       </div>
     </div>
   );
