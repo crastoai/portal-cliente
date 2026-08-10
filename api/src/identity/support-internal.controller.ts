@@ -123,4 +123,29 @@ export class SupportInternalController {
     const r = await Promise.all(para.map(async (to) => ({ to, ...(await this.email.send(to, `[Jorge → John] ${mail.subject}`, mail.html)) })));
     return { ok: r.some((x) => x.ok), enviados: r.filter((x) => x.ok).length, total: r.length };
   }
+
+  /**
+   * ALERTA PROATIVO de QUEDA DE CANAL. O watchdog do CRM (channel-health-monitor) detecta quando um
+   * número WhatsApp cai (open→desconectado) e chama aqui para AVISAR O TIME por e-mail na hora — em
+   * vez de ficar dias mudo sem ninguém saber (caso SR Brasil). Mesmos destinatários do escalate.
+   */
+  @Post('channel-down')
+  async channelDown(@Headers('x-service-key') chave: string, @Body() b: any) {
+    this.autorizar(chave);
+    const agente = String(b?.agente || '').trim() || '?';
+    const cliente = String(b?.cliente || '').trim() || '—';
+    const motivo = String(b?.motivo || '').trim() || 'desconectado';
+    let para = String(process.env.SUPPORT_ESCALATION_EMAILS || '').split(',').map((s) => s.trim()).filter((s) => s.includes('@'));
+    if (!para.length) {
+      para = await this.db.asService(async (c) =>
+        (await c.query(`select email from public.profiles where role='crasto_admin' and coalesce(email,'')<>''`)).rows.map((r: any) => r.email));
+    }
+    if (!para.length) return { ok: false, erro: 'sem_destinatario' };
+    const descricao = `O canal WhatsApp do agente "${agente}" (cliente: ${cliente}) CAIU — o CRM parou de enviar e receber por ele.`
+      + `\n\nMotivo detectado: ${motivo}`
+      + `\n\nAção: reconectar o número (gerar novo QR) ou verificar a instância no Console. Quanto antes, menos mensagens de clientes ficam sem resposta.`;
+    const mail = ticketInternalAlert({ code: 'CANAL', org: cliente, subject: `Canal WhatsApp caiu — ${agente}`, description: descricao, kind: 'escalation', who: 'Watchdog de canais (CRM)' });
+    const r = await Promise.all(para.map(async (to) => ({ to, ...(await this.email.send(to, `[Alerta] ${mail.subject}`, mail.html)) })));
+    return { ok: r.some((x) => x.ok), enviados: r.filter((x) => x.ok).length, total: r.length };
+  }
 }
