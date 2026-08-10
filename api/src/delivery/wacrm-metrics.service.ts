@@ -110,8 +110,13 @@ export class WacrmMetricsService {
                               where u.conversation_id=cv.id and u.from_type='user') fi on true
               where cv.organization_id=$1 and fi.first_in >= now()-'30 days'::interval
            ) t`, [orgId])).rows[0];
+      // Pico por dia-da-semana × faixa de 3h. IMPORTANTE: o Supabase grava created_at em UTC —
+      // sem converter, o pico saía ~3h adiantado (ex.: 12h reais viravam 15h) e o dono via horário
+      // errado. `at time zone 'America/Sao_Paulo'` traz a hora LOCAL do dono antes de extrair dia/hora.
       const pk = (await c.query(
-        `select extract(isodow from created_at)::int d, floor(extract(hour from created_at)/3)::int b, count(*)::int n
+        `select extract(isodow from (created_at at time zone 'America/Sao_Paulo'))::int d,
+                floor(extract(hour from (created_at at time zone 'America/Sao_Paulo'))/3)::int b,
+                count(*)::int n
            from whatsapp.messages where organization_id=$1 and created_at >= now()-'30 days'::interval
           group by 1,2`, [orgId])).rows;
       const grid = Array.from({ length: 7 }, () => Array(8).fill(0));
