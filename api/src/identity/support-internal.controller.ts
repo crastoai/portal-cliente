@@ -148,4 +148,25 @@ export class SupportInternalController {
     const r = await Promise.all(para.map(async (to) => ({ to, ...(await this.email.send(to, `[Alerta] ${mail.subject}`, mail.html)) })));
     return { ok: r.some((x) => x.ok), enviados: r.filter((x) => x.ok).length, total: r.length };
   }
+
+  /**
+   * ALERTA OPERACIONAL genérico (e-mail). O Discord (via Jorge) já sai direto do CRM; aqui é só o
+   * e-mail. Chamado pelo AlertaService do CRM em falhas de produção que precisam de olho humano —
+   * IA sem responder (DLQ), etc. Mesmos destinatários do escalate/channel-down.
+   */
+  @Post('ops-alert')
+  async opsAlert(@Headers('x-service-key') chave: string, @Body() b: any) {
+    this.autorizar(chave);
+    const titulo = String(b?.titulo || '').trim() || 'Alerta operacional';
+    const detalhe = String(b?.detalhe || '').trim();
+    let para = String(process.env.SUPPORT_ESCALATION_EMAILS || '').split(',').map((s) => s.trim()).filter((s) => s.includes('@'));
+    if (!para.length) {
+      para = await this.db.asService(async (c) =>
+        (await c.query(`select email from public.profiles where role='crasto_admin' and coalesce(email,'')<>''`)).rows.map((r: any) => r.email));
+    }
+    if (!para.length) return { ok: false, erro: 'sem_destinatario' };
+    const mail = ticketInternalAlert({ code: 'OPS', org: '—', subject: titulo, description: detalhe || titulo, kind: 'escalation', who: 'Monitor de produção (CRM)' });
+    const r = await Promise.all(para.map(async (to) => ({ to, ...(await this.email.send(to, `[Alerta] ${titulo}`, mail.html)) })));
+    return { ok: r.some((x) => x.ok), enviados: r.filter((x) => x.ok).length, total: r.length };
+  }
 }
