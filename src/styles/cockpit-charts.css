@@ -125,15 +125,20 @@
 .cc-pop-l{font-size:12px;line-height:1.45;color:var(--crasto-text-body);margin-top:8px}
 .cc-pop-l span{display:block;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--crasto-text-faint);margin-bottom:2px}
 
-/* heatmap pico */
-.cc-heat{display:grid;grid-template-columns:auto repeat(8,1fr);gap:4px;margin-top:12px;align-items:center}
-.cc-heat-d{font-size:10px;color:var(--crasto-text-faint)}
-.cc-heat-c{aspect-ratio:1;border-radius:4px;background:var(--cc-track);transform:scale(.55);opacity:0;transition:transform .7s cubic-bezier(.16,1,.3,1),opacity .7s}
-.cc-heat.in .cc-heat-c{transform:scale(1);opacity:1}
+/* pico de atendimento — dois gráficos de barras (por horário / por dia) */
+.cc-pk{margin-top:10px}
+.cc-pk-sub{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--crasto-text-faint);margin:12px 0 7px}
+.cc-pk-sub:first-child{margin-top:2px}
+.cc-pk-bars{display:flex;align-items:flex-end;gap:5px}
+.cc-pk-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0}
+.cc-pk-track{width:100%;height:46px;display:flex;align-items:flex-end;background:var(--cc-track);border-radius:5px;overflow:hidden}
+.cc-pk-fill{width:100%;border-radius:5px 5px 0 0;background:linear-gradient(180deg,var(--sem-green-soft),var(--sem-green));opacity:.5;transition:height 1.1s cubic-bezier(.16,1,.3,1),opacity .5s}
+.cc-pk-fill.pk{opacity:1;box-shadow:0 0 12px color-mix(in srgb,var(--sem-green) 45%,transparent)}
+.cc-pk-lb{font-size:9px;line-height:1;color:var(--crasto-text-faint);white-space:nowrap}
+.cc-pk-lb.pk{color:var(--sem-green);font-weight:800}
 
 @media(prefers-reduced-motion:reduce){
   .cc-reveal,.cc-reveal.in{opacity:1;transform:none;filter:none;transition:none}
   .cc-aline{stroke-dashoffset:0;transition:none}.cc-afill{opacity:1;transition:none}
-  .cc-arc,.cc-seg,.cc-ba-bar,.cc-fn-bar,.cc-roibar i,.cc-heat-c{transition:none}
-  .cc-heat-c{transform:none;opacity:1}
+  .cc-arc,.cc-seg,.cc-ba-bar,.cc-fn-bar,.cc-roibar i,.cc-pk-fill{transition:none}
 }

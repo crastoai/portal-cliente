@@ -292,19 +292,39 @@ function Roi({ horasIa, horasEquipe, diag, on, t }: { horasIa: number; horasEqui
   );
 }
 
-/* ── Pico (heatmap) ──────────────────────────────────────────────────────────── */
+/* ── Pico de atendimento (dois gráficos de barras: por horário e por dia) ──────── */
+// Antes era um heatmap (grade dia×faixa) SEM rótulos de hora → o dono não conseguia ler QUANDO
+// era o pico. Agora o mesmo dado (pico[dia][faixa de 3h], normalizado 0-1) vira dois gráficos de
+// barras LEGÍVEIS: "Por horário do dia" (soma por faixa) e "Por dia da semana" (soma por dia),
+// com o pico destacado em verde. Mostra exatamente o horário e o dia, que é o que importa.
 function Pico({ pico, diag, on, t }: { pico: number[][]; diag: Diag; on: boolean; t: (k: string) => string }) {
   const dias = [t("Seg"), t("Ter"), t("Qua"), t("Qui"), t("Sex"), t("Sáb"), t("Dom")];
+  const nb = pico[0]?.length || 8;
+  const horas = Array.from({ length: nb }, (_, b) => `${b * 3}h`);
+  const porHora = Array.from({ length: nb }, (_, b) => pico.reduce((s, row) => s + (row[b] || 0), 0));
+  const porDia = pico.map((row) => row.reduce((s, v) => s + v, 0));
+  const maxH = Math.max(...porHora, 1e-6), maxD = Math.max(...porDia, 1e-6);
+  const pkH = porHora.indexOf(Math.max(...porHora)), pkD = porDia.indexOf(Math.max(...porDia));
+  const barras = (vals: number[], max: number, labels: string[], peak: number, title: (i: number) => string) => (
+    <div className="cc-pk-bars">
+      {vals.map((v, i) => (
+        <div className="cc-pk-col" key={i} title={title(i)}>
+          <div className="cc-pk-track">
+            <i className={"cc-pk-fill" + (i === peak && v > 0 ? " pk" : "")} style={{ height: on ? `${v > 0 ? Math.max(8, Math.round((v / max) * 100)) : 0}%` : "0%", transitionDelay: `${i * 45}ms` }} />
+          </div>
+          <span className={"cc-pk-lb" + (i === peak && v > 0 ? " pk" : "")}>{labels[i]}</span>
+        </div>
+      ))}
+    </div>
+  );
   return (
     <div className="cc-card">
       <div className="cc-lbl">{t("Pico de atendimento")}</div><CardInfo diag={diag} t={t} />
-      <div className={"cc-heat" + (on ? " in" : "")}>
-        {pico.map((row, di) => (
-          <div key={di} style={{ display: "contents" }}>
-            <span className="cc-heat-d">{dias[di]}</span>
-            {row.map((v, hi) => <span className="cc-heat-c" key={hi} title={`${dias[di]} · ${Math.round(v * 100)}%`} style={{ background: `color-mix(in srgb, var(--sem-green) ${Math.round((0.12 + v * 0.85) * 100)}%, var(--cc-track))`, transitionDelay: `${(di * 8 + hi) * 9}ms` }} />)}
-          </div>
-        ))}
+      <div className={"cc-pk" + (on ? " in" : "")}>
+        <div className="cc-pk-sub">{t("Por horário do dia")}</div>
+        {barras(porHora, maxH, horas, pkH, (i) => `${i * 3}h–${i * 3 + 3}h`)}
+        <div className="cc-pk-sub">{t("Por dia da semana")}</div>
+        {barras(porDia, maxD, dias, pkD, (i) => dias[i])}
       </div>
     </div>
   );
