@@ -67,3 +67,12 @@ create trigger trg_team_members_updated before update on public.team_members
 -- Mesma postura de delivery.user_module_access, porém SEM self-read (aqui há dado sensível).
 alter table public.team_members enable row level security;
 grant select, insert, update, delete on table public.team_members to service_role;
+
+-- 3) Helper "último login" — a lista de colaboradores mostra o último acesso, que vive em
+-- auth.users.last_sign_in_at. O service_role (usado pela API) NÃO tem SELECT em auth.users
+-- (Supabase tranca), então lemos por esta função SECURITY DEFINER (roda como o dono, que pode
+-- ler auth). Devolve só o timestamp de login — nada sensível.
+create or replace function public.user_last_login(p_uid uuid)
+returns timestamptz language sql stable security definer set search_path to 'auth', 'public'
+as $$ select last_sign_in_at from auth.users where id = p_uid $$;
+grant execute on function public.user_last_login(uuid) to authenticated, service_role;

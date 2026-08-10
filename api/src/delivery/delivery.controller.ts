@@ -762,7 +762,7 @@ export class DeliveryController {
       const rows = (await c.query(
         `select p.id, p.full_name, p.email, p.role::text as role, p.access_level, p.active,
                 t.cargo, t.departamento, t.tipo_contrato, t.telefone,
-                (select last_sign_in_at from auth.users u where u.id = p.id) as last_login
+                public.user_last_login(p.id) as last_login
            from public.profiles p
            left join public.team_members t on t.user_id = p.id
           where p.organization_id = $1 and p.role <> 'crasto_admin'
