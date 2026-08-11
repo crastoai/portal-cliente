@@ -59,6 +59,29 @@ export class IdpService {
   }
 
   /**
+   * IMPERSONAÇÃO (auditoria — "Acessar como"). Devolve uma SESSÃO válida do usuário SEM senha:
+   * cria um magiclink de uso único (admin/generate_link) e o CONSOME aqui no servidor
+   * (`POST /verify` com o `token_hash`) — o token some no backend, nunca chega ao navegador.
+   * NÃO redefine a senha e NÃO derruba as sessões existentes da pessoa (o GoTrue permite várias).
+   * Quem chama (controller) é responsável por checar crasto_admin e AUDITAR o acesso.
+   */
+  async mintSession(email: string): Promise<{ access_token: string; refresh_token: string; expires_at?: number }> {
+    if (!this.svcKey) throw new BadRequestException('PORTAL_SERVICE_KEY ausente na API.');
+    const { token } = await this.token(email, 'magiclink');
+    const r = await fetch(`${this.gotrue}/verify`, {
+      method: 'POST',
+      headers: { apikey: this.svcKey, Authorization: 'Bearer ' + this.svcKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'magiclink', token_hash: token }),
+    });
+    const j: any = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.access_token) {
+      this.log.warn(`verify magiclink ${r.status}: ${j?.msg || j?.message || ''}`);
+      throw new BadRequestException(j?.msg || j?.message || `Falha ao gerar a sessão de acesso (${r.status}).`);
+    }
+    return { access_token: j.access_token, refresh_token: j.refresh_token, expires_at: j.expires_at };
+  }
+
+  /**
    * Garante a identidade e devolve o link para a pessoa DEFINIR a senha dela.
    * - não existe  → invite (cria a identidade, já com o nome no metadata)
    * - existe      → recovery (não mexe na senha atual)

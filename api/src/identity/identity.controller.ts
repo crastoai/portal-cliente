@@ -68,6 +68,11 @@ export class IdentityController {
   @UseGuards(AdminGuard)
   resendUser(@Req() req: any, @Param('id') id: string) { return this.users.resend(req, id); }
 
+  /** Admin "Acessa como" o usuário (auditoria): devolve uma sessão do alvo, sem senha. Auditado. */
+  @Post('users/:id/impersonate')
+  @UseGuards(AdminGuard)
+  impersonate(@Req() req: any, @Param('id') id: string) { return this.users.impersonate(req, id); }
+
   /** DONO/ADMIN-LEVEL reenvia o acesso de alguém da PRÓPRIA empresa (sem AdminGuard). A guarda é
    *  no código: crasto_admin, o dono, ou admin-level da mesma org. Não redefine a senha atual. */
   @Post('users/:id/resend-owner')

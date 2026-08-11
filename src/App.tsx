@@ -4,6 +4,7 @@ import { useAuth } from "./lib/auth";
 import { useIdleGuard, ultimaAtividade } from "./lib/idle";
 import { services } from "./services";
 import IdleModal from "./ui/IdleModal";
+import ImpersonationBanner from "./ui/ImpersonationBanner";
 import Splash from "./ui/Splash";
 import { preview } from "./lib/preview";
 import Login from "./pages/Login";
@@ -94,21 +95,25 @@ export default function App() {
   // Bloqueio de segurança: senha temporária (admin) → obriga o cliente a definir a própria.
   if (session && mustChange) {
     return (
-      <Routes>
-        <Route path="/nova-senha" element={<NewPassword />} />
-        <Route path="*" element={<Navigate to="/nova-senha" replace />} />
-      </Routes>
+      <>
+        <ImpersonationBanner />
+        <Routes>
+          <Route path="/nova-senha" element={<NewPassword />} />
+          <Route path="*" element={<Navigate to="/nova-senha" replace />} />
+        </Routes>
+      </>
     );
   }
 
   // 2FA: o usuário tem verificação em duas etapas ativa e ainda não passou o código nesta sessão →
   // segura tudo na tela de código (per-usuário; quem não ativou nunca cai aqui).
   if (session && mfaPending) {
-    return <TwoFactorChallenge />;
+    return <><ImpersonationBanner /><TwoFactorChallenge /></>;
   }
 
   return (
     <>
+      <ImpersonationBanner />
       {aviso}
       <Routes>
       <Route path="/login" element={session ? <Navigate to={home} replace /> : <Login />} />

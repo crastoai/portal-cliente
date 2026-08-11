@@ -226,4 +226,29 @@ export class UsersService {
     });
     return { ok: true, email: u.email, email_sent: sent.ok, email_error: sent.error };
   }
+
+  /**
+   * "Acessar como" (impersonação para AUDITORIA). Só crasto_admin (AdminGuard no controller).
+   * Gera uma sessão do usuário-alvo SEM senha e devolve os tokens; o front do admin assume a
+   * sessão e volta num clique. AUDITADO SEMPRE (ator = admin do JWT, nunca do corpo). Bloqueia
+   * alvo crasto_admin (não faz sentido e evita jogo de privilégio). Não mexe na senha da pessoa
+   * nem derruba a sessão dela.
+   */
+  async impersonate(req: any, targetId: string) {
+    const u = await this.db.asService(async (c) =>
+      (await c.query(`select email, full_name, organization_id, role from public.profiles where id=$1`, [targetId])).rows[0]);
+    if (!u?.email) throw new BadRequestException('Usuário não encontrado.');
+    if (u.role === 'crasto_admin') throw new BadRequestException('Não é possível acessar como outro administrador.');
+    const sess = await this.idp.mintSession(u.email);
+    await this.audit.log(req, 'impersonate.start', {
+      targetType: 'user', targetId, org: u.organization_id,
+      ctx: { email: u.email, nome: u.full_name, role: u.role },
+    });
+    return {
+      ok: true,
+      access_token: sess.access_token,
+      refresh_token: sess.refresh_token,
+      target: { id: targetId, name: u.full_name || u.email, email: u.email, org: u.organization_id },
+    };
+  }
 }

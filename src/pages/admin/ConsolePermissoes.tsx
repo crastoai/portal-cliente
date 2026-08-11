@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Shield, Users, Building2, Lock, Search, ChevronRight, SlidersHorizontal, Check, MessageSquare, LayoutGrid, UserPlus, RefreshCw, Trash2, Pencil } from "lucide-react";
+import { Shield, Users, Building2, Lock, Search, ChevronRight, SlidersHorizontal, Check, MessageSquare, LayoutGrid, UserPlus, RefreshCw, Trash2, Pencil, LogIn } from "lucide-react";
+import { startImpersonation } from "../../lib/impersonation";
 import { services, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, useToast, initials, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
@@ -198,6 +199,17 @@ export default function ConsolePermissoes() {
     setBusy(true);
     try { await services.identity.users.resendAccess({ user_id: pe.portal.id }); toast.ok(t("Acesso reenviado ✓")); }
     catch (e) { toast.err(errorMessage(e)); } finally { setBusy(false); }
+  }
+
+  // "Acessar como" (auditoria): assume a sessão da pessoa SEM senha (o backend cunha uma sessão
+  // de uso único). A sessão do admin é guardada; um banner no topo permite voltar num clique.
+  // Em sucesso a página recarrega como o usuário — por isso não zeramos `busy` no caminho feliz.
+  async function acessarComo(pe: Pessoa) {
+    if (!pe.portal) return;
+    if (!window.confirm(t("Acessar o Portal como {n} para auditoria? Sua sessão de admin fica guardada e você volta com um clique. Este acesso é registrado.", { n: pe.nome }))) return;
+    setBusy(true);
+    try { await startImpersonation({ id: pe.portal.id, name: pe.nome, email: pe.email }); }
+    catch (e) { toast.err(errorMessage(e)); setBusy(false); }
   }
 
   const totalUsers = platform.length + clients.reduce((s, c) => s + c.users.length, 0);
@@ -446,6 +458,11 @@ export default function ConsolePermissoes() {
                         ? <Pill tone="warn">{t("sem acesso ao Portal")}</Pill>
                         : <Pill tone={pe.portal.role === "client_owner" ? "ok" : "mute"}>{accessSummary(pe.portal, t)}</Pill>}
                       <Pill tone={pe.crm ? "info" : "mute"}>{pe.crm ? crmSummary(pe.crm, t) : t("sem WhatsApp CRM")}</Pill>
+                      {pe.portal && (
+                        <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} title={t("Acessa o Portal como esta pessoa para auditoria — sem senha; você volta num clique. Fica registrado.")} onClick={() => acessarComo(pe)}>
+                          <span className="crasto-btn__icon"><LogIn size={13} /></span><span className="crasto-btn__label">{t("Acessar como")}</span>
+                        </button>
+                      )}
                       {pe.portal && (
                         <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} title={t("Reenvia o link de acesso (não redefine a senha atual)")} onClick={() => reenviar(pe)}>
                           <span className="crasto-btn__icon"><RefreshCw size={13} /></span><span className="crasto-btn__label">{t("Reenviar")}</span>
