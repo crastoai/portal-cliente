@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Home, LayoutGrid, Activity, Sparkles, Wallet, Users, LifeBuoy, Eye, IdCard,
   MessageCircle, Megaphone, Share2, Target, ShoppingCart, PackageOpen, TrendingUp, type LucideIcon } from "lucide-react";
@@ -90,16 +90,27 @@ export default function ClientShell() {
   const crmScreenSet = crmScreens && !crmScreens.includes("*") ? new Set(crmScreens) : null; // null = todas
   const crmChildren = CRM_SECTIONS.filter((s) => !crmScreenSet || crmScreenSet.has(s.screen)).map((s) => ({ to: s.to, label: s.label, end: s.end }));
 
-  // Unidade (CNPJ) ATIVA — escolhida no seletor da topbar. Persistida por org; null = "Todas
-  // as unidades". Se a guardada não existe mais (ou trocou de empresa), volta pra null.
+  // Unidade (CNPJ) ATIVA — escolhida no seletor da topbar. Persistida por org. Por PADRÃO abre na
+  // MATRIZ (a empresa em que o usuário está logado) — NÃO em "Todas as unidades" — para o dono saber
+  // de cara em qual empresa está. Escolher "Todas as unidades" é explícito e PERSISTE (sentinela
+  // `__all__`), então só cai na matriz quem nunca escolheu. Se a guardada não existe mais (trocou de
+  // empresa / unidade removida), volta pra matriz. Todo agente pertence a uma unidade (a matriz
+  // contém todos) → escopar na matriz mostra os mesmos agentes que "todas", só muda o rótulo.
+  const ALL_UNITS = "__all__";
   const scopeKey = `crasto_active_unit_${pv.active ? preview.orgId() || "self" : "self"}`;
-  const [unitId, setUnitIdState] = useState<string | null>(() => localStorage.getItem(scopeKey));
+  const storedUnit = (() => { try { return localStorage.getItem(scopeKey); } catch { return null; } })();
+  const [unitId, setUnitIdState] = useState<string | null>(storedUnit === ALL_UNITS ? null : storedUnit);
+  const unitChosen = useRef<boolean>(storedUnit != null); // já há escolha guardada (unidade OU __all__)?
+  const primaryUnitId = () => (units.find((u) => u.is_primary) || units[0])?.id ?? null;
   useEffect(() => {
-    if (unitId && units.length && !units.some((u) => u.id === unitId)) setUnitIdState(null);
+    if (!units.length) return;
+    if (!unitChosen.current) { setUnitIdState(primaryUnitId()); unitChosen.current = true; return; } // 1ª vez → matriz
+    if (unitId && !units.some((u) => u.id === unitId)) setUnitIdState(primaryUnitId());              // guardada sumiu → matriz
   }, [units]); // eslint-disable-line react-hooks/exhaustive-deps
   const setUnitId = (id: string | null) => {
     setUnitIdState(id);
-    if (id) localStorage.setItem(scopeKey, id); else localStorage.removeItem(scopeKey);
+    unitChosen.current = true;
+    try { localStorage.setItem(scopeKey, id ?? ALL_UNITS); } catch { /* storage indisponível */ }
   };
   // Quem pode ADICIONAR/editar empresa (CNPJ): o DONO da conta (ou um admin logado direto). Membro
   // comum só seleciona. NÃO liberamos por preview: em "ver como cliente" o /api/me devolve a org do
@@ -246,9 +257,13 @@ export default function ClientShell() {
     navigate(oid ? `/admin/cliente/${oid}` : "/admin/clientes");
   }
 
+  // Nome da EMPRESA logada (matriz) — vai numa tag ao lado da logo (o dono vê o nome da empresa dele).
+  // Em preview (admin "ver como cliente"), usa a org visualizada. `undefined` (units carregando) = sem tag.
+  const companyName = pv.active ? pv.name : ((units.find((u) => u.is_primary) || units[0])?.name || undefined);
+
   return (
     <UnitScopeContext.Provider value={{ units, unitId, setUnitId, canManage: canManageUnits, createUnit, reload: reloadUnits }}>
-      <Shell nav={nav} bottomNav={bottomNav} who={pv.active ? pv.name : (profile?.full_name || "Cliente")} sub={pv.active ? t("Visualização (admin)") : "Portal do Cliente"} logoTone="linear-gradient(145deg,#1F8A5B,#0d5c3a)" />
+      <Shell nav={nav} bottomNav={bottomNav} brandTag={companyName} who={pv.active ? pv.name : (profile?.full_name || "Cliente")} sub={pv.active ? t("Visualização (admin)") : "Portal do Cliente"} logoTone="linear-gradient(145deg,#1F8A5B,#0d5c3a)" />
       {pv.active && (
         <div style={{ position: "fixed", top: 14, left: "50%", transform: "translateX(-50%)", zIndex: 9999, display: "flex", alignItems: "center", gap: 12, background: "var(--crasto-text-primary)", color: "#fff", padding: "10px 8px 10px 16px", borderRadius: 999, boxShadow: "0 10px 34px rgba(1,14,38,.34)", fontSize: 13.5, maxWidth: "92vw" }}>
           <Eye size={15} style={{ flex: "none" }} />

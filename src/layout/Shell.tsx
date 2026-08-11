@@ -98,7 +98,7 @@ function Wordmark() {
 export type NavChild = { to?: string; label: string; end?: boolean; tag?: string; locked?: boolean; onClick?: () => void };
 export type NavItem = { to?: string; end?: boolean; icon: LucideIcon; label: string; tag?: string; section?: string; locked?: boolean; onClick?: () => void; children?: NavChild[] };
 
-export default function Shell({ nav, who, sub, logoTone, bottomNav }: { nav: NavItem[]; who: string; sub: string; logoTone?: string; bottomNav?: NavItem[] }) {
+export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: { nav: NavItem[]; who: string; sub: string; logoTone?: string; bottomNav?: NavItem[]; brandTag?: string }) {
   const { profile, signOut, refreshProfile } = useAuth();
   const t = useT();
   const navigate = useNavigate();
@@ -331,6 +331,20 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav }: { nav: Nav
         <div className="tb-left">
           <button className="tb-burger" onClick={() => setOpen(true)} aria-label={t("Abrir menu")}><Menu size={20} /></button>
           <span className="tb-brand" title={t(sub)}><Wordmark /></span>
+          {/* Tag da EMPRESA logada ao lado da logo — o dono vê o nome da empresa dele (sensação de
+              exclusividade + saber de cara em qual está). Nome vem da matriz (unidade primária). */}
+          {brandTag ? (
+            <span
+              title={brandTag}
+              style={{
+                display: "inline-flex", alignItems: "center", maxWidth: "min(38vw, 220px)", marginLeft: 6,
+                padding: "3px 11px", borderRadius: 999, fontSize: 12, fontWeight: 600, letterSpacing: ".01em",
+                color: "var(--crasto-blue, #2E6F9E)", background: "var(--crasto-blue-05, rgba(78,147,212,.10))",
+                border: "1px solid var(--crasto-blue-15, rgba(78,147,212,.26))",
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+              }}
+            >{brandTag}</span>
+          ) : null}
         </div>
         <div className="tb-right">
           <UnitSwitcher />
