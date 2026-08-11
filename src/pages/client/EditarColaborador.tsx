@@ -61,6 +61,28 @@ function parseValor(s: string): number {
   return Number(String(s || "").replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".")) || 0;
 }
 const brl = (n: number) => "R$ " + Math.round(n).toLocaleString("pt-BR");
+// INSS empregado 2026 (progressivo por faixa, teto R$ 8.475,55).
+function calcINSS(sal: number): number {
+  const base = Math.min(sal, 8475.55);
+  const faixas: [number, number][] = [[1621.0, 0.075], [2902.84, 0.09], [4354.27, 0.12], [8475.55, 0.14]];
+  let inss = 0, ant = 0;
+  for (const [lim, aliq] of faixas) { if (base > ant) { inss += (Math.min(base, lim) - ant) * aliq; ant = lim; } }
+  return inss;
+}
+// IRRF 2026 (tabela progressiva 0→27,5% + redutor da Lei 15.270/25: isento até R$5.000, decrescente
+// até R$7.350). Dependentes não têm campo na ficha → assume 0 (estimativa). Fonte: Receita Federal.
+function calcIRRF(sal: number, inss: number, deps = 0): number {
+  const base = sal - inss - deps * 189.59;
+  let irrf = 0;
+  if (base <= 2428.8) irrf = 0;
+  else if (base <= 2826.65) irrf = base * 0.075 - 182.16;
+  else if (base <= 3751.05) irrf = base * 0.15 - 394.16;
+  else if (base <= 4664.68) irrf = base * 0.225 - 675.49;
+  else irrf = base * 0.275 - 908.73;
+  irrf = Math.max(0, irrf);
+  const fator = sal <= 5000 ? 1 : sal >= 7350 ? 0 : (7350 - sal) / 2350; // redutor 2026
+  return Math.max(0, irrf * (1 - fator));
+}
 function calcCusto(salarioStr: string, tipo: string, regime: string, admissao: string) {
   const sal = parseValor(salarioStr);
   if (!sal) return null;
@@ -74,7 +96,13 @@ function calcCusto(salarioStr: string, tipo: string, regime: string, admissao: s
   const avisoDias = Math.min(30 + 3 * Math.floor(anos), 90);
   const aviso = (sal / 30) * avisoDias;
   const multa40 = 0.40 * (0.08 * sal * meses);
-  return { pj: false as const, tipo, sal, encPct: Math.round(enc * 100), mensal, anual: mensal * 12, anos, avisoDias, aviso, multa40, rescisao: aviso + multa40 };
+  // O que o colaborador RECEBE (líquido) e a "cunha" (o que a empresa paga a mais que a pessoa recebe).
+  const inss = calcINSS(sal);
+  const irrf = calcIRRF(sal, inss);
+  const liquido = sal - inss - irrf;
+  const cunha = mensal - liquido;            // impostos + encargos (empresa + colaborador)
+  const cunhaPct = Math.round((cunha / mensal) * 100);
+  return { pj: false as const, tipo, sal, encPct: Math.round(enc * 100), mensal, anual: mensal * 12, anos, avisoDias, aviso, multa40, rescisao: aviso + multa40, inss, irrf, liquido, cunha, cunhaPct };
 }
 // Catálogo ESTÁTICO do WhatsApp CRM (fallback) — MESMAS keys/labels do sidebar (ClientShell
 // CRM_SECTIONS) e do wacrm. Garante que o grupo apareça mesmo antes da API nova estar em prod;
@@ -92,7 +120,7 @@ const CRM_STATIC: { key: string; label: string }[] = [
 
 const EMPTY_FORM = {
   full_name: "", email: "", cpf_cnpj: "", telefone: "", tipo_contrato: "", observacoes: "",
-  cargo: "", departamento: "", salario: "", data_admissao: "", cnpj_vinculado: "",
+  cargo: "", departamento: "", salario: "", data_admissao: "", cnpj_vinculado: "", sindicato: "",
   wa_sender_name: "", wa_number: "",
 };
 
@@ -180,6 +208,7 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
               cpf_cnpj: tm.cpf_cnpj ?? "", telefone: tm.telefone ?? "", cargo: tm.cargo ?? "", departamento: tm.departamento ?? "",
               salario: tm.salario != null ? String(tm.salario) : "", data_admissao: tm.data_admissao ? String(tm.data_admissao).slice(0, 10) : "",
               tipo_contrato: tm.tipo_contrato ?? "", cnpj_vinculado: tm.cnpj_vinculado ?? "", observacoes: tm.observacoes ?? "",
+              sindicato: tm.sindicato ?? "",
               wa_sender_name: info.wa_sender_name ?? "", wa_number: info.wa_number ?? "",
             });
           } else {
@@ -289,6 +318,7 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
         cpf_cnpj: f.cpf_cnpj, telefone: f.telefone, cargo: f.cargo, departamento: f.departamento,
         salario: f.salario === "" ? null : f.salario, data_admissao: f.data_admissao || null,
         tipo_contrato: f.tipo_contrato, cnpj_vinculado: f.cnpj_vinculado, observacoes: f.observacoes,
+        sindicato: f.sindicato || null,
       };
       const payload: { access_level?: string | null; wa_sender_name?: string | null; wa_number?: string | null; team?: typeof team; org_tax_regime?: string } =
         { wa_sender_name: f.wa_sender_name, wa_number: f.wa_number, team };
@@ -397,8 +427,9 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
             <div className="ec-field"><label>{t("Tipo de Contrato")}</label>
               <select value={f.tipo_contrato} onChange={(e) => setField("tipo_contrato", e.target.value)}>{TIPOS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}</select></div>
             <div className="ec-field"><label>{t("CNPJ Vinculado")}</label><input value={f.cnpj_vinculado} onChange={(e) => setField("cnpj_vinculado", e.target.value)} /></div>
+            <div className="ec-field"><label>{t("Sindicato")}</label><input value={f.sindicato} onChange={(e) => setField("sindicato", e.target.value)} placeholder={t("Ex.: SINDPD, SEESP…")} /></div>
           </div>
-          {podeVerCusto && <CustoPanel salario={f.salario} tipo={f.tipo_contrato} adm={f.data_admissao} regime={orgTaxRegime} setRegime={setOrgTaxRegime} t={t} />}
+          {podeVerCusto && <CustoPanel salario={f.salario} tipo={f.tipo_contrato} adm={f.data_admissao} regime={orgTaxRegime} setRegime={setOrgTaxRegime} sindicato={f.sindicato} t={t} />}
         </>)}
 
         {/* ---- WhatsApp ---- */}
@@ -521,7 +552,7 @@ function Metric({ lbl, val, hint, big }: { lbl: string; val: string; hint?: stri
 }
 
 // Fatia 3 — painel de custo real do colaborador (só o dono vê). ESTIMATIVA por regime tributário.
-function CustoPanel({ salario, tipo, adm, regime, setRegime, t }: { salario: string; tipo: string; adm: string; regime: string; setRegime: (v: string) => void; t: (k: string) => string }) {
+function CustoPanel({ salario, tipo, adm, regime, setRegime, sindicato, t }: { salario: string; tipo: string; adm: string; regime: string; setRegime: (v: string) => void; sindicato?: string; t: (k: string) => string }) {
   const c = calcCusto(salario, tipo, regime, adm);
   return (
     <div style={{ marginTop: 18, padding: 16, borderRadius: 14, border: "1px solid rgba(110,156,232,0.38)", background: "rgba(110,156,232,0.07)" }}>
@@ -554,12 +585,21 @@ function CustoPanel({ salario, tipo, adm, regime, setRegime, t }: { salario: str
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(110,156,232,0.2)" }}>
             <Metric lbl={t("Rescisão estimada (se desligar hoje)")} val={brl(c.rescisao)} hint={`${t("aviso")} ${c.avisoDias}d ${brl(c.aviso)} + ${t("multa 40% FGTS")} ${brl(c.multa40)}`} />
           </div>
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(110,156,232,0.2)" }}>
+            <div className="mt" style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>{t("A conta — quem fica com o quê")}</div>
+            <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+              <Metric lbl={t("Empresa desembolsa")} val={brl(c.mensal)} />
+              <Metric lbl={t("Colaborador recebe líquido")} val={brl(c.liquido)} hint={`− INSS ${brl(c.inss)} − IRRF ${brl(c.irrf)}`} />
+              <Metric lbl={t("Impostos + encargos")} val={`${brl(c.cunha)} · ${c.cunhaPct}%`} hint={t("do custo total")} />
+            </div>
+          </div>
           <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 10, background: "rgba(52,168,83,0.12)", border: "1px solid rgba(52,168,83,0.32)", fontSize: 12.5, lineHeight: 1.5, color: "var(--crasto-text-body)" }}>
             💡 {t("Se a IA assumir esta função, a empresa deixa de gastar")} <b style={{ color: "#34a853" }}>{brl(c.mensal)}/{t("mês")}</b> — <b style={{ color: "#34a853" }}>{brl(c.anual)}/{t("ano")}</b> {t("em folha + encargos.")}
           </div>
         </>
       )}
-      <p className="mt" style={{ margin: "10px 2px 0", fontSize: 10.5, lineHeight: 1.5, opacity: 0.85 }}>🔒 {t("Estimativa para gestão — provisões médias por regime tributário. Não substitui a contabilidade.")}</p>
+      {sindicato && <p className="mt" style={{ margin: "8px 2px 0", fontSize: 11.5 }}>{t("Sindicato")}: <b>{sindicato}</b> · {t("contribuição sindical é voluntária desde 2017 (Lei 13.467).")}</p>}
+      <p className="mt" style={{ margin: "10px 2px 0", fontSize: 10.5, lineHeight: 1.5, opacity: 0.85 }}>🔒 {t("Estimativa para gestão — provisões médias e tabelas 2026 (INSS/IRRF). Não substitui a contabilidade.")}</p>
     </div>
   );
 }
