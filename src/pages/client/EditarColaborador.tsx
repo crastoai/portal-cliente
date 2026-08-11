@@ -160,18 +160,28 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
     return () => { alive = false; };
   }, [orgId, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Agentes da empresa + responsabilidade atual (ADMIN — o caminho de escrita é crmAccess.update).
+  // Agentes da empresa + de quais a pessoa é responsável. Admin: crmAccess (bearer). Cliente
+  // (dono/admin): delivery.crmAgents (guarda do delivery). Novo colaborador: lista os agentes da
+  // própria org (via me) e começa sem responsável.
   useEffect(() => {
-    if (!isAdmin) return;
     let alive = true;
-    services.crmAccess.overview(orgId).then((o) => {
-      if (!alive) return;
-      setAgentsList((o.agents || []).map((a) => ({ id: a.id, name: a.name })));
-      if (user) {
-        const u = (o.users || []).find((x) => x.id === user.id);
-        setRespAgents(new Set(u?.responsible_agents || []));
-      }
-    }).catch(() => { /* sem agentes → o bloco some */ });
+    (async () => {
+      try {
+        if (isAdmin) {
+          const o = await services.crmAccess.overview(orgId);
+          if (!alive) return;
+          setAgentsList((o.agents || []).map((a) => ({ id: a.id, name: a.name })));
+          if (user) { const u = (o.users || []).find((x) => x.id === user.id); setRespAgents(new Set(u?.responsible_agents || [])); }
+        } else {
+          const alvo = user?.id || me?.id;
+          if (!alvo) return;
+          const r: any = await services.delivery.crmAgents.list(alvo);
+          if (!alive || r?.error) return;
+          setAgentsList((r.agents || []).map((a: any) => ({ id: a.id, name: a.name })));
+          if (user) setRespAgents(new Set(r.responsible_agents || []));
+        }
+      } catch { /* sem agentes → o bloco some */ }
+    })();
     return () => { alive = false; };
   }, [orgId, user?.id, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -258,6 +268,12 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
           const rs: any = await services.delivery.crmScreens.set(uid!, crmToSave).catch(() => null);
           if (rs?.error && !/acesso|restring/i.test(rs.error)) throw new Error(rs.error);
         }
+      }
+      // Responsável pelas dúvidas da IA (cliente): grava de quais agentes esta pessoa é responsável.
+      // (No admin, isso já foi pelo crmAccess.update acima.)
+      if (!isAdmin && crmHas) {
+        const rr: any = await services.delivery.crmAgents.setResponsibles(uid!, Array.from(respAgents));
+        if (rr?.error) throw new Error(rr.error);
       }
       onSaved(isNew ? t("Colaborador criado ✓") : t("Colaborador atualizado ✓"));
     } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
@@ -351,7 +367,7 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
               <button key={lv.key} type="button" className={"ec-seg-b" + (!dono && level === lv.key ? " on" : "")} onClick={() => { setDono(false); setLevel(lv.key); }}>{t(lv.label)}</button>
             ))}
           </div>
-          {isAdmin && agentsList.length > 0 && (
+          {agentsList.length > 0 && (
             <div style={{ marginTop: 16 }}>
               <div className="ec-uplabel">{t("Responsável pelas dúvidas da IA")}</div>
               <p className="mt" style={{ margin: "0 0 8px" }}>{t("Quando a IA tiver dúvida, a tarefa de aprovação chega a quem for responsável pelo agente (Minha Mesa + notificação). Sem ninguém responsável, aparece para todos.")}</p>

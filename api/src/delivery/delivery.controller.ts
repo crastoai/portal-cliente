@@ -743,6 +743,27 @@ export class DeliveryController {
     });
   }
 
+  // Responsável por agente (aprovação in-system) — caminho DONO/ADMIN do cliente (proxy interno).
+  // Lista os agentes da empresa + de quais o colaborador é responsável.
+  @Get('crm-agents')
+  async crmAgents(@Req() req: any, @Query('user') user: string) {
+    return this.db.asService(async (c) => {
+      const org = await this.gerenciaModulos(c, this.uid(req), user);
+      if (!org) return { error: 'sem permissão' };
+      return (await this.callCrmInternal('/internal/list-agents', { organization_id: org, user_id: user })) ?? { error: 'CRM indisponível' };
+    });
+  }
+  @Post('crm-responsibles')
+  async crmResponsibles(@Req() req: any, @Body() b: any) {
+    const user = String(b?.user_id || '');
+    const agents: string[] = Array.isArray(b?.responsible_agents) ? b.responsible_agents.filter((x: any) => typeof x === 'string') : [];
+    return this.db.asService(async (c) => {
+      const org = await this.gerenciaModulos(c, this.uid(req), user);
+      if (!org) return { error: 'sem permissão' };
+      return (await this.callCrmInternal('/internal/set-responsibles', { id: user, organization_id: org, responsible_agents: agents })) ?? { error: 'CRM indisponível' };
+    });
+  }
+
   // Quem gerencia a org INTEIRA (lista de colaboradores): crasto_admin, o dono, ou admin-level
   // dessa org. Igual ao gerenciaModulos, mas por ORG (não por alvo). Retorna true/false.
   private async gerenciaOrg(c: any, callerId: string, orgId: string): Promise<boolean> {

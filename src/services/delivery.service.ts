@@ -112,6 +112,15 @@ export const crmScreens = {
   set: async (userId: string, screens: string[]) => api.post<{ ok?: boolean; screens?: string[]; error?: string }>(`/api/delivery/crm-screens`, { user_id: userId, screens }),
 };
 
+// Agentes da empresa + de quais o colaborador é RESPONSÁVEL (aprovação in-system) — caminho do cliente
+// (dono/admin), pela guarda do delivery. A dúvida da IA chega ao responsável na Minha Mesa + sino.
+export const crmAgents = {
+  list: async (userId: string) =>
+    api.get<{ agents: { id: string; name: string }[]; responsible_agents: string[]; error?: string }>(`/api/delivery/crm-agents?user=${encodeURIComponent(userId)}`),
+  setResponsibles: async (userId: string, responsible_agents: string[]) =>
+    api.post<{ ok?: boolean; responsible_agents?: string[]; error?: string }>(`/api/delivery/crm-responsibles`, { user_id: userId, responsible_agents }),
+};
+
 export const selfService = {
   getMine: async () => api.get<any>(`/api/delivery/self-service/mine`),
 };
@@ -285,4 +294,4 @@ export const userSession = {
   close: async () => api.post(`/api/delivery/session-close`, {}),
 };
 
-export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, collaborator, myCollaborator, crmScreens, selfService, moduleSessions, teamUsage, meetings, implEvents, agentUsage, cockpit, crmLive, userSession };
+export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, collaborator, myCollaborator, crmScreens, crmAgents, selfService, moduleSessions, teamUsage, meetings, implEvents, agentUsage, cockpit, crmLive, userSession };
