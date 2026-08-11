@@ -634,7 +634,7 @@ export class DeliveryController {
   // (gerenciaModulos: crasto_admin | dono | admin-level). access_level e WhatsApp vivem em
   // public.profiles; a ficha profissional/RH (inclui salário) na public.team_members (deny-default).
   private static readonly ACCESS_LEVELS = ['admin', 'supervisor', 'agente', 'visualizador'];
-  private static readonly TEAM_FIELDS = ['cpf_cnpj', 'telefone', 'cargo', 'departamento', 'salario', 'data_admissao', 'tipo_contrato', 'cnpj_vinculado', 'observacoes', 'sindicato'];
+  private static readonly TEAM_FIELDS = ['cpf_cnpj', 'telefone', 'cargo', 'departamento', 'salario', 'data_admissao', 'tipo_contrato', 'cnpj_vinculado', 'observacoes', 'sindicato', 'ultima_ferias'];
   // Campos de CUSTO (sigilo): só o DONO/presidente (client_owner) ou a Crasto (crasto_admin)
   // veem e editam. gerenciaModulos deixa admin-level ADMINISTRAR a equipe, mas não VER custo.
   private static readonly COST_FIELDS = ['salario'];

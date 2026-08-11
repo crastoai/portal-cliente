@@ -83,7 +83,7 @@ function calcIRRF(sal: number, inss: number, deps = 0): number {
   const fator = sal <= 5000 ? 1 : sal >= 7350 ? 0 : (7350 - sal) / 2350; // redutor 2026
   return Math.max(0, irrf * (1 - fator));
 }
-function calcCusto(salarioStr: string, tipo: string, regime: string, admissao: string) {
+function calcCusto(salarioStr: string, tipo: string, regime: string, admissao: string, ultimaFerias?: string) {
   const sal = parseValor(salarioStr);
   if (!sal) return null;
   if (tipo === "pj" || tipo === "projeto") return { pj: true as const, tipo, mensal: sal, anual: sal * 12 };
@@ -91,19 +91,33 @@ function calcCusto(salarioStr: string, tipo: string, regime: string, admissao: s
   // "clt" OU modalidade não informada ("") → tratamos como CLT (caso mais comum)
   const enc = encargoPct(regime);
   const mensal = sal * (1 + enc);
-  const anosRaw = admissao ? (Date.now() - new Date(admissao).getTime()) / (365.25 * 864e5) : 0;
+  const hoje = new Date();
+  const adm = admissao ? new Date(admissao) : null;
+  const anosRaw = adm ? (hoje.getTime() - adm.getTime()) / (365.25 * 864e5) : 0;
   const anos = isFinite(anosRaw) && anosRaw > 0 ? anosRaw : 0;
   const meses = Math.max(1, Math.round(anos * 12));
-  const avisoDias = Math.min(30 + 3 * Math.floor(anos), 90);
+  // ── Simulador demissional (dispensa sem justa causa) ─────────────────────────
+  const saldoSalario = (sal / 30) * hoje.getDate();                       // dias trabalhados no mês
+  const avisoDias = Math.min(30 + 3 * Math.floor(anos), 90);              // aviso prévio (Lei 12.506/2011)
   const aviso = (sal / 30) * avisoDias;
-  const multa40 = 0.40 * (0.08 * sal * meses);
-  // O que o colaborador RECEBE (líquido) e a "cunha" (o que a empresa paga a mais que a pessoa recebe).
+  const inicioAno = new Date(hoje.getFullYear(), 0, 1).getTime();
+  const baseAno = adm && adm.getTime() > inicioAno ? adm.getTime() : inicioAno;
+  const mesesAno = Math.min(12, Math.max(0, (hoje.getTime() - baseAno) / (30.44 * 864e5)));
+  const decimoTerceiro = (mesesAno / 12) * sal;                           // 13º proporcional
+  const refFerias = ultimaFerias ? new Date(ultimaFerias).getTime() : (adm ? adm.getTime() : hoje.getTime());
+  const mesesFer = Math.max(0, (hoje.getTime() - refFerias) / (30.44 * 864e5));
+  const feriasVencQtd = Math.floor(mesesFer / 12);
+  const feriasVencidas = feriasVencQtd * sal * (4 / 3);                   // férias vencidas + ⅓
+  const feriasProp = ((mesesFer - feriasVencQtd * 12) / 12) * sal * (4 / 3); // férias proporcionais + ⅓
+  const multa40 = 0.40 * (0.08 * sal * meses);                           // multa 40% sobre o FGTS acumulado
+  const rescisao = saldoSalario + aviso + decimoTerceiro + feriasVencidas + feriasProp + multa40;
+  // O que o colaborador RECEBE (líquido) e a "cunha" (empresa paga × pessoa recebe).
   const inss = calcINSS(sal);
   const irrf = calcIRRF(sal, inss);
   const liquido = sal - inss - irrf;
-  const cunha = mensal - liquido;            // impostos + encargos (empresa + colaborador)
+  const cunha = mensal - liquido;
   const cunhaPct = Math.round((cunha / mensal) * 100);
-  return { pj: false as const, tipo, sal, encPct: Math.round(enc * 100), mensal, anual: mensal * 12, anos, avisoDias, aviso, multa40, rescisao: aviso + multa40, inss, irrf, liquido, cunha, cunhaPct };
+  return { pj: false as const, tipo, sal, encPct: Math.round(enc * 100), mensal, anual: mensal * 12, anos, saldoSalario, avisoDias, aviso, decimoTerceiro, feriasVencidas, feriasVencQtd, feriasProp, multa40, rescisao, inss, irrf, liquido, cunha, cunhaPct };
 }
 // Catálogo ESTÁTICO do WhatsApp CRM (fallback) — MESMAS keys/labels do sidebar (ClientShell
 // CRM_SECTIONS) e do wacrm. Garante que o grupo apareça mesmo antes da API nova estar em prod;
@@ -121,7 +135,7 @@ const CRM_STATIC: { key: string; label: string }[] = [
 
 const EMPTY_FORM = {
   full_name: "", email: "", cpf_cnpj: "", telefone: "", tipo_contrato: "", observacoes: "",
-  cargo: "", departamento: "", salario: "", data_admissao: "", cnpj_vinculado: "", sindicato: "",
+  cargo: "", departamento: "", salario: "", data_admissao: "", cnpj_vinculado: "", sindicato: "", ultima_ferias: "",
   wa_sender_name: "", wa_number: "",
 };
 
@@ -209,7 +223,7 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
               cpf_cnpj: tm.cpf_cnpj ?? "", telefone: tm.telefone ?? "", cargo: tm.cargo ?? "", departamento: tm.departamento ?? "",
               salario: tm.salario != null ? String(tm.salario) : "", data_admissao: tm.data_admissao ? String(tm.data_admissao).slice(0, 10) : "",
               tipo_contrato: tm.tipo_contrato ?? "", cnpj_vinculado: tm.cnpj_vinculado ?? "", observacoes: tm.observacoes ?? "",
-              sindicato: tm.sindicato ?? "",
+              sindicato: tm.sindicato ?? "", ultima_ferias: tm.ultima_ferias ? String(tm.ultima_ferias).slice(0, 10) : "",
               wa_sender_name: info.wa_sender_name ?? "", wa_number: info.wa_number ?? "",
             });
           } else {
@@ -319,7 +333,7 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
         cpf_cnpj: f.cpf_cnpj, telefone: f.telefone, cargo: f.cargo, departamento: f.departamento,
         salario: f.salario === "" ? null : f.salario, data_admissao: f.data_admissao || null,
         tipo_contrato: f.tipo_contrato, cnpj_vinculado: f.cnpj_vinculado, observacoes: f.observacoes,
-        sindicato: f.sindicato || null,
+        sindicato: f.sindicato || null, ultima_ferias: f.ultima_ferias || null,
       };
       const payload: { access_level?: string | null; wa_sender_name?: string | null; wa_number?: string | null; team?: typeof team; org_tax_regime?: string } =
         { wa_sender_name: f.wa_sender_name, wa_number: f.wa_number, team };
@@ -430,7 +444,7 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
             <div className="ec-field"><label>{t("CNPJ Vinculado")}</label><input value={f.cnpj_vinculado} onChange={(e) => setField("cnpj_vinculado", e.target.value)} /></div>
             <div className="ec-field"><label>{t("Sindicato")}</label><input value={f.sindicato} onChange={(e) => setField("sindicato", e.target.value)} placeholder={t("Ex.: SINDPD, SEESP…")} /></div>
           </div>
-          {podeVerCusto && <CustoPanel salario={f.salario} tipo={f.tipo_contrato} adm={f.data_admissao} regime={orgTaxRegime} setRegime={setOrgTaxRegime} sindicato={f.sindicato} t={t} />}
+          {podeVerCusto && <CustoPanel salario={f.salario} tipo={f.tipo_contrato} adm={f.data_admissao} regime={orgTaxRegime} setRegime={setOrgTaxRegime} sindicato={f.sindicato} ultimaFerias={f.ultima_ferias} setUltimaFerias={(v) => setField("ultima_ferias", v)} t={t} />}
         </>)}
 
         {/* ---- WhatsApp ---- */}
@@ -552,9 +566,19 @@ function Metric({ lbl, val, hint, big }: { lbl: string; val: string; hint?: stri
   );
 }
 
+// Linha de verba do simulador demissional (rótulo — valor).
+function Verba({ lbl, val }: { lbl: string; val: string }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, fontSize: 12.5, padding: "4px 0", borderBottom: "1px dashed rgba(110,156,232,0.16)" }}>
+      <span className="mt">{lbl}</span>
+      <b style={{ color: "var(--crasto-text-body)", fontWeight: 700, whiteSpace: "nowrap" }}>{val}</b>
+    </div>
+  );
+}
+
 // Fatia 3 — painel de custo real do colaborador (só o dono vê). ESTIMATIVA por regime tributário.
-function CustoPanel({ salario, tipo, adm, regime, setRegime, sindicato, t }: { salario: string; tipo: string; adm: string; regime: string; setRegime: (v: string) => void; sindicato?: string; t: (k: string) => string }) {
-  const c = calcCusto(salario, tipo, regime, adm);
+function CustoPanel({ salario, tipo, adm, regime, setRegime, sindicato, ultimaFerias, setUltimaFerias, t }: { salario: string; tipo: string; adm: string; regime: string; setRegime: (v: string) => void; sindicato?: string; ultimaFerias?: string; setUltimaFerias?: (v: string) => void; t: (k: string) => string }) {
+  const c = calcCusto(salario, tipo, regime, adm, ultimaFerias);
   return (
     <div style={{ marginTop: 18, padding: 16, borderRadius: 14, border: "1px solid rgba(110,156,232,0.38)", background: "rgba(110,156,232,0.07)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
@@ -584,7 +608,25 @@ function CustoPanel({ salario, tipo, adm, regime, setRegime, sindicato, t }: { s
             <Metric lbl={t("Tempo de casa")} val={`${c.anos.toFixed(1)} ${t("anos")}`} />
           </div>
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(110,156,232,0.2)" }}>
-            <Metric lbl={t("Rescisão estimada (se desligar hoje)")} val={brl(c.rescisao)} hint={`${t("aviso")} ${c.avisoDias}d ${brl(c.aviso)} + ${t("multa 40% FGTS")} ${brl(c.multa40)}`} />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+              <span className="mt" style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".04em" }}>{t("Simulador demissional (se desligar hoje)")}</span>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5 }}>
+                <span className="mt">{t("Última férias")}:</span>
+                <input type="date" value={ultimaFerias || ""} onChange={(e) => setUltimaFerias?.(e.target.value)} style={{ fontSize: 11.5, padding: "2px 6px" }} />
+              </label>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "0 22px" }}>
+              <Verba lbl={t("Saldo de salário")} val={brl(c.saldoSalario)} />
+              <Verba lbl={`${t("Aviso prévio")} (${c.avisoDias}d)`} val={brl(c.aviso)} />
+              <Verba lbl={t("13º proporcional")} val={brl(c.decimoTerceiro)} />
+              <Verba lbl={t("Férias proporcionais + ⅓")} val={brl(c.feriasProp)} />
+              {c.feriasVencidas > 0 && <Verba lbl={`${t("Férias vencidas + ⅓")}${c.feriasVencQtd > 1 ? " ×" + c.feriasVencQtd : ""}`} val={brl(c.feriasVencidas)} />}
+              <Verba lbl={t("Multa 40% FGTS")} val={brl(c.multa40)} />
+            </div>
+            <div style={{ marginTop: 10, display: "flex", alignItems: "baseline", gap: 8 }}>
+              <span className="mt" style={{ fontSize: 11 }}>{t("Total da rescisão")}:</span>
+              <b style={{ fontSize: 20, fontWeight: 800, color: "var(--crasto-text-primary)" }}>{brl(c.rescisao)}</b>
+            </div>
           </div>
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(110,156,232,0.2)" }}>
             <div className="mt" style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>{t("A conta — quem fica com o quê")}</div>
