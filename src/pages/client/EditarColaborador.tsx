@@ -87,7 +87,8 @@ function calcCusto(salarioStr: string, tipo: string, regime: string, admissao: s
   const sal = parseValor(salarioStr);
   if (!sal) return null;
   if (tipo === "pj" || tipo === "projeto") return { pj: true as const, tipo, mensal: sal, anual: sal * 12 };
-  if (tipo !== "clt") return null; // estágio/temporário/— : sem cálculo CLT por ora
+  if (tipo === "estagio" || tipo === "temporario") return null; // bolsa/temporário: sem cálculo CLT
+  // "clt" OU modalidade não informada ("") → tratamos como CLT (caso mais comum)
   const enc = encargoPct(regime);
   const mensal = sal * (1 + enc);
   const anosRaw = admissao ? (Date.now() - new Date(admissao).getTime()) / (365.25 * 864e5) : 0;
@@ -568,7 +569,7 @@ function CustoPanel({ salario, tipo, adm, regime, setRegime, sindicato, t }: { s
         </label>
       </div>
       {!c ? (
-        <p className="mt" style={{ margin: 0, fontSize: 12.5 }}>{t("Escolha a modalidade e informe o valor para ver o custo.")}</p>
+        <p className="mt" style={{ margin: 0, fontSize: 12.5 }}>{t("Informe o salário do colaborador (aba acima) para ver o custo. Estágio/temporário não têm cálculo automático.")}</p>
       ) : c.pj ? (
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
           <Metric lbl={c.tipo === "projeto" ? t("Valor do projeto") : t("Custo mensal (PJ)")} val={brl(c.mensal)} big />

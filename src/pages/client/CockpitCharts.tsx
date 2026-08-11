@@ -259,11 +259,14 @@ function Funil({ funil, diag, gargaloIdx, on, t }: { funil: { leads: number; qua
 }
 
 /* ── ROI ─────────────────────────────────────────────────────────────────────── */
-function Roi({ horasIa, horasEquipe, diag, on, t }: { horasIa: number; horasEquipe: number | null; diag: Diag; on: boolean; t: (k: string) => string }) {
+function Roi({ horasIa, horasEquipe, custoHora, diag, on, t }: { horasIa: number; horasEquipe: number | null; custoHora: number | null; diag: Diag; on: boolean; t: (k: string) => string }) {
   const shown = useCountUp(horasIa, on);
   const totalHrs = horasIa + (horasEquipe || 0);
   const pctIa = totalHrs > 0 ? Math.round((horasIa / totalHrs) * 100) : 0;
-  const money = Math.round(horasIa * 20);
+  // Custo/hora REAL da equipe (salário + encargos ÷ 220h) quando o dono tem salários cadastrados;
+  // senão, R$20/h como referência conservadora. É o que torna a "economia" verdadeira.
+  const rate = custoHora && custoHora > 0 ? custoHora : 20;
+  const money = Math.round(horasIa * rate);
   // KPIs de DONO no espaço que sobrava (pedido do Crasto): projeção anual da economia (no ritmo
   // atual) e capacidade liberada em dias de trabalho — ambos derivados de horasIa (nada inventado).
   const anual = money * 12;
@@ -381,7 +384,7 @@ export default function CockpitCharts({ cock, agent, t }: { cock: CockpitMine | 
         <Reveal delay={D(2)}>{(on: boolean) => temVol ? <Area label={t("Volume de atendimentos")} unit={t("interações")} data={vol} diag={dg("volume", diagVolume(vol.map((v) => v.n), t))} on={on} t={t} /> : <EmptyCard label={t("Volume de atendimentos")} msg={t("Sem interações no período ainda.")} t={t} />}</Reveal>
         <Reveal delay={D(3)}>{(on: boolean) => temFunil ? <Funil funil={k!.funil!} diag={dg("funil", diagFunil(k!.funil!, gargaloNome, t))} gargaloIdx={gargaloIdx} on={on} t={t} /> : <EmptyCard label={t("Funil de conversão")} msg={t("Aparece com os leads e vendas do seu CRM.")} t={t} />}</Reveal>
         <Reveal delay={D(4)}>{(on: boolean) => temSla ? <Gauge label={t("SLA · 1ª resposta ≤ 5min")} pct={k!.sla!.pct5} diag={dg("sla", diagSla(k!.sla!.pct5, k!.sla!.mediana_s, t))} cap={t("no SLA")} sub={t("{n} de {tot} no prazo", { n: k!.sla!.respondidas - k!.sla!.sem_resposta, tot: k!.sla!.respondidas })} on={on} t={t} /> : <EmptyCard label={t("SLA · 1ª resposta ≤ 5min")} msg={t("Aparece quando houver primeiras respostas medidas.")} t={t} />}</Reveal>
-        <Reveal delay={D(5)}>{(on: boolean) => temRoi ? <Roi horasIa={k!.roi_horas_ia!} horasEquipe={k!.horas_equipe_mes ?? null} diag={dg("roi", diagRoi(k!.roi_horas_ia!, t))} on={on} t={t} /> : <EmptyCard label={t("Horas economizadas (ROI)")} msg={t("Aparece com o volume conduzido pela IA.")} t={t} />}</Reveal>
+        <Reveal delay={D(5)}>{(on: boolean) => temRoi ? <Roi horasIa={k!.roi_horas_ia!} horasEquipe={k!.horas_equipe_mes ?? null} custoHora={(k as any)?.roi_custo_hora ?? null} diag={dg("roi", diagRoi(k!.roi_horas_ia!, t))} on={on} t={t} /> : <EmptyCard label={t("Horas economizadas (ROI)")} msg={t("Aparece com o volume conduzido pela IA.")} t={t} />}</Reveal>
         <Reveal delay={D(6)}>{(on: boolean) => respostas > 0 ? <Donut label={t("Respostas: IA × equipe")} parts={[{ name: t("IA"), val: ai, tom: "green" }, { name: t("Equipe"), val: hum, tom: "amber" }]} diag={dg("automacao", diagAutomacao(auto, ai, hum, t))} on={on} t={t} /> : <EmptyCard label={t("Respostas: IA × equipe")} msg={t("Sem respostas no período ainda.")} t={t} />}</Reveal>
         <Reveal delay={D(7)}>{(on: boolean) => temPico ? <Pico pico={k!.pico!} diag={dg("pico", diagPico(k!.pico!, t))} on={on} t={t} /> : <EmptyCard label={t("Pico de atendimento")} msg={t("Aparece com o histórico de mensagens.")} t={t} />}</Reveal>
       </div>

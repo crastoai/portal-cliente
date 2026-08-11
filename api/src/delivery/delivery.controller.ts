@@ -246,6 +246,23 @@ export class DeliveryController {
     }
     const analises = this.kpiAi.analisar(db?.orgId ?? null, aiInput);
 
+    // Custo/hora REAL da equipe CLT (média salário + encargos do regime ÷ 220h/mês) — substitui o
+    // R$20/h fixo do card de ROI. Só p/ o DONO (payroll é sigiloso); membro comum cai no default.
+    let roiCustoHora: number | null = null;
+    if (db?.orgId && donoHoras) {
+      roiCustoHora = await this.db.asService(async (c) => {
+        const reg = (await c.query('select tax_regime from public.organizations where id=$1', [db.orgId])).rows[0]?.tax_regime || 'simples';
+        const enc = reg === 'presumido' || reg === 'real' ? 0.5524 : 0.2744; // encargos por regime
+        const sals = (await c.query(
+          `select salario::numeric sal from public.team_members
+            where organization_id=$1 and coalesce(tipo_contrato,'clt')='clt' and salario is not null and salario::numeric > 0`,
+          [db.orgId])).rows.map((x: any) => Number(x.sal));
+        if (!sals.length) return null;
+        const media = sals.reduce((s: number, v: number) => s + v, 0) / sals.length;
+        return Math.round((media * (1 + enc)) / 220);
+      }).catch(() => null);
+    }
+
     return {
       metrics,
       volume: r?.volume ?? [],
@@ -255,6 +272,7 @@ export class DeliveryController {
         pico: kx?.pico ?? null,
         roi_horas_ia: roiHoras,
         horas_equipe_mes: horasMes ?? null,
+        roi_custo_hora: roiCustoHora,
         analises: analises ?? null,
       },
       jornada: db?.jornada ?? [],
