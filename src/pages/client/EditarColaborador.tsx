@@ -81,6 +81,10 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
   const [crmHas, setCrmHas] = useState(true);   // default true → grupo aparece; refina no load
   const [crmOwner, setCrmOwner] = useState(false);
   const [openG, setOpenG] = useState<Set<string>>(new Set(["whatsapp_crm"]));
+  // RESPONSÁVEL pelas dúvidas da IA (por agente). Quando a IA tem dúvida, a tarefa de aprovação
+  // chega a quem for responsável (Minha Mesa + sino). Sem ninguém → aparece para todos.
+  const [agentsList, setAgentsList] = useState<{ id: string; name: string }[]>([]);
+  const [respAgents, setRespAgents] = useState<Set<string>>(new Set());
 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -156,6 +160,21 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
     return () => { alive = false; };
   }, [orgId, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Agentes da empresa + responsabilidade atual (ADMIN — o caminho de escrita é crmAccess.update).
+  useEffect(() => {
+    if (!isAdmin) return;
+    let alive = true;
+    services.crmAccess.overview(orgId).then((o) => {
+      if (!alive) return;
+      setAgentsList((o.agents || []).map((a) => ({ id: a.id, name: a.name })));
+      if (user) {
+        const u = (o.users || []).find((x) => x.id === user.id);
+        setRespAgents(new Set(u?.responsible_agents || []));
+      }
+    }).catch(() => { /* sem agentes → o bloco some */ });
+    return () => { alive = false; };
+  }, [orgId, user?.id, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── árvore de permissões ──────────────────────────────────────────────────────────────────
   const groups: Group[] = useMemo(() => [
     ...SCREENS_BY_CATEGORY.map((g) => ({ key: g.key, label: g.label, kind: "portal" as Kind, items: g.screens.map((s) => ({ key: s.key, label: s.label, base: s.key === BASE_SCREEN })) })),
@@ -224,7 +243,7 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
       if (isAdmin) {
         // Admin: papel + telas atômico (RPC admin) + sincroniza o papel no CRM.
         await services.analytics.admin.setUserAccess(uid!, ehDono ? "client_owner" : "client_member", ehDono ? [] : screensArr);
-        if (crmHas) { const ru: any = await services.crmAccess.update(orgId, uid!, { role: ehDono ? "client_owner" : "client_member" }); if (ru?.error) throw new Error(ru.error); }
+        if (crmHas) { const ru: any = await services.crmAccess.update(orgId, uid!, { role: ehDono ? "client_owner" : "client_member", responsible_agents: Array.from(respAgents) }); if (ru?.error) throw new Error(ru.error); }
       } else if (!targetIsOwner) {
         await services.delivery.userScreens.set(uid!, screensArr);
       }
@@ -332,6 +351,21 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
               <button key={lv.key} type="button" className={"ec-seg-b" + (!dono && level === lv.key ? " on" : "")} onClick={() => { setDono(false); setLevel(lv.key); }}>{t(lv.label)}</button>
             ))}
           </div>
+          {isAdmin && agentsList.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <div className="ec-uplabel">{t("Responsável pelas dúvidas da IA")}</div>
+              <p className="mt" style={{ margin: "0 0 8px" }}>{t("Quando a IA tiver dúvida, a tarefa de aprovação chega a quem for responsável pelo agente (Minha Mesa + notificação). Sem ninguém responsável, aparece para todos.")}</p>
+              <div className="ec-tree">
+                {agentsList.map((a) => (
+                  <div key={a.id} className="ec-item">
+                    <span className="lb">{a.name}</span>
+                    <button type="button" className={"ec-switch" + (respAgents.has(a.id) ? " on" : "")} aria-label={a.name}
+                      onClick={() => setRespAgents((s) => { const n = new Set(s); n.has(a.id) ? n.delete(a.id) : n.add(a.id); return n; })} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {verTudo ? <div style={{ marginTop: 14 }}>{notaTotal}</div> : (<>
             <div className="ec-uplabel" style={{ marginTop: 18 }}>{t("Permissões de tela")}</div>
             <p className="mt" style={{ margin: "0 0 10px" }}>{t("Selecione quais telas este colaborador poderá acessar:")}</p>
