@@ -4,7 +4,9 @@ import { impersonationState, stopImpersonation } from "../lib/impersonation";
 
 // Faixa fixa no topo enquanto o admin está "acessando como" outra pessoa (auditoria). Fica visível
 // em QUALQUER tela (independe do papel/rota, pois lê o localStorage, não o estado de auth). O botão
-// "Sair" restaura a sessão do admin. Empurra o conteúdo com padding no <body> p/ não cobrir a topbar.
+// "Sair" restaura a sessão do admin. Enquanto ativa, marca `body.impersonating` — o CSS (portal.css)
+// empurra topbar + sidebar + conteúdo 40px p/ baixo, de modo que a faixa fique ACIMA do menu (sem
+// cobri-lo), e o admin continue enxergando o menu mesmo inspecionando o cliente.
 const BAR_H = 40;
 
 export default function ImpersonationBanner() {
@@ -13,9 +15,8 @@ export default function ImpersonationBanner() {
 
   useEffect(() => {
     if (!st) return;
-    const prev = document.body.style.paddingTop;
-    document.body.style.paddingTop = `${BAR_H}px`;
-    return () => { document.body.style.paddingTop = prev; };
+    document.body.classList.add("impersonating");
+    return () => { document.body.classList.remove("impersonating"); };
   }, [st]);
 
   if (!st) return null;

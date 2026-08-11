@@ -216,6 +216,14 @@
    fluxo (position:fixed) → não empurra os itens do menu; z acima da topbar p/ não ser cortado. */
 .side-toggle { position: fixed; top: 56px; left: 248px; transform: translate(-50%, -50%); z-index: 46; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--crasto-border-soft); background: var(--crasto-surface); color: var(--crasto-text-muted); cursor: pointer; transition: background .15s, color .15s, left .28s cubic-bezier(.22,1,.36,1); box-shadow: 0 1px 3px rgba(1,14,38,.10); }
 .side-toggle:hover { background: var(--crasto-navy-05); color: var(--crasto-text-primary); }
+
+/* IMPERSONAÇÃO ("Acessar como"): a faixa de auditoria (40px, ImpersonationBanner) fica ACIMA de
+   tudo. Enquanto ativa (body.impersonating), empurramos TODO o chrome fixo 40px p/ baixo — assim a
+   faixa não cobre o menu e o admin continua enxergando a sidebar mesmo inspecionando o cliente. */
+body.impersonating .topbar { top: 40px; }
+body.impersonating .side { top: 96px; height: calc(100vh - 96px); }
+body.impersonating .side-toggle { top: 96px; }
+body.impersonating .main { margin-top: 96px; }
 .shell.collapsed .side-toggle { left: 66px; }
 
 /* Seletor de UNIDADE (CNPJ) na topbar — multi-CNPJ. Aparece só com >1 unidade. */
