@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Home, LayoutGrid, Activity, Sparkles, Wallet, Users, LifeBuoy, Eye, IdCard,
-  MessageCircle, Megaphone, Share2, Target, ShoppingCart, PackageOpen, TrendingUp, type LucideIcon } from "lucide-react";
+  Megaphone, Share2, Target, ShoppingCart, PackageOpen, TrendingUp, type LucideIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { useAsync } from "../ui/ui";
 import { services } from "../services";
@@ -23,7 +23,7 @@ const SCREEN_ICON: Record<string, any> = {
 const MODULES: { key: string; label: string; icon: LucideIcon; rx: RegExp; crm?: boolean }[] = [
   // WhatsApp CRM casa pelo SINAL de ser a solução CRM (crm_url presente), não pelo nome —
   // o nome comercial do produto pode variar por cliente e ainda ser o CRM.
-  { key: "crm", label: "WhatsApp CRM", icon: MessageCircle, rx: /atend|crm|whats|convers|sdr|openclaw/i, crm: true },
+  { key: "crm", label: "Vendas", icon: TrendingUp, rx: /atend|crm|whats|convers|sdr|openclaw/i, crm: true },
   { key: "financeiro", label: "Financeiro", icon: Wallet, rx: /financ|erp financ/i },
   { key: "marketing", label: "Marketing", icon: Megaphone, rx: /market/i },
   { key: "social", label: "Social Media", icon: Share2, rx: /social/i },
@@ -35,14 +35,17 @@ const MODULES: { key: string; label: string; icon: LucideIcon; rx: RegExp; crm?:
 // API do wacrm (fonte das permissões de tela do CRM). Mesmo domínio próprio usado pelo CrmEmbed.
 // DEV: VITE_WACRM_API_LOCAL aponta pra uma wacrm api local (validar units/crm_screens sem prod).
 const WACRM_API = (import.meta.env.DEV && (import.meta.env.VITE_WACRM_API_LOCAL as string | undefined)) || "https://api.wacrm.crasto.ai";
-// Seções do WhatsApp CRM que viram SUB-ITENS da sidebar do Portal — MESMA estrutura e ordem do
-// wacrm (Shell.OPERACAO): Dashboard é a home, então é a raiz /app/crm (por isso `end`); as demais
-// entram como /app/crm/<seção>. `screen` casa com `crm_screens` (dono = ['*'] = tudo).
+// Sub-itens do módulo "Vendas" na sidebar do Portal. Nova ordem (o CRM é o núcleo; o WhatsApp é
+// um dos canais que alimenta o funil): Dashboard é a home = raiz /app/crm (por isso `end`); as
+// demais entram como /app/crm/<seção>. `screen` casa com `crm_screens` (dono = ['*'] = tudo).
+// NOTA: "Contatos" (contatos do WhatsApp) segue aqui TEMPORARIAMENTE — na Fatia 3 vira um BOTÃO
+// dentro do WhatsApp (Conversas) e sai da sidebar. A seção "chat" foi renomeada de "Conversas"
+// para "WhatsApp" (rótulo); a rota /app/crm/conversas não muda.
 const CRM_SECTIONS: { screen: string; label: string; to: string; end?: boolean }[] = [
   { screen: "dashboard", label: "Dashboard", to: "/app/crm", end: true },
-  { screen: "mesa", label: "Minhas Tarefas", to: "/app/crm/tarefas" },
   { screen: "crm", label: "CRM", to: "/app/crm/funil" },
-  { screen: "chat", label: "Conversas", to: "/app/crm/conversas" },
+  { screen: "chat", label: "WhatsApp", to: "/app/crm/conversas" },
+  { screen: "mesa", label: "Minhas Tarefas", to: "/app/crm/tarefas" },
   { screen: "contatos", label: "Contatos", to: "/app/crm/contatos" },
   { screen: "agenda", label: "Agendamentos", to: "/app/crm/agenda" },
   { screen: "config", label: "Configurações", to: "/app/crm/config" },
