@@ -15,6 +15,8 @@ export type CrmUser = {
   role: "client_owner" | "client_member" | "crasto_admin";
   created_at?: string; last_seen_at?: string | null; online?: boolean;
   crm_screens?: string[] | null;
+  phone?: string | null;
+  responsible_agents?: string[] | null; // agentes de que esta pessoa é RESPONSÁVEL (recebe as dúvidas da IA)
 };
 export type CrmAccessOverview = {
   enabled: boolean;
@@ -44,14 +46,14 @@ export const crmAccess = {
   deleteUnit: (orgId: string, unitId: string) => api.del<{ ok?: boolean; error?: string }>(`/api/crm-access/${orgId}/units/${unitId}`),
   setAgentUnit: (orgId: string, agentId: string, unitId: string | null) =>
     api.put<{ ok?: boolean; error?: string; business_unit_id?: string | null }>(`/api/crm-access/${orgId}/agents/${agentId}/unit`, { unit_id: unitId }),
-  invite: (orgId: string, b: { email: string; full_name?: string; role?: string; notify?: boolean }) =>
+  invite: (orgId: string, b: { email: string; full_name?: string; role?: string; notify?: boolean; phone?: string; responsible_agents?: string[] }) =>
     api.post<{ user: CrmUser; email_sent: boolean; email_error?: string; password_link_sent: boolean }>(`/api/crm-access/${orgId}/users`, b),
   // Telas do WhatsApp CRM de um usuário (o dono vê tudo e não é configurável).
   crmScreens: (orgId: string, userId: string) =>
     api.get<{ catalog: { key: string; label: string }[]; has_access: boolean; owner: boolean; screens: string[] | null; error?: string }>(`/api/crm-access/${orgId}/users/${userId}/crm-screens`),
   setCrmScreens: (orgId: string, userId: string, screens: string[]) =>
     api.post<{ ok?: boolean; screens?: string[]; error?: string }>(`/api/crm-access/${orgId}/users/${userId}/crm-screens`, { screens }),
-  update: (orgId: string, userId: string, b: { full_name?: string; email?: string; role?: string }) =>
+  update: (orgId: string, userId: string, b: { full_name?: string; email?: string; role?: string; phone?: string; responsible_agents?: string[] }) =>
     api.patch<{ ok: boolean; email_changed: boolean }>(`/api/crm-access/${orgId}/users/${userId}`, b),
   resend: (orgId: string, userId: string) => api.post<{ ok: boolean; password_link_sent: boolean }>(`/api/crm-access/${orgId}/users/${userId}/resend`),
   revoke: (orgId: string, userId: string) => api.del(`/api/crm-access/${orgId}/users/${userId}`),

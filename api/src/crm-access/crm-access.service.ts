@@ -233,7 +233,7 @@ export class CrmAccessService {
    * 1) identidade no Portal → 2) acesso no CRM → 3) e-mail.
    * Se o e-mail falhar o acesso continua válido (o admin reenvia) — nunca o contrário.
    */
-  async invite(req: any, orgId: string, auth: string, b: { email?: string; full_name?: string; role?: string; notify?: boolean }) {
+  async invite(req: any, orgId: string, auth: string, b: { email?: string; full_name?: string; role?: string; notify?: boolean; phone?: string; responsible_agents?: string[] }) {
     await this.requireModule(orgId);
     const email = String(b.email || '').trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new BadRequestException('E-mail inválido.');
@@ -254,7 +254,7 @@ export class CrmAccessService {
     // 2) acesso no CRM (fonte da verdade da autorização de lá)
     const { user } = await this.crm(`/admin/client/${orgId}/users`, auth, {
       method: 'POST',
-      body: JSON.stringify({ id: uid, email, full_name: b.full_name || null, role }),
+      body: JSON.stringify({ id: uid, email, full_name: b.full_name || null, role, phone: b.phone, responsible_agents: b.responsible_agents }),
     });
 
     // 3) aviso (skip se notify=false — ex.: usuário já no Portal, sem reenviar convite)
@@ -273,7 +273,7 @@ export class CrmAccessService {
    * cópia + o papel no CRM (profiles) pela mesma porta de grant (idempotente). Trocar o
    * e-mail muda o LOGIN; se a pessoa ainda não definiu senha, reenvie o acesso ao novo e-mail.
    */
-  async updateUser(req: any, orgId: string, auth: string, userId: string, b: { full_name?: string; email?: string; role?: string }) {
+  async updateUser(req: any, orgId: string, auth: string, userId: string, b: { full_name?: string; email?: string; role?: string; phone?: string; responsible_agents?: string[] }) {
     await this.requireModule(orgId);
     const { users } = await this.crm(`/admin/client/${orgId}/users`, auth);
     const u = (users || []).find((x: any) => x.id === userId);
@@ -285,14 +285,15 @@ export class CrmAccessService {
     if (novoEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(novoEmail)) throw new BadRequestException('E-mail inválido.');
     const emailMudou = !!novoEmail && novoEmail !== String(u.email || '').toLowerCase();
     const papelMudou = !!novoPapel && novoPapel !== u.role;
-    if (!novoNome && !emailMudou && !papelMudou) return { ok: true, email_changed: false };
+    const temExtras = b.phone !== undefined || Array.isArray(b.responsible_agents);
+    if (!novoNome && !emailMudou && !papelMudou && !temExtras) return { ok: true, email_changed: false };
 
-    // 1) identidade no Portal (nome sempre que veio; e-mail só se mudou de fato)
-    await this.idp.updateUser(userId, { full_name: novoNome, email: emailMudou ? novoEmail : undefined });
-    // 2) espelha no CRM (profiles): nome, e-mail e PAPEL (o grant upsert cuida do papel).
+    // 1) identidade no Portal (só quando nome/e-mail mudaram de fato)
+    if (novoNome || emailMudou) await this.idp.updateUser(userId, { full_name: novoNome, email: emailMudou ? novoEmail : undefined });
+    // 2) espelha no CRM (profiles): nome, e-mail, PAPEL + extras (telefone, responsáveis por agente).
     await this.crm(`/admin/client/${orgId}/users`, auth, {
       method: 'POST',
-      body: JSON.stringify({ id: userId, email: emailMudou ? novoEmail : u.email, full_name: novoNome ?? u.full_name, role: novoPapel ?? u.role }),
+      body: JSON.stringify({ id: userId, email: emailMudou ? novoEmail : u.email, full_name: novoNome ?? u.full_name, role: novoPapel ?? u.role, phone: b.phone, responsible_agents: b.responsible_agents }),
     });
     await this.audit.log(req, 'crm_access_updated', {
       targetType: 'user', targetId: userId, org: orgId, system: 'crm',
