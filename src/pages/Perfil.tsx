@@ -223,7 +223,7 @@ export default function Perfil() {
   const NAV: { key: Secao; icon: typeof IdCard; label: string; show: boolean }[] = [
     { key: "conta", icon: IdCard, label: "Informações de Conta", show: true },
     { key: "seguranca", icon: ShieldCheck, label: "Segurança", show: true },
-    { key: "notif", icon: Bell, label: "Permissões de notificação", show: isClient },
+    { key: "notif", icon: Bell, label: "Notificações", show: isClient },
     { key: "empresa", icon: Building2, label: "Dados da Empresa", show: isClient && isOwner },
   ];
 
