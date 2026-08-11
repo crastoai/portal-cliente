@@ -225,7 +225,7 @@
 .unitdd-ico { opacity: .7; flex: none; }
 .unitdd-lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .unitdd-chev { opacity: .6; flex: none; }
-.unitdd-menu { position: absolute; top: calc(100% + 6px); left: 0; min-width: 240px; max-width: 330px; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: 12px; box-shadow: 0 14px 40px -8px var(--crasto-navy-40); padding: 6px; z-index: 60; }
+.unitdd-menu { position: absolute; top: calc(100% + 6px); right: 0; min-width: 240px; max-width: 330px; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: 12px; box-shadow: 0 14px 40px -8px var(--crasto-navy-40); padding: 6px; z-index: 60; }
 .unitdd-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: none; background: transparent; border-radius: 8px; cursor: pointer; text-align: left; color: var(--crasto-text-body); font-size: 13px; }
 .unitdd-item:hover { background: var(--crasto-navy-05); }
 .unitdd-item.on { color: var(--crasto-text-primary); font-weight: 700; }

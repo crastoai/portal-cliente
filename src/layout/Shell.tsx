@@ -331,9 +331,9 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav }: { nav: Nav
         <div className="tb-left">
           <button className="tb-burger" onClick={() => setOpen(true)} aria-label={t("Abrir menu")}><Menu size={20} /></button>
           <span className="tb-brand" title={t(sub)}><Wordmark /></span>
-          <UnitSwitcher />
         </div>
         <div className="tb-right">
+          <UnitSwitcher />
           <LangSwitcher />
           <ThemeToggle />
           {userCluster}
