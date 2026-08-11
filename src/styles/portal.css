@@ -308,7 +308,9 @@
   .shell.collapsed .side { width: 66px; padding: 20px 8px; }
   .shell.collapsed .main { margin-left: 66px; }
   .shell.collapsed .side-brand { justify-content: center; padding: 6px 4px 14px; }
-  .shell.collapsed .side-wordmark, .shell.collapsed .side-brand-sub, .shell.collapsed .navsec, .shell.collapsed .navlink-lbl, .shell.collapsed .navlink .tag, .shell.collapsed .navlink-lock { display: none; }
+  /* A logo (.side-wordmark) vive no topbar full-width — deve permanecer visível mesmo com a sidebar
+     recolhida. NÃO incluir .side-wordmark aqui (senão a logo do topbar some ao colapsar). */
+  .shell.collapsed .side-brand-sub, .shell.collapsed .navsec, .shell.collapsed .navlink-lbl, .shell.collapsed .navlink .tag, .shell.collapsed .navlink-lock { display: none; }
   .shell.collapsed .navlink { justify-content: center; padding: 10px; }
 }
 
