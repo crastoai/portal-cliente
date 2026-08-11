@@ -11,6 +11,7 @@ import Modal from "../../ui/Modal";
 import { DateRange } from "../../ui/DatePicker";
 import { summarizeFaturas, type Fatura, type FaturaSummary } from "../../lib/faturas";
 import { allowedScreens } from "../../lib/screens";
+import { useFetch } from "../../lib/useFetch";
 
 type Health = { status: "green" | "amber" | "red"; message: string | null };
 type Impl = { overall_progress: number; due_date: string | null; status: string };
@@ -80,14 +81,16 @@ export default function Inicio() {
   const [leadBusy, setLeadBusy] = useState(false);                  // gerando resumo (DeepSeek)
   const [leadClassRest, setLeadClassRest] = useState(0);            // leads ainda sendo classificados pela IA
   const [self, setSelf] = useState<any>(null);
-  const [team, setTeam] = useState<{ scope: string; rows: { id: string; email: string; full_name: string | null; online: boolean; sessoes: number; minutos: number; ultimo: string | null }[] } | null>(null);
-  const [reunioes, setReunioes] = useState<import("../../services/delivery.service").Meeting[]>([]);
+  // Sinais independentes do dashboard — via useFetch (stale-while-revalidate): aparecem NA HORA
+  // do cache ao revisitar e revalidam em 2º plano (tempo real, sem a espera em branco).
+  const team = useFetch<{ scope: string; rows: { id: string; email: string; full_name: string | null; online: boolean; sessoes: number; minutos: number; ultimo: string | null }[] }>(() => services.delivery.teamUsage.getMine() as any, []).data;
+  const reunioes = useFetch<import("../../services/delivery.service").Meeting[]>(() => services.delivery.meetings.listMine().then((r) => (Array.isArray(r) ? r : [])), []).data ?? [];
   const [reuAberta, setReuAberta] = useState<import("../../services/delivery.service").Meeting | null>(null);
-  const [implEvents, setImplEvents] = useState<import("../../services/delivery.service").ImplEvent[]>([]);
+  const implEvents = useFetch<import("../../services/delivery.service").ImplEvent[]>(() => services.delivery.implEvents.listMine().then((r) => (Array.isArray(r) ? r : [])), []).data ?? [];
   const [implOpen, setImplOpen] = useState(false);
   const [detMod, setDetMod] = useState<Mod | null>(null);
-  const [agent, setAgent] = useState<import("../../services/delivery.service").AgentUsage | null>(null);
-  const [cock, setCock] = useState<import("../../services/delivery.service").CockpitMine | null>(null);
+  const agent = useFetch<import("../../services/delivery.service").AgentUsage>(() => services.delivery.agentUsage.getMine(), []).data;
+  const cock = useFetch<import("../../services/delivery.service").CockpitMine>(() => services.delivery.cockpit.getMine(), []).data;
   // Defesa em profundidade: financeiro/negócios do Início só para quem tem a permissão "Financeiro"
   // (dono ou membro liberado). Começa false para o membro nunca ver nem por um instante; o backend
   // (my_faturas + pode_ver_financeiro) já protege o dado, isto só limpa a tela.
@@ -105,17 +108,8 @@ export default function Inicio() {
         services.delivery.selfService.getMine().catch(() => null),
       ]);
       setSelf(ss);
-      // Tempo conectado da equipe (RH) — só faz sentido para o dono; membro recebe scope 'self'.
-      services.delivery.teamUsage.getMine().then(setTeam).catch(() => setTeam(null));
-      // Reuniões & minutas (base de conhecimento) — o que a Crasto.AI registrou deste cliente.
-      services.delivery.meetings.listMine().then((r) => setReunioes(Array.isArray(r) ? r : [])).catch(() => setReunioes([]));
-      // Histórico de implantação (o quê/quando/quem) — abre no card "Implantação".
-      services.delivery.implEvents.listMine().then((r) => setImplEvents(Array.isArray(r) ? r : [])).catch(() => setImplEvents([]));
-      // Uso REAL do agente de IA (federado do wacrm) — taxa de automação das respostas.
-      services.delivery.agentUsage.getMine().then(setAgent).catch(() => setAgent(null));
-      // COCKPIT · Meus Resultados (Fase 1) — métricas antes×depois (depois ao vivo do wacrm),
-      // conquistas e jornada. Sem CRM/atividade → o próprio endpoint devolve null → a tela mostra "—".
-      services.delivery.cockpit.getMine().then(setCock).catch(() => setCock(null));
+      // team / reuniões / implEvents / agentUsage / cockpit: agora via useFetch (SWR) no topo do
+      // componente — não precisam mais rodar aqui no efeito.
       // Permissão financeira (dono sempre; membro só se liberado) — gate do bloco financeiro/negócios.
       services.identity.access.myScreens().then((s) => setPodeFin(allowedScreens(s as string[] | null).has("financeiro"))).catch(() => setPodeFin(false));
       const invRows = (inv as unknown as Fatura[]) ?? [];
