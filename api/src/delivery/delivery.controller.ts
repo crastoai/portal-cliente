@@ -253,9 +253,14 @@ export class DeliveryController {
       roiCustoHora = await this.db.asService(async (c) => {
         const reg = (await c.query('select tax_regime from public.organizations where id=$1', [db.orgId])).rows[0]?.tax_regime || 'simples';
         const enc = reg === 'presumido' || reg === 'real' ? 0.5524 : 0.2744; // encargos por regime
+        // Modalidade vazia ('') OU nula conta como CLT (nullif troca '' por null antes do coalesce) —
+        // senão o colaborador com salário mas sem modalidade escolhida ficaria de fora e o custo real
+        // nunca refletiria. PJ/Projeto/estágio/temporário ficam de fora (não têm folha CLT).
         const sals = (await c.query(
           `select salario::numeric sal from public.team_members
-            where organization_id=$1 and coalesce(tipo_contrato,'clt')='clt' and salario is not null and salario::numeric > 0`,
+            where organization_id=$1
+              and coalesce(nullif(tipo_contrato,''),'clt') not in ('pj','projeto','estagio','temporario')
+              and salario is not null and salario::numeric > 0`,
           [db.orgId])).rows.map((x: any) => Number(x.sal));
         if (!sals.length) return null;
         const media = sals.reduce((s: number, v: number) => s + v, 0) / sals.length;

@@ -587,7 +587,7 @@ function CustoPanel({ salario, tipo, adm, regime, setRegime, sindicato, ultimaFe
         </span>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
           <span className="mt">{t("Regime")}:</span>
-          <select value={regime} onChange={(e) => setRegime(e.target.value)} style={{ fontSize: 12, padding: "3px 6px" }}>
+          <select value={regime} onChange={(e) => setRegime(e.target.value)} className="rh-ctl">
             {REGIMES.map((rg) => <option key={rg.key} value={rg.key}>{t(rg.label)}</option>)}
           </select>
         </label>
@@ -612,7 +612,7 @@ function CustoPanel({ salario, tipo, adm, regime, setRegime, sindicato, ultimaFe
               <span className="mt" style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".04em" }}>{t("Simulador demissional (se desligar hoje)")}</span>
               <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5 }}>
                 <span className="mt">{t("Última férias")}:</span>
-                <input type="date" value={ultimaFerias || ""} onChange={(e) => setUltimaFerias?.(e.target.value)} style={{ fontSize: 11.5, padding: "2px 6px" }} />
+                <input type="date" value={ultimaFerias || ""} onChange={(e) => setUltimaFerias?.(e.target.value)} className="rh-ctl" />
               </label>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "0 22px" }}>
