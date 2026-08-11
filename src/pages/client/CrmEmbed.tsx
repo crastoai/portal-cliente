@@ -135,6 +135,9 @@ export default function CrmEmbed() {
   const { section } = useParams();
   const navigate = useNavigate();
   const convParam = params.get("conversation");
+  // Deep-link do "Acessar" de uma solução: ?agent=<id> → o CRM abre JÁ nesse agente selecionado
+  // (o cliente cai direto no agente do card; pode trocar p/ "Todos os Agentes" no seletor).
+  const agentParam = params.get("agent");
   const sec = section || "dashboard"; // raiz /app/crm = Dashboard
   const isMulti = MULTI_SECTIONS.has(sec) && !convParam;
   const isUnified = sec === "tarefas"; // unificado: sem seletor, agrega todos os agentes
@@ -143,7 +146,7 @@ export default function CrmEmbed() {
   const [token, setToken] = useState<string | null>(null);
   const [refreshTok, setRefreshTok] = useState<string | undefined>(undefined); // p/ o wacrm se auto-renovar
   const [agents, setAgents] = useState<Agent[] | null>(null);
-  const [solo, setSolo] = useState<string>("*"); // escopo da VISÃO ÚNICA (config/agenda/contatos)
+  const [solo, setSolo] = useState<string>(agentParam || "*"); // escopo da VISÃO ÚNICA (config/agenda/contatos)
   const [store, setStore] = useState<Store>(loadStore); // COCKPIT MULTI-PAINEL, por seção
   const [err, setErr] = useState<string>("");
   const [live, setLive] = useState<import("../../services/delivery.service").CrmLive | null>(null);
@@ -214,7 +217,11 @@ export default function CrmEmbed() {
           ags = Array.isArray(j?.agents) ? j.agents : [];
         } catch { /* sem lista → entra direto no principal */ }
         setAgents(ags);
-        setSolo(ags.length === 1 ? ags[0].id : "*");
+        // ?agent=<id> (deep-link do "Acessar"): abre JÁ nesse agente — na visão única E no cockpit
+        // (semeia 1 painel dele na seção de entrada). Se o id não existir, cai no padrão.
+        const wanted = agentParam && ags.some((a) => a.id === agentParam) ? agentParam : null;
+        setSolo(wanted || (ags.length === 1 ? ags[0].id : "*"));
+        if (wanted) setStore((prev) => ({ ...prev, [sec]: [{ id: newId(), agent: wanted }] }));
       } catch (e: any) { setErr(e?.message || t("Não foi possível abrir o WhatsApp CRM.")); }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

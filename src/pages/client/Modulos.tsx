@@ -18,6 +18,8 @@ type Mod = {
   isSocial: boolean;
   /** Andamento da implantação: in_progress (Em andamento) | on_hold (Em espera) | delivered (Entregue). Só 'delivered' libera o Acessar. */
   rollout_status?: string | null;
+  /** Agente (wacrm) desta solução-CRM. O "Acessar" abre o CRM JÁ com este agente selecionado. */
+  crm_agent_id?: string | null;
 };
 type Svc = { id: string; status: string; name: string; description: string | null; category: string | null; unit: string | null };
 
@@ -36,7 +38,7 @@ async function fetchData(): Promise<{ mods: Mod[]; services: Svc[] }> {
     const cred = (cmap[r.id] as Cred) ?? null;
     // Ordem: URL desta instância → WhatsApp CRM (a API resolve; é a mesma p/ todos) → template.
     const url = cred?.access_url || ((r as any).crm_url as string) || ((r as any).social_url as string) || (vmap[r.vdi_module_id]?.external_url as string) || null;
-    return { id: r.id, status: r.status, vdi_module_id: r.vdi_module_id, label: (r as any).label ?? null, blurb: (r as any).blurb ?? null, access_mode: (r as any).access_mode ?? "link", isCrm: !!(r as any).crm_url, isSocial: !!(r as any).social_solution, rollout_status: (r as any).rollout_status ?? null, vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null, external_url: url, cred };
+    return { id: r.id, status: r.status, vdi_module_id: r.vdi_module_id, label: (r as any).label ?? null, blurb: (r as any).blurb ?? null, access_mode: (r as any).access_mode ?? "link", isCrm: !!(r as any).crm_url, isSocial: !!(r as any).social_solution, rollout_status: (r as any).rollout_status ?? null, crm_agent_id: (r as any).crm_agent_id ?? null, vdi: (vmap[r.vdi_module_id] as Mod["vdi"]) ?? null, external_url: url, cred };
   });
   // Nome/descrição vêm desnormalizados na própria client_services (catalog.services é admin-only).
   const svcList: Svc[] = (csvc as any[]).map((c) => ({
@@ -139,7 +141,9 @@ export default function Modulos() {
                           onClick={() => {
                             // WhatsApp CRM: SEMPRE dentro do portal (/app/crm → seletor de agente + embed
                             // com o usuário logado). Nunca abrir URL externa em nova aba.
-                            if (m.isCrm) { navigate("/app/crm"); return; }
+                            // WhatsApp CRM com o AGENTE desta solução já selecionado (o cliente cai
+                            // direto no agente do card; pode trocar p/ "Todos os Agentes" no seletor).
+                            if (m.isCrm) { navigate(m.crm_agent_id ? `/app/crm?agent=${encodeURIComponent(m.crm_agent_id)}` : "/app/crm"); return; }
                             if (!m.external_url) return;
                             // Social Media (nossa solução) e modos embed/sso abrem embarcados (com SSO); o resto, nova aba.
                             if (m.isSocial || m.access_mode === "embed" || m.access_mode === "sso") navigate(`/app/m/${m.id}`);
