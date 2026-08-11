@@ -79,6 +79,9 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
   const [dono, setDono] = useState(targetIsOwner);
   // Nome/e-mail: editáveis ao criar OU no admin (que tem o caminho identity.users.update).
   const idEditable = isNew || isAdmin;
+  // SIGILO DE CUSTO (decisão do Crasto): só o DONO/presidente (ou a Crasto) vê e edita salário/custo.
+  // Admin-level de cliente administra a equipe, mas NÃO enxerga custo. O backend também gateia.
+  const podeVerCusto = isAdmin || me?.role === "client_owner" || me?.role === "crasto_admin";
 
   const [tab, setTab] = useState<"dados" | "prof" | "wa" | "perm">("dados");
   const [f, setF] = useState({ ...EMPTY_FORM });
@@ -348,7 +351,11 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
           <div className="ec-grid">
             <div className="ec-field"><label>{t("Cargo / Função")}</label><input value={f.cargo} onChange={(e) => setField("cargo", e.target.value)} /></div>
             <div className="ec-field"><label>{t("Departamento")}</label><input value={f.departamento} onChange={(e) => setField("departamento", e.target.value)} /></div>
-            <div className="ec-field"><label>{labelValor(f.tipo_contrato, t)}</label><input value={f.salario} onChange={(e) => setField("salario", e.target.value)} inputMode="decimal" placeholder="0,00" /></div>
+            {podeVerCusto ? (
+              <div className="ec-field"><label>{labelValor(f.tipo_contrato, t)}</label><input value={f.salario} onChange={(e) => setField("salario", e.target.value)} inputMode="decimal" placeholder="0,00" /></div>
+            ) : (
+              <div className="ec-field"><label>{t("Valor / Custo")}</label><div className="mt" style={{ padding: "9px 2px", fontSize: 12.5, display: "flex", alignItems: "center", gap: 6 }}><Shield size={13} /> {t("Visível apenas ao dono da empresa.")}</div></div>
+            )}
             <div className="ec-field"><label>{t("Data de Admissão")}</label><input type="date" value={f.data_admissao} onChange={(e) => setField("data_admissao", e.target.value)} /></div>
             <div className="ec-field"><label>{t("Tipo de Contrato")}</label>
               <select value={f.tipo_contrato} onChange={(e) => setField("tipo_contrato", e.target.value)}>{TIPOS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}</select></div>

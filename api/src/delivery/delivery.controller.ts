@@ -617,6 +617,14 @@ export class DeliveryController {
   // public.profiles; a ficha profissional/RH (inclui salário) na public.team_members (deny-default).
   private static readonly ACCESS_LEVELS = ['admin', 'supervisor', 'agente', 'visualizador'];
   private static readonly TEAM_FIELDS = ['cpf_cnpj', 'telefone', 'cargo', 'departamento', 'salario', 'data_admissao', 'tipo_contrato', 'cnpj_vinculado', 'observacoes'];
+  // Campos de CUSTO (sigilo): só o DONO/presidente (client_owner) ou a Crasto (crasto_admin)
+  // veem e editam. gerenciaModulos deixa admin-level ADMINISTRAR a equipe, mas não VER custo.
+  private static readonly COST_FIELDS = ['salario'];
+  /** O CHAMADOR é dono/presidente da empresa (ou Crasto admin)? Só ele mexe em custo. */
+  private async podeCusto(c: any, callerId: string): Promise<boolean> {
+    const r = (await c.query('select role::text r from public.profiles where id=$1', [callerId])).rows[0];
+    return r?.r === 'client_owner' || r?.r === 'crasto_admin';
+  }
 
   @Get('collaborator')
   collabGet(@Req() req: any, @Query('user') user: string) {
@@ -625,7 +633,10 @@ export class DeliveryController {
       if (!org) return { error: 'sem permissão' };
       const p = (await c.query('select access_level, wa_sender_name, wa_number from public.profiles where id=$1', [user])).rows[0] || {};
       const t = (await c.query(`select ${DeliveryController.TEAM_FIELDS.join(', ')} from public.team_members where user_id=$1`, [user])).rows[0] || {};
-      return { access_level: p.access_level ?? null, wa_sender_name: p.wa_sender_name ?? null, wa_number: p.wa_number ?? null, team: t };
+      // Sigilo de custo: só o dono/presidente (ou Crasto) vê salário. Para os demais, o campo some.
+      const podeCusto = await this.podeCusto(c, this.uid(req));
+      if (!podeCusto) for (const k of DeliveryController.COST_FIELDS) delete (t as any)[k];
+      return { access_level: p.access_level ?? null, wa_sender_name: p.wa_sender_name ?? null, wa_number: p.wa_number ?? null, team: t, pode_custo: podeCusto };
     });
   }
 
@@ -660,6 +671,8 @@ export class DeliveryController {
       const team = (b && typeof b.team === 'object' && b.team) || {};
       const tm: Record<string, any> = {};
       for (const k of DeliveryController.TEAM_FIELDS) if (k in team) tm[k] = team[k] === '' ? null : team[k];
+      // Sigilo de custo: quem não é dono/presidente NÃO grava salário (mesmo que mande no corpo).
+      if (!(await this.podeCusto(c, this.uid(req)))) for (const k of DeliveryController.COST_FIELDS) delete tm[k];
       if (Object.keys(tm).length) {
         const cols = Object.keys(tm);
         const insCols = ['user_id', 'organization_id', ...cols];
