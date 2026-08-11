@@ -263,27 +263,28 @@ function Roi({ horasIa, horasEquipe, custoHora, diag, on, t }: { horasIa: number
   const shown = useCountUp(horasIa, on);
   const totalHrs = horasIa + (horasEquipe || 0);
   const pctIa = totalHrs > 0 ? Math.round((horasIa / totalHrs) * 100) : 0;
-  // Custo/hora REAL da equipe (salário + encargos ÷ 220h) quando o dono tem salários cadastrados;
-  // senão, R$20/h como referência conservadora. É o que torna a "economia" verdadeira.
-  const rate = custoHora && custoHora > 0 ? custoHora : 20;
-  const money = Math.round(horasIa * rate);
-  // KPIs de DONO no espaço que sobrava (pedido do Crasto): projeção anual da economia (no ritmo
-  // atual) e capacidade liberada em dias de trabalho — ambos derivados de horasIa (nada inventado).
+  // Só mostra R$ quando há salário cadastrado na equipe (custo/hora REAL = salário + encargos ÷ 220h).
+  // Sem salário, o card mostra SÓ as horas — nada de valor "chutado" (decisão do Crasto).
+  const temCusto = custoHora != null && custoHora > 0;
+  const money = temCusto ? Math.round(horasIa * custoHora) : 0;
   const anual = money * 12;
+  // Capacidade liberada em dias de trabalho — derivada de horasIa (não depende de R$).
   const dias = Math.round((horasIa / 8) * 10) / 10; // 8h = 1 dia útil
   return (
     <div className="cc-card">
       <div className="cc-lbl">{t("Horas economizadas (ROI)")}</div><CardInfo diag={diag} t={t} />
       <div className="cc-roi">
-        <div className="cc-money" style={{ color: "var(--sem-green)" }}>{Math.round(shown)}<b>h</b><small>≈ R$ {money.toLocaleString("pt-BR")} {t("em folha/mês")}</small></div>
+        <div className="cc-money" style={{ color: "var(--sem-green)" }}>{Math.round(shown)}<b>h</b>{temCusto ? <small>≈ R$ {money.toLocaleString("pt-BR")} {t("em folha/mês")}</small> : <small className="mt">{t("cadastre o salário da equipe para ver a economia em R$")}</small>}</div>
         <div className="cc-roibar"><i style={{ width: on ? `${pctIa}%` : 0, background: "var(--sem-green)" }} /><i style={{ width: on ? `${100 - pctIa}%` : 0, background: "var(--sem-amber)" }} /></div>
         <div className="cc-roil"><span>{t("IA")}: <b>{horasIa}h</b></span>{horasEquipe != null && <span>{t("Equipe")}: <b>{horasEquipe}h</b></span>}</div>
         <div className="cc-roi-extra">
+          {temCusto && (
           <div className="cc-roi-x">
             <span className="cc-roi-xl">{t("Projeção no ano")}</span>
             <b className="cc-roi-xv">R$ {anual.toLocaleString("pt-BR")}</b>
             <span className="cc-roi-xs">{t("no ritmo atual")}</span>
           </div>
+          )}
           <div className="cc-roi-x">
             <span className="cc-roi-xl">{t("Capacidade liberada")}</span>
             <b className="cc-roi-xv">{dias} {dias === 1 ? t("dia") : t("dias")}</b>
