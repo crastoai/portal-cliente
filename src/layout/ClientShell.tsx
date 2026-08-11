@@ -101,9 +101,11 @@ export default function ClientShell() {
     setUnitIdState(id);
     if (id) localStorage.setItem(scopeKey, id); else localStorage.removeItem(scopeKey);
   };
-  // Quem pode ADICIONAR/editar empresa (CNPJ): o dono da conta, o admin, ou o admin visualizando
-  // como cliente. Membro comum só seleciona. O wacrm reconfere o papel no banco (defesa em profundidade).
-  const canManageUnits = crmMe?.is_admin === true || crmMe?.role === "client_owner" || pv.active;
+  // Quem pode ADICIONAR/editar empresa (CNPJ): o DONO da conta (ou um admin logado direto). Membro
+  // comum só seleciona. NÃO liberamos por preview: em "ver como cliente" o /api/me devolve a org do
+  // próprio admin (não impersona no wacrm), então o add-aqui miraria a org errada — o admin gere as
+  // unidades do cliente pela seção dedicada (CrmAccessSection). O wacrm reconfere o papel no banco.
+  const canManageUnits = crmMe?.is_admin === true || crmMe?.role === "client_owner";
   const createUnit = async (d: { name: string; cnpj?: string | null; legal_name?: string | null }) => {
     const { data } = await supabase.auth.getSession();
     const tk = data.session?.access_token;
