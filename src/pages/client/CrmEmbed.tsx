@@ -12,6 +12,14 @@ import { useUnitScope } from "../../lib/unitScope";
 const WACRM_API = (import.meta.env.DEV && (import.meta.env.VITE_WACRM_API_LOCAL as string | undefined)) || "https://api.wacrm.crasto.ai";
 type Agent = { id: string; name: string; slug?: string; status?: string; business_unit_id?: string | null };
 
+// CACHE-BUST do iframe do CRM. O token vai no #hash da URL, e o hash NÃO faz parte da chave de cache
+// do navegador — então a URL do iframe fica IDÊNTICA entre cargas e o navegador serve o CRM ANTIGO do
+// cache mesmo depois do deploy (por isso nem deslogar/relogar resolvia: hash não muda a chave). Este
+// selo é calculado UMA vez por carga do Portal (cada F5 gera outro) e entra na QUERY string — que É
+// chave de cache — forçando o iframe a rebaixar o index.html novo do CRM a cada F5 do Portal. Casa com
+// o `no-store` do nginx.client.conf (index.html do CRM), fechando o buraco do cache de iframe.
+const CRM_CACHE_BUST = String(Date.now());
+
 // Seção da URL (/app/crm/<seção>, definida na sidebar do Portal) → caminho dentro do wacrm.
 // Sem seção (/app/crm) = Dashboard ("/"). Deep-link de conversa (Cockpit) abre /chat/<id>.
 const SECTION_TO_PATH: Record<string, string> = {
@@ -266,7 +274,7 @@ export default function CrmEmbed() {
     if (!crmUrl || !token) return "";
     const q = singleAgent && singleAgent !== "*" ? `&agent=${encodeURIComponent(singleAgent)}` : "";
     const rf = refreshTok ? `&refresh_token=${encodeURIComponent(refreshTok)}` : "";
-    return `${crmUrl}${sectionPath}?embedded=1&hostnav=1${q}#access_token=${encodeURIComponent(token)}${rf}`;
+    return `${crmUrl}${sectionPath}?embedded=1&hostnav=1&_cb=${CRM_CACHE_BUST}${q}#access_token=${encodeURIComponent(token)}${rf}`;
   }, [crmUrl, token, refreshTok, singleAgent, sectionPath]);
   // O wacrm embarcado pede um token novo quando fica sem sessão (SSO — nunca login próprio no embed).
   // Respondemos com o token/refresh atuais do Portal → ele entra sozinho.
@@ -339,7 +347,7 @@ export default function CrmEmbed() {
   const panelSrc = (gsec: string, ag: string | null) => {
     const q = ag ? `&agent=${encodeURIComponent(ag)}` : "";
     const rf = refreshTok ? `&refresh_token=${encodeURIComponent(refreshTok)}` : "";
-    return `${crmUrl}${SECTION_TO_PATH[gsec] || "/"}?embedded=1&hostnav=1${q}#access_token=${encodeURIComponent(token || "")}${rf}`;
+    return `${crmUrl}${SECTION_TO_PATH[gsec] || "/"}?embedded=1&hostnav=1&_cb=${CRM_CACHE_BUST}${q}#access_token=${encodeURIComponent(token || "")}${rf}`;
   };
   const layoutBtn = (n: number): CSSProperties => ({
     width: 30, height: 30, border: 0, borderLeft: n > 1 ? "1px solid var(--crasto-border-soft, rgba(1,14,38,.14))" : "none",
