@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, RefreshCw, IdCard, Briefcase, MessageSquare, Shield, ChevronDown } from "lucide-react";
+import { Check, RefreshCw, IdCard, Briefcase, MessageSquare, Shield, ChevronDown, Sparkles, Bot } from "lucide-react";
 import { services, errorMessage } from "../../services";
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
@@ -368,17 +368,51 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
             ))}
           </div>
           {agentsList.length > 0 && (
-            <div style={{ marginTop: 16 }}>
-              <div className="ec-uplabel">{t("Responsável pelas dúvidas da IA")}</div>
-              <p className="mt" style={{ margin: "0 0 8px" }}>{t("Quando a IA tiver dúvida, a tarefa de aprovação chega a quem for responsável pelo agente (Minha Mesa + notificação). Sem ninguém responsável, aparece para todos.")}</p>
-              <div className="ec-tree">
-                {agentsList.map((a) => (
-                  <div key={a.id} className="ec-item">
-                    <span className="lb">{a.name}</span>
-                    <button type="button" className={"ec-switch" + (respAgents.has(a.id) ? " on" : "")} aria-label={a.name}
-                      onClick={() => setRespAgents((s) => { const n = new Set(s); n.has(a.id) ? n.delete(a.id) : n.add(a.id); return n; })} />
-                  </div>
-                ))}
+            <div style={{
+              marginTop: 18, padding: 16, borderRadius: 14,
+              border: "1px solid rgba(110,156,232,0.38)",
+              background: "rgba(110,156,232,0.08)",
+              boxShadow: "0 1px 0 rgba(110,156,232,0.10) inset",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                <span style={{ display: "inline-flex", width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 9, background: "linear-gradient(135deg,#6E9CE8,#2E6F9E)", color: "#fff", flex: "0 0 auto", boxShadow: "0 2px 8px rgba(46,111,158,0.35)" }}>
+                  <Sparkles size={16} />
+                </span>
+                <span style={{ fontSize: 13.5, fontWeight: 800, letterSpacing: ".02em", color: "var(--crasto-blue)" }}>{t("Responsável pelas dúvidas da IA")}</span>
+              </div>
+              <p style={{ margin: "0 0 14px 40px", fontSize: 12.5, lineHeight: 1.55, color: "var(--crasto-text-body)" }}>
+                {t("Quando a IA tiver dúvida, a tarefa de aprovação chega a quem for responsável pelo agente (Minha Mesa + notificação). Sem ninguém responsável, aparece para todos.")}
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {agentsList.map((a) => {
+                  const on = respAgents.has(a.id);
+                  return (
+                    <button key={a.id} type="button" aria-pressed={on}
+                      onClick={() => setRespAgents((s) => { const n = new Set(s); n.has(a.id) ? n.delete(a.id) : n.add(a.id); return n; })}
+                      style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+                        padding: "11px 13px", borderRadius: 11, cursor: "pointer", textAlign: "left", width: "100%",
+                        transition: "background .15s, border-color .15s",
+                        border: on ? "1.5px solid #6E9CE8" : "1px solid var(--crasto-border)",
+                        background: on ? "rgba(110,156,232,0.16)" : "transparent",
+                      }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                        <Bot size={17} style={{ flex: "0 0 auto", color: on ? "#6E9CE8" : "var(--crasto-text-muted)" }} />
+                        <span style={{ fontSize: 14, fontWeight: on ? 700 : 500, color: on ? "var(--crasto-text-primary)" : "var(--crasto-text-body)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</span>
+                      </span>
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 5, flex: "0 0 auto",
+                        fontSize: 11.5, fontWeight: 700, letterSpacing: ".01em",
+                        padding: "3px 10px", borderRadius: 999,
+                        color: on ? "#fff" : "var(--crasto-text-faint)",
+                        background: on ? "linear-gradient(135deg,#6E9CE8,#4E93D4)" : "transparent",
+                        border: on ? "0" : "1px solid var(--crasto-border)",
+                      }}>
+                        {on ? <><Check size={13} /> {t("Responsável")}</> : t("Definir")}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
