@@ -2,10 +2,26 @@
 // Guardadas em localStorage (por navegador). Os sons são SINTETIZADOS via Web Audio — sem
 // arquivos externos (CSP-safe) e sem depender de rede.
 export type NotifSound = "chime" | "ding" | "pop" | "marimba" | "none";
-export type NotifPrefs = { sound: NotifSound; volume: number; desktop: boolean };
+export type NotifPrefs = { enabled: boolean; sound: NotifSound; volume: number; desktop: boolean; quietFrom: string | null; quietTo: string | null };
 
 const KEY = "crasto_notif_prefs";
-const DEFAULT: NotifPrefs = { sound: "chime", volume: 0.5, desktop: false };
+const DEFAULT: NotifPrefs = { enabled: true, sound: "chime", volume: 0.5, desktop: false, quietFrom: null, quietTo: null };
+
+/** Está dentro do horário silencioso (Não perturbe)? Suporta intervalo que atravessa a meia-noite. */
+export function emHorarioSilencioso(p: NotifPrefs = getNotifPrefs()): boolean {
+  if (!p.quietFrom || !p.quietTo) return false;
+  const [fh, fm] = p.quietFrom.split(":").map(Number);
+  const [th, tm] = p.quietTo.split(":").map(Number);
+  if ([fh, fm, th, tm].some((n) => Number.isNaN(n))) return false;
+  const now = new Date(); const cur = now.getHours() * 60 + now.getMinutes();
+  const f = fh * 60 + fm, t = th * 60 + tm;
+  return f <= t ? cur >= f && cur < t : cur >= f || cur < t;
+}
+/** Pode disparar notificação de DESKTOP agora? (master ligado + desktop on + fora do silêncio + permitido) */
+export function podeNotificarDesktop(): boolean {
+  const p = getNotifPrefs();
+  return p.enabled && p.desktop && !emHorarioSilencioso(p) && "Notification" in window && Notification.permission === "granted";
+}
 
 export function getNotifPrefs(): NotifPrefs {
   try { return { ...DEFAULT, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch { return DEFAULT; }
@@ -41,6 +57,8 @@ const SOUNDS: Record<Exclude<NotifSound, "none">, (c: AudioContext, v: number) =
 /** Toca o som de notificação (ou um som específico p/ o preview). Respeita on/off e volume. */
 export function playNotifSound(force?: NotifSound): void {
   const p = getNotifPrefs();
+  // Preview (force) sempre toca; aviso real respeita master on/off + horário silencioso.
+  if (!force && (!p.enabled || emHorarioSilencioso(p))) return;
   const s = force ?? p.sound;
   if (s === "none") return;
   const c = ac(); if (!c) return;

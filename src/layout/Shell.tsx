@@ -7,7 +7,7 @@ import ThemeToggle from "../ui/ThemeToggle";
 import LangSwitcher from "../ui/LangSwitcher";
 import { useT } from "../lib/i18n";
 import { useUnitScope } from "../lib/unitScope";
-import { playNotifSound, getNotifPrefs } from "../lib/notifPrefs";
+import { playNotifSound, podeNotificarDesktop } from "../lib/notifPrefs";
 import { initials } from "../ui/ui";
 
 // Seletor de UNIDADE (CNPJ) na topbar — multi-CNPJ. Só aparece quando a empresa tem mais de
@@ -228,7 +228,7 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav }: { nav: Nav
       if (prevNotif.current !== null && c > prevNotif.current) {
         playNotifSound();
         try {
-          if (getNotifPrefs().desktop && "Notification" in window && Notification.permission === "granted") {
+          if (podeNotificarDesktop()) {
             new Notification(t("Crasto.AI"), { body: t("Você tem {n} nova(s) notificação(ões)", { n: c }) });
           }
         } catch { /* ignore */ }
