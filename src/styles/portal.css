@@ -237,6 +237,39 @@
 [data-theme="dark"] .unitdd-menu { background: #14161C; border-color: rgba(255,255,255,.08); }
 [data-theme="dark"] .unitdd-check { color: var(--crasto-navy-lift, #6E9CE8); }
 @media (max-width: 600px) { .unitdd-lbl { display: none; } .unitdd { margin-left: 8px; } }
+
+/* "+ Adicionar empresa" no seletor de unidade + modal de cadastro (multi-CNPJ) */
+.unitdd-add { color: var(--crasto-navy); font-weight: 600; }
+.unitdd-add .unitdd-ico { opacity: 1; }
+[data-theme="dark"] .unitdd-add { color: var(--crasto-navy-lift, #6E9CE8); }
+.umodal-back { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(1,14,38,.42); backdrop-filter: blur(2px); }
+.umodal { width: 100%; max-width: 420px; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: 16px; box-shadow: 0 30px 70px -20px var(--crasto-navy-40); padding: 18px; }
+.umodal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.umodal-head h4 { margin: 0; font-size: 16px; font-weight: 700; color: var(--crasto-text-primary); }
+.umodal-x { width: 30px; height: 30px; border: none; background: transparent; color: var(--crasto-text-muted); border-radius: 8px; cursor: pointer; display: grid; place-items: center; }
+.umodal-x:hover { background: var(--crasto-navy-05); color: var(--crasto-text-primary); }
+.umodal-sub { margin: 6px 0 14px; font-size: 12.5px; line-height: 1.5; color: var(--crasto-text-muted); }
+.umodal-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 11px; }
+.umodal-field label { font-size: 12px; font-weight: 600; color: var(--crasto-text-body); }
+.umodal-field input { height: 40px; padding: 0 12px; border: 1px solid var(--crasto-border); border-radius: 10px; background: var(--crasto-bg); color: var(--crasto-text-primary); font-size: 14px; outline: none; transition: border-color .15s; }
+.umodal-field input:focus { border-color: var(--crasto-navy); }
+.umodal-err { font-size: 12.5px; color: #fff; background: var(--crasto-danger); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
+.umodal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+.umodal-btn { height: 40px; padding: 0 18px; border-radius: 10px; font-size: 13.5px; font-weight: 600; cursor: pointer; border: 1px solid transparent; }
+.umodal-btn:disabled { opacity: .55; cursor: default; }
+.umodal-btn.ghost { background: transparent; border-color: var(--crasto-border); color: var(--crasto-text-body); }
+.umodal-btn.ghost:hover:not(:disabled) { background: var(--crasto-navy-05); }
+.umodal-btn.primary { background: var(--crasto-navy); color: #fff; }
+.umodal-btn.primary:hover:not(:disabled) { filter: brightness(1.06); }
+[data-theme="dark"] .umodal-field input { background: #0f1116; border-color: rgba(255,255,255,.1); }
+
+/* Lista de Empresas (CNPJs) em Dados da empresa (Perfil) */
+.urow { display: flex; align-items: center; gap: 12px; padding: 11px 13px; border: 1px solid var(--crasto-border-soft); border-radius: 12px; background: var(--crasto-surface); }
+.urow-ico { width: 34px; height: 34px; flex: none; border-radius: 9px; display: grid; place-items: center; background: var(--crasto-navy-05); color: var(--crasto-navy); }
+.urow-main { min-width: 0; flex: 1; }
+.urow-nm { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; color: var(--crasto-text-primary); }
+.urow-sub { font-size: 12.5px; color: var(--crasto-text-muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
+[data-theme="dark"] .urow-ico { color: var(--crasto-navy-lift, #6E9CE8); }
 /* Botão do perfil — avatar + SETA que aparece/expande no hover (sinaliza que é clicável). */
 .tb-av { border-radius: 50%; }
 .tb-prof-btn { display: inline-flex; align-items: center; padding: 3px; border: 0; background: transparent; border-radius: 999px; cursor: pointer; transition: background .15s; }

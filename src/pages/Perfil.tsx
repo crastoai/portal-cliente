@@ -8,6 +8,8 @@ import { useT } from "../lib/i18n";
 import Modal from "../ui/Modal";
 import { supabase } from "../lib/supabase";
 import { COUNTRIES, reg, regTypeFor } from "../lib/registrations";
+import { useUnitScope } from "../lib/unitScope";
+import AddCompanyModal from "../ui/AddCompanyModal";
 import { NotifPrefsCard } from "./client/Notificacoes";
 import TwoFactor from "./TwoFactor";
 import "../styles/settings.css";
@@ -17,6 +19,42 @@ const REGIMES = ["Simples Nacional", "Lucro Presumido", "Lucro Real", "MEI", "Is
 const EMPTY = { name: "", legal_name: "", tax_id: "", state_registration: "", municipal_registration: "", tax_regime: "", owner_name: "", founded_on: "", zip: "", state: "", city: "", address: "", address_number: "", district: "", address_complement: "", emails: [] as string[], phones: [] as string[], websites: [] as string[] };
 const TIPO_LABEL: Record<string, string> = { clt: "CLT", pj: "Prestador PJ", estagio: "Estágio", temporario: "Temporário" };
 type Secao = "conta" | "seguranca" | "notif" | "empresa";
+
+// Empresas (CNPJs) da conta — as MESMAS unidades do seletor de unidades (business_units). Aparecem
+// aqui em "Dados da empresa" e nos detalhes do cliente (admin); o dono adiciona por aqui ou pelo topo.
+function EmpresasCnpj() {
+  const t = useT();
+  const { units, canManage, reload } = useUnitScope();
+  const [add, setAdd] = useState(false);
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+        <div>
+          <h3 style={{ margin: 0 }}>{t("Empresas (CNPJs)")}</h3>
+          <div className="mt">{t("As unidades da sua empresa no sistema. A matriz e cada CNPJ adicional aparecem no seletor do topo.")}</div>
+        </div>
+        {canManage && (
+          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => setAdd(true)}>
+            <span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Adicionar empresa")}</span>
+          </button>
+        )}
+      </div>
+      <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+        {units.length === 0 && <Empty>{t("Nenhuma empresa cadastrada ainda.")}</Empty>}
+        {units.map((u) => (
+          <div key={u.id} className="urow">
+            <div className="urow-ico"><Building2 size={16} /></div>
+            <div className="urow-main">
+              <div className="urow-nm">{u.name}{u.is_primary && <Pill>{t("Matriz")}</Pill>}{u.status === "inactive" && <Pill>{t("Inativa")}</Pill>}</div>
+              <div className="urow-sub">{u.cnpj || t("Sem CNPJ informado")}{u.legal_name ? ` · ${u.legal_name}` : ""}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {add && <AddCompanyModal onClose={() => setAdd(false)} onCreated={reload} />}
+    </div>
+  );
+}
 
 export default function Perfil() {
   const t = useT();
@@ -362,6 +400,9 @@ export default function Perfil() {
                 )}
               </div>
             )}
+
+            {/* Empresas (CNPJs) do CRM — as unidades do seletor do topo, geridas aqui também */}
+            {tab === "empresa" && <EmpresasCnpj />}
 
             {tab === "cnpjs" && (
               <div className="card">

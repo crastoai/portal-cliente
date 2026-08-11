@@ -1,21 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { LogOut, Menu, X, Camera, Lock, ChevronLeft, ChevronRight, ChevronDown, Bell, Rocket, Sparkles, AlertTriangle, DollarSign, MessageCircle, IdCard, ShieldCheck, Wallet, Building2, Check, type LucideIcon } from "lucide-react";
+import { LogOut, Menu, X, Camera, Lock, ChevronLeft, ChevronRight, ChevronDown, Bell, Rocket, Sparkles, AlertTriangle, DollarSign, MessageCircle, IdCard, ShieldCheck, Wallet, Building2, Check, Plus, type LucideIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { services } from "../services";
 import ThemeToggle from "../ui/ThemeToggle";
 import LangSwitcher from "../ui/LangSwitcher";
+import AddCompanyModal from "../ui/AddCompanyModal";
 import { useT } from "../lib/i18n";
 import { useUnitScope } from "../lib/unitScope";
 import { playNotifSound, podeNotificarDesktop } from "../lib/notifPrefs";
 import { initials } from "../ui/ui";
 
-// Seletor de UNIDADE (CNPJ) na topbar — multi-CNPJ. Só aparece quando a empresa tem mais de
-// uma unidade; escopa a visão do CRM à unidade escolhida (null = "Todas as unidades").
+// Seletor de UNIDADE (CNPJ) na topbar — multi-CNPJ. Aparece SEMPRE (mesmo com 1 CNPJ): mostra a
+// matriz/CNPJ da empresa e, para o dono/admin, permite ADICIONAR outra empresa ali mesmo. Escopa a
+// visão do CRM à unidade escolhida (null = "Todas as unidades"). A empresa criada aqui é a MESMA
+// que aparece nos detalhes do cliente (admin) e em "Dados da empresa" — uma fonte só (business_units).
 function UnitSwitcher() {
   const t = useT();
-  const { units, unitId, setUnitId } = useUnitScope();
+  const { units, unitId, setUnitId, canManage } = useUnitScope();
   const [open, setOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -23,8 +27,10 @@ function UnitSwitcher() {
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
-  if (units.length < 2) return null; // 1 unidade (matriz) → nada a escolher
+  // Só some para membro comum de empresa que (ainda) não tem nenhuma unidade cadastrada.
+  if (units.length === 0 && !canManage) return null;
   const cur = unitId ? units.find((u) => u.id === unitId) : null;
+
   return (
     <div className="unitdd" ref={ref}>
       <button type="button" className={"unitdd-btn" + (open ? " open" : "")} onClick={() => setOpen((o) => !o)} title={t("Unidade (CNPJ)")}>
@@ -38,7 +44,7 @@ function UnitSwitcher() {
             <span className="unitdd-item-nm">{t("Todas as unidades")}</span>
             {!unitId && <Check size={14} className="unitdd-check" />}
           </button>
-          <div className="unitdd-sep" />
+          {units.length > 0 && <div className="unitdd-sep" />}
           {units.map((u) => (
             <button key={u.id} type="button" className={"unitdd-item" + (u.id === unitId ? " on" : "")} onClick={() => { setUnitId(u.id); setOpen(false); }}>
               <span className="unitdd-item-nm">{u.name}{u.is_primary ? ` · ${t("Matriz")}` : ""}</span>
@@ -46,8 +52,18 @@ function UnitSwitcher() {
               {u.id === unitId && <Check size={14} className="unitdd-check" />}
             </button>
           ))}
+          {canManage && (
+            <>
+              <div className="unitdd-sep" />
+              <button type="button" className="unitdd-item unitdd-add" onClick={() => { setAddOpen(true); setOpen(false); }}>
+                <Plus size={15} className="unitdd-ico" />
+                <span className="unitdd-item-nm">{t("Adicionar empresa (CNPJ)")}</span>
+              </button>
+            </>
+          )}
         </div>
       )}
+      {addOpen && <AddCompanyModal onClose={() => setAddOpen(false)} />}
     </div>
   );
 }

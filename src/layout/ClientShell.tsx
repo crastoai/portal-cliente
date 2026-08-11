@@ -55,6 +55,9 @@ export default function ClientShell() {
   const location = useLocation();
   const [pv, setPv] = useState({ active: preview.active(), name: preview.orgName() });
   useEffect(() => preview.subscribe(() => setPv({ active: preview.active(), name: preview.orgName() })), []);
+  // Reatualiza as unidades (CNPJs) após o cliente adicionar uma empresa no seletor/perfil.
+  const [unitReload, setUnitReload] = useState(0);
+  const reloadUnits = () => setUnitReload((k) => k + 1);
 
   // "Minha Implementação" só aparece enquanto a implantação não terminou (< 100%).
   const { data: impl } = useAsync(() => services.delivery.implementations.getMine(), [pv.active]);
@@ -77,9 +80,11 @@ export default function ClientShell() {
       return {
         crm_screens: Array.isArray(j?.crm_screens) ? (j.crm_screens as string[]) : null,
         units: Array.isArray(j?.units) ? (j.units as Unit[]) : [],
+        role: typeof j?.role === "string" ? (j.role as string) : null,
+        is_admin: j?.is_admin === true,
       };
     } catch { return null; }
-  }, [pv.active]);
+  }, [pv.active, unitReload]);
   const crmScreens = crmMe?.crm_screens ?? null;
   const units = crmMe?.units ?? [];
   const crmScreenSet = crmScreens && !crmScreens.includes("*") ? new Set(crmScreens) : null; // null = todas
@@ -95,6 +100,25 @@ export default function ClientShell() {
   const setUnitId = (id: string | null) => {
     setUnitIdState(id);
     if (id) localStorage.setItem(scopeKey, id); else localStorage.removeItem(scopeKey);
+  };
+  // Quem pode ADICIONAR/editar empresa (CNPJ): o dono da conta, o admin, ou o admin visualizando
+  // como cliente. Membro comum só seleciona. O wacrm reconfere o papel no banco (defesa em profundidade).
+  const canManageUnits = crmMe?.is_admin === true || crmMe?.role === "client_owner" || pv.active;
+  const createUnit = async (d: { name: string; cnpj?: string | null; legal_name?: string | null }) => {
+    const { data } = await supabase.auth.getSession();
+    const tk = data.session?.access_token;
+    if (!tk) return { error: "sessão expirada — entre novamente" };
+    try {
+      const r = await fetch(`${WACRM_API}/api/me/units`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + tk },
+        body: JSON.stringify(d),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j?.error) return { error: j?.error || "não foi possível adicionar a empresa" };
+      reloadUnits();
+      return { unit: j.unit };
+    } catch { return { error: "falha de conexão com o CRM" }; }
   };
 
   // Módulos contratados (para a seção "Módulos" da sidebar, estilo Conta Azul).
@@ -221,7 +245,7 @@ export default function ClientShell() {
   }
 
   return (
-    <UnitScopeContext.Provider value={{ units, unitId, setUnitId }}>
+    <UnitScopeContext.Provider value={{ units, unitId, setUnitId, canManage: canManageUnits, createUnit, reload: reloadUnits }}>
       <Shell nav={nav} bottomNav={bottomNav} who={pv.active ? pv.name : (profile?.full_name || "Cliente")} sub={pv.active ? t("Visualização (admin)") : "Portal do Cliente"} logoTone="linear-gradient(145deg,#1F8A5B,#0d5c3a)" />
       {pv.active && (
         <div style={{ position: "fixed", top: 14, left: "50%", transform: "translateX(-50%)", zIndex: 9999, display: "flex", alignItems: "center", gap: 12, background: "var(--crasto-text-primary)", color: "#fff", padding: "10px 8px 10px 16px", borderRadius: 999, boxShadow: "0 10px 34px rgba(1,14,38,.34)", fontSize: 13.5, maxWidth: "92vw" }}>
