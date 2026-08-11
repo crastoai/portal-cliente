@@ -878,3 +878,14 @@
    na tela. Removido ao fechar. Some a sensação de "sistema separado". */
 html.crm-modal-open .main { position: relative; z-index: 9998; }
 .crm-frame-fs { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 9999 !important; border: 0 !important; }
+/* ⚠️ CAUSA-RAIZ do "popup do CRM não escurece o Portal / vai pro lado" (2026-08-11): a `.canvas`
+   (container do <Outlet/>, onde vive o CRM) tem a animação `page-enter`, que ANIMA `transform`
+   com `animation-fill-mode: both`. Isso cria um CONTAINING BLOCK e PRENDE o `position: fixed` do
+   `.crm-frame-fs` DENTRO da área de conteúdo — mesmo com `transform: none` no fim (gotcha do Chrome).
+   Resultado: o "fullscreen" nascia em left=248/top=56 (só o miolo escurecia; sidebar/topbar não).
+   Comprovado em repro isolado: com page-enter o fixo nasce em 242/58; sem a animação, em 0/0.
+   Por isso NENHUM ajuste anterior (todos no SINAL do wacrm) resolveu — o sinal chegava, mas o
+   fullscreen já nascia preso. Fix: enquanto um modal do CRM está aberto, zeramos a animação/transform
+   da `.canvas` → o `.crm-frame-fs` volta a ser fixo relativo à VIEWPORT e cobre a tela inteira.
+   (Só vale com `crm-modal-open`, então a animação de troca de página normal continua intacta.) */
+html.crm-modal-open .canvas { animation: none !important; transform: none !important; }
