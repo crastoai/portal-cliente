@@ -636,7 +636,9 @@ export class DeliveryController {
       // Sigilo de custo: só o dono/presidente (ou Crasto) vê salário. Para os demais, o campo some.
       const podeCusto = await this.podeCusto(c, this.uid(req));
       if (!podeCusto) for (const k of DeliveryController.COST_FIELDS) delete (t as any)[k];
-      return { access_level: p.access_level ?? null, wa_sender_name: p.wa_sender_name ?? null, wa_number: p.wa_number ?? null, team: t, pode_custo: podeCusto };
+      // Regime tributário da empresa (muda o custo do empregador) — só p/ quem vê custo.
+      const orgTaxRegime = podeCusto ? ((await c.query('select tax_regime from public.organizations where id=$1', [org])).rows[0]?.tax_regime ?? 'simples') : null;
+      return { access_level: p.access_level ?? null, wa_sender_name: p.wa_sender_name ?? null, wa_number: p.wa_number ?? null, team: t, pode_custo: podeCusto, org_tax_regime: orgTaxRegime };
     });
   }
 
@@ -682,6 +684,11 @@ export class DeliveryController {
           `insert into public.team_members (${insCols.map((x) => `"${x}"`).join(', ')}) values (${ph})
              on conflict (user_id) do update set ${upd}, updated_at=now()`,
           [user, org, ...cols.map((k) => tm[k])]);
+      }
+      // Regime tributário da EMPRESA (custo do empregador) — só o dono/presidente edita.
+      if ('org_tax_regime' in b && (await this.podeCusto(c, this.uid(req)))) {
+        const rg = ['simples', 'presumido', 'real'].includes(b.org_tax_regime) ? b.org_tax_regime : 'simples';
+        await c.query('update public.organizations set tax_regime=$2 where id=$1', [org, rg]);
       }
       return { ok: true };
     });

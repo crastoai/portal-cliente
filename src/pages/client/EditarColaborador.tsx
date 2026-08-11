@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, RefreshCw, IdCard, Briefcase, MessageSquare, Shield, ChevronDown, Sparkles, Bot } from "lucide-react";
+import { Check, RefreshCw, IdCard, Briefcase, MessageSquare, Shield, ChevronDown, Sparkles, Bot, Calculator } from "lucide-react";
 import { services, errorMessage } from "../../services";
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
@@ -42,6 +42,39 @@ function labelValor(tipo: string, t: (k: string) => string): string {
   if (tipo === "pj") return t("Valor mensal (PJ)");
   if (tipo === "clt") return t("Salário CLT (total que recebe)");
   return t("Salário / Valor");
+}
+
+// ── Fatia 3: custo real do empregador + rescisão (ESTIMATIVA por regime — não substitui contador).
+// Encargos folha: FGTS 8% + 13º 8,33% + férias+⅓ 11,11% = 27,44%. Lucro Presumido/Real somam INSS
+// patronal 20% + RAT/Sistema S ~7,8%. Simples: só a folha (patronal vai no DAS). Rescisão: aviso
+// prévio 30 + 3/ano (teto 90, Lei 12.506/2011) + multa 40% sobre o FGTS acumulado. Só CLT tem isso.
+const REGIMES: { key: string; label: string }[] = [
+  { key: "simples", label: "Simples Nacional" },
+  { key: "presumido", label: "Lucro Presumido" },
+  { key: "real", label: "Lucro Real" },
+];
+function encargoPct(regime: string): number {
+  const folha = 0.08 + 0.0833 + 0.1111;
+  return regime === "presumido" || regime === "real" ? folha + 0.20 + 0.078 : folha;
+}
+function parseValor(s: string): number {
+  return Number(String(s || "").replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".")) || 0;
+}
+const brl = (n: number) => "R$ " + Math.round(n).toLocaleString("pt-BR");
+function calcCusto(salarioStr: string, tipo: string, regime: string, admissao: string) {
+  const sal = parseValor(salarioStr);
+  if (!sal) return null;
+  if (tipo === "pj" || tipo === "projeto") return { pj: true as const, tipo, mensal: sal, anual: sal * 12 };
+  if (tipo !== "clt") return null; // estágio/temporário/— : sem cálculo CLT por ora
+  const enc = encargoPct(regime);
+  const mensal = sal * (1 + enc);
+  const anosRaw = admissao ? (Date.now() - new Date(admissao).getTime()) / (365.25 * 864e5) : 0;
+  const anos = isFinite(anosRaw) && anosRaw > 0 ? anosRaw : 0;
+  const meses = Math.max(1, Math.round(anos * 12));
+  const avisoDias = Math.min(30 + 3 * Math.floor(anos), 90);
+  const aviso = (sal / 30) * avisoDias;
+  const multa40 = 0.40 * (0.08 * sal * meses);
+  return { pj: false as const, tipo, sal, encPct: Math.round(enc * 100), mensal, anual: mensal * 12, anos, avisoDias, aviso, multa40, rescisao: aviso + multa40 };
 }
 // Catálogo ESTÁTICO do WhatsApp CRM (fallback) — MESMAS keys/labels do sidebar (ClientShell
 // CRM_SECTIONS) e do wacrm. Garante que o grupo apareça mesmo antes da API nova estar em prod;
@@ -98,6 +131,8 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
   // chega a quem for responsável (Minha Mesa + sino). Sem ninguém → aparece para todos.
   const [agentsList, setAgentsList] = useState<{ id: string; name: string }[]>([]);
   const [respAgents, setRespAgents] = useState<Set<string>>(new Set());
+  // Regime tributário da EMPRESA (custo do empregador — Fatia 3). Padrão Simples; só o dono edita.
+  const [orgTaxRegime, setOrgTaxRegime] = useState<string>("simples");
 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -138,6 +173,7 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
           if (!alive) return;
           if (info) {
             setLevel(info.access_level ?? null);
+            if ((info as any).org_tax_regime) setOrgTaxRegime((info as any).org_tax_regime);
             const tm = info.team || {};
             setF({
               full_name: user.full_name || "", email: user.email || "",
@@ -254,8 +290,9 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
         salario: f.salario === "" ? null : f.salario, data_admissao: f.data_admissao || null,
         tipo_contrato: f.tipo_contrato, cnpj_vinculado: f.cnpj_vinculado, observacoes: f.observacoes,
       };
-      const payload: { access_level?: string | null; wa_sender_name?: string | null; wa_number?: string | null; team?: typeof team } =
+      const payload: { access_level?: string | null; wa_sender_name?: string | null; wa_number?: string | null; team?: typeof team; org_tax_regime?: string } =
         { wa_sender_name: f.wa_sender_name, wa_number: f.wa_number, team };
+      if (podeVerCusto) payload.org_tax_regime = orgTaxRegime; // regime da empresa (só o dono grava)
       if (isAdmin) payload.access_level = ehDono ? null : (level ?? null);
       else if (!targetIsOwner) payload.access_level = level ?? null;
       const cr: any = await services.delivery.collaborator.set(uid!, payload);
@@ -347,7 +384,7 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
         </>)}
 
         {/* ---- Profissional ---- */}
-        {tab === "prof" && (
+        {tab === "prof" && (<>
           <div className="ec-grid">
             <div className="ec-field"><label>{t("Cargo / Função")}</label><input value={f.cargo} onChange={(e) => setField("cargo", e.target.value)} /></div>
             <div className="ec-field"><label>{t("Departamento")}</label><input value={f.departamento} onChange={(e) => setField("departamento", e.target.value)} /></div>
@@ -361,7 +398,8 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
               <select value={f.tipo_contrato} onChange={(e) => setField("tipo_contrato", e.target.value)}>{TIPOS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}</select></div>
             <div className="ec-field"><label>{t("CNPJ Vinculado")}</label><input value={f.cnpj_vinculado} onChange={(e) => setField("cnpj_vinculado", e.target.value)} /></div>
           </div>
-        )}
+          {podeVerCusto && <CustoPanel salario={f.salario} tipo={f.tipo_contrato} adm={f.data_admissao} regime={orgTaxRegime} setRegime={setOrgTaxRegime} t={t} />}
+        </>)}
 
         {/* ---- WhatsApp ---- */}
         {tab === "wa" && (<>
@@ -469,5 +507,59 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
       </div>)}
       {toast && <div className="toast">{toast}</div>}
     </Modal>
+  );
+}
+
+function Metric({ lbl, val, hint, big }: { lbl: string; val: string; hint?: string; big?: boolean }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div className="mt" style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".04em" }}>{lbl}</div>
+      <div style={{ fontSize: big ? 21 : 16, fontWeight: 800, lineHeight: 1.15, color: "var(--crasto-text-primary)" }}>{val}</div>
+      {hint && <div className="mt" style={{ fontSize: 10.5, marginTop: 1 }}>{hint}</div>}
+    </div>
+  );
+}
+
+// Fatia 3 — painel de custo real do colaborador (só o dono vê). ESTIMATIVA por regime tributário.
+function CustoPanel({ salario, tipo, adm, regime, setRegime, t }: { salario: string; tipo: string; adm: string; regime: string; setRegime: (v: string) => void; t: (k: string) => string }) {
+  const c = calcCusto(salario, tipo, regime, adm);
+  return (
+    <div style={{ marginTop: 18, padding: 16, borderRadius: 14, border: "1px solid rgba(110,156,232,0.38)", background: "rgba(110,156,232,0.07)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 800, color: "var(--crasto-blue)" }}>
+          <Calculator size={15} /> {t("Custo real para a empresa")}
+        </span>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+          <span className="mt">{t("Regime")}:</span>
+          <select value={regime} onChange={(e) => setRegime(e.target.value)} style={{ fontSize: 12, padding: "3px 6px" }}>
+            {REGIMES.map((rg) => <option key={rg.key} value={rg.key}>{t(rg.label)}</option>)}
+          </select>
+        </label>
+      </div>
+      {!c ? (
+        <p className="mt" style={{ margin: 0, fontSize: 12.5 }}>{t("Escolha a modalidade e informe o valor para ver o custo.")}</p>
+      ) : c.pj ? (
+        <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+          <Metric lbl={c.tipo === "projeto" ? t("Valor do projeto") : t("Custo mensal (PJ)")} val={brl(c.mensal)} big />
+          {c.tipo !== "projeto" && <Metric lbl={t("No ano")} val={brl(c.anual)} />}
+          <p className="mt" style={{ margin: "2px 0 0", fontSize: 11.5, flexBasis: "100%" }}>{t("Prestador de serviço — sem encargos CLT nem rescisão.")}</p>
+        </div>
+      ) : (
+        <>
+          <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+            <Metric lbl={t("Custo mensal carregado")} val={brl(c.mensal)} hint={`${t("salário")} + ${c.encPct}% ${t("encargos")}`} big />
+            <Metric lbl={t("No ano")} val={brl(c.anual)} />
+            <Metric lbl={t("Tempo de casa")} val={`${c.anos.toFixed(1)} ${t("anos")}`} />
+          </div>
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(110,156,232,0.2)" }}>
+            <Metric lbl={t("Rescisão estimada (se desligar hoje)")} val={brl(c.rescisao)} hint={`${t("aviso")} ${c.avisoDias}d ${brl(c.aviso)} + ${t("multa 40% FGTS")} ${brl(c.multa40)}`} />
+          </div>
+          <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 10, background: "rgba(52,168,83,0.12)", border: "1px solid rgba(52,168,83,0.32)", fontSize: 12.5, lineHeight: 1.5, color: "var(--crasto-text-body)" }}>
+            💡 {t("Se a IA assumir esta função, a empresa deixa de gastar")} <b style={{ color: "#34a853" }}>{brl(c.mensal)}/{t("mês")}</b> — <b style={{ color: "#34a853" }}>{brl(c.anual)}/{t("ano")}</b> {t("em folha + encargos.")}
+          </div>
+        </>
+      )}
+      <p className="mt" style={{ margin: "10px 2px 0", fontSize: 10.5, lineHeight: 1.5, opacity: 0.85 }}>🔒 {t("Estimativa para gestão — provisões médias por regime tributário. Não substitui a contabilidade.")}</p>
+    </div>
   );
 }
