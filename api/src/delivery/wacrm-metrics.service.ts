@@ -81,7 +81,7 @@ export class WacrmMetricsService {
   // KPIs EXTRA do cockpit (funil de conversão · SLA de 1ª resposta · pico de atendimento). 30 dias,
   // escopo por org. Alimenta os gráficos do Painel de KPIs do dono. Sem dado → zeros/null (front degrada).
   async kpisExtra(orgId: string): Promise<{
-    funil: { leads: number; qualificados: number; oportunidades: number; vendas: number };
+    funil: { prospectos: number; leads: number; leads_frios: number; leads_mornos: number; leads_quentes: number; oportunidades: number; clientes: number };
     sla: { pct5: number | null; mediana_s: number; respondidas: number; sem_resposta: number };
     pico: number[][];
   } | null> {
@@ -89,11 +89,17 @@ export class WacrmMetricsService {
     if (!p || !orgId) return null;
     const c = await p.connect();
     try {
+      // Funil de conversão (modelo do Crasto): Prospectos → Leads → Oportunidades → Clientes, com a
+      // etapa Leads subdividida por TEMPERATURA (frio/morno/quente, coluna leads.temperatura que a IA
+      // classifica). prospecto = captado sem engajar; lead = respondeu; cliente = venda fechada.
       const f = (await c.query(
-        `select count(*)::int leads,
-                count(*) filter (where status in ('respondeu','oportunidade','convertido'))::int qualificados,
-                count(*) filter (where status in ('oportunidade','convertido'))::int oportunidades,
-                count(*) filter (where status='convertido')::int vendas
+        `select count(*) filter (where status in ('novo','template_enviado'))::int prospectos,
+                count(*) filter (where status='respondeu')::int leads,
+                count(*) filter (where status='respondeu' and temperatura='frio')::int leads_frios,
+                count(*) filter (where status='respondeu' and temperatura='morno')::int leads_mornos,
+                count(*) filter (where status='respondeu' and temperatura='quente')::int leads_quentes,
+                count(*) filter (where status='oportunidade')::int oportunidades,
+                count(*) filter (where status='convertido')::int clientes
            from whatsapp.leads where organization_id=$1`, [orgId])).rows[0];
       const s = (await c.query(
         `select count(*) filter (where resp_s is not null)::int respondidas,
@@ -123,7 +129,7 @@ export class WacrmMetricsService {
       let mx = 1;
       for (const row of pk) { const d = row.d - 1, b = row.b; if (d >= 0 && d < 7 && b >= 0 && b < 8) { grid[d][b] = row.n; if (row.n > mx) mx = row.n; } }
       return {
-        funil: { leads: f.leads, qualificados: f.qualificados, oportunidades: f.oportunidades, vendas: f.vendas },
+        funil: { prospectos: f.prospectos, leads: f.leads, leads_frios: f.leads_frios, leads_mornos: f.leads_mornos, leads_quentes: f.leads_quentes, oportunidades: f.oportunidades, clientes: f.clientes },
         sla: { pct5: s.respondidas > 0 ? Math.round((s.em5 * 100) / s.respondidas) : null, mediana_s: s.mediana, respondidas: s.respondidas, sem_resposta: s.sem },
         pico: grid.map((r) => r.map((n) => +(n / mx).toFixed(3))),
       };

@@ -27,9 +27,10 @@ function diagSla(pct5: number | null, mediana: number, t: (k: string, v?: any) =
   if (pct5 >= 50) return { tom: "amber", motivo: t("{p}% em até 5min — dá para ser mais rápido (mediana {m}).", { p: pct5, m: med }), impacto: t("Parte dos leads espera demais e esfria antes da 1ª resposta."), acao: t("Deixe a IA cobrir os horários/momentos em que a equipe demora.") };
   return { tom: "red", motivo: t("Só {p}% em até 5min (mediana {m}) — resposta lenta.", { p: pct5, m: med }), impacto: t("Lead que espera esfria: cada minuto de atraso derruba a conversão. É venda saindo pela porta."), acao: t("Ligue a IA para a 1ª resposta imediata e priorize a fila de espera.") };
 }
-function diagFunil(f: { leads: number; qualificados: number; oportunidades: number; vendas: number }, gargalo: string | null, t: (k: string, v?: any) => string): Diag {
-  const conv = f.leads > 0 ? Math.round((f.vendas / f.leads) * 100) : 0;
-  if (!f.leads) return { tom: "amber", motivo: t("Sem leads suficientes no período."), impacto: t("Sem base para avaliar a conversão."), acao: t("Aparece com o movimento de leads do CRM.") };
+function diagFunil(f: { prospectos: number; leads: number; oportunidades: number; clientes: number }, gargalo: string | null, t: (k: string, v?: any) => string): Diag {
+  const topo = f.prospectos + f.leads;
+  const conv = topo > 0 ? Math.round((f.clientes / topo) * 100) : 0;
+  if (!topo) return { tom: "amber", motivo: t("Sem leads suficientes no período."), impacto: t("Sem base para avaliar a conversão."), acao: t("Aparece com o movimento de leads do CRM.") };
   if (gargalo) return { tom: "red", motivo: t("Maior perda em “{g}”.", { g: gargalo }), impacto: t("É onde mais oportunidade escapa — destravar essa etapa é o maior ganho de receita agora."), acao: t("Foque a IA e a equipe em “{g}”: follow-up, objeções e proposta.", { g: gargalo }) };
   if (conv >= 8) return { tom: "green", motivo: t("Conversão de {c}% dos leads em vendas — funil saudável.", { c: conv }), impacto: t("Boa eficiência comercial; o volume de topo puxa o resultado."), acao: t("Alimente o topo do funil para escalar as vendas.") };
   return { tom: "amber", motivo: t("Conversão de {c}% — há espaço para melhorar.", { c: conv }), impacto: t("Leads chegam, mas parte não avança até a venda."), acao: t("Reforce a qualificação e o follow-up nas etapas intermediárias.") };
@@ -231,9 +232,22 @@ function AntesDepois({ rows, diag, on, t }: { rows: { label: string; unidade: st
 }
 
 /* ── Funil ───────────────────────────────────────────────────────────────────── */
-function Funil({ funil, diag, gargaloIdx, on, t }: { funil: { leads: number; qualificados: number; oportunidades: number; vendas: number }; diag: Diag; gargaloIdx: number; on: boolean; t: (k: string) => string }) {
-  const rows = [{ l: t("Leads"), n: funil.leads }, { l: t("Qualificados"), n: funil.qualificados }, { l: t("Oportunidades"), n: funil.oportunidades }, { l: t("Vendas"), n: funil.vendas }];
+function Funil({ funil, diag, gargaloIdx, on, t }: { funil: { prospectos: number; leads: number; leads_frios: number; leads_mornos: number; leads_quentes: number; oportunidades: number; clientes: number }; diag: Diag; gargaloIdx: number; on: boolean; t: (k: string) => string }) {
+  // Modelo do Crasto: Prospectos → Leads → Oportunidades → Clientes (cliente = venda fechada).
+  const rows = [
+    { l: t("Prospectos"), n: funil.prospectos },
+    { l: t("Leads"), n: funil.leads },
+    { l: t("Oportunidades"), n: funil.oportunidades },
+    { l: t("Clientes"), n: funil.clientes },
+  ];
   const mx = Math.max(1, rows[0].n);
+  // Sub-split de TEMPERATURA da etapa Leads (frio/morno/quente): frio=azul · morno=âmbar · quente=vermelho.
+  const temps = [
+    { l: t("Frios"), n: funil.leads_frios, c: "#6E9CE8" },
+    { l: t("Mornos"), n: funil.leads_mornos, c: "#E9A23B" },
+    { l: t("Quentes"), n: funil.leads_quentes, c: "#E5484D" },
+  ];
+  const temTemp = funil.leads_frios + funil.leads_mornos + funil.leads_quentes > 0;
   return (
     <div className="cc-card">
       <div className="cc-lbl">{t("Funil de conversão")}</div><CardInfo diag={diag} t={t} />
@@ -244,12 +258,26 @@ function Funil({ funil, diag, gargaloIdx, on, t }: { funil: { leads: number; qua
           // Rótulo FORA da barra (coluna própria): antes ele ia DENTRO da barra e, quando a etapa
           // era pequena, a barra encolhia (~14%) e o texto ficava cortado/apagado — ilegível.
           return (
-            <div className={"cc-fn-row" + (gargalo ? " garg" : "")} key={i}>
-              <div className="cc-fn-lab">{r.l}</div>
-              <div className="cc-fn-track">
-                <div className="cc-fn-fill" style={{ width: on ? `${Math.max(4, (r.n / mx) * 100)}%` : 0, transitionDelay: `${180 + i * 110}ms`, background: gargalo ? "linear-gradient(90deg,var(--sem-amber),var(--sem-red))" : undefined }} />
+            <div key={i}>
+              <div className={"cc-fn-row" + (gargalo ? " garg" : "")}>
+                <div className="cc-fn-lab">{r.l}</div>
+                <div className="cc-fn-track">
+                  <div className="cc-fn-fill" style={{ width: on ? `${Math.max(4, (r.n / mx) * 100)}%` : 0, transitionDelay: `${180 + i * 110}ms`, background: gargalo ? "linear-gradient(90deg,var(--sem-amber),var(--sem-red))" : undefined }} />
+                </div>
+                <div className="cc-fn-n">{r.n} · {pct}%{gargalo && <span className="cc-gargalo"> {t("gargalo")}</span>}</div>
               </div>
-              <div className="cc-fn-n">{r.n} · {pct}%{gargalo && <span className="cc-gargalo"> {t("gargalo")}</span>}</div>
+              {/* Temperatura dos Leads (frio/morno/quente), logo abaixo da etapa Leads. */}
+              {i === 1 && (
+                <div style={{ display: "flex", gap: 14, padding: "1px 0 7px 12px", flexWrap: "wrap", alignItems: "center" }}>
+                  {temps.map((tp, j) => (
+                    <span key={j} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, color: "var(--crasto-text-muted)" }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 999, background: tp.c, flex: "0 0 auto" }} />
+                      {tp.l} <b style={{ color: "var(--crasto-text-body)", fontWeight: 700 }}>{tp.n}</b>
+                    </span>
+                  ))}
+                  {!temTemp && <span style={{ fontSize: 10.5, color: "var(--crasto-text-faint)", fontStyle: "italic" }}>{t("aguardando classificação da IA")}</span>}
+                </div>
+              )}
             </div>
           );
         })}
@@ -351,7 +379,7 @@ export default function CockpitCharts({ cock, agent, t }: { cock: CockpitMine | 
     .filter((m) => m.antes != null && m.depois != null && typeof m.depois === "number" && !(m as any).texto)
     .map((m) => ({ label: m.label, unidade: m.unidade, melhor: m.melhor, antes: Number(m.antes), depois: Number(m.depois) }));
 
-  const temFunil = !!k?.funil && k.funil.leads > 0;
+  const temFunil = !!k?.funil && (k.funil.prospectos + k.funil.leads + k.funil.oportunidades + k.funil.clientes) > 0;
   const temSla = !!k?.sla && k.sla.pct5 != null;
   const temRoi = k?.roi_horas_ia != null && k.roi_horas_ia > 0;
   const temPico = !!k?.pico && k.pico.some((r) => r.some((v) => v > 0));
@@ -369,8 +397,8 @@ export default function CockpitCharts({ cock, agent, t }: { cock: CockpitMine | 
   // gargalo do funil (maior queda relativa entre etapas)
   let gargaloIdx = -1; let gargaloNome: string | null = null;
   if (temFunil) {
-    const arr = [k!.funil!.leads, k!.funil!.qualificados, k!.funil!.oportunidades, k!.funil!.vendas];
-    const nomes = [t("Leads"), t("Qualificados"), t("Oportunidades"), t("Vendas")];
+    const arr = [k!.funil!.prospectos, k!.funil!.leads, k!.funil!.oportunidades, k!.funil!.clientes];
+    const nomes = [t("Prospectos"), t("Leads"), t("Oportunidades"), t("Clientes")];
     let worst = 0;
     for (let i = 1; i < arr.length; i++) { const prev = arr[i - 1]; if (prev > 0) { const drop = 1 - arr[i] / prev; if (drop > worst && drop >= 0.6) { worst = drop; gargaloIdx = i; gargaloNome = nomes[i]; } } }
   }
