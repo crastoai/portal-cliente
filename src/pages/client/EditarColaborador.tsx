@@ -26,13 +26,23 @@ const ACCESS_LEVELS: { key: string; label: string }[] = [
   { key: "agente", label: "Agente" },
   { key: "visualizador", label: "Visualizador" },
 ];
+// Modalidade do colaborador. CLT = folha (valor total que recebe). PJ = prestador por hora,
+// registrado como valor MENSAL. Projeto = escopo fechado (paga-se um valor pelo resultado).
 const TIPOS: { key: string; label: string }[] = [
   { key: "", label: "—" },
   { key: "clt", label: "CLT" },
-  { key: "pj", label: "Prestador PJ" },
+  { key: "pj", label: "PJ / Prestador (mensal)" },
+  { key: "projeto", label: "Projeto (escopo fechado)" },
   { key: "estagio", label: "Estágio" },
   { key: "temporario", label: "Temporário" },
 ];
+// Rótulo do campo de valor conforme a modalidade (o significado do "salário" muda).
+function labelValor(tipo: string, t: (k: string) => string): string {
+  if (tipo === "projeto") return t("Valor do projeto (escopo fechado)");
+  if (tipo === "pj") return t("Valor mensal (PJ)");
+  if (tipo === "clt") return t("Salário CLT (total que recebe)");
+  return t("Salário / Valor");
+}
 // Catálogo ESTÁTICO do WhatsApp CRM (fallback) — MESMAS keys/labels do sidebar (ClientShell
 // CRM_SECTIONS) e do wacrm. Garante que o grupo apareça mesmo antes da API nova estar em prod;
 // quando o endpoint responde, o catálogo/seleção reais o sobrescrevem. base = 'dashboard'
@@ -338,7 +348,7 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
           <div className="ec-grid">
             <div className="ec-field"><label>{t("Cargo / Função")}</label><input value={f.cargo} onChange={(e) => setField("cargo", e.target.value)} /></div>
             <div className="ec-field"><label>{t("Departamento")}</label><input value={f.departamento} onChange={(e) => setField("departamento", e.target.value)} /></div>
-            <div className="ec-field"><label>{t("Salário / Valor")}</label><input value={f.salario} onChange={(e) => setField("salario", e.target.value)} inputMode="decimal" placeholder="0,00" /></div>
+            <div className="ec-field"><label>{labelValor(f.tipo_contrato, t)}</label><input value={f.salario} onChange={(e) => setField("salario", e.target.value)} inputMode="decimal" placeholder="0,00" /></div>
             <div className="ec-field"><label>{t("Data de Admissão")}</label><input type="date" value={f.data_admissao} onChange={(e) => setField("data_admissao", e.target.value)} /></div>
             <div className="ec-field"><label>{t("Tipo de Contrato")}</label>
               <select value={f.tipo_contrato} onChange={(e) => setField("tipo_contrato", e.target.value)}>{TIPOS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}</select></div>
