@@ -345,6 +345,17 @@ export default function CrmEmbed() {
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
   }, []);
+  // ABRIU UMA CONVERSA no CRM: em telas MENORES recolhemos os KPIs pra dar espaço ao chat
+  // (o cliente acessa muito em tela pequena). Em tela grande não mexe — cabe tudo.
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      const d = e.data as { type?: string } | null;
+      if (!d || d.type !== "crasto-crm-convo-open") return;
+      if (window.innerHeight < 820 || window.innerWidth < 1000) setKpisOpen(false);
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, []);
   // NAVEGAÇÃO vinda do CRM: ele entrou numa conversa (de outra seção) → levamos o Portal pra
   // Conversas com a conversa aberta (URL + sidebar certos; o "voltar" volta a funcionar).
   useEffect(() => {
