@@ -81,7 +81,7 @@ export class WacrmMetricsService {
   // KPIs EXTRA do cockpit (funil de conversão · SLA de 1ª resposta · pico de atendimento). 30 dias,
   // escopo por org. Alimenta os gráficos do Painel de KPIs do dono. Sem dado → zeros/null (front degrada).
   async kpisExtra(orgId: string): Promise<{
-    funil: { prospectos: number; leads: number; leads_frios: number; leads_mornos: number; leads_quentes: number; oportunidades: number; clientes: number };
+    funil: { prospecto: number; lead: number; lead_frios: number; lead_mornos: number; lead_quentes: number; oportunidade: number; ganho: number; perdido: number };
     sla: { pct5: number | null; mediana_s: number; respondidas: number; sem_resposta: number };
     pico: number[][];
   } | null> {
@@ -89,18 +89,25 @@ export class WacrmMetricsService {
     if (!p || !orgId) return null;
     const c = await p.connect();
     try {
-      // Funil de conversão (modelo do Crasto): Prospectos → Leads → Oportunidades → Clientes, com a
-      // etapa Leads subdividida por TEMPERATURA (frio/morno/quente, coluna leads.temperatura que a IA
-      // classifica). prospecto = captado sem engajar; lead = respondeu; cliente = venda fechada.
+      // Funil de conversão DEAL-CENTRIC (modelo canônico do Crasto): Prospecto → Lead → Oportunidade →
+      // Ganho, com a etapa Lead subdividida por TEMPERATURA (frio/morno/quente, `deals.temperatura` que
+      // a IA classifica) e Perdido como balde TERMINAL separado (não é o fim do funil de conversão).
+      // Lê os NEGÓCIOS (deals) por NOME de etapa do kanban (won/lost por regex — nunca por posição).
       const f = (await c.query(
-        `select count(*) filter (where status in ('novo','template_enviado'))::int prospectos,
-                count(*) filter (where status='respondeu')::int leads,
-                count(*) filter (where status='respondeu' and temperatura='frio')::int leads_frios,
-                count(*) filter (where status='respondeu' and temperatura='morno')::int leads_mornos,
-                count(*) filter (where status='respondeu' and temperatura='quente')::int leads_quentes,
-                count(*) filter (where status='oportunidade')::int oportunidades,
-                count(*) filter (where status='convertido')::int clientes
-           from whatsapp.leads where organization_id=$1`, [orgId])).rows[0];
+        `select count(*) filter (where st='Prospecto')::int prospecto,
+                count(*) filter (where st='Lead')::int lead,
+                count(*) filter (where st='Lead' and temperatura='frio')::int lead_frios,
+                count(*) filter (where st='Lead' and temperatura='morno')::int lead_mornos,
+                count(*) filter (where st='Lead' and temperatura='quente')::int lead_quentes,
+                count(*) filter (where st='Oportunidade')::int oportunidade,
+                count(*) filter (where st ~* '(ganho|fechad|fechamento|won|vendid)')::int ganho,
+                count(*) filter (where st ~* '(perdid|lost)')::int perdido
+           from (
+             select d.temperatura, s.name st
+               from whatsapp.deals d
+               join whatsapp.pipeline_stages s on s.id = d.stage_id
+              where d.organization_id = $1
+           ) x`, [orgId])).rows[0];
       const s = (await c.query(
         `select count(*) filter (where resp_s is not null)::int respondidas,
                 count(*) filter (where resp_s is not null and resp_s<=300)::int em5,
@@ -129,7 +136,7 @@ export class WacrmMetricsService {
       let mx = 1;
       for (const row of pk) { const d = row.d - 1, b = row.b; if (d >= 0 && d < 7 && b >= 0 && b < 8) { grid[d][b] = row.n; if (row.n > mx) mx = row.n; } }
       return {
-        funil: { prospectos: f.prospectos, leads: f.leads, leads_frios: f.leads_frios, leads_mornos: f.leads_mornos, leads_quentes: f.leads_quentes, oportunidades: f.oportunidades, clientes: f.clientes },
+        funil: { prospecto: f.prospecto, lead: f.lead, lead_frios: f.lead_frios, lead_mornos: f.lead_mornos, lead_quentes: f.lead_quentes, oportunidade: f.oportunidade, ganho: f.ganho, perdido: f.perdido },
         sla: { pct5: s.respondidas > 0 ? Math.round((s.em5 * 100) / s.respondidas) : null, mediana_s: s.mediana, respondidas: s.respondidas, sem_resposta: s.sem },
         pico: grid.map((r) => r.map((n) => +(n / mx).toFixed(3))),
       };
