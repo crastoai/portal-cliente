@@ -7,6 +7,7 @@ import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 import DocField from "../../ui/DocField";
 import CustoIA from "./CustoIA";
+import Conciliacao from "./Conciliacao";
 
 // Data de HOJE no fuso do Brasil (America/Sao_Paulo) em "YYYY-MM-DD". Usar toISOString()
 // (UTC) fazia o dia "virar" 3h antes à noite — e as parcelas são datas de calendário BR.
@@ -534,7 +535,9 @@ export default function Financeiro() {
             </tbody>
           </table>
         </div>
-      </>) : !built ? (
+      </>) : tab === "conciliacao" ? (
+        <Conciliacao rec={rec} reload={reload} flash={flash} />
+      ) : !built ? (
         <div className="card"><Empty><p><strong>{t("Em breve.")}</strong> {t("Esta aba está em construção — em breve você poderá gerenciar isso por aqui.")}</p></Empty></div>
       ) : (<>
         {/* barra de ação */}

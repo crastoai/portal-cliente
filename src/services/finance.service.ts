@@ -47,4 +47,11 @@ export const aiCost = {
   gcpMapDelete: async (project_id: string) => api.del(`/api/finance/gcp-map/${encodeURIComponent(project_id)}`),
 };
 
-export const finance = { accounts, costs, transactions, aiCost };
+// Comprovantes (Fatia 1) — a IA LÊ a imagem do comprovante e devolve valor/data/etc.
+// Não grava nada: a baixa da parcela é feita por accounts.save após o operador confirmar.
+export const proofs = {
+  extract: async (image_base64: string, mime: string, filename?: string): Promise<{ ok: boolean; data?: any; error?: string }> =>
+    api.post(`/api/finance/proofs/extract`, { image_base64, mime, filename }),
+};
+
+export const finance = { accounts, costs, transactions, aiCost, proofs };
