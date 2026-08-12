@@ -56,6 +56,15 @@ export async function startImpersonation(target: { id: string; name?: string | n
   window.location.assign("/app");
 }
 
+/**
+ * Descarta o estado de impersonação SEM restaurar o admin — usado no LOGOUT. Um logout é FULL:
+ * sai do usuário atual E joga fora a sessão do admin guardada aqui, senão o banner de auditoria
+ * ("acessando como") sobreviveria ao logout (a faixa lê o localStorage, não o estado de auth).
+ */
+export function clearImpersonation(): void {
+  try { localStorage.removeItem(KEY); } catch { /* storage indisponível */ }
+}
+
 /** Encerra a impersonação: restaura a sessão do admin e volta ao console de permissões. */
 export async function stopImpersonation(): Promise<void> {
   const st = impersonationState();

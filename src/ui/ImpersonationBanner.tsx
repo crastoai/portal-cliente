@@ -10,14 +10,18 @@ import { impersonationState, stopImpersonation } from "../lib/impersonation";
 const BAR_H = 40;
 
 export default function ImpersonationBanner() {
-  const [st] = useState(impersonationState());
+  // Lê o estado A CADA render (não captura uma vez): o banner fica montado na mesma posição da
+  // árvore quando a sessão vira login, então precisa REFLETIR o logout — que limpa a impersonação —
+  // e sumir na hora, sem depender de recarregar a página.
+  const st = impersonationState();
+  const active = !!st;
   const [saindo, setSaindo] = useState(false);
 
   useEffect(() => {
-    if (!st) return;
+    if (!active) return;
     document.body.classList.add("impersonating");
     return () => { document.body.classList.remove("impersonating"); };
-  }, [st]);
+  }, [active]);
 
   if (!st) return null;
 

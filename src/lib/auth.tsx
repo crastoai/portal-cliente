@@ -4,6 +4,8 @@ import { supabase } from "./supabase";
 import { api } from "./api";
 import { services } from "../services";
 import { marcarAtividade } from "./idle";
+import { clearImpersonation } from "./impersonation";
+import { preview } from "./preview";
 
 export type Profile = {
   id: string;
@@ -117,6 +119,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await api.post("/api/audit/event", { action: "logout", system: "portal", via: motivo || "botao" }).catch(() => {});
     // Carimba o fim da sessão do relógio de ponto (logout_reason='manual') ANTES de descartar o token.
     await api.post("/api/delivery/session-close", {}).catch(() => {});
+    // Logout é FULL: além de sair do usuário atual, descarta QUALQUER estado de "acessar/ver como"
+    // (impersonação + preview). Sem isto a faixa laranja de auditoria — que lê o localStorage, não o
+    // auth — sobreviveria ao logout e continuaria na tela de login como se ainda estivesse acessando.
+    clearImpersonation();
+    preview.clear();
     await supabase.auth.signOut();
   }
   async function refreshProfile() {
