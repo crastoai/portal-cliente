@@ -203,6 +203,15 @@ export default function Financeiro() {
   const recSource = tab === "receber" && recOnly ? rec.filter(isRecurring) : rec;
   const groups = tab === "pagar" ? buildGroups(payItems) : tab === "receber" ? buildGroups(recSource.map(acctToItem)) : [];
 
+  // Recebíveis RECORRENTES (contratos) — base dos cards da aba A Receber (Fatia 1).
+  // `mensalDe` espelha a Visão geral: parcela = a mensalidade; recorrência mensal = valor;
+  // anual = valor/12. Como não-recorrente dá 0, o MRR aqui bate com o da Visão geral.
+  const mensalDe = (a: any) => { const p = parcelas(a); if (p.length) return Number(p[0]?.amount || 0); if (a.recurrence === "monthly" || a.recurrence === "mensal") return Number(a.amount || 0); if (a.recurrence === "yearly" || a.recurrence === "anual") return Number(a.amount || 0) / 12; return 0; };
+  const recContratos = rec.filter((r) => r.status !== "cancelled" && isRecurring(r));
+  const mrrMensal = recContratos.reduce((a, r) => a + mensalDe(r), 0);
+  const nContratos = recContratos.length;
+  const saldoRecorrente = recContratos.reduce((a, r) => a + rem(r), 0); // quanto ainda falta receber dos contratos
+
   // resumo A Pagar (custos)
   const activeCosts = costs.filter((c) => c.is_active);
   const totalMensal = activeCosts.filter((c) => c.recurrence === "mensal").reduce((a, c) => a + Number(c.amount_brl || 0), 0);
@@ -365,7 +374,7 @@ export default function Financeiro() {
         <div className="kpi"><div className="lab">{t("A Pagar")}</div><div className="val tnum" style={{ fontSize: 22, color: "#B54708" }}>{money(aPagar)}</div></div>
         <div className="kpi g"><div className="lab">{t("A Receber")}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(aReceber)}</div></div>
         <div className="kpi"><div className="lab">{t("Saldo em Caixa")}</div><div className="val tnum" style={{ fontSize: 22, color: saldoCaixa < 0 ? "#B54708" : "#1F8A5B" }}>{money(saldoCaixa)}</div><div className="delta">{t("entradas − saídas realizadas")}</div></div>
-        <div className="kpi"><div className="lab">{t("Inadimplência")}</div><div className="val tnum" style={{ fontSize: 22, color: inadimplencia > 0 ? "#B54708" : undefined }}>{money(inadimplencia)}</div></div>
+        <div className="kpi"><div className="lab">{t("Vencidos")}</div><div className="val tnum" style={{ fontSize: 22, color: inadimplencia > 0 ? "#B54708" : undefined }}>{money(inadimplencia)}</div><div className="delta">{t("a receber vencido")}</div></div>
       </div>
 
       <div className="ptabs">
@@ -457,6 +466,16 @@ export default function Financeiro() {
             <div className="kpi"><div className="lab">{t("Total Ano")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(totalAno)}</div><div className="delta">{t("Mensal×12 + Anual + Pontual")}</div></div>
             <div className="kpi"><div className="lab">{t("Despesas de Consumo")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(consumo.reduce((a, r) => a + Number(r.amount || 0), 0))}</div><div className="delta">{t("{n} lançamentos", { n: consumo.length })}</div></div>
             <div className="kpi"><div className="lab">{t("Despesas de Revenda")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(revenda.reduce((a, r) => a + Number(r.amount || 0), 0))}</div><div className="delta">{t("{n} lançamentos", { n: revenda.length })}</div></div>
+          </div>
+        )}
+
+        {/* resumo de recebíveis recorrentes (só A Receber) — quebra o "A Receber" em MRR + contratos */}
+        {tab === "receber" && (
+          <div className="kpis" style={{ marginBottom: 14 }}>
+            <div className="kpi navy"><div className="lab">{t("Recorrente / mês (MRR)")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(mrrMensal)}</div><div className="delta">{t("receita recorrente mensal")}</div></div>
+            <div className="kpi"><div className="lab">{t("Recorrente / ano (ARR)")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(mrrMensal * 12)}</div><div className="delta">{t("MRR × 12")}</div></div>
+            <div className="kpi"><div className="lab">{t("Contratos recorrentes")}</div><div className="val tnum" style={{ fontSize: 20 }}>{nContratos}</div><div className="delta">{t("{n} ativos", { n: nContratos })}</div></div>
+            <div className="kpi g"><div className="lab">{t("Saldo a receber (contratos)")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(saldoRecorrente)}</div><div className="delta">{t("ainda a receber")}</div></div>
           </div>
         )}
 
