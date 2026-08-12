@@ -159,10 +159,17 @@ export default function CrmEmbed() {
   // Escopo de UNIDADE (CNPJ) — multi-CNPJ. A topbar escolhe a unidade; aqui os seletores e a
   // auto-distribuição de painéis passam a oferecer só os agentes daquela unidade (null = todas).
   const { unitId } = useUnitScope();
-  const visAgents = useMemo<Agent[]>(
-    () => (agents ? (unitId ? agents.filter((a) => a.business_unit_id === unitId) : agents) : []),
-    [agents, unitId],
-  );
+  const visAgents = useMemo<Agent[]>(() => {
+    if (!agents) return [];
+    if (!unitId) return agents;
+    const scoped = agents.filter((a) => a.business_unit_id === unitId);
+    // BLINDAGEM (bug "Nenhum agente configurado" no "Acessar como"): a unidade/CNPJ selecionada é
+    // guardada por navegador e pode ser RESQUÍCIO de outra org (ex.: a do admin) — aí ela não bate
+    // com o business_unit_id de NENHUM agente deste cliente e o filtro esconderia todos. Se o CNPJ
+    // não corresponde a agente algum, mostramos TODOS em vez de zerar a lista (o heal do ClientShell
+    // depois reacerta a unidade). Multi-CNPJ real (unidade COM agentes) continua filtrando normal.
+    return scoped.length ? scoped : agents;
+  }, [agents, unitId]);
   // Trocar de unidade reseta a visão (evita painel/solo apontando pra agente de outra unidade).
   const unitFirst = useRef(true);
   useEffect(() => {

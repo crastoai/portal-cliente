@@ -35,7 +35,7 @@ function UnitSwitcher() {
     <div className="unitdd" ref={ref}>
       <button type="button" className={"unitdd-btn" + (open ? " open" : "")} onClick={() => setOpen((o) => !o)} title={t("Unidade (CNPJ)")}>
         <Building2 size={15} className="unitdd-ico" />
-        <span className="unitdd-lbl">{cur ? cur.name : t("Todas as unidades")}</span>
+        <span className="unitdd-lbl">{cur ? cur.name + (cur.is_primary ? ` · ${t("Matriz")}` : "") : t("Todas as unidades")}</span>
         <ChevronDown size={13} className="unitdd-chev" />
       </button>
       {open && (
