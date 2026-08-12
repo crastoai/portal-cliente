@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { UserPlus, Clock, SlidersHorizontal, Bot, Activity, DollarSign, ShieldCheck, ArrowRight, Search, ChevronDown, X, ArrowUp, ArrowDown, Check } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { services, errorMessage } from "../../services";
@@ -116,6 +116,16 @@ export default function VisaoGeral() {
       colF[col].map((id) => ({ key: `${col}:${id}`, label: BUCKETS[col].find((b) => b.id === id)?.label || id, clear: () => toggleBucket(col, id) }))),
   ];
   const clearAll = () => { setStage("todos"); setColF({ health: [], agent: [], acesso: [] }); };
+
+  // KPIs comerciais (Clientes ativos / Módulos / Em risco) nascem da MESMA lista `clients` que a
+  // tabela "Clientes · saúde & uso" abaixo (mesmo `healthScore()`). Então clicar não navega pra
+  // outra tela (o número não mora lá) — aplica o filtro/ordenação equivalente e rola até as linhas
+  // exatas que compõem o número. Fidelidade: "Em risco" reusa o bucket health=risco (= tone crit).
+  const tableRef = useRef<HTMLDivElement>(null);
+  const jumpToList = () => tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const verTodos = () => { setQ(""); clearAll(); jumpToList(); };
+  const verModulos = () => { setQ(""); clearAll(); setSortKey("mods"); setSortDir("desc"); jumpToList(); };
+  const verRisco = () => { setQ(""); setStage("todos"); setColF({ health: ["risco"], agent: [], acesso: [] }); jumpToList(); };
 
   // ESCOLHER O CRM: cada agente do cliente tem o SEU CRM. Abrimos a popup com os agentes
   // (mesma lógica do Console do wacrm) — o admin escolhe qual visualizar. Sem escolher um
@@ -238,9 +248,9 @@ export default function VisaoGeral() {
       <div className="kpis kpis--5">
         <button className="kpi navy kpi-btn" onClick={() => navigate("/admin/financeiro?tab=receber&rec=1")}><div className="lab">{t("MRR (receita recorrente)")}</div><div className="val tnum">{money(mrr)}</div><div className="delta">{t("recorrente · financeiro")} <ArrowRight size={11} /></div></button>
         <button className="kpi kpi-btn" onClick={() => navigate("/admin/financeiro?tab=receber")}><div className="lab">{t("A receber")}</div><div className="val tnum">{money(aReceber)}</div><div className="delta">{t("em aberto · financeiro")} <ArrowRight size={11} /></div></button>
-        <div className="kpi"><div className="lab">{t("Clientes ativos")}</div><div className="val tnum">{clients.length}</div><div className="delta">{t("no portal")}</div></div>
-        <div className="kpi g"><div className="lab">{t("Módulos entregues")}</div><div className="val tnum">{modules}</div><div className="delta">{t("{n} por cliente", { n: clients.length ? (modules / clients.length).toFixed(1) : 0 })}</div></div>
-        <div className="kpi"><div className="lab">{t("Em risco (churn)")}</div><div className="val tnum" style={{ color: risk ? "var(--crasto-danger)" : undefined }}>{risk}</div><div className="delta">{t("requer atenção")}</div></div>
+        <button className="kpi kpi-btn" onClick={verTodos} title={t("Ver todos os clientes na lista abaixo")}><div className="lab">{t("Clientes ativos")}</div><div className="val tnum">{clients.length}</div><div className="delta">{t("no portal")} <ArrowDown size={11} /></div></button>
+        <button className="kpi g kpi-btn" onClick={verModulos} title={t("Ver clientes ordenados por módulos entregues")}><div className="lab">{t("Módulos entregues")}</div><div className="val tnum">{modules}</div><div className="delta">{t("{n} por cliente", { n: clients.length ? (modules / clients.length).toFixed(1) : 0 })} <ArrowDown size={11} /></div></button>
+        <button className="kpi kpi-btn" onClick={verRisco} title={t("Ver clientes em risco na lista abaixo")}><div className="lab">{t("Em risco (churn)")}</div><div className="val tnum" style={{ color: risk ? "var(--crasto-danger)" : undefined }}>{risk}</div><div className="delta">{t("requer atenção")} <ArrowDown size={11} /></div></button>
       </div>
 
       <div className="conslabel">{t("camada operacional de IA")} <span className="badge-new">{t("novo")}</span></div>
@@ -251,7 +261,7 @@ export default function VisaoGeral() {
         <button className={"kpi ckpi" + (ops?.isolation !== "ok" && ops ? " is-warn" : "")} onClick={() => navigate("/admin/console/auditoria")}><div className="lab"><ShieldCheck size={13} /> {t("Isolamento (CI)")}</div><div className="val" style={{ fontSize: 22, color: ops?.isolation === "ok" ? "#1F8A5B" : undefined }}>{ops ? (ops.isolation === "ok" ? "OK" : t("Atenção")) : "—"}</div><div className="delta">{t("RLS por cliente")} <ArrowRight size={11} /></div></button>
       </div>
 
-      <div className="sec-h"><h2>{t("Clientes · saúde & uso")}</h2></div>
+      <div className="sec-h" ref={tableRef}><h2>{t("Clientes · saúde & uso")}</h2></div>
       {/* Toolbar faceted: busca (por cliente) + CATEGORIA (por estágio, com contagem). Os filtros
           operacionais (risco/agente/dormência) migraram para o cabeçalho de cada coluna. */}
       <div className="cli-toolbar">
