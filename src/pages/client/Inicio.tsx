@@ -132,6 +132,17 @@ export default function Inicio() {
   const [agentSel, setAgentSel] = useState<string>("");   // Fatia B: "" = todos os agentes
   const agents = useFetch<{ id: string; name: string }[]>(() => services.delivery.cockpit.agents().then((r) => r.rows).catch(() => []), []).data ?? [];
   const cock = useFetch<import("../../services/delivery.service").CockpitMine>(() => services.delivery.cockpit.getMine(range.from, range.to, agentSel || null), [range.from, range.to, agentSel]).data;
+  // Fatia C — comparação de VENDEDORES: tempo de resposta (responseBreakdown, só humanos) + horas no
+  // período (hoursBreakdown.min_periodo), ambos respeitando o filtro de período. Cliente vê a própria equipe (RLS).
+  const respRows = useFetch<import("../../services/delivery.service").CollabRow[]>(() => services.delivery.cockpit.responseBreakdown(range.from, range.to).then((r) => r.rows).catch(() => []), [range.from, range.to]).data ?? [];
+  const horasRows = useFetch<import("../../services/delivery.service").HoursRow[]>(() => services.delivery.cockpit.hoursBreakdown(range.from, range.to).then((r) => r.rows).catch(() => []), [range.from, range.to]).data ?? [];
+  const vendedores = useMemo(() => {
+    const hMap = new Map(horasRows.map((h) => [h.id, h]));
+    return respRows.filter((r) => r.kind === "human" && r.id).map((r) => ({
+      id: r.id as string, nome: r.nome, tmed: r.tmed, convs: r.convs, respostas: r.respostas,
+      minutos: hMap.get(r.id as string)?.min_periodo ?? 0,
+    })).sort((a, b) => b.respostas - a.respostas);
+  }, [respRows, horasRows]);
   // Defesa em profundidade: financeiro/negócios do Início só para quem tem a permissão "Financeiro"
   // (dono ou membro liberado). Começa false para o membro nunca ver nem por um instante; o backend
   // (my_faturas + pode_ver_financeiro) já protege o dado, isto só limpa a tela.
@@ -533,6 +544,37 @@ export default function Inicio() {
             </div>
           ); })}
         </div>
+
+        {/* Comparar vendedores (Fatia C) — a equipe do cliente lado a lado, no período filtrado. */}
+        {vendedores.length >= 2 && (
+          <div style={{ marginBottom: 22 }}>
+            <SecHead title={t("Comparar vendedores")} tom="mute" caption={t("no período · dado real")} />
+            <div style={{ overflowX: "auto", border: "1px solid var(--crasto-border,#e6e8eb)", borderRadius: 12 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
+                <thead>
+                  <tr style={{ textAlign: "left", color: "var(--crasto-text-muted)", fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em" }}>
+                    <th style={{ padding: "10px 14px" }}>{t("Vendedor")}</th>
+                    <th style={{ padding: "10px 14px", textAlign: "right" }}>{t("Tempo de resposta")}</th>
+                    <th style={{ padding: "10px 14px", textAlign: "right" }}>{t("Conversas")}</th>
+                    <th style={{ padding: "10px 14px", textAlign: "right" }}>{t("Respostas")}</th>
+                    <th style={{ padding: "10px 14px", textAlign: "right" }}>{t("Horas no período")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vendedores.map((v) => (
+                    <tr key={v.id} style={{ borderTop: "1px solid var(--crasto-border-soft,#eef0f2)" }}>
+                      <td style={{ padding: "10px 14px", fontWeight: 600 }}>{v.nome}</td>
+                      <td style={{ padding: "10px 14px", textAlign: "right" }}>{v.tmed != null ? `${Math.round(v.tmed)}s` : "—"}</td>
+                      <td style={{ padding: "10px 14px", textAlign: "right" }}>{v.convs}</td>
+                      <td style={{ padding: "10px 14px", textAlign: "right" }}>{v.respostas}</td>
+                      <td style={{ padding: "10px 14px", textAlign: "right" }}>{v.minutos > 0 ? `${(v.minutos / 60).toFixed(1)}h` : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Painel de KPIs — gráficos animados (semáforo verde/amarelo/vermelho) da operação real. */}
         <CockpitCharts cock={cock} agent={agent} t={t} />
