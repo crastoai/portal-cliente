@@ -303,8 +303,15 @@ export default function ConsolePermissoes() {
 
   // Excluir usuário — reutilizável na LINHA e no modal. Remove o acesso ao WhatsApp CRM (revoke) e
   // a identidade no Portal (Auth + profiles). Confirmação forte (ação irreversível).
-  async function excluirUsuario(pe: Pessoa, orgId: string) {
-    if (!confirm(t("Excluir {nome} ({email})? Esta ação remove o acesso ao Portal e ao WhatsApp CRM.", { nome: pe.nome, email: pe.email }))) return;
+  async function excluirUsuario(pe: Pessoa, orgId: string, ownerCount = 0) {
+    const isOwner = pe.portal?.role === "client_owner";
+    const lastOwner = isOwner && ownerCount <= 1;
+    const msg = lastOwner
+      ? t("⚠️ {nome} é o ÚNICO DONO desta empresa. Ao excluir, ela fica SEM dono (ninguém com acesso total). Excluir mesmo assim?", { nome: pe.nome })
+      : isOwner
+        ? t("{nome} é DONO desta empresa. Excluir remove o acesso dele ao Portal e ao WhatsApp CRM. Continuar?", { nome: pe.nome })
+        : t("Excluir {nome} ({email})? Esta ação remove o acesso ao Portal e ao WhatsApp CRM.", { nome: pe.nome, email: pe.email });
+    if (!confirm(msg)) return;
     setBusy(true);
     try {
       if (pe.crm) await services.crmAccess.revoke(orgId, pe.crm.id).catch(() => {});
@@ -472,10 +479,10 @@ export default function ConsolePermissoes() {
                         : abrirPermissoes(pe, c.name, c.organization_id)}>
                         <span className="crasto-btn__icon"><SlidersHorizontal size={14} /></span><span className="crasto-btn__label">{t("Permissões")}</span>
                       </button>
-                      {/* Excluir na LINHA (o Crasto pediu — antes só existia dentro do modal). Escondido
-                          para DONOS (evita orfanar a empresa); dono é excluído pela via de rebaixar antes. */}
-                      {(pe.portal || pe.crm) && pe.portal?.role !== "client_owner" && (
-                        <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} title={t("Excluir usuário")} style={{ color: "var(--crasto-red, #E74C3C)" }} onClick={() => excluirUsuario(pe, c.organization_id)}>
+                      {/* Excluir na LINHA — aparece p/ TODOS, inclusive DONOS (pedido do Crasto 12/08).
+                          Guarda: se for o ÚLTIMO dono, o confirm avisa que a empresa fica sem dono. */}
+                      {(pe.portal || pe.crm) && (
+                        <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} title={t("Excluir usuário")} style={{ color: "var(--crasto-red, #E74C3C)" }} onClick={() => excluirUsuario(pe, c.organization_id, pessoas.filter((p) => p.portal?.role === "client_owner").length)}>
                           <span className="crasto-btn__icon"><Trash2 size={13} /></span><span className="crasto-btn__label">{t("Excluir")}</span>
                         </button>
                       )}
