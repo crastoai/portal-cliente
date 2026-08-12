@@ -6,6 +6,18 @@
 import type { Lang } from "./i18n";
 
 export const DICT: Record<string, Partial<Record<Lang, string>>> = {
+  // — Módulos por cliente (card "Módulos entregues" + painel) —
+  "entregues": { en: "delivered", es: "entregados" },
+  "contratados": { en: "contracted", es: "contratados" },
+  "ver por cliente": { en: "view by client", es: "ver por cliente" },
+  "Ver os módulos entregues por cliente": { en: "See delivered modules by client", es: "Ver los módulos entregados por cliente" },
+  "Módulos por cliente": { en: "Modules by client", es: "Módulos por cliente" },
+  "empresa": { en: "company", es: "empresa" },
+  "empresas": { en: "companies", es: "empresas" },
+  "Só entregues": { en: "Delivered only", es: "Solo entregados" },
+  "nenhum módulo": { en: "no modules", es: "sin módulos" },
+  "{n} módulo": { en: "{n} module", es: "{n} módulo" },
+  "Nenhum módulo contratado ainda.": { en: "No modules contracted yet.", es: "Aún no hay módulos contratados." },
   " — isento (venda especial)": { en: " — exempt (special sale)", es: " — exento (venta especial)" },
   " — sem NF": { en: " — no invoice", es: " — sin factura" },
   " · chave salva": { en: " · key saved", es: " · clave guardada" },

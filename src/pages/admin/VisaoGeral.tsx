@@ -21,17 +21,22 @@ type Cfg = { new_client_days: number; attention_threshold: number; risk_threshol
 const WK: (keyof W)[] = ["engagement", "financial", "technical", "support", "onboarding"];
 const WLABEL: Record<keyof W, string> = { engagement: "Engajamento (uso/login)", financial: "Financeiro (faturas)", technical: "Saúde técnica (farol)", support: "Suporte (chamados)", onboarding: "Implantação" };
 
+// Módulos por cliente (RPC admin_modules_by_client): nome+status por instância, agrupado por empresa.
+type ModRow = { name: string; catalog_name?: string; category?: string; status?: string; rollout_status?: string; progress?: number };
+type ModByClient = { org_id: string; org_name: string; stage?: string; contratados: number; entregues: number; modules: ModRow[] };
+
 export default function VisaoGeral() {
   const t = useT();
   const navigate = useNavigate();
   const { data, loading, reload } = useAsync(async () => {
-    const [clients, ov, agentsOv, receber] = await Promise.all([
+    const [clients, ov, agentsOv, receber, modsByClient] = await Promise.all([
       fetchClients(),
       services.analytics.admin.consoleOverview().catch(() => null),
       services.crmAccess.agentsOverview().catch(() => ({})), // federado do wacrm (agente REAL)
       services.finance.accounts.list("receivable").catch(() => [] as any[]), // contas a receber (dado real)
+      services.analytics.admin.modulesByClient<ModByClient[]>().catch(() => [] as ModByClient[]), // módulos por cliente (nome+status)
     ]);
-    return { clients: clients ?? [], ov: ov as any, agentsOv: agentsOv as Record<string, { agentes: number; no_ar: number; farol: string }>, receber: (receber ?? []) as any[] };
+    return { clients: clients ?? [], ov: ov as any, agentsOv: agentsOv as Record<string, { agentes: number; no_ar: number; farol: string }>, receber: (receber ?? []) as any[], modsByClient: (modsByClient ?? []) as ModByClient[] };
   }, []);
   const clients = data?.clients ?? [];
   const ov = data?.ov ?? null;
@@ -41,20 +46,27 @@ export default function VisaoGeral() {
   const agByOrg = data?.agentsOv ?? {};
   const modules = clients.reduce((s, c) => s + (c.modules?.length ?? 0), 0);
   const risk = clients.filter((c) => healthScore(c).tone === "crit").length;
+  // Módulos por cliente (RPC nova): totais reais entregues (rollout_status='delivered') × contratados.
+  // Fallback: se a RPC falhar (lista vazia), o card volta ao formato antigo ({modules} / por cliente).
+  const modsByClient = (data?.modsByClient ?? []) as ModByClient[];
+  const hasMods = modsByClient.length > 0;
+  const entregues = modsByClient.reduce((s, c) => s + (c.entregues ?? 0), 0);
+  const contratados = hasMods ? modsByClient.reduce((s, c) => s + (c.contratados ?? 0), 0) : modules;
 
-  // FINANCEIRO REAL (contas a receber). MRR = valor RECORRENTE por mês de cada contrato:
-  //  • conta parcelada → o valor da parcela (é a mensalidade; ex.: Connect 12× R$1.500 → R$1.500);
-  //  • conta com recorrência mensal/anual sem parcelas → o valor (anual ÷ 12);
-  //  • conta pontual (sem parcela, sem recorrência) → não é recorrente → não entra.
+  // FINANCEIRO REAL (contas a receber). MRR = só ASSINATURA de verdade, pelo campo `recurrence`:
+  //  • recurrence mensal → o valor da parcela (a mensalidade; ex.: Connect 12× R$1.500 → R$1.500),
+  //    ou o `amount` se não houver parcelas;
+  //  • recurrence anual → o valor ÷ 12;
+  //  • pontual/avulso (workshop, projeto parcelado one-off) → NÃO é recorrente → NÃO entra no MRR.
+  //  (Parcelas ≠ recorrência: um deal pontual parcelado não é receita recorrente — decisão do Crasto 12/08.)
   // Recebíveis = tudo que ainda está EM ABERTO (total − já pago). Nada fictício: se não há
   // contas, os dois somam 0 e é a verdade.
   const receber = (data?.receber ?? []).filter((a: any) => a.status !== "cancelled");
   const mensalDe = (a: any) => {
-    const p = Array.isArray(a?.payment_schedule) ? a.payment_schedule : [];
-    if (p.length) return Number(p[0]?.amount || 0);
-    if (a.recurrence === "monthly" || a.recurrence === "mensal") return Number(a.amount || 0);
-    if (a.recurrence === "yearly" || a.recurrence === "anual") return Number(a.amount || 0) / 12;
-    return 0;
+    const r = String(a?.recurrence || "").toLowerCase();
+    if (r === "mensal" || r === "monthly") { const p = Array.isArray(a?.payment_schedule) ? a.payment_schedule : []; return p.length ? Number(p[0]?.amount || 0) : Number(a.amount || 0); }
+    if (r === "anual" || r === "yearly") return Number(a.amount || 0) / 12;
+    return 0; // pontual/avulso não é recorrente → fora do MRR
   };
   const mrr = receber.reduce((s: number, a: any) => s + mensalDe(a), 0);
   const aReceber = receber.reduce((s: number, a: any) => s + (Number(a.amount || 0) - Number(a.amount_paid || 0)), 0);
@@ -126,6 +138,15 @@ export default function VisaoGeral() {
   const verTodos = () => { setQ(""); clearAll(); jumpToList(); };
   const verModulos = () => { setQ(""); clearAll(); setSortKey("mods"); setSortDir("desc"); jumpToList(); };
   const verRisco = () => { setQ(""); setStage("todos"); setColF({ health: ["risco"], agent: [], acesso: [] }); jumpToList(); };
+
+  // Painel "Módulos por cliente" (abre pelo card). Filtro por rollout: todos / só entregues / em implantação.
+  const [modOpen, setModOpen] = useState(false);
+  const [modFilter, setModFilter] = useState<"all" | "delivered" | "in_progress">("all");
+  const modStatus = (m: ModRow): { label: string; color: string } => {
+    if (m.rollout_status === "delivered") return { label: t("Entregue"), color: "#1F8A5B" };
+    if (m.rollout_status === "on_hold") return { label: t("Em espera"), color: "#98A2B3" };
+    return { label: t("Em implantação") + (m.progress ? ` · ${m.progress}%` : ""), color: "#B8863A" };
+  };
 
   // ESCOLHER O CRM: cada agente do cliente tem o SEU CRM. Abrimos a popup com os agentes
   // (mesma lógica do Console do wacrm) — o admin escolhe qual visualizar. Sem escolher um
@@ -249,7 +270,20 @@ export default function VisaoGeral() {
         <button className="kpi navy kpi-btn" onClick={() => navigate("/admin/financeiro?tab=receber&rec=1")}><div className="lab">{t("MRR (receita recorrente)")}</div><div className="val tnum">{money(mrr)}</div><div className="delta">{t("recorrente · financeiro")} <ArrowRight size={11} /></div></button>
         <button className="kpi kpi-btn" onClick={() => navigate("/admin/financeiro?tab=receber")}><div className="lab">{t("A receber")}</div><div className="val tnum">{money(aReceber)}</div><div className="delta">{t("em aberto · financeiro")} <ArrowRight size={11} /></div></button>
         <button className="kpi kpi-btn" onClick={verTodos} title={t("Ver todos os clientes na lista abaixo")}><div className="lab">{t("Clientes ativos")}</div><div className="val tnum">{clients.length}</div><div className="delta">{t("no portal")} <ArrowDown size={11} /></div></button>
-        <button className="kpi g kpi-btn" onClick={verModulos} title={t("Ver clientes ordenados por módulos entregues")}><div className="lab">{t("Módulos entregues")}</div><div className="val tnum">{modules}</div><div className="delta">{t("{n} por cliente", { n: clients.length ? (modules / clients.length).toFixed(1) : 0 })} <ArrowDown size={11} /></div></button>
+        <button className="kpi g kpi-btn" onClick={() => (hasMods ? setModOpen(true) : verModulos())} title={t("Ver os módulos entregues por cliente")}>
+          <div className="lab">{t("Módulos")}</div>
+          {hasMods ? (<>
+            <div className="val" style={{ fontSize: 19, fontWeight: 700 }}>
+              <span style={{ color: "#1F8A5B" }}>{entregues}</span><small style={{ fontWeight: 400, fontSize: 12, color: "var(--crasto-text-muted)" }}> {t("entregues")}</small>
+              <span style={{ margin: "0 5px", color: "var(--crasto-text-faint)" }}>·</span>
+              {contratados}<small style={{ fontWeight: 400, fontSize: 12, color: "var(--crasto-text-muted)" }}> {t("contratados")}</small>
+            </div>
+            <div className="delta">{t("ver por cliente")} <ArrowRight size={11} /></div>
+          </>) : (<>
+            <div className="val tnum">{modules}</div>
+            <div className="delta">{t("{n} por cliente", { n: clients.length ? (modules / clients.length).toFixed(1) : 0 })} <ArrowDown size={11} /></div>
+          </>)}
+        </button>
         <button className="kpi kpi-btn" onClick={verRisco} title={t("Ver clientes em risco na lista abaixo")}><div className="lab">{t("Em risco (churn)")}</div><div className="val tnum" style={{ color: risk ? "var(--crasto-danger)" : undefined }}>{risk}</div><div className="delta">{t("requer atenção")} <ArrowDown size={11} /></div></button>
       </div>
 
@@ -369,6 +403,46 @@ export default function VisaoGeral() {
             ))}
           </>
         )}
+      </Modal>
+      <Modal title={t("Módulos por cliente")} open={modOpen} onClose={() => setModOpen(false)} wide>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 12, fontSize: 13.5 }}>
+          <span style={{ fontWeight: 700, color: "#1F8A5B" }}>{entregues} {t("entregues")}</span>
+          <span style={{ color: "var(--crasto-text-faint)" }}>·</span>
+          <span style={{ fontWeight: 700 }}>{contratados} {t("contratados")}</span>
+          <span style={{ color: "var(--crasto-text-faint)" }}>·</span>
+          <span style={{ color: "var(--crasto-text-muted)" }}>{modsByClient.length} {t(modsByClient.length === 1 ? "empresa" : "empresas")}</span>
+        </div>
+        <div className="cli-chips" style={{ marginBottom: 14 }}>
+          {([["all", t("Todos")], ["delivered", t("Só entregues")], ["in_progress", t("Em implantação")]] as [typeof modFilter, string][]).map(([k, lbl]) => (
+            <button key={k} className={"cli-chip" + (modFilter === k ? " on" : "")} onClick={() => setModFilter(k)}>{lbl}</button>
+          ))}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {modsByClient.length === 0 && <div style={{ color: "var(--crasto-text-muted)", padding: "8px 0" }}>{t("Nenhum módulo contratado ainda.")}</div>}
+          {modsByClient.map((org) => {
+            const mods = (org.modules ?? []).filter((m) => modFilter === "all" || (modFilter === "delivered" ? m.rollout_status === "delivered" : m.rollout_status !== "delivered"));
+            if (modFilter !== "all" && mods.length === 0) return null;
+            return (
+              <div key={org.org_id}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 4 }}>
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>{org.org_name}</span>
+                  <span style={{ fontSize: 12, color: "var(--crasto-text-muted)", whiteSpace: "nowrap" }}>{t(org.contratados === 1 ? "{n} módulo" : "{n} módulos", { n: org.contratados })} · {org.entregues} {t("entregues")}</span>
+                </div>
+                {mods.length === 0 ? (
+                  <div style={{ fontSize: 12.5, color: "var(--crasto-text-faint)", padding: "3px 0" }}>{t("nenhum módulo")}{org.stage ? ` — ${t(STAGES.find((s) => s.key === org.stage)?.label || org.stage)}` : ""}</div>
+                ) : mods.map((m, i) => {
+                  const st = modStatus(m);
+                  return (
+                    <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "7px 2px", borderBottom: "1px solid var(--crasto-border-soft)" }}>
+                      <span style={{ fontSize: 13 }}>{m.name}</span>
+                      <span className="cli-ag" style={{ whiteSpace: "nowrap" }}><span className="d" style={{ background: st.color }} />{st.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
       </Modal>
       {toast && <div className="toast">{toast}</div>}
     </div>
