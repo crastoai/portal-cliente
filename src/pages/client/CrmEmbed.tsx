@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ChevronDown, MessageSquare, Plus, RotateCcw, X } from "lucide-react";
+import { ChevronDown, ChevronUp, MessageSquare, Plus, RotateCcw, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { services } from "../../services";
 import { useT } from "../../lib/i18n";
@@ -182,6 +182,13 @@ export default function CrmEmbed() {
 
   // KPIs do funil (dado real do wacrm) — enriquecem a régua do topo, o Dashboard e o Cockpit.
   const [kpis, setKpis] = useState<any>(null);
+  // Régua de KPIs RECOLHÍVEL — em tela menor/baixa ela rouba o espaço da conversa (feedback do Crasto,
+  // reunião com cliente). Estado por-navegador. Default: fechada em telas pequenas (larg<1200 ou alt<800).
+  const [kpisOpen, setKpisOpen] = useState<boolean>(() => {
+    try { const v = localStorage.getItem("crasto.wa-kpis-open"); if (v != null) return v === "1"; } catch { /* ok */ }
+    return typeof window !== "undefined" ? (window.innerWidth >= 1200 && window.innerHeight >= 800) : true;
+  });
+  useEffect(() => { try { localStorage.setItem("crasto.wa-kpis-open", kpisOpen ? "1" : "0"); } catch { /* ok */ } }, [kpisOpen]);
   useEffect(() => {
     if (!token) return;
     let alive = true;
@@ -411,8 +418,8 @@ export default function CrmEmbed() {
       </div>
     </div>
   );
-  const kpiBar = (
-    <div style={{ display: "flex", alignItems: "stretch", background: "var(--crasto-surface, #fff)", borderBottom: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))", overflowX: "auto", flex: "0 0 auto" }}>
+  const kpiCells = (
+    <>
       {compareCell}
       {stat(t("Conversas ativas"), live ? live.conversasAtivas : "—")}
       {stat(t("Aguardando na fila"), live ? live.fila : "—", live && live.fila > 0 ? "warn" : undefined)}
@@ -423,7 +430,17 @@ export default function CrmEmbed() {
       {stat(t("Follow-ups a fazer"), kpis?.hasData ? kpis.followups_due : "—", kpis?.hasData && kpis.followups_due > 0 ? "warn" : undefined)}
       {stat(t("Resgates"), kpis?.hasData ? kpis.resgates : "—", kpis?.hasData && kpis.resgates > 0 ? "warn" : undefined)}
       {coachCell}
+    </>
+  );
+  // Aberta: chevron p/ recolher + os KPIs (rolam na horizontal). Fechada: tirinha fina "Mostrar métricas"
+  // — libera ~50px de altura pra conversa em telas menores. Sempre alternável (o toggle nunca some).
+  const kpiBar = kpisOpen ? (
+    <div style={{ display: "flex", alignItems: "stretch", background: "var(--crasto-surface, #fff)", borderBottom: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))", flex: "0 0 auto" }}>
+      <button onClick={() => setKpisOpen(false)} title={t("Ocultar métricas")} aria-label={t("Ocultar métricas")} style={{ flex: "0 0 auto", width: 28, border: 0, borderRight: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))", background: "transparent", color: "var(--crasto-text-muted)", cursor: "pointer", display: "grid", placeItems: "center" }}><ChevronUp size={16} /></button>
+      <div style={{ display: "flex", alignItems: "stretch", overflowX: "auto", minWidth: 0, flex: 1 }}>{kpiCells}</div>
     </div>
+  ) : (
+    <button onClick={() => setKpisOpen(true)} title={t("Mostrar métricas")} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", height: 26, border: 0, borderBottom: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))", background: "var(--crasto-surface, #fff)", color: "var(--crasto-text-muted)", cursor: "pointer", fontSize: 11.5, fontWeight: 500, flex: "0 0 auto" }}><ChevronDown size={14} /> {t("Mostrar métricas")}</button>
   );
 
   // Grid de painéis de UMA seção (usado tanto na ativa quanto nas visitadas que ficam montadas).
