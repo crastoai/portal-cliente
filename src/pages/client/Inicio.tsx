@@ -10,6 +10,9 @@ import { money, useSort, SortTh } from "../../ui/ui";
 import Modal from "../../ui/Modal";
 import { DateRange } from "../../ui/DatePicker";
 import { summarizeFaturas, type Fatura, type FaturaSummary } from "../../lib/faturas";
+import { useSettings } from "../../lib/settings";
+import { pixBRCode } from "../../lib/pix";
+import QRCode from "qrcode";
 import { allowedScreens } from "../../lib/screens";
 import { useFetch } from "../../lib/useFetch";
 
@@ -45,6 +48,24 @@ export default function Inicio() {
   const [mods, setMods] = useState<Mod[]>([]);
   const [fin, setFin] = useState<FaturaSummary | null>(null);
   const [faturas, setFaturas] = useState<Fatura[]>([]);
+  // Pagar via Pix (Fatia 4): chave/beneficiário reais do banco; BR Code + QR gerados 100% local.
+  const settings = useSettings();
+  const [pixFatura, setPixFatura] = useState<Fatura | null>(null);
+  const [pixSvg, setPixSvg] = useState("");
+  const [pixCopied, setPixCopied] = useState(false);
+  const pixCode = pixFatura && settings.pixKey
+    ? pixBRCode({ key: settings.pixKey, name: settings.pixBeneficiary, amount: Number(pixFatura.amount || 0), txid: pixFatura.id })
+    : "";
+  useEffect(() => {
+    setPixCopied(false);
+    if (!pixCode) { setPixSvg(""); return; }
+    let live = true;
+    QRCode.toString(pixCode, { type: "svg", margin: 1, width: 220, errorCorrectionLevel: "M" })
+      .then((svg) => { if (live) setPixSvg(svg); })
+      .catch(() => { if (live) setPixSvg(""); });
+    return () => { live = false; };
+  }, [pixCode]);
+  const copyPix = () => { if (pixCode) navigator.clipboard?.writeText(pixCode).then(() => { setPixCopied(true); setTimeout(() => setPixCopied(false), 2500); }).catch(() => {}); };
   // Drill-down interativo: Fase 1 (breakdown por colaborador, ao vivo) + Fase 2 (conversas do colaborador).
   const [drill, setDrill] = useState<string | null>(null);
   const [collabs, setCollabs] = useState<any[] | null>(null);
@@ -606,7 +627,9 @@ export default function Inicio() {
               <div className="fh-tile"><span className="l">{t("Em aberto")}</span><b className="tnum">{money(fin.openTotal)}</b><small>{t("{n} fatura(s)", { n: fin.open.length })}</small></div>
               <div className="fh-tile"><span className="l">{t("Próximo vencimento")}</span><b className="tnum">{fin.next?.due_date ? new Date(fin.next.due_date + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</b><small>{fin.daysToNext == null ? "—" : fin.daysToNext < 0 ? t("vencida") : fin.daysToNext === 0 ? t("hoje") : t("em {n} dia(s)", { n: fin.daysToNext })}</small></div>
               <div className={"fh-tile" + (fin.overdue.length ? " is-red" : "")}><span className="l">{t("Em atraso")}</span><b className="tnum">{money(fin.overdueTotal)}</b><small>{t("{n} fatura(s)", { n: fin.overdue.length })}</small></div>
-              <div className="fh-tile fh-soon"><span className="l">{t("Pagamento")}</span><b>{t("Boleto · Pix")}</b><small><Clock size={11} style={{ verticalAlign: -1 }} /> {t("Em breve")}</small></div>
+              {settings.pixKey && fin.next
+                ? <button className="fh-tile fh-soon" style={{ cursor: "pointer", textAlign: "left", border: 0 }} onClick={() => { setTab("negocios"); if (fin.next) setPixFatura(fin.next); }}><span className="l">{t("Pagamento")}</span><b>{t("Pagar via Pix")}</b><small><ArrowRight size={11} style={{ verticalAlign: -1 }} /> {t("QR + Copia-e-Cola")}</small></button>
+                : <div className="fh-tile fh-soon"><span className="l">{t("Pagamento")}</span><b>{t("Pix")}</b><small><Clock size={11} style={{ verticalAlign: -1 }} /> {settings.pixKey ? t("nada em aberto") : t("em breve")}</small></div>}
             </div>
           </div>
         </>
@@ -734,7 +757,7 @@ export default function Inicio() {
                         <td className="tnum" style={{ padding: "11px 10px", fontSize: 12.5, color: "var(--crasto-text-muted)" }}>{brData(f.due_date || undefined)}</td>
                         <td className="tnum" style={{ padding: "11px 10px", fontSize: 13, textAlign: "right" }}>{money(Number(f.amount || 0))}</td>
                         <td className="tnum" style={{ padding: "11px 10px", fontSize: 12.5, color: f.paid_date ? "var(--crasto-text-body)" : "var(--crasto-text-muted)" }}>{f.paid_date ? brData(f.paid_date) : "—"}</td>
-                        <td style={{ padding: "11px 10px" }}><span className={"scopepill " + tom}>{label}</span></td>
+                        <td style={{ padding: "11px 10px" }}><span className={"scopepill " + tom}>{label}</span>{!settled(f) && settings.pixKey && <button className="crasto-btn crasto-btn--primary crasto-btn--sm" style={{ marginLeft: 8 }} onClick={() => setPixFatura(f)}><span className="crasto-btn__label">{t("Pagar via Pix")}</span></button>}</td>
                       </tr>
                     ); })}
                   </tbody>
@@ -742,6 +765,33 @@ export default function Inicio() {
               </div>
             )}
           </div>
+
+          {/* Modal Pagar via Pix — Copia-e-Cola + QR (estático, chave real do banco; sem gateway) */}
+          <Modal title={t("Pagar via Pix")} open={!!pixFatura} onClose={() => setPixFatura(null)}>
+            {pixFatura && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                  <div><div style={{ fontSize: 12, color: "var(--crasto-text-muted)" }}>{pixFatura.description || t("Parcela")}</div><div className="tnum" style={{ fontSize: 22, fontWeight: 700 }}>{money(Number(pixFatura.amount || 0))}</div></div>
+                  <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, color: "var(--crasto-text-muted)" }}>{t("Vencimento")}</div><div style={{ fontWeight: 600 }}>{brData(pixFatura.due_date || undefined)}</div></div>
+                </div>
+                {!settings.pixKey ? (
+                  <div className="scopeempty">{t("Chave Pix ainda não configurada. Fale com o suporte.")}</div>
+                ) : (<>
+                  {pixSvg && <div style={{ alignSelf: "center", background: "#fff", padding: 10, borderRadius: 12, width: 200, height: 200 }} dangerouslySetInnerHTML={{ __html: pixSvg }} />}
+                  <div>
+                    <div style={{ fontSize: 12, color: "var(--crasto-text-muted)", marginBottom: 4 }}>{t("Pix Copia-e-Cola")}</div>
+                    <div style={{ fontFamily: "monospace", fontSize: 11.5, wordBreak: "break-all", background: "var(--crasto-bg-2)", border: "1px solid var(--crasto-border)", borderRadius: 8, padding: "8px 10px", maxHeight: 96, overflowY: "auto" }}>{pixCode}</div>
+                    <button className="crasto-btn crasto-btn--primary crasto-btn--sm" style={{ marginTop: 8 }} onClick={copyPix}><span className="crasto-btn__label">{pixCopied ? t("Copiado ✓") : t("Copiar código")}</span></button>
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "var(--crasto-text-body)", lineHeight: 1.5 }}>
+                    <b>{t("Beneficiário:")}</b> {settings.pixBeneficiary || "—"}<br />
+                    <b>{t("Como pagar:")}</b> {t("abra o app do seu banco → Pix → pagar com QR Code ou Copia-e-Cola → confira o valor e confirme.")}
+                  </div>
+                  <div className="scopeempty" style={{ fontSize: 12 }}>{t("Depois de pagar, seu comprovante é conferido pela Crasto.AI e a parcela é baixada.")}</div>
+                </>)}
+              </div>
+            )}
+          </Modal>
 
           {/* Contrato — assinado + PDF */}
           <div className="scopebox">

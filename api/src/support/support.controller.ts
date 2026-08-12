@@ -62,8 +62,16 @@ export class SupportController {
         const red = (await c.query(`select o.id, o.name, h.updated_at as at from delivery.system_health h join public.organizations o on o.id=h.organization_id where h.status='red' order by h.updated_at desc limit 20`)).rows;
         for (const r of red) items.push({ type: 'health_red', title: 'Ambiente em risco: ' + r.name, subtitle: 'farol vermelho', at: r.at, assignee: null, link: '/admin/cliente/' + r.id });
       } else {
-        const inv = (await c.query(`select description, amount, due_date, status from billing.invoices where status in ('open','overdue') order by due_date nulls last limit 20`)).rows;
-        for (const r of inv) items.push({ type: 'invoice', title: r.status === 'overdue' ? 'Fatura vencida' : 'Fatura a vencer', subtitle: (r.description || 'Fatura') + ' · R$ ' + Number(r.amount || 0).toLocaleString('pt-BR'), at: r.due_date, assignee: null, link: '/app/financeiro' });
+        // Lembrete de pagamento a partir das faturas REAIS (my_faturas → finance.accounts, escopo do
+        // próprio cliente via auth.uid). Só o que interessa lembrar: vencidas ou vencendo em 7 dias.
+        const hoje = new Date().toISOString().slice(0, 10);
+        const lim = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+        const inv = (await c.query(`select id, description, amount, due_date, status from public.my_faturas() where status = 'open' and due_date is not null and due_date <= $1 order by due_date`, [lim])).rows;
+        for (const r of inv) {
+          const venc = r.due_date < hoje;
+          const dt = new Date(r.due_date + 'T00:00:00').toLocaleDateString('pt-BR');
+          items.push({ type: 'invoice', title: venc ? 'Fatura vencida — pague via Pix' : 'Fatura a vencer — pague via Pix', subtitle: (r.description || 'Parcela') + ' · R$ ' + Number(r.amount || 0).toLocaleString('pt-BR') + ' · vence ' + dt, at: r.due_date, assignee: null, link: '/app/financeiro' });
+        }
         const upd = (await c.query(`select subject, status, updated_at as at from support.tickets where status in ('in_progress','resolved') order by updated_at desc limit 20`)).rows;
         for (const r of upd) items.push({ type: 'ticket_update', title: 'Atualização no seu chamado', subtitle: r.subject, at: r.at, assignee: null, link: '/app/suporte' });
       }
