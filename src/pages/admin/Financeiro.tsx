@@ -75,6 +75,13 @@ const TABS = [
   { key: "antecipacoes", label: "Antecipações" }, { key: "transacoes", label: "Transações" },
 ];
 
+// Filtros da aba Cobrança (painel de recebimentos por parcela) — "pagas sem comprovante" é o gap real.
+const COB_FILTROS = [
+  { key: "todas", label: "Todas" }, { key: "avencer", label: "A vencer" },
+  { key: "vencidas", label: "Vencidas" }, { key: "hoje", label: "Vencem hoje" },
+  { key: "sem_comprovante", label: "Pagas s/ comprovante" }, { key: "pagas", label: "Pagas" },
+];
+
 export default function Financeiro() {
   const t = useT();
   // Ordenação clicável (regra global de UI). Tesouraria: por data desc (registro financeiro).
@@ -95,6 +102,7 @@ export default function Financeiro() {
   // A Receber "visão de recorrentes": só as contas que formam o MRR (parceladas ou recorrência mensal/anual).
   // É pra onde o card MRR da Visão geral aponta (?tab=receber&rec=1) — traça o número até a origem.
   const [recOnly, setRecOnly] = useState(sp.get("rec") === "1");
+  const [cobFiltro, setCobFiltro] = useState("todas"); // aba Cobrança: recorte por vencimento/comprovante
   const toggleRecOnly = () => setRecOnly((v) => {
     const nv = !v; const next = new URLSearchParams(sp);
     if (nv) next.set("rec", "1"); else next.delete("rec");
@@ -212,6 +220,28 @@ export default function Financeiro() {
   const nContratos = recContratos.length;
   const saldoRecorrente = recContratos.reduce((a, r) => a + rem(r), 0); // quanto ainda falta receber dos contratos
 
+  // ── Aba Cobrança: achata TODA parcela a receber numa linha (ou a conta simples, se sem parcelas).
+  const cobRowsAll = rec.filter((r) => r.status !== "cancelled").flatMap((r) => {
+    const ps = parcelas(r);
+    if (ps.length) return ps.filter((p) => p.status !== "cancelled").map((p, k) => ({ r, inst: p.installment ?? k + 1, total: ps.length, venc: ymd(p.date), valor: Number(p.amount || 0), status: p.status || "pending", paid_date: p.paid_date || "", proof_url: p.proof_url || "", proof_note: p.proof_note || "", parcelada: true }));
+    return [{ r, inst: 0, total: 1, venc: ymd(r.due_date), valor: Number(r.amount || 0), status: r.status || "pending", paid_date: r.payment_date || "", proof_url: "", proof_note: "", parcelada: false }];
+  });
+  const cobClass = (row: any) => row.status === "paid" ? "pago" : (row.venc && row.venc < today()) ? "vencida" : (row.venc === today()) ? "hoje" : "avencer";
+  const cobMatch = (row: any, key: string) => {
+    const c = cobClass(row);
+    if (key === "avencer") return c === "avencer";
+    if (key === "vencidas") return c === "vencida";
+    if (key === "hoje") return c === "hoje";
+    if (key === "pagas") return row.status === "paid";
+    if (key === "sem_comprovante") return row.status === "paid" && !row.proof_url;
+    return true; // todas
+  };
+  const cobCount = (key: string) => cobRowsAll.filter((r) => cobMatch(r, key)).length;
+  const cobRows = cobRowsAll
+    .filter((row) => { const q = query.trim().toLowerCase(); return !q || (row.r.contact_name || "").toLowerCase().includes(q); })
+    .filter((row) => cobMatch(row, cobFiltro))
+    .sort((a, b) => (a.venc || "").localeCompare(b.venc || ""));
+
   // resumo A Pagar (custos)
   const activeCosts = costs.filter((c) => c.is_active);
   const totalMensal = activeCosts.filter((c) => c.recurrence === "mensal").reduce((a, c) => a + Number(c.amount_brl || 0), 0);
@@ -320,6 +350,15 @@ export default function Financeiro() {
     const lastPaid = sched.filter((p: any) => p.status === "paid").map((p: any) => p.date).sort().slice(-1)[0] || null;
     setBusy(true);
     try { await services.finance.accounts.save({ id: i.id, payment_schedule: sched, amount_paid: paid, status, payment_date: status === "paid" ? (lastPaid || today()) : "" }); reload(); flash(t("Parcela atualizada ✓")); }
+    catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
+  }
+  // anexa/remove o comprovante de UMA parcela direto do painel de Cobrança (sem abrir o editor).
+  // Atualiza só proof_url/proof_note (parcial) — não mexe em status/valor.
+  async function saveParcProof(i: any, num: number, path: string, name: string) {
+    const cur = Array.isArray(i.payment_schedule) ? i.payment_schedule : [];
+    const sched = cur.map((p: any) => p.installment === num ? { ...p, proof_url: path || "", proof_note: name || "" } : p);
+    setBusy(true);
+    try { await services.finance.accounts.save({ id: i.id, payment_schedule: sched }); reload(); flash(path ? t("Comprovante anexado ✓") : t("Comprovante removido")); }
     catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
   }
   // abre o editor inline de uma parcela (clicando na linha) — carrega o rascunho
@@ -442,6 +481,55 @@ export default function Financeiro() {
                   </td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      </>) : tab === "cobranca" ? (<>
+        {/* Painel de recebimentos por parcela — ver vencimentos de todos os clientes + anexar comprovante */}
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+          <div className="catsearch" style={{ margin: 0, flex: 1, minWidth: 220 }}><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("Buscar cliente…")} /></div>
+        </div>
+        <div className="cli-chips" style={{ marginBottom: 12 }}>
+          {COB_FILTROS.map((f) => <button key={f.key} className={"cli-chip" + (cobFiltro === f.key ? " on" : "")} onClick={() => setCobFiltro(f.key)}>{t(f.label)}<span className="cli-chip-n">{cobCount(f.key)}</span></button>)}
+        </div>
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead><tr>
+              <th>{t("Cliente")}</th><th>{t("Parcela")}</th><th>{t("Vencimento")}</th>
+              <th style={{ textAlign: "right" }}>{t("Valor")}</th><th>{t("Status")}</th>
+              <th>{t("Comprovante")}</th><th style={{ textAlign: "right" }}>{t("Ação")}</th>
+            </tr></thead>
+            <tbody>
+              {loading ? <tr><td colSpan={7} style={{ color: "var(--crasto-text-muted)", padding: 14 }}>{t("Carregando…")}</td></tr> :
+               cobRows.length === 0 ? <tr><td colSpan={7} style={{ color: "var(--crasto-text-muted)", padding: 14 }}>{t("Nada com esse filtro.")}</td></tr> :
+               cobRows.map((row, i) => {
+                 const c = cobClass(row);
+                 const cor = c === "pago" ? "#1F8A5B" : c === "vencida" ? "#B83A3A" : c === "hoje" ? "#B8863A" : "#3E6FB8";
+                 const lbl = c === "pago" ? t("Pago") : c === "vencida" ? t("Vencido") : c === "hoje" ? t("Vence hoje") : t("A vencer");
+                 const semComp = row.status === "paid" && !row.proof_url;
+                 return (
+                   <tr key={row.r.id + "-" + row.inst + "-" + i}>
+                     <td><div className="nm">{row.r.contact_name || "—"}</div>{row.r.description && <div className="mt" style={{ fontSize: 11, color: "var(--crasto-text-muted)" }}>{row.r.description}</div>}</td>
+                     <td className="tnum">{row.parcelada ? `${row.inst}/${row.total}` : "—"}</td>
+                     <td className="tnum" style={{ whiteSpace: "nowrap" }}>{row.venc ? brDate(row.venc) : "—"}</td>
+                     <td className="tnum" style={{ textAlign: "right", fontWeight: 600 }}>{money(row.valor)}</td>
+                     <td><span style={{ display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}><span style={{ width: 9, height: 9, borderRadius: "50%", background: cor }} />{lbl}{row.paid_date ? <span style={{ fontSize: 11, color: "var(--crasto-text-muted)" }}> · {brDate(row.paid_date)}</span> : null}</span></td>
+                     <td>
+                       {row.parcelada ? (
+                         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                           <DocField prefix="financeiro" accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.heic" label={t("Anexar comprovante")} path={row.proof_url} name={row.proof_note} onChange={(path, name) => saveParcProof(row.r, row.inst, path, name)} />
+                           {semComp && <span style={{ fontSize: 11, color: "#B83A3A" }}>⚠ {t("comprovante faltando")}</span>}
+                         </div>
+                       ) : <span style={{ color: "var(--crasto-text-faint)" }}>—</span>}
+                     </td>
+                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                       {row.parcelada
+                         ? <button className="linkbtn" disabled={busy} onClick={() => toggleInstallment(row.r, row.inst)}>{row.status === "paid" ? t("Reabrir") : t("Marcar pago")}</button>
+                         : <button className="linkbtn" disabled={busy || row.status === "paid"} onClick={() => markPaid(row.r)}>{row.status === "paid" ? t("Pago") : t("Marcar pago")}</button>}
+                     </td>
+                   </tr>
+                 );
+               })}
             </tbody>
           </table>
         </div>
