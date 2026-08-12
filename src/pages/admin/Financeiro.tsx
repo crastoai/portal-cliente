@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Plus, Pencil, Trash2, Search, ChevronRight, ChevronDown, CheckCircle2, Repeat } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, ChevronRight, ChevronDown, CheckCircle2, Repeat, ArrowRight } from "lucide-react";
 import { services, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, money, Field, useSort, SortTh } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
@@ -221,6 +221,11 @@ export default function Financeiro() {
   const mrrMensal = recContratos.reduce((a, r) => a + mensalDe(r), 0);
   const nContratos = recContratos.length;
   const saldoRecorrente = recContratos.reduce((a, r) => a + rem(r), 0); // quanto ainda falta receber dos contratos
+  // Mensalidade equivalente (pedido do Crasto 12/08): TODO contrato de cliente anualizado ÷12, mesmo
+  // pago adiantado (ex.: Carneiro 10k em 5× → 10k÷12 = 833). Exclui avulso/workshop. Difere do MRR (que
+  // é só assinatura recorrente): aqui projetos pontuais parcelados entram como fração mensal do contrato.
+  const isAvulso = (a: any) => /avulso|workshop/i.test(String(a?.category || "") + " " + String(a?.description || ""));
+  const mensalEquiv = rec.filter((r) => r.status !== "cancelled" && !isAvulso(r)).reduce((a, r) => a + Number(r.contract_total || r.amount || 0) / 12, 0);
 
   // ── Aba Cobrança: achata TODA parcela a receber numa linha (ou a conta simples, se sem parcelas).
   const cobRowsAll = rec.filter((r) => r.status !== "cancelled").flatMap((r) => {
@@ -410,12 +415,12 @@ export default function Financeiro() {
     <div>
       <PageHead eyebrow="Painel Admin · Financeiro 🔒" title="Financeiro" sub="Gestão financeira completa da Crasto.AI." />
 
-      {/* KPIs topo */}
+      {/* KPIs topo — clicáveis: cada card leva à aba/tela correspondente (dado real) */}
       <div className="kpis" style={{ marginBottom: 16 }}>
-        <div className="kpi"><div className="lab">{t("A Pagar")}</div><div className="val tnum" style={{ fontSize: 22, color: "#B54708" }}>{money(aPagar)}</div></div>
-        <div className="kpi g"><div className="lab">{t("A Receber")}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(aReceber)}</div></div>
-        <div className="kpi"><div className="lab">{t("Saldo em Caixa")}</div><div className="val tnum" style={{ fontSize: 22, color: saldoCaixa < 0 ? "#B54708" : "#1F8A5B" }}>{money(saldoCaixa)}</div><div className="delta">{t("entradas − saídas realizadas")}</div></div>
-        <div className="kpi"><div className="lab">{t("Vencidos")}</div><div className="val tnum" style={{ fontSize: 22, color: inadimplencia > 0 ? "#B54708" : undefined }}>{money(inadimplencia)}</div><div className="delta">{t("a receber vencido")}</div></div>
+        <button className="kpi kpi-btn" onClick={() => setTab("pagar")} title={t("Ver contas a pagar")}><div className="lab">{t("A Pagar")}</div><div className="val tnum" style={{ fontSize: 22, color: "#B54708" }}>{money(aPagar)}</div><div className="delta">{t("ver contas a pagar")} <ArrowRight size={11} /></div></button>
+        <button className="kpi g kpi-btn" onClick={() => setTab("receber")} title={t("Ver contas a receber")}><div className="lab">{t("A Receber")}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(aReceber)}</div><div className="delta">{t("ver contas a receber")} <ArrowRight size={11} /></div></button>
+        <button className="kpi kpi-btn" onClick={() => setTab("tesouraria")} title={t("Ver o fluxo de caixa (Tesouraria)")}><div className="lab">{t("Saldo em Caixa")}</div><div className="val tnum" style={{ fontSize: 22, color: saldoCaixa < 0 ? "#B54708" : "#1F8A5B" }}>{money(saldoCaixa)}</div><div className="delta">{t("entradas − saídas realizadas")} <ArrowRight size={11} /></div></button>
+        <button className="kpi kpi-btn" onClick={() => { setTab("cobranca"); setCobFiltro("vencidas"); }} title={t("Ver as parcelas vencidas (Cobrança)")}><div className="lab">{t("Vencidos")}</div><div className="val tnum" style={{ fontSize: 22, color: inadimplencia > 0 ? "#B54708" : undefined }}>{money(inadimplencia)}</div><div className="delta">{t("a receber vencido")} <ArrowRight size={11} /></div></button>
       </div>
 
       <div className="ptabs">
