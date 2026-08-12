@@ -129,7 +129,9 @@ export default function Inicio() {
       default: return { from: null as string | null, to: null as string | null };
     }
   }, [period, custFrom, custTo]);
-  const cock = useFetch<import("../../services/delivery.service").CockpitMine>(() => services.delivery.cockpit.getMine(range.from, range.to), [range.from, range.to]).data;
+  const [agentSel, setAgentSel] = useState<string>("");   // Fatia B: "" = todos os agentes
+  const agents = useFetch<{ id: string; name: string }[]>(() => services.delivery.cockpit.agents().then((r) => r.rows).catch(() => []), []).data ?? [];
+  const cock = useFetch<import("../../services/delivery.service").CockpitMine>(() => services.delivery.cockpit.getMine(range.from, range.to, agentSel || null), [range.from, range.to, agentSel]).data;
   // Defesa em profundidade: financeiro/negócios do Início só para quem tem a permissão "Financeiro"
   // (dono ou membro liberado). Começa false para o membro nunca ver nem por um instante; o backend
   // (my_faturas + pode_ver_financeiro) já protege o dado, isto só limpa a tela.
@@ -474,6 +476,13 @@ export default function Inicio() {
               <span style={{ color: "var(--crasto-text-muted)", fontSize: 12 }}>→</span>
               <input type="date" value={custTo} min={custFrom || undefined} onChange={(e) => setCustTo(e.target.value)} className="inp" style={{ padding: "4px 8px", fontSize: 12.5 }} />
             </span>
+          )}
+          {agents.length > 1 && (
+            <select value={agentSel} onChange={(e) => setAgentSel(e.target.value)} className="inp"
+              style={{ padding: "5px 10px", fontSize: 12.5, borderRadius: 8, marginLeft: 4 }}>
+              <option value="">{t("Todos os agentes")}</option>
+              {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
           )}
           {range.from && range.to && (
             <span style={{ marginLeft: "auto", fontSize: 11.5, color: "var(--crasto-text-muted)" }}>

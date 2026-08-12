@@ -16,7 +16,19 @@ export class WacrmMetricsService {
   }
 
   // Resultados dos últimos 30 dias (+ trend vs 30 anteriores). SEMPRE filtra organization_id=$1.
-  async resultados(orgId: string, from?: string | null, to?: string | null): Promise<{
+  // Lista de agentes da org (p/ o seletor do filtro do cockpit — Fatia B). Mesmo DB do wacrm.
+  async agentsList(orgId: string): Promise<{ id: string; name: string }[]> {
+    const p = this.db();
+    if (!p || !orgId) return [];
+    const c = await p.connect();
+    try {
+      return (await c.query(`select id, name from agents.agents where organization_id=$1 order by name`, [orgId])).rows;
+    } finally {
+      c.release();
+    }
+  }
+
+  async resultados(orgId: string, from?: string | null, to?: string | null, agentId?: string | null): Promise<{
     tempo_resposta: number | null; automacao: number | null; atendimentos: number | null; novos_leads: number | null;
     conversas_ia: number | null; dur_media: number | null;
     trend: { atendimentos: number | null; novos_leads: number | null }; volume: { label: string; n: number }[];
@@ -27,45 +39,54 @@ export class WacrmMetricsService {
     // Janela [f,t) = período escolhido (default: últimos 30 dias). Mesma convenção dos drill-downs:
     // from/to = YYYY-MM-DD; t = to::date + 1 (inclui o dia inteiro do "to"). Período ANTERIOR (pr) =
     // janela de MESMA duração imediatamente antes de f → comparativo "Antes × Depois" correto p/ qualquer período.
-    const args = [orgId, from || null, to || null];
+    // $4 = agentId (Fatia B): null = todos os agentes; senão escopa por agente da CONVERSA
+    // (coalesce(brain_agent_id,agent_id)) p/ msgs, e por agent_id direto p/ contatos.
+    const args = [orgId, from || null, to || null, agentId || null];
+    // CTE de conversas do agente (reusada nas subqueries de mensagens); '-infinity' evita custo quando $4 null.
+    const AC = `ac as (select id from whatsapp.conversations where organization_id=$1 and ($4::uuid is null or coalesce(brain_agent_id,agent_id)=$4::uuid))`;
+    const inAc = `($4::uuid is null or conversation_id in (select id from ac))`;
     try {
       const m = (await c.query(
         `with b as (select coalesce($2::date, (now()-'30 days'::interval)::date) f, coalesce($3::date + 1, now()::date + 1) t),
               w as (select f, t from b),
-              pr as (select f-(t-f) f, f t from b)
+              pr as (select f-(t-f) f, f t from b),
+              ${AC}
          select
-           (select count(distinct msg.conversation_id) from whatsapp.messages msg, w  where msg.organization_id=$1 and msg.created_at>=w.f  and msg.created_at<w.t)::int  atend,
-           (select count(distinct msg.conversation_id) from whatsapp.messages msg, pr where msg.organization_id=$1 and msg.created_at>=pr.f and msg.created_at<pr.t)::int atend_prev,
-           (select count(*) from whatsapp.contacts ct, w  where ct.organization_id=$1 and ct.created_at>=w.f  and ct.created_at<w.t)::int  leads,
-           (select count(*) from whatsapp.contacts ct, pr where ct.organization_id=$1 and ct.created_at>=pr.f and ct.created_at<pr.t)::int leads_prev,
-           (select count(*) filter (where from_type='ai')    from whatsapp.messages, w where organization_id=$1 and created_at>=w.f and created_at<w.t)::int ai,
-           (select count(*) filter (where from_type='human') from whatsapp.messages, w where organization_id=$1 and created_at>=w.f and created_at<w.t)::int human,
-           (select count(distinct conversation_id) from whatsapp.messages, w where organization_id=$1 and from_type='ai' and created_at>=w.f and created_at<w.t)::int conversas_ia`,
+           (select count(distinct msg.conversation_id) from whatsapp.messages msg, w  where msg.organization_id=$1 and msg.created_at>=w.f  and msg.created_at<w.t  and ${inAc})::int  atend,
+           (select count(distinct msg.conversation_id) from whatsapp.messages msg, pr where msg.organization_id=$1 and msg.created_at>=pr.f and msg.created_at<pr.t and ${inAc})::int atend_prev,
+           (select count(*) from whatsapp.contacts ct, w  where ct.organization_id=$1 and ct.created_at>=w.f  and ct.created_at<w.t  and ($4::uuid is null or ct.agent_id=$4::uuid))::int  leads,
+           (select count(*) from whatsapp.contacts ct, pr where ct.organization_id=$1 and ct.created_at>=pr.f and ct.created_at<pr.t and ($4::uuid is null or ct.agent_id=$4::uuid))::int leads_prev,
+           (select count(*) filter (where from_type='ai')    from whatsapp.messages, w where organization_id=$1 and created_at>=w.f and created_at<w.t and ${inAc})::int ai,
+           (select count(*) filter (where from_type='human') from whatsapp.messages, w where organization_id=$1 and created_at>=w.f and created_at<w.t and ${inAc})::int human,
+           (select count(distinct conversation_id) from whatsapp.messages, w where organization_id=$1 and from_type='ai' and created_at>=w.f and created_at<w.t and ${inAc})::int conversas_ia`,
         args)).rows[0];
       // Duração média de conversa (período) — proxy medido de "tempo de atendimento" p/ derivar horas.
       const dm = (await c.query(
         `with b as (select coalesce($2::date, (now()-'30 days'::interval)::date) f, coalesce($3::date + 1, now()::date + 1) t),
+              ${AC},
               cc as (select conversation_id, extract(epoch from (max(created_at)-min(created_at))) dur
-                      from whatsapp.messages, b where organization_id=$1 and created_at>=b.f and created_at<b.t group by conversation_id)
+                      from whatsapp.messages, b where organization_id=$1 and created_at>=b.f and created_at<b.t and ${inAc} group by conversation_id)
          select coalesce(round(avg(dur) filter (where dur between 30 and 7200)),0)::int dur_media from cc`,
         args)).rows[0];
       const tm = (await c.query(
         `with b as (select coalesce($2::date, (now()-'30 days'::interval)::date) f, coalesce($3::date + 1, now()::date + 1) t),
+              ${AC},
          pairs as (
            select extract(epoch from (r.created_at - msg.created_at)) sec
              from whatsapp.messages msg, b
              join lateral (select created_at from whatsapp.messages a
                where a.conversation_id=msg.conversation_id and a.from_type in ('ai','human') and a.created_at>msg.created_at
                order by a.created_at asc limit 1) r on true
-            where msg.organization_id=$1 and msg.from_type='user' and msg.created_at>=b.f and msg.created_at<b.t)
+            where msg.organization_id=$1 and msg.from_type='user' and msg.created_at>=b.f and msg.created_at<b.t and ($4::uuid is null or msg.conversation_id in (select id from ac)))
          select coalesce(round(avg(sec)),0)::int tmed from pairs where sec between 0 and 3600`,
         args)).rows[0];
       // Volume por dia DENTRO do período (limitado às últimas 92 barras p/ não explodir em períodos longos).
       const vol = (await c.query(
         `with b as (select coalesce($2::date, (now()-'30 days'::interval)::date) f, coalesce($3::date, now()::date) t),
+              ${AC},
               days as (select generate_series(greatest((select f from b), (select t from b)-91), (select t from b), '1 day'::interval)::date d)
          select to_char(days.d,'DD/MM') label,
-                (select count(*) from whatsapp.messages msg where msg.organization_id=$1 and msg.created_at::date=days.d)::int n
+                (select count(*) from whatsapp.messages msg where msg.organization_id=$1 and msg.created_at::date=days.d and ($4::uuid is null or msg.conversation_id in (select id from ac)))::int n
            from days order by days.d asc`,
         args)).rows;
       const total = (m.ai || 0) + (m.human || 0);
@@ -87,7 +108,7 @@ export class WacrmMetricsService {
 
   // KPIs EXTRA do cockpit (funil de conversão · SLA de 1ª resposta · pico de atendimento). 30 dias,
   // escopo por org. Alimenta os gráficos do Painel de KPIs do dono. Sem dado → zeros/null (front degrada).
-  async kpisExtra(orgId: string, from?: string | null, to?: string | null): Promise<{
+  async kpisExtra(orgId: string, from?: string | null, to?: string | null, agentId?: string | null): Promise<{
     funil: { prospecto: number; prospecto_in: number; lead: number; lead_in: number; lead_frios: number; lead_frios_in: number; lead_mornos: number; lead_mornos_in: number; lead_quentes: number; lead_quentes_in: number; oportunidade: number; oportunidade_in: number; ganho: number; ganho_in: number; perdido: number; perdido_in: number };
     sla: { pct5: number | null; mediana_s: number; respondidas: number; sem_resposta: number };
     pico: number[][];
@@ -96,7 +117,9 @@ export class WacrmMetricsService {
     if (!p || !orgId) return null;
     const c = await p.connect();
     // Período [from,to] (YYYY-MM-DD; default: SLA/pico = últimos 30 dias; funil = todos os deals se sem período).
-    const args = [orgId, from || null, to || null];
+    // $4 = agentId (Fatia B): null = todos; senão funil por deals.agent_id, SLA/pico por agente da conversa.
+    const args = [orgId, from || null, to || null, agentId || null];
+    const agConv = `($4::uuid is null or conversation_id in (select id from whatsapp.conversations cv where cv.organization_id=$1 and coalesce(cv.brain_agent_id,cv.agent_id)=$4::uuid))`;
     try {
       // Funil de conversão DEAL-CENTRIC (modelo canônico do Crasto): Prospecto → Lead → Oportunidade →
       // Ganho, com a etapa Lead subdividida por TEMPERATURA (frio/morno/quente, `deals.temperatura` que
@@ -128,6 +151,7 @@ export class WacrmMetricsService {
               where d.organization_id = $1
                 and d.created_at >= coalesce($2::date, '-infinity'::timestamptz)
                 and d.created_at <  coalesce($3::date + 1, 'infinity'::timestamptz)
+                and ($4::uuid is null or d.agent_id = $4::uuid)
            ) x`, args)).rows[0];
       const s = (await c.query(
         `select count(*) filter (where resp_s is not null)::int respondidas,
@@ -143,6 +167,7 @@ export class WacrmMetricsService {
                join lateral (select min(u.created_at) first_in from whatsapp.messages u
                               where u.conversation_id=cv.id and u.from_type='user') fi on true
               where cv.organization_id=$1 and fi.first_in >= coalesce($2::date, (now()-'30 days'::interval)::date) and fi.first_in < coalesce($3::date + 1, now()::date + 1)
+                and ($4::uuid is null or coalesce(cv.brain_agent_id,cv.agent_id)=$4::uuid)
            ) t`, args)).rows[0];
       // Pico por dia-da-semana × faixa de 3h. IMPORTANTE: o Supabase grava created_at em UTC —
       // sem converter, o pico saía ~3h adiantado (ex.: 12h reais viravam 15h) e o dono via horário
@@ -152,6 +177,7 @@ export class WacrmMetricsService {
                 floor(extract(hour from (created_at at time zone 'America/Sao_Paulo'))/3)::int b,
                 count(*)::int n
            from whatsapp.messages where organization_id=$1 and created_at >= coalesce($2::date, (now()-'30 days'::interval)::date) and created_at < coalesce($3::date + 1, now()::date + 1)
+            and ${agConv}
           group by 1,2`, args)).rows;
       const grid = Array.from({ length: 7 }, () => Array(8).fill(0));
       let mx = 1;

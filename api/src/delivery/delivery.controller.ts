@@ -132,8 +132,15 @@ export class DeliveryController {
   //    front mostra a EVOLUÇÃO (trend atual×anterior). A narrativa da Psiquê entra no item 1.4.
   //  • volume (mensagens/dia), jornada (marcos de implantação) e conquistas (módulos/serviços).
   // Regra de ouro: sem fonte = null (o front vira "—"), NUNCA número inventado.
+  // Lista de agentes da org (p/ o seletor do filtro do cockpit — Fatia B). Escopado por RLS.
+  @Get('cockpit/agents')
+  async cockpitAgents(@Req() req: any) {
+    const orgId = await this.db.asUser(this.uid(req), async (c) => (await c.query('select public.current_org_id() as id')).rows[0]?.id).catch(() => null);
+    return { rows: orgId ? await this.wacrm.agentsList(orgId).catch(() => []) : [] };
+  }
+
   @Get('cockpit/mine')
-  async cockpitMine(@Req() req: any, @Query('from') from?: string, @Query('to') to?: string) {
+  async cockpitMine(@Req() req: any, @Query('from') from?: string, @Query('to') to?: string, @Query('agent') agentId?: string) {
     // 1) orgId CONFIÁVEL do Portal (current_org_id via RLS) + conquistas/jornada da própria org.
     //    `.catch` garante que uma falha de DB NUNCA derruba o cockpit (front recebe [] → "—").
     const db = await this.db.asUser(this.uid(req), async (c) => {
@@ -166,7 +173,7 @@ export class DeliveryController {
     }).catch(() => ({ orgId: null as string | null, jornada: [] as any[], conquistas: [] as any[], baseline: [] as any[], narrativa: null as any, me: null as any }));
 
     // 2) RESULTADOS VIVOS direto do wacrm, escopados pelo orgId do Portal (confiável e em tempo real).
-    const r = db?.orgId ? await this.wacrm.resultados(db.orgId, from, to).catch(() => null) : null;
+    const r = db?.orgId ? await this.wacrm.resultados(db.orgId, from, to, agentId).catch(() => null) : null;
 
     // 2b) IDENTIDADE do cabeçalho (cargo + empresa) — Item 1. O cargo vem do cadastro de Pessoas/Sócios
     //     do detalhe do cliente (crm.people.funcao/role · crm.company_partners.role_title), casando pelo
@@ -223,7 +230,7 @@ export class DeliveryController {
     ];
 
     // KPIs EXTRA (funil/SLA/pico) + ROI (horas que a IA poupou = conversas conduzidas × duração média).
-    const kx = db?.orgId ? await this.wacrm.kpisExtra(db.orgId, from, to).catch(() => null) : null;
+    const kx = db?.orgId ? await this.wacrm.kpisExtra(db.orgId, from, to, agentId).catch(() => null) : null;
     const roiHoras = r?.conversas_ia && r?.dur_media ? Math.round((r.conversas_ia * r.dur_media) / 3600) : null;
 
     // ANÁLISE DE IA por KPI (DeepSeek, chave dos agentes) — números reais → sugestão do dono em cada
