@@ -301,19 +301,18 @@ export default function ConsolePermissoes() {
     } catch (e) { toast.err(errorMessage(e)); setNameEd((s) => ({ ...s, busy: false })); }
   }
 
-  async function excluirUsuario() {
-    if (!alvo) return;
-    const pe = alvo.pessoa;
+  // Excluir usuário — reutilizável na LINHA e no modal. Remove o acesso ao WhatsApp CRM (revoke) e
+  // a identidade no Portal (Auth + profiles). Confirmação forte (ação irreversível).
+  async function excluirUsuario(pe: Pessoa, orgId: string) {
     if (!confirm(t("Excluir {nome} ({email})? Esta ação remove o acesso ao Portal e ao WhatsApp CRM.", { nome: pe.nome, email: pe.email }))) return;
     setBusy(true);
     try {
-      if (pe.crm) await services.crmAccess.revoke(alvo.orgId, pe.crm.id).catch(() => {});
+      if (pe.crm) await services.crmAccess.revoke(orgId, pe.crm.id).catch(() => {});
       if (pe.portal) {
         const r: any = await services.identity.users.remove(pe.portal.id);
         if (r?.error) throw new Error(r.error);
       }
-      const orgId = alvo.orgId;
-      fecharPermissoes();
+      if (alvo) fecharPermissoes();
       await reload(); if (crmUsers[orgId]) loadCrmUsers(orgId);
       toast.ok(t("Usuário excluído ✓"));
     } catch (e) { toast.err(errorMessage(e)); } finally { setBusy(false); }
@@ -473,6 +472,13 @@ export default function ConsolePermissoes() {
                         : abrirPermissoes(pe, c.name, c.organization_id)}>
                         <span className="crasto-btn__icon"><SlidersHorizontal size={14} /></span><span className="crasto-btn__label">{t("Permissões")}</span>
                       </button>
+                      {/* Excluir na LINHA (o Crasto pediu — antes só existia dentro do modal). Escondido
+                          para DONOS (evita orfanar a empresa); dono é excluído pela via de rebaixar antes. */}
+                      {(pe.portal || pe.crm) && pe.portal?.role !== "client_owner" && (
+                        <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} title={t("Excluir usuário")} style={{ color: "var(--crasto-red, #E74C3C)" }} onClick={() => excluirUsuario(pe, c.organization_id)}>
+                          <span className="crasto-btn__icon"><Trash2 size={13} /></span><span className="crasto-btn__label">{t("Excluir")}</span>
+                        </button>
+                      )}
                     </div>
                   ))}
                 </>);
@@ -526,7 +532,7 @@ export default function ConsolePermissoes() {
                 </div>
               )}
             </div>
-            <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} onClick={excluirUsuario} title={t("Excluir usuário")} style={{ color: "var(--crasto-red, #E74C3C)" }}>
+            <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} onClick={() => alvo && excluirUsuario(alvo.pessoa, alvo.orgId)} title={t("Excluir usuário")} style={{ color: "var(--crasto-red, #E74C3C)" }}>
               <span className="crasto-btn__icon"><Trash2 size={14} /></span><span className="crasto-btn__label">{t("Excluir")}</span>
             </button>
           </div>
