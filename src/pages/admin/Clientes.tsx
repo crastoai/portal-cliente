@@ -4,7 +4,7 @@
 // colunas ordenáveis, timestamps completos (dd/mm/aaaa hh:mm), ações inline (sem lixeira).
 // ============================================================================
 import { useMemo, useState } from "react";
-import { Plus, Search, Eye, Building2, Power, ArrowRightLeft, KeyRound, ShieldCheck, ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown, Filter, ChevronDown, X } from "lucide-react";
+import { Plus, Search, Eye, Power, ArrowRightLeft, ShieldCheck, Trash2, ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown, Filter, ChevronDown, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, Empty, useAsync, money, initials, Field, Pill, useToast } from "../../ui/ui";
@@ -12,7 +12,6 @@ import Modal from "../../ui/Modal";
 import { useT } from "../../lib/i18n";
 import { fetchClients, fmtDateTime, type Client } from "../../lib/adminData";
 import { COUNTRIES, countryOf, STAGES, PIPELINE_STAGES, WON_STAGE, LOST_STAGE, stageOf, tempOf, DIAL_CODES } from "../../lib/countries";
-import { preview } from "../../lib/preview";
 import PersonaStats from "./PersonaStats";
 
 const EMPTY = { name: "", stage: "prospecto", country: "BR", tax_id: "", founded_on: "", website: "", owner_name: "", whatsapp: "", ddi: "+55", plan: "", email: "", contact_name: "" };
@@ -48,6 +47,10 @@ export default function Clientes() {
   const [f, setF] = useState({ ...EMPTY });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  // Excluir empresa (modal digite-o-nome). delAlvo = empresa a excluir; delNome = texto digitado.
+  const [delAlvo, setDelAlvo] = useState<Client | null>(null);
+  const [delNome, setDelNome] = useState("");
+  const [delBusy, setDelBusy] = useState(false);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { todos: all.length };
@@ -125,7 +128,6 @@ export default function Clientes() {
   // ── ações ──
   const stop = (e: React.MouseEvent) => e.stopPropagation();
   function ver(c: Client, e: React.MouseEvent) { stop(e); nav(`/admin/cliente/${c.id}`); }
-  function entrar(c: Client, e: React.MouseEvent) { stop(e); preview.set(c.id, c.name); nav("/app"); }
   async function ativar(c: Client, e: React.MouseEvent) {
     stop(e); const next = (c.org_status ?? "active") === "active" ? "inactive" : "active";
     try { await api.identity.organizations.update(c.id, { status: next }); toast.ok(next === "active" ? t("Empresa ativada") : t("Empresa inativada")); reload(); }
@@ -142,13 +144,21 @@ export default function Clientes() {
     try { await api.identity.organizations.setStage(c.id, next.key); toast.ok(t("Promovido para {s}", { s: t(next.label) })); reload(); }
     catch { toast.err(t("Erro ao promover.")); }
   }
-  async function resetSenha(c: Client, e: React.MouseEvent) {
-    stop(e); if (!c.email) { toast.err(t("Sem e-mail de acesso cadastrado.")); return; }
-    if (!confirm(t("Enviar link de redefinição de senha para {e}?", { e: c.email }))) return;
-    try { await api.identity.auth.requestReset(c.email); toast.ok(t("Link de redefinição enviado.")); }
-    catch { toast.err(t("Erro ao enviar o reset.")); }
+  // "Permissões & acessos" da empresa → tela por-usuário (Acessar como / Reenviar / Permissões /
+  // Excluir usuário) já aberta nessa empresa (deep-link `?org=`). Consolidou entrar+resetar+editar-acessos.
+  function acessos(c: Client, e: React.MouseEvent) { stop(e); nav(`/admin/console/permissoes?org=${c.id}`); }
+  // Excluir empresa — IRREVERSÍVEL (admin-delete-client: apaga logins + org em cascata → some tudo).
+  // Confirmação por digitar o nome (delNome === delAlvo.name). Só admin (checado no backend/edge).
+  async function excluirEmpresa() {
+    if (!delAlvo || delNome.trim() !== (delAlvo.name || "").trim()) return;
+    setDelBusy(true);
+    try {
+      const r = await api.identity.clients.remove(delAlvo.id);
+      if (!r.ok) throw new Error(r.error || t("Falha ao excluir a empresa."));
+      toast.ok(t("Empresa excluída ✓")); setDelAlvo(null); setDelNome(""); reload();
+    } catch (e) { toast.err(errorMessage(e)); }
+    finally { setDelBusy(false); }
   }
-  function acessos(c: Client, e: React.MouseEvent) { stop(e); nav(`/admin/cliente/${c.id}?aba=acessos`); }
 
   async function submit() {
     if (!f.name.trim()) { setErr(t("Informe o nome da empresa.")); return; }
@@ -288,11 +298,10 @@ export default function Clientes() {
                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                       <span className="rowacts">
                         <button className="iconbtn" title={t("Ver detalhes")} onClick={(e) => ver(c, e)}><Eye size={16} /></button>
-                        <button className="iconbtn" title={t("Entrar na visão do cliente")} onClick={(e) => entrar(c, e)}><Building2 size={16} /></button>
+                        <button className="iconbtn" title={t("Permissões & acessos (acessar como, reenviar, excluir usuário)")} onClick={(e) => acessos(c, e)}><ShieldCheck size={16} color="var(--crasto-blue)" /></button>
                         <button className="iconbtn" title={(c.org_status ?? "active") === "active" ? t("Inativar") : t("Ativar")} onClick={(e) => ativar(c, e)}><Power size={16} color={(c.org_status ?? "active") === "active" ? "#1D9E75" : "var(--crasto-text-faint)"} /></button>
                         <button className="iconbtn" title={t("Promover de estágio")} onClick={(e) => promover(c, e)}><ArrowRightLeft size={16} /></button>
-                        <button className="iconbtn" title={t("Resetar senha do portal")} onClick={(e) => resetSenha(c, e)}><KeyRound size={16} /></button>
-                        <button className="iconbtn" title={t("Editar acessos")} onClick={(e) => acessos(c, e)}><ShieldCheck size={16} color="var(--crasto-blue)" /></button>
+                        <button className="iconbtn" title={t("Excluir empresa (irreversível)")} onClick={(e) => { stop(e); setDelAlvo(c); setDelNome(""); }}><Trash2 size={16} color="var(--crasto-red, #E74C3C)" /></button>
                       </span>
                     </td>
                   </tr>
@@ -306,13 +315,23 @@ export default function Clientes() {
       {/* glossário das ações */}
       <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginTop: 12, fontSize: 11.5, color: "var(--crasto-text-muted)" }}>
         <span><Eye size={13} style={{ verticalAlign: "-2px" }} /> {t("ver detalhes")}</span>
-        <span><Building2 size={13} style={{ verticalAlign: "-2px" }} /> {t("entrar na visão do cliente")}</span>
+        <span><ShieldCheck size={13} style={{ verticalAlign: "-2px" }} /> {t("permissões & acessos (por usuário: acessar como, reenviar, excluir)")}</span>
         <span><Power size={13} style={{ verticalAlign: "-2px" }} /> {t("ativar / inativar")}</span>
         <span><ArrowRightLeft size={13} style={{ verticalAlign: "-2px" }} /> {t("promover de estágio")}</span>
-        <span><KeyRound size={13} style={{ verticalAlign: "-2px" }} /> {t("resetar senha")}</span>
-        <span><ShieldCheck size={13} style={{ verticalAlign: "-2px" }} /> {t("editar acessos")}</span>
-        <span style={{ color: "var(--crasto-text-body)" }}>{t("sem lixeira — excluir só com aval de Carlos/John")}</span>
+        <span style={{ color: "var(--crasto-red, #E74C3C)" }}><Trash2 size={13} style={{ verticalAlign: "-2px" }} /> {t("excluir empresa (IRREVERSÍVEL — apaga tudo em cascata)")}</span>
       </div>
+
+      <Modal title={t("Excluir empresa")} open={!!delAlvo} onClose={() => { setDelAlvo(null); setDelNome(""); }}
+        footer={<>
+          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => { setDelAlvo(null); setDelNome(""); }}><span className="crasto-btn__label">{t("Cancelar")}</span></button>
+          <button className="crasto-btn crasto-btn--sm" style={{ background: "var(--crasto-red, #E74C3C)", color: "#fff", borderColor: "transparent" }} disabled={delBusy || delNome.trim() !== (delAlvo?.name || "").trim()} onClick={excluirEmpresa}><span className="crasto-btn__icon"><Trash2 size={14} /></span><span className="crasto-btn__label">{delBusy ? t("Excluindo…") : t("Excluir definitivamente")}</span></button>
+        </>}>
+        {delAlvo && (<>
+          <div className="alert alert--warn" style={{ marginBottom: 12 }}>⚠️ {t("Ação IRREVERSÍVEL. Apaga a empresa, TODOS os usuários (Portal + login) e TODOS os dados em cascata: financeiro, reuniões, módulos, histórico. Não tem lixeira.")}</div>
+          <Field label={t("Para confirmar, digite o nome exato da empresa:")}><input value={delNome} onChange={(e) => setDelNome(e.target.value)} placeholder={delAlvo.name} autoFocus /></Field>
+          <div className="note" style={{ marginTop: 8 }}><span>{t("Empresa")}: <b>{delAlvo.name}</b></span></div>
+        </>)}
+      </Modal>
 
       <Modal title={t("Nova empresa")} open={open} onClose={() => setOpen(false)}
         footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={submit}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Cadastrar")}</span></button></>}>
