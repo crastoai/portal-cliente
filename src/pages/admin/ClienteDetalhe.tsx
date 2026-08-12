@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { MessageCircle, Search, Send, Grid3x3, Pencil, Trash2, UserPlus, Plus, Upload, Download, FileText, Building2, Eye } from "lucide-react";
+import { MessageCircle, Search, Send, Grid3x3, Pencil, Trash2, UserPlus, Plus, Upload, Download, FileText, Building2, Eye, Power, ShieldCheck } from "lucide-react";
 import { preview } from "../../lib/preview";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, initials, Field, money, prettyName } from "../../ui/ui";
@@ -160,6 +160,15 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
     if (r.ok) nav("/admin/clientes", { replace: true });
     else flash(tr("Erro ao apagar:") + " " + (r.error || tr("tente novamente")));
   }
+  // Ativar/inativar a empresa aqui dentro também (mesma ação da lista). Coluna `status` (org do getById).
+  async function ativarInativar() {
+    const ativo = ((org.status ?? org.org_status) ?? "active") === "active";
+    const next = ativo ? "inactive" : "active";
+    setBusy(true);
+    try { await api.identity.organizations.update(id!, { status: next }); flash(next === "active" ? tr("Empresa ativada ✓") : tr("Empresa inativada ✓")); reload(); }
+    catch (e) { flash(tr("Erro ao mudar o status:") + " " + errorMessage(e)); }
+    finally { setBusy(false); }
+  }
   async function addPerson() { if (!person.full_name.trim()) return; await api.crm.people.add({ organization_id: id, full_name: person.full_name.trim(), role: person.role || null, funcao: person.funcao || null, email: person.email || null, birthday: person.birthday || null, is_primary: person.is_primary, disc_tipo: person.disc_tipo || null, disc_data: person.disc_data || null, notes: person.notes || null }); setPerson({ full_name: "", role: "", funcao: "", email: "", birthday: "", is_primary: false, disc_tipo: "", disc_data: "", notes: "" }); reload(); }
   async function addPhone() { if (!phone.number.trim()) return; await api.crm.phones.add({ organization_id: id, label: phone.label, country_code: phone.country_code, number: phone.number.trim(), person_id: phone.person_id || null }); setPhone({ label: "mobile", country_code: "+55", number: "", person_id: "" }); reload(); }
   function startEditPerson(p: any) { setEpId(p.id); setEp({ full_name: p.full_name || "", role: p.role || "", funcao: p.funcao || "", email: p.email || "", birthday: p.birthday || "", is_primary: !!p.is_primary, disc_tipo: p.disc_tipo || "", disc_data: p.disc_data || "", notes: p.notes || "" }); }
@@ -298,6 +307,8 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
       <PageHead eyebrow={`CRM · ${co.flag} ${co.name}`} title={org.name} sub={`${co.idLabel}: ${org.tax_id || "—"}  ·  ${org.website || "sem site"}`}
         right={<>
           <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => { preview.set(id!, org.name); nav("/app"); }}><span className="crasto-btn__icon"><Eye size={14} /></span><span className="crasto-btn__label">{tr("Visualizar cliente")}</span></button>
+          <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => nav(`/admin/console/permissoes?org=${id}`)}><span className="crasto-btn__icon"><ShieldCheck size={14} /></span><span className="crasto-btn__label">{tr("Permissões & acessos")}</span></button>
+          <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={ativarInativar} disabled={busy}><span className="crasto-btn__icon"><Power size={14} color={((org.status ?? org.org_status) ?? "active") === "active" ? "#1D9E75" : "var(--crasto-text-faint)"} /></span><span className="crasto-btn__label">{((org.status ?? org.org_status) ?? "active") === "active" ? tr("Inativar") : tr("Ativar")}</span></button>
           <button className="crasto-btn crasto-btn--destructive crasto-btn--sm" onClick={del} disabled={busy}><span className="crasto-btn__icon"><Trash2 size={14} /></span><span className="crasto-btn__label">{tr("Excluir")}</span></button>
         </>} />
 
