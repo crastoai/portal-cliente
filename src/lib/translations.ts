@@ -18,6 +18,7 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "nenhum módulo": { en: "no modules", es: "sin módulos" },
   "{n} módulo": { en: "{n} module", es: "{n} módulo" },
   "Nenhum módulo contratado ainda.": { en: "No modules contracted yet.", es: "Aún no hay módulos contratados." },
+  "Ver os clientes ativos na lista abaixo": { en: "See active clients in the list below", es: "Ver los clientes activos en la lista de abajo" },
   " — isento (venda especial)": { en: " — exempt (special sale)", es: " — exento (venta especial)" },
   " — sem NF": { en: " — no invoice", es: " — sin factura" },
   " · chave salva": { en: " · key saved", es: " · clave guardada" },

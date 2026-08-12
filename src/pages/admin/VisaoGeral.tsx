@@ -46,6 +46,9 @@ export default function VisaoGeral() {
   const agByOrg = data?.agentsOv ?? {};
   const modules = clients.reduce((s, c) => s + (c.modules?.length ?? 0), 0);
   const risk = clients.filter((c) => healthScore(c).tone === "crit").length;
+  // Clientes ATIVOS = quem é cliente de fato (stage='cliente') e não deu churn. NÃO é o total de
+  // organizações (que inclui prospecto/lead/oportunidade). Antes o card mostrava clients.length (todas as orgs).
+  const clientesAtivos = clients.filter((c) => c.stage === "cliente" && !c.churned_em).length;
   // Módulos por cliente (RPC nova): totais reais entregues (rollout_status='delivered') × contratados.
   // Fallback: se a RPC falhar (lista vazia), o card volta ao formato antigo ({modules} / por cliente).
   const modsByClient = (data?.modsByClient ?? []) as ModByClient[];
@@ -135,7 +138,7 @@ export default function VisaoGeral() {
   // exatas que compõem o número. Fidelidade: "Em risco" reusa o bucket health=risco (= tone crit).
   const tableRef = useRef<HTMLDivElement>(null);
   const jumpToList = () => tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  const verTodos = () => { setQ(""); clearAll(); jumpToList(); };
+  const verClientes = () => { setQ(""); clearAll(); setStage("cliente"); jumpToList(); };
   const verModulos = () => { setQ(""); clearAll(); setSortKey("mods"); setSortDir("desc"); jumpToList(); };
   const verRisco = () => { setQ(""); setStage("todos"); setColF({ health: ["risco"], agent: [], acesso: [] }); jumpToList(); };
 
@@ -269,7 +272,7 @@ export default function VisaoGeral() {
       <div className="kpis kpis--5">
         <button className="kpi navy kpi-btn" onClick={() => navigate("/admin/financeiro?tab=receber&rec=1")}><div className="lab">{t("MRR (receita recorrente)")}</div><div className="val tnum">{money(mrr)}</div><div className="delta">{t("recorrente · financeiro")} <ArrowRight size={11} /></div></button>
         <button className="kpi kpi-btn" onClick={() => navigate("/admin/financeiro?tab=receber")}><div className="lab">{t("A receber")}</div><div className="val tnum">{money(aReceber)}</div><div className="delta">{t("em aberto · financeiro")} <ArrowRight size={11} /></div></button>
-        <button className="kpi kpi-btn" onClick={verTodos} title={t("Ver todos os clientes na lista abaixo")}><div className="lab">{t("Clientes ativos")}</div><div className="val tnum">{clients.length}</div><div className="delta">{t("no portal")} <ArrowDown size={11} /></div></button>
+        <button className="kpi kpi-btn" onClick={verClientes} title={t("Ver os clientes ativos na lista abaixo")}><div className="lab">{t("Clientes ativos")}</div><div className="val tnum">{clientesAtivos}</div><div className="delta">{t("no portal")} <ArrowDown size={11} /></div></button>
         <button className="kpi g kpi-btn" onClick={() => (hasMods ? setModOpen(true) : verModulos())} title={t("Ver os módulos entregues por cliente")}>
           <div className="lab">{t("Módulos")}</div>
           {hasMods ? (<>
