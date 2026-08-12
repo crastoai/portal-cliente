@@ -79,19 +79,14 @@ function AgentPicker({ agents, value, onChange, t }: { agents: Agent[]; value: s
     if (r) setPos({ top: r.bottom + 6, left: r.left, width: Math.max(240, r.width) });
     setOpen(true);
   };
-  // Fecha por CLIQUE-FORA (pointerdown em captura → roda ANTES do onClick, sem corrida) e ao rolar.
+  // Fecha ao rolar/redimensionar. O clique-FORA fecha pelo BACKDROP abaixo (não por listener de
+  // pointerdown em captura — esse fechava ANTES do onClick do item aplicar = o bug do "clicar 2x").
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: PointerEvent) => {
-      const tgt = e.target as Node;
-      if (panelRef.current?.contains(tgt) || btnRef.current?.contains(tgt)) return;
-      setOpen(false);
-    };
     const fechar = () => setOpen(false);
-    document.addEventListener("pointerdown", onDown, true);
     window.addEventListener("scroll", fechar, true);
     window.addEventListener("resize", fechar);
-    return () => { document.removeEventListener("pointerdown", onDown, true); window.removeEventListener("scroll", fechar, true); window.removeEventListener("resize", fechar); };
+    return () => { window.removeEventListener("scroll", fechar, true); window.removeEventListener("resize", fechar); };
   }, [open]);
 
   const pick = (v: string | null) => { onChange(v); setOpen(false); };
@@ -104,6 +99,9 @@ function AgentPicker({ agents, value, onChange, t }: { agents: Agent[]; value: s
         <ChevronDown size={14} style={{ opacity: 0.6, flex: "0 0 auto" }} />
       </button>
       {open && pos && createPortal(
+        <>
+          {/* backdrop: 1 clique fora fecha; fica ATRÁS do painel, então o clique no item aplica de 1ª */}
+          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 99998 }} />
         <div ref={panelRef} className="crm-switch-panel crm-switch-panel--portal" style={{ position: "fixed", top: pos.top, left: pos.left, minWidth: pos.width, zIndex: 99999 }}>
           <button className="crm-switch-item" onClick={() => pick(null)}>
             <MessageSquare size={15} /> <b>{t("Todos os Agentes")}</b>
@@ -115,7 +113,8 @@ function AgentPicker({ agents, value, onChange, t }: { agents: Agent[]; value: s
             </button>
           ))}
           {agents.length === 0 && <div className="crm-switch-empty">{t("Nenhum agente configurado.")}</div>}
-        </div>,
+        </div>
+        </>,
         document.body,
       )}
     </div>
