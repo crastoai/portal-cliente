@@ -16,7 +16,7 @@ export class WacrmMetricsService {
   }
 
   // Resultados dos últimos 30 dias (+ trend vs 30 anteriores). SEMPRE filtra organization_id=$1.
-  async resultados(orgId: string): Promise<{
+  async resultados(orgId: string, from?: string | null, to?: string | null): Promise<{
     tempo_resposta: number | null; automacao: number | null; atendimentos: number | null; novos_leads: number | null;
     conversas_ia: number | null; dur_media: number | null;
     trend: { atendimentos: number | null; novos_leads: number | null }; volume: { label: string; n: number }[];
@@ -24,43 +24,50 @@ export class WacrmMetricsService {
     const p = this.db();
     if (!p || !orgId) return null;
     const c = await p.connect();
+    // Janela [f,t) = período escolhido (default: últimos 30 dias). Mesma convenção dos drill-downs:
+    // from/to = YYYY-MM-DD; t = to::date + 1 (inclui o dia inteiro do "to"). Período ANTERIOR (pr) =
+    // janela de MESMA duração imediatamente antes de f → comparativo "Antes × Depois" correto p/ qualquer período.
+    const args = [orgId, from || null, to || null];
     try {
       const m = (await c.query(
-        `with w as (select now()-'30 days'::interval f, now() t),
-              pr as (select now()-'60 days'::interval f, now()-'30 days'::interval t)
+        `with b as (select coalesce($2::date, (now()-'30 days'::interval)::date) f, coalesce($3::date + 1, now()::date + 1) t),
+              w as (select f, t from b),
+              pr as (select f-(t-f) f, f t from b)
          select
            (select count(distinct msg.conversation_id) from whatsapp.messages msg, w  where msg.organization_id=$1 and msg.created_at>=w.f  and msg.created_at<w.t)::int  atend,
            (select count(distinct msg.conversation_id) from whatsapp.messages msg, pr where msg.organization_id=$1 and msg.created_at>=pr.f and msg.created_at<pr.t)::int atend_prev,
            (select count(*) from whatsapp.contacts ct, w  where ct.organization_id=$1 and ct.created_at>=w.f  and ct.created_at<w.t)::int  leads,
            (select count(*) from whatsapp.contacts ct, pr where ct.organization_id=$1 and ct.created_at>=pr.f and ct.created_at<pr.t)::int leads_prev,
-           (select count(*) filter (where from_type='ai')    from whatsapp.messages, w where organization_id=$1 and created_at>=w.f)::int ai,
-           (select count(*) filter (where from_type='human') from whatsapp.messages, w where organization_id=$1 and created_at>=w.f)::int human,
+           (select count(*) filter (where from_type='ai')    from whatsapp.messages, w where organization_id=$1 and created_at>=w.f and created_at<w.t)::int ai,
+           (select count(*) filter (where from_type='human') from whatsapp.messages, w where organization_id=$1 and created_at>=w.f and created_at<w.t)::int human,
            (select count(distinct conversation_id) from whatsapp.messages, w where organization_id=$1 and from_type='ai' and created_at>=w.f and created_at<w.t)::int conversas_ia`,
-        [orgId])).rows[0];
-      // Duração média de conversa (30d) — proxy medido de "tempo de atendimento" p/ derivar horas.
+        args)).rows[0];
+      // Duração média de conversa (período) — proxy medido de "tempo de atendimento" p/ derivar horas.
       const dm = (await c.query(
-        `with w as (select now()-'30 days'::interval f),
-              c as (select conversation_id, extract(epoch from (max(created_at)-min(created_at))) dur
-                      from whatsapp.messages, w where organization_id=$1 and created_at>=w.f group by conversation_id)
-         select coalesce(round(avg(dur) filter (where dur between 30 and 7200)),0)::int dur_media from c`,
-        [orgId])).rows[0];
+        `with b as (select coalesce($2::date, (now()-'30 days'::interval)::date) f, coalesce($3::date + 1, now()::date + 1) t),
+              cc as (select conversation_id, extract(epoch from (max(created_at)-min(created_at))) dur
+                      from whatsapp.messages, b where organization_id=$1 and created_at>=b.f and created_at<b.t group by conversation_id)
+         select coalesce(round(avg(dur) filter (where dur between 30 and 7200)),0)::int dur_media from cc`,
+        args)).rows[0];
       const tm = (await c.query(
-        `with w as (select now()-'30 days'::interval f, now() t),
+        `with b as (select coalesce($2::date, (now()-'30 days'::interval)::date) f, coalesce($3::date + 1, now()::date + 1) t),
          pairs as (
            select extract(epoch from (r.created_at - msg.created_at)) sec
-             from whatsapp.messages msg, w
+             from whatsapp.messages msg, b
              join lateral (select created_at from whatsapp.messages a
                where a.conversation_id=msg.conversation_id and a.from_type in ('ai','human') and a.created_at>msg.created_at
                order by a.created_at asc limit 1) r on true
-            where msg.organization_id=$1 and msg.from_type='user' and msg.created_at>=w.f and msg.created_at<w.t)
+            where msg.organization_id=$1 and msg.from_type='user' and msg.created_at>=b.f and msg.created_at<b.t)
          select coalesce(round(avg(sec)),0)::int tmed from pairs where sec between 0 and 3600`,
-        [orgId])).rows[0];
+        args)).rows[0];
+      // Volume por dia DENTRO do período (limitado às últimas 92 barras p/ não explodir em períodos longos).
       const vol = (await c.query(
-        `with days as (select generate_series(0,29) i)
-         select to_char((now()::date - i),'DD/MM') label,
-                (select count(*) from whatsapp.messages msg where msg.organization_id=$1 and msg.created_at::date=(now()::date - i))::int n
-           from days order by i desc`,
-        [orgId])).rows;
+        `with b as (select coalesce($2::date, (now()-'30 days'::interval)::date) f, coalesce($3::date, now()::date) t),
+              days as (select generate_series(greatest((select f from b), (select t from b)-91), (select t from b), '1 day'::interval)::date d)
+         select to_char(days.d,'DD/MM') label,
+                (select count(*) from whatsapp.messages msg where msg.organization_id=$1 and msg.created_at::date=days.d)::int n
+           from days order by days.d asc`,
+        args)).rows;
       const total = (m.ai || 0) + (m.human || 0);
       const pct = (cur: number, prev: number) => (prev === 0 ? (cur > 0 ? 100 : null) : Math.round(((cur - prev) / prev) * 100));
       return {
@@ -80,7 +87,7 @@ export class WacrmMetricsService {
 
   // KPIs EXTRA do cockpit (funil de conversão · SLA de 1ª resposta · pico de atendimento). 30 dias,
   // escopo por org. Alimenta os gráficos do Painel de KPIs do dono. Sem dado → zeros/null (front degrada).
-  async kpisExtra(orgId: string): Promise<{
+  async kpisExtra(orgId: string, from?: string | null, to?: string | null): Promise<{
     funil: { prospecto: number; prospecto_in: number; lead: number; lead_in: number; lead_frios: number; lead_frios_in: number; lead_mornos: number; lead_mornos_in: number; lead_quentes: number; lead_quentes_in: number; oportunidade: number; oportunidade_in: number; ganho: number; ganho_in: number; perdido: number; perdido_in: number };
     sla: { pct5: number | null; mediana_s: number; respondidas: number; sem_resposta: number };
     pico: number[][];
@@ -88,6 +95,8 @@ export class WacrmMetricsService {
     const p = this.db();
     if (!p || !orgId) return null;
     const c = await p.connect();
+    // Período [from,to] (YYYY-MM-DD; default: SLA/pico = últimos 30 dias; funil = todos os deals se sem período).
+    const args = [orgId, from || null, to || null];
     try {
       // Funil de conversão DEAL-CENTRIC (modelo canônico do Crasto): Prospecto → Lead → Oportunidade →
       // Ganho, com a etapa Lead subdividida por TEMPERATURA (frio/morno/quente, `deals.temperatura` que
@@ -117,7 +126,9 @@ export class WacrmMetricsService {
                from whatsapp.deals d
                join whatsapp.pipeline_stages s on s.id = d.stage_id
               where d.organization_id = $1
-           ) x`, [orgId])).rows[0];
+                and d.created_at >= coalesce($2::date, '-infinity'::timestamptz)
+                and d.created_at <  coalesce($3::date + 1, 'infinity'::timestamptz)
+           ) x`, args)).rows[0];
       const s = (await c.query(
         `select count(*) filter (where resp_s is not null)::int respondidas,
                 count(*) filter (where resp_s is not null and resp_s<=300)::int em5,
@@ -131,8 +142,8 @@ export class WacrmMetricsService {
                from whatsapp.conversations cv
                join lateral (select min(u.created_at) first_in from whatsapp.messages u
                               where u.conversation_id=cv.id and u.from_type='user') fi on true
-              where cv.organization_id=$1 and fi.first_in >= now()-'30 days'::interval
-           ) t`, [orgId])).rows[0];
+              where cv.organization_id=$1 and fi.first_in >= coalesce($2::date, (now()-'30 days'::interval)::date) and fi.first_in < coalesce($3::date + 1, now()::date + 1)
+           ) t`, args)).rows[0];
       // Pico por dia-da-semana × faixa de 3h. IMPORTANTE: o Supabase grava created_at em UTC —
       // sem converter, o pico saía ~3h adiantado (ex.: 12h reais viravam 15h) e o dono via horário
       // errado. `at time zone 'America/Sao_Paulo'` traz a hora LOCAL do dono antes de extrair dia/hora.
@@ -140,8 +151,8 @@ export class WacrmMetricsService {
         `select extract(isodow from (created_at at time zone 'America/Sao_Paulo'))::int d,
                 floor(extract(hour from (created_at at time zone 'America/Sao_Paulo'))/3)::int b,
                 count(*)::int n
-           from whatsapp.messages where organization_id=$1 and created_at >= now()-'30 days'::interval
-          group by 1,2`, [orgId])).rows;
+           from whatsapp.messages where organization_id=$1 and created_at >= coalesce($2::date, (now()-'30 days'::interval)::date) and created_at < coalesce($3::date + 1, now()::date + 1)
+          group by 1,2`, args)).rows;
       const grid = Array.from({ length: 7 }, () => Array(8).fill(0));
       let mx = 1;
       for (const row of pk) { const d = row.d - 1, b = row.b; if (d >= 0 && d < 7 && b >= 0 && b < 8) { grid[d][b] = row.n; if (row.n > mx) mx = row.n; } }

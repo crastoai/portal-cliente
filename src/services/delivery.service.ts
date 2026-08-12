@@ -208,7 +208,13 @@ export type LeadDetail = { nome: string; phone: string | null; email: string | n
 export type HoursRow = { id: string; nome: string; email: string | null; online: boolean; last_seen_at: string | null; min_hoje: number; min_semana: number; min_mes: number; min_periodo: number; sessoes: number; ultimo: string | null };
 export type SessionRow = { id: string; login: string; logout: string; minutos: number };
 export const cockpit = {
-  getMine: async () => api.get<CockpitMine>(`/api/delivery/cockpit/mine`),
+  getMine: async (from?: string | null, to?: string | null) => {
+    const qs = new URLSearchParams();
+    if (from) qs.set("from", from);
+    if (to) qs.set("to", to);
+    const s = qs.toString();
+    return api.get<CockpitMine>(`/api/delivery/cockpit/mine${s ? `?${s}` : ""}`);
+  },
   // Drill-down (Fase 1): tempo de resposta por colaborador — chamar em loop (~30s) p/ ficar ao vivo.
   // from/to = período (YYYY-MM-DD); sem eles o backend usa os últimos 30 dias.
   responseBreakdown: async (from?: string | null, to?: string | null) => {

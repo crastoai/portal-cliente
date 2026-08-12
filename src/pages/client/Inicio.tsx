@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MessageCircle, Search, Send, Wallet, ArrowRight, AlertTriangle, Clock, FileSignature, Headphones, Bot, Activity, Trophy, Package, Users, X, Sparkles, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { services } from "../../services";
@@ -111,7 +111,25 @@ export default function Inicio() {
   const [implOpen, setImplOpen] = useState(false);
   const [detMod, setDetMod] = useState<Mod | null>(null);
   const agent = useFetch<import("../../services/delivery.service").AgentUsage>(() => services.delivery.agentUsage.getMine(), []).data;
-  const cock = useFetch<import("../../services/delivery.service").CockpitMine>(() => services.delivery.cockpit.getMine(), []).data;
+  // Filtro de PERÍODO do cockpit (Fatia A): presets + datas personalizadas → range {from,to} (YYYY-MM-DD).
+  // null/null = default do backend (últimos 30 dias); o comparativo "Antes × Depois" usa o período anterior equivalente.
+  const [period, setPeriod] = useState<"hoje" | "7d" | "30d" | "mes" | "mespassado" | "custom">("30d");
+  const [custFrom, setCustFrom] = useState("");
+  const [custTo, setCustTo] = useState("");
+  const range = useMemo(() => {
+    const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const now = new Date(); const hoje = ymd(now);
+    const back = (n: number) => { const x = new Date(now); x.setDate(x.getDate() - n); return ymd(x); };
+    switch (period) {
+      case "hoje": return { from: hoje, to: hoje };
+      case "7d": return { from: back(6), to: hoje };
+      case "mes": return { from: ymd(new Date(now.getFullYear(), now.getMonth(), 1)), to: hoje };
+      case "mespassado": return { from: ymd(new Date(now.getFullYear(), now.getMonth() - 1, 1)), to: ymd(new Date(now.getFullYear(), now.getMonth(), 0)) };
+      case "custom": return { from: custFrom || null, to: custTo || null };
+      default: return { from: null as string | null, to: null as string | null };
+    }
+  }, [period, custFrom, custTo]);
+  const cock = useFetch<import("../../services/delivery.service").CockpitMine>(() => services.delivery.cockpit.getMine(range.from, range.to), [range.from, range.to]).data;
   // Defesa em profundidade: financeiro/negócios do Início só para quem tem a permissão "Financeiro"
   // (dono ou membro liberado). Começa false para o membro nunca ver nem por um instante; o backend
   // (my_faturas + pode_ver_financeiro) já protege o dado, isto só limpa a tela.
@@ -438,6 +456,31 @@ export default function Inicio() {
       {/* ═══ MEUS RESULTADOS ═══ o que a IA gerou (antes×depois real). O "antes" entra com o
           Baseline de Entrada (item 1.3) e a narrativa com a Psiquê (item 1.4). Zero número fixo. */}
       {tab === "resultados" && (<>
+        {/* Filtro de PERÍODO (Fatia A) — dirige TODAS as métricas do cockpit abaixo (topo + Antes×Depois + Painel de KPIs). */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+          <span style={{ fontSize: 12, color: "var(--crasto-text-muted)", fontWeight: 600, marginRight: 2 }}>{t("Período")}:</span>
+          {(([["hoje", "Hoje"], ["7d", "7 dias"], ["30d", "30 dias"], ["mes", "Mês atual"], ["mespassado", "Mês passado"], ["custom", "Personalizado"]]) as [typeof period, string][]).map(([k, l]) => (
+            <button key={k} onClick={() => setPeriod(k)}
+              style={{ cursor: "pointer", fontSize: 12.5, padding: "5px 12px", borderRadius: 999,
+                border: "1px solid " + (period === k ? "transparent" : "var(--crasto-border-soft,#e3e6ea)"),
+                background: period === k ? "var(--crasto-navy,#010E26)" : "transparent",
+                color: period === k ? "#fff" : "var(--crasto-text-body)", fontWeight: period === k ? 600 : 400 }}>
+              {t(l)}
+            </button>
+          ))}
+          {period === "custom" && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: 4 }}>
+              <input type="date" value={custFrom} max={custTo || undefined} onChange={(e) => setCustFrom(e.target.value)} className="inp" style={{ padding: "4px 8px", fontSize: 12.5 }} />
+              <span style={{ color: "var(--crasto-text-muted)", fontSize: 12 }}>→</span>
+              <input type="date" value={custTo} min={custFrom || undefined} onChange={(e) => setCustTo(e.target.value)} className="inp" style={{ padding: "4px 8px", fontSize: 12.5 }} />
+            </span>
+          )}
+          {range.from && range.to && (
+            <span style={{ marginLeft: "auto", fontSize: 11.5, color: "var(--crasto-text-muted)" }}>
+              {range.from.split("-").reverse().join("/")} – {range.to.split("-").reverse().join("/")}
+            </span>
+          )}
+        </div>
         {/* Hero — a narrativa da Psiquê entra aqui (1.4); por ora, abertura + dado real ao vivo. */}
         <div className="scopebox" style={{ background: "linear-gradient(150deg,var(--crasto-navy,#010E26),#000714)", border: 0, color: "#fff" }}>
           <div style={{ padding: "24px 22px" }}>
