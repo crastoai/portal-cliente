@@ -6,6 +6,7 @@ import { PageHead, Pill, Empty, useAsync, money, useSort, SortTh } from "../../u
 import { useT } from "../../lib/i18n";
 import { useSettings } from "../../lib/settings";
 import { summarizeFaturas, isOverdue, type Fatura } from "../../lib/faturas";
+import PixPayModal from "../../ui/PixPayModal";
 
 type Org = { name: string; plan: string | null };
 
@@ -14,6 +15,8 @@ export default function Financeiro() {
   const t = useT();
   const cfg = useSettings();
   const [copied, setCopied] = useState(false);
+  const [pixFatura, setPixFatura] = useState<Fatura | null>(null); // Pagar via Pix (QR + copia-e-cola)
+  const isOpenFatura = (i: Fatura) => i.status !== "paid" && i.status !== "canceled";
   const { data, loading } = useAsync(async () => {
     const [inv, org] = await Promise.all([
       services.billing.invoices.listMine(),
@@ -82,17 +85,16 @@ export default function Financeiro() {
           <div className="paycard">
             <div className="pay-h">
               <h3>{t("Pagar sua fatura")}</h3>
-              <span className="soon"><Clock size={12} />{t("Em breve")}</span>
             </div>
             <div className="pay-methods">
               <button className="paymethod" disabled title={t("Disponível em breve")}>
                 <FileText size={18} /><span>{t("Emitir boleto")}</span>
               </button>
-              <button className="paymethod" disabled title={t("Disponível em breve")}>
+              <button className="paymethod" onClick={() => { if (next) setPixFatura(next); }} disabled={!cfg.pixKey || !next} title={cfg.pixKey && next ? t("Pagar a próxima fatura via Pix") : t("Disponível em breve")}>
                 <QrCode size={18} /><span>{t("Pagar com Pix")}</span>
               </button>
             </div>
-            <p className="pay-note">{t("Pagamento automático por boleto e Pix chega em breve. Enquanto isso, pague pelos canais abaixo:")}</p>
+            <p className="pay-note">{t("Pague via Pix (QR Code + Copia-e-Cola) direto na fatura — botão \"Pagar via Pix\" na coluna Ação abaixo. Boleto chega em breve.")}</p>
 
             <div className="pay-now">
               {cfg.pixKey ? (
@@ -131,6 +133,7 @@ export default function Financeiro() {
                   <SortTh col="due" sort={sort} toggle={toggle}>{t("Vencimento")}</SortTh>
                   <SortTh col="amount" sort={sort} toggle={toggle}>{t("Valor")}</SortTh>
                   <SortTh col="status" sort={sort} toggle={toggle}>{t("Status")}</SortTh>
+                  <th style={{ textAlign: "right" }}>{t("Ação")}</th>
                 </tr></thead>
                 <tbody>
                   {invSorted.map((i) => (
@@ -139,12 +142,15 @@ export default function Financeiro() {
                       <td>{i.due_date ? new Date(i.due_date + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</td>
                       <td className="tnum">{money(i.amount)}</td>
                       <td><Pill tone={tone(i) as any}>{label(i)}</Pill></td>
+                      <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>{isOpenFatura(i) && cfg.pixKey && <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => setPixFatura(i)}><span className="crasto-btn__icon"><QrCode size={14} /></span><span className="crasto-btn__label">{t("Pagar via Pix")}</span></button>}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
+
+          <PixPayModal fatura={pixFatura} onClose={() => setPixFatura(null)} />
         </>
       )}
     </div>
