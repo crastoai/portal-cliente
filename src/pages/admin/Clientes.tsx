@@ -11,7 +11,7 @@ import { PageHead, Empty, useAsync, money, initials, Field, Pill, useToast } fro
 import Modal from "../../ui/Modal";
 import { useT } from "../../lib/i18n";
 import { fetchClients, fmtDateTime, type Client } from "../../lib/adminData";
-import { COUNTRIES, countryOf, STAGES, stageOf, tempOf, DIAL_CODES } from "../../lib/countries";
+import { COUNTRIES, countryOf, STAGES, PIPELINE_STAGES, WON_STAGE, LOST_STAGE, stageOf, tempOf, DIAL_CODES } from "../../lib/countries";
 import { preview } from "../../lib/preview";
 import PersonaStats from "./PersonaStats";
 
@@ -56,7 +56,7 @@ export default function Clientes() {
   }, [all]);
 
   function agentesOf(c: Client) { return agentsOv[c.id]?.agentes ?? null; }
-  function hasEnv(c: Client) { return (c.modules?.length ?? 0) > 0 || c.stage === "cliente" || !!agentsOv[c.id]; }
+  function hasEnv(c: Client) { return (c.modules?.length ?? 0) > 0 || c.stage === WON_STAGE || !!agentsOv[c.id]; }
   function farolOf(c: Client): string | null {
     if (!hasEnv(c)) return null;
     const tone = (agentsOv[c.id]?.farol || c.health_v2?.tone || "").toLowerCase();
@@ -132,7 +132,12 @@ export default function Clientes() {
     catch { toast.err(t("Erro ao mudar o status.")); }
   }
   async function promover(c: Client, e: React.MouseEvent) {
-    stop(e); const idx = STAGES.findIndex((s) => s.key === c.stage); const next = STAGES[Math.min(idx + 1, STAGES.length - 1)];
+    stop(e);
+    // Promover anda SÓ na trilha linear (Prospecto→Lead→Oportunidade→Ganho); Perdido é terminal e
+    // fora da trilha — não se "promove" até Perdido. Empresa já Perdida se reabre pela ficha.
+    if (c.stage === LOST_STAGE) { toast.ok(t("Empresa perdida — reabra pela ficha.")); return; }
+    const idx = PIPELINE_STAGES.findIndex((s) => s.key === c.stage);
+    const next = PIPELINE_STAGES[Math.min(idx + 1, PIPELINE_STAGES.length - 1)];
     if (next.key === c.stage) { toast.ok(t("Já está no último estágio.")); return; }
     try { await api.identity.organizations.setStage(c.id, next.key); toast.ok(t("Promovido para {s}", { s: t(next.label) })); reload(); }
     catch { toast.err(t("Erro ao promover.")); }
@@ -169,7 +174,7 @@ export default function Clientes() {
   return (
     <div className="crmpage">
       {toast.node}
-      <PageHead eyebrow="Painel Admin" title="Empresas" sub="Prospectos, leads, oportunidades e clientes num só lugar."
+      <PageHead eyebrow="Painel Admin" title="Empresas" sub="Prospectos, leads, oportunidades, ganhos e perdidos num só lugar."
         right={<button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => { setF({ ...EMPTY }); setErr(""); setOpen(true); }}><span className="crasto-btn__icon"><Plus size={15} /></span><span className="crasto-btn__label">{t("Nova empresa")}</span></button>} />
 
       {/* Indicadores de persona (agregado, filtra por estágio) — decisão Crasto 2026-07-27 */}
@@ -313,7 +318,7 @@ export default function Clientes() {
         footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={submit}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Cadastrar")}</span></button></>}>
         {err && <div className="formerr">{err}</div>}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label="Categoria (estágio)"><select value={f.stage} onChange={(e) => setF({ ...f, stage: e.target.value })}>{STAGES.map((s) => <option key={s.key} value={s.key}>{t(s.label)}</option>)}</select></Field>
+          <Field label="Categoria (estágio)"><select value={f.stage} onChange={(e) => setF({ ...f, stage: e.target.value })}>{STAGES.filter((s) => s.key !== WON_STAGE && s.key !== LOST_STAGE).map((s) => <option key={s.key} value={s.key}>{t(s.label)}</option>)}</select></Field>
           <Field label="País"><select value={f.country} onChange={(e) => setF({ ...f, country: e.target.value, ddi: countryOf(e.target.value).ddi })}>{COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}</select></Field>
         </div>
         <Field label="Nome da empresa *"><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder={t("Ex.: Connect Solar Ltda")} /></Field>

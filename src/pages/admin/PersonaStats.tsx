@@ -8,8 +8,10 @@ import { useState } from "react";
 import { useAsync } from "../../ui/ui";
 import { services as api } from "../../services";
 import { useT } from "../../lib/i18n";
+import { STAGES as FUNNEL_STAGES } from "../../lib/countries";
 
-const STAGES: [string, string][] = [["", "Todos"], ["prospecto", "Prospecto"], ["lead", "Lead"], ["oportunidade", "Oportunidade"], ["cliente", "Cliente"]];
+// Derivado da fonte única (countries.ts) — herda Ganho + Perdido automaticamente. "" = Todos.
+const STAGES: [string, string][] = [["", "Todos"], ...FUNNEL_STAGES.map((s) => [s.key, s.label] as [string, string])];
 
 export default function PersonaStats() {
   const t = useT();

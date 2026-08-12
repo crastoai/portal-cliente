@@ -1,9 +1,10 @@
 // ============================================================================
-// LeadDetalhe — ficha de PROSPECTO / LEAD / OPORTUNIDADE (stages != cliente).
+// LeadDetalhe — ficha de PROSPECTO / LEAD / OPORTUNIDADE / PERDIDO (stages != ganho).
 // Mostra INLINE o "Mapa de IA" do diagnóstico do site (componente DiagnosticoMapa,
 // reutilizado no popup da ficha de cliente) + contato, perfil e histórico.
-// Ao avançar o status para "cliente", avisa o wrapper (onStageChange) que troca
-// para a ficha completa de cliente (ClienteDetalhe).
+// Ao avançar o status para "ganho", avisa o wrapper (onStageChange) que troca
+// para a ficha completa de cliente (ClienteDetalhe). "Perdido" é terminal e fica
+// FORA da trilha linear — vira ação separada "Marcar como Perdido" / "Reabrir".
 // ============================================================================
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -11,7 +12,7 @@ import { Trash2, MapPin, Phone, Clock, FileText, ArrowRight, Building2 } from "l
 import { services as api } from "../../services";
 import { PageHead, Empty, Pill, useAsync, useToast, initials, prettyName } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
-import { STAGES, stageOf, countryOf, TEMPS, COUNTRIES } from "../../lib/countries";
+import { PIPELINE_STAGES, WON_STAGE, LOST_STAGE, stageOf, countryOf, TEMPS, COUNTRIES } from "../../lib/countries";
 import DiagnosticoMapa, { fmtDate } from "./DiagnosticoMapa";
 import EmpresaExtra from "./EmpresaExtra";
 import PessoasEditor from "./PessoasEditor";
@@ -51,12 +52,13 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
   const proposals = (data.proposals as any[]) ?? [];
   const hasProposal = proposals.length > 0;
   const hasWon = proposals.some((p) => p.status === "accepted");
-  const curIdx = STAGES.findIndex((x) => x.key === org.stage);
+  const curIdx = PIPELINE_STAGES.findIndex((x) => x.key === org.stage);
+  const isLost = org.stage === LOST_STAGE;
   const histOf = (f: string) => ((data.fhist as any[]) ?? []).filter((r) => r.field === f);
   function stageLock(key: string): string | null {
     if (key === org.stage || key === "prospecto" || key === "lead") return null;
     if (key === "oportunidade" && !hasProposal) return t("Vira oportunidade quando há uma proposta gerada (você gera no Gerador de propostas).");
-    if (key === "cliente" && !hasWon) return t("Vira cliente quando a proposta é ganha — assinada e paga.");
+    if (key === WON_STAGE && !hasWon) return t("Vira cliente quando a proposta é ganha — assinada e paga.");
     return null;
   }
 
@@ -64,8 +66,29 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
     try {
       await api.identity.organizations.setStage(id!, stage);
       toast.ok(t("Movido para {s}", { s: t(stageOf(stage).label) }));
-      onStageChange?.(stage);          // avisa o wrapper (troca p/ ficha de cliente se virar cliente)
-      if (stage !== "cliente") reload();
+      onStageChange?.(stage);          // avisa o wrapper (troca p/ ficha de cliente se virar Ganho)
+      if (stage !== WON_STAGE) reload();
+    } catch { toast.err(t("Erro ao mover o stage.")); }
+  }
+  // Perdido (closed-lost) é TERMINAL e fora da trilha: ação explícita, de qualquer etapa ativa.
+  // Motivo opcional vira uma atividade no CRM (sem coluna nova no banco).
+  async function marcarPerdido() {
+    const motivo = window.prompt(t("Motivo da perda (opcional):"), "");
+    if (motivo === null) return;                    // cancelou o prompt
+    try {
+      await api.identity.organizations.setStage(id!, LOST_STAGE);
+      if (motivo.trim()) { try { await api.crm.activities.add({ organization_id: id, type: "note", title: t("Perdido"), description: motivo.trim() }); } catch { /* nota é best-effort */ } }
+      toast.ok(t("Movido para {s}", { s: t(stageOf(LOST_STAGE).label) }));
+      onStageChange?.(LOST_STAGE); reload();
+    } catch { toast.err(t("Erro ao mover o stage.")); }
+  }
+  // Reabrir uma empresa perdida: volta p/ Oportunidade se já houve proposta, senão p/ Lead.
+  async function reabrir() {
+    const back = hasProposal ? "oportunidade" : "lead";
+    try {
+      await api.identity.organizations.setStage(id!, back);
+      toast.ok(t("Movido para {s}", { s: t(stageOf(back).label) }));
+      onStageChange?.(back); reload();
     } catch { toast.err(t("Erro ao mover o stage.")); }
   }
   async function setTemp(v: string) {
@@ -90,17 +113,25 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
         right={<button className="crasto-btn crasto-btn--destructive crasto-btn--sm" onClick={del}><span className="crasto-btn__icon"><Trash2 size={14} /></span><span className="crasto-btn__label">{t("Excluir")}</span></button>}
       />
 
-      {/* pipeline */}
+      {/* pipeline (trilha linear — Perdido é terminal e fica fora dela) */}
       <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
-        {STAGES.map((s, i) => {
+        {PIPELINE_STAGES.map((s, i) => {
           const isCur = i === curIdx, isPast = i < curIdx;
           const lock = isCur ? null : (isPast ? t("Já demonstrou interesse — não retorna a esta etapa.") : stageLock(s.key));
-          const cls = "stagetab" + (isCur ? " on stage-glow" : " stage-dim") + (lock ? " stage-locked" : "");
+          const cls = "stagetab" + (isCur ? " on stage-glow" : " stage-dim") + ((lock || isLost) ? " stage-locked" : "");
           return (
-            <button key={s.key} className={cls} title={lock || undefined} disabled={!!lock || isCur}
-              onClick={() => { if (!lock && !isCur) setStage(s.key); }}><span className="dot" style={{ background: s.dot }} />{t(s.label)}</button>
+            <button key={s.key} className={cls} title={lock || undefined} disabled={!!lock || isCur || isLost}
+              onClick={() => { if (!lock && !isCur && !isLost) setStage(s.key); }}><span className="dot" style={{ background: s.dot }} />{t(s.label)}</button>
           );
         })}
+        {isLost ? (
+          <>
+            <span className="pill crit" style={{ marginLeft: 4 }}><span className="d" />{t("Perdido")}</span>
+            <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={reabrir}><span className="crasto-btn__label">{t("Reabrir")}</span></button>
+          </>
+        ) : (
+          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={marcarPerdido} title={t("Marcar como Perdido")}><span className="crasto-btn__label" style={{ color: "#B42318" }}>{t("Marcar como Perdido")}</span></button>
+        )}
         {org.intent_signal && <span className="chip" style={{ marginLeft: 4, background: org.intent_signal === "alto" ? "#FCE9E7" : "var(--crasto-bg-3)", color: org.intent_signal === "alto" ? "#B42318" : "var(--crasto-text-body)" }}>{t("Intenção")}: {t(org.intent_signal)}</span>}
         <span style={{ marginLeft: "auto", alignSelf: "center", fontSize: 12, color: "var(--crasto-text-muted)" }}>{t("Status atual:")} <b style={{ color: "var(--crasto-text-primary)" }}>{t(st.label)}</b></span>
       </div>

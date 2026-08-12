@@ -53,12 +53,24 @@ export const DIAL_CODES: { ddi: string; flag: string; name: string }[] = [
 // key = valor gravado no banco; label = o que o usuário vê.
 // 2026-07-21: key inicial renomeada 'contato' → 'prospecto' (label já era "Prospecto").
 // 2026-07-26: 'qualificado' → 'oportunidade' (migration 013 — alinhado ao banco). `dot` = cor do estágio no funil.
+// 2026-08-12: 'cliente' → 'ganho' + adicionada 'perdido' (migration 046) — funil canônico
+//   Prospecto → Lead → Oportunidade → Ganho → Perdido, alinhado ao kanban de deals do wacrm.
+//   'perdido' é TERMINAL (closed-lost): fica FORA da trilha linear (use PIPELINE_STAGES); só se
+//   chega nela pela ação "Marcar como Perdido" — nunca promovendo por índice.
 export const STAGES = [
   { key: "prospecto", label: "Prospecto", tone: "mute", dot: "#8A8F98" },
   { key: "lead", label: "Lead", tone: "info", dot: "#2E6F9E" },
   { key: "oportunidade", label: "Oportunidade", tone: "warn", dot: "#BA7517" },
-  { key: "cliente", label: "Cliente", tone: "ok", dot: "#1D9E75" },
+  { key: "ganho", label: "Ganho", tone: "ok", dot: "#1D9E75" },
+  { key: "perdido", label: "Perdido", tone: "crit", dot: "#E24B4A" },
 ] as const;
+
+export const WON_STAGE = "ganho";
+export const LOST_STAGE = "perdido";
+// Trilha LINEAR de progressão (sem o terminal Perdido). Use em TUDO que assume ordem/avanço:
+// funil visual (stepper), botão "promover", cálculo de curIdx. STAGES (completo) só p/ enumerar
+// (abas, contagens, chips, stageOf).
+export const PIPELINE_STAGES = STAGES.filter((s) => s.key !== LOST_STAGE);
 
 export const stageOf = (s?: string | null) => STAGES.find((x) => x.key === s) ?? STAGES[0];
 

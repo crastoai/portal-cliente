@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { services, errorMessage } from "../../services";
 import { PageHead, Pill, useAsync, money, initials, Field } from "../../ui/ui";
 import { fetchClients, healthScore, timeAgo, modShort, type Client } from "../../lib/adminData";
-import { STAGES } from "../../lib/countries";
+import { STAGES, WON_STAGE } from "../../lib/countries";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 import type { CrmAgent } from "../../services/crmAccess.service";
@@ -46,9 +46,9 @@ export default function VisaoGeral() {
   const agByOrg = data?.agentsOv ?? {};
   const modules = clients.reduce((s, c) => s + (c.modules?.length ?? 0), 0);
   const risk = clients.filter((c) => healthScore(c).tone === "crit").length;
-  // Clientes ATIVOS = quem é cliente de fato (stage='cliente') e não deu churn. NÃO é o total de
-  // organizações (que inclui prospecto/lead/oportunidade). Antes o card mostrava clients.length (todas as orgs).
-  const clientesAtivos = clients.filter((c) => c.stage === "cliente" && !c.churned_em).length;
+  // Clientes ATIVOS = quem é cliente de fato (stage='ganho') e não deu churn. NÃO é o total de
+  // organizações (que inclui prospecto/lead/oportunidade/perdido). Antes o card mostrava clients.length (todas as orgs).
+  const clientesAtivos = clients.filter((c) => c.stage === WON_STAGE && !c.churned_em).length;
   // Módulos por cliente (RPC nova): totais reais entregues (rollout_status='delivered') × contratados.
   // Fallback: se a RPC falhar (lista vazia), o card volta ao formato antigo ({modules} / por cliente).
   const modsByClient = (data?.modsByClient ?? []) as ModByClient[];
@@ -142,7 +142,7 @@ export default function VisaoGeral() {
   // exatas que compõem o número. Fidelidade: "Em risco" reusa o bucket health=risco (= tone crit).
   const tableRef = useRef<HTMLDivElement>(null);
   const jumpToList = () => tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  const verClientes = () => { setQ(""); clearAll(); setStage("cliente"); jumpToList(); };
+  const verClientes = () => { setQ(""); clearAll(); setStage(WON_STAGE); jumpToList(); };
   const verModulos = () => { setQ(""); clearAll(); setSortKey("mods"); setSortDir("desc"); jumpToList(); };
   const verRisco = () => { setQ(""); setStage("todos"); setColF({ health: ["risco"], agent: [], acesso: [] }); jumpToList(); };
 

@@ -7,7 +7,7 @@ import { PageHead, Pill, Empty, useAsync, initials, Field, money, prettyName } f
 import { useT } from "../../lib/i18n";
 import UsoModulos from "../../ui/UsoModulos";
 import Modal from "../../ui/Modal";
-import { COUNTRIES, countryOf, STAGES, stageOf, DIAL_CODES } from "../../lib/countries";
+import { COUNTRIES, countryOf, PIPELINE_STAGES, WON_STAGE, stageOf, DIAL_CODES } from "../../lib/countries";
 import { reg as regInfo, regTypeFor, COUNTRIES as REG_COUNTRIES, countryName as regCountryName } from "../../lib/registrations";
 import { CrmAccessSection } from "./CrmAccessSection";
 import SocialIntegracoes from "./SocialIntegracoes";
@@ -122,11 +122,11 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
   // proposta gerada; CLIENTE só com proposta ganha (assinada+paga). O estágio atual sempre pode voltar.
   const hasProposal = (proposals ?? []).length > 0;
   const hasWon = (proposals ?? []).some((p: any) => p.status === "accepted");
-  const curIdx = STAGES.findIndex((x) => x.key === org.stage);
+  const curIdx = PIPELINE_STAGES.findIndex((x) => x.key === org.stage);
   function stageLock(key: string): string | null {
     if (key === org.stage || key === "prospecto" || key === "lead") return null;
     if (key === "oportunidade" && !hasProposal) return tr("Vira oportunidade quando há uma proposta gerada (você gera no Gerador de propostas).");
-    if (key === "cliente" && !hasWon) return tr("Vira cliente quando a proposta é ganha — assinada e paga.");
+    if (key === WON_STAGE && !hasWon) return tr("Vira cliente quando a proposta é ganha — assinada e paga.");
     return null;
   }
 
@@ -144,7 +144,7 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
       await api.identity.organizations.setStage(id!, stage);
       flash(tr("Movido para {s}", { s: tr(stageOf(stage).label) }));
       onStageChange?.(stage);            // wrapper troca Lead↔Cliente na hora
-      if (stage === "cliente") reload();
+      if (stage === WON_STAGE) reload();
     } catch (e) { flash(tr("Erro ao mover o estágio:") + " " + errorMessage(e)); }
   }
   async function toggleModule(mid: string, on: boolean) {
@@ -301,9 +301,9 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
           <button className="crasto-btn crasto-btn--destructive crasto-btn--sm" onClick={del} disabled={busy}><span className="crasto-btn__icon"><Trash2 size={14} /></span><span className="crasto-btn__label">{tr("Excluir")}</span></button>
         </>} />
 
-      {/* pipeline */}
+      {/* pipeline (trilha linear — Perdido não entra aqui) */}
       <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-        {STAGES.map((s, i) => {
+        {PIPELINE_STAGES.map((s, i) => {
           const isCur = i === curIdx, isPast = i < curIdx;
           const lock = isCur ? null : (isPast ? tr("Já demonstrou interesse — não retorna a esta etapa.") : stageLock(s.key));
           const cls = "stagetab" + (isCur ? " on stage-glow" : " stage-dim") + (lock ? " stage-locked" : "");
