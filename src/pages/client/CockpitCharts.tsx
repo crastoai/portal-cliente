@@ -232,29 +232,45 @@ function AntesDepois({ rows, diag, on, t }: { rows: { label: string; unidade: st
 }
 
 /* ── Funil ───────────────────────────────────────────────────────────────────── */
-function Funil({ funil, diag, gargaloIdx, on, t }: { funil: { prospecto: number; lead: number; lead_frios: number; lead_mornos: number; lead_quentes: number; oportunidade: number; ganho: number; perdido: number }; diag: Diag; gargaloIdx: number; on: boolean; t: (k: string) => string }) {
+function Funil({ funil, diag, gargaloIdx, on, t }: { funil: { prospecto: number; prospecto_in: number; lead: number; lead_in: number; lead_frios: number; lead_frios_in: number; lead_mornos: number; lead_mornos_in: number; lead_quentes: number; lead_quentes_in: number; oportunidade: number; oportunidade_in: number; ganho: number; ganho_in: number; perdido: number; perdido_in: number }; diag: Diag; gargaloIdx: number; on: boolean; t: (k: string) => string }) {
   // Modelo canônico deal-centric: Prospecto → Lead → Oportunidade → Ganho (venda fechada). "Perdido"
   // é balde TERMINAL (recusou a oportunidade) — não faz parte do funil de conversão; vai no rodapé.
+  // Toggle de ORIGEM: Tudo · Inbound · Outbound (`_in` = subconjunto inbound de cada etapa; outbound = total − inbound).
+  void gargaloIdx;
+  const [orig, setOrig] = useState<"all" | "inbound" | "outbound">("all");
+  const v = (tot: number, inb: number) => (orig === "inbound" ? inb : orig === "outbound" ? Math.max(0, tot - inb) : tot);
   const rows = [
-    { l: t("Prospecto"), n: funil.prospecto },
-    { l: t("Lead"), n: funil.lead },
-    { l: t("Oportunidade"), n: funil.oportunidade },
-    { l: t("Ganho"), n: funil.ganho },
+    { l: t("Prospecto"), n: v(funil.prospecto, funil.prospecto_in) },
+    { l: t("Lead"), n: v(funil.lead, funil.lead_in) },
+    { l: t("Oportunidade"), n: v(funil.oportunidade, funil.oportunidade_in) },
+    { l: t("Ganho"), n: v(funil.ganho, funil.ganho_in) },
   ];
   const mx = Math.max(1, rows[0].n);
+  // Gargalo recalculado para a VISÃO atual (maior queda relativa ≥60% entre etapas consecutivas).
+  let gargL = -1, pior = 0;
+  for (let i = 1; i < rows.length; i++) { const prev = rows[i - 1].n; if (prev > 0) { const drop = 1 - rows[i].n / prev; if (drop > pior && drop >= 0.6) { pior = drop; gargL = i; } } }
   // Sub-split de TEMPERATURA da etapa Lead (frio/morno/quente): frio=azul · morno=âmbar · quente=vermelho.
   const temps = [
-    { l: t("Frios"), n: funil.lead_frios, c: "#6E9CE8" },
-    { l: t("Mornos"), n: funil.lead_mornos, c: "#E9A23B" },
-    { l: t("Quentes"), n: funil.lead_quentes, c: "#E5484D" },
+    { l: t("Frios"), n: v(funil.lead_frios, funil.lead_frios_in), c: "#6E9CE8" },
+    { l: t("Mornos"), n: v(funil.lead_mornos, funil.lead_mornos_in), c: "#E9A23B" },
+    { l: t("Quentes"), n: v(funil.lead_quentes, funil.lead_quentes_in), c: "#E5484D" },
   ];
-  const temTemp = funil.lead_frios + funil.lead_mornos + funil.lead_quentes > 0;
+  const temTemp = temps.some((x) => x.n > 0);
+  const perdidoN = v(funil.perdido, funil.perdido_in);
+  const tabs: Array<["all" | "inbound" | "outbound", string]> = [["all", t("Tudo")], ["inbound", t("Inbound")], ["outbound", t("Outbound")]];
   return (
     <div className="cc-card">
-      <div className="cc-lbl">{t("Funil de conversão")}</div><CardInfo diag={diag} t={t} />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><span className="cc-lbl">{t("Funil de conversão")}</span><CardInfo diag={diag} t={t} /></div>
+        <div style={{ display: "inline-flex", border: "1px solid var(--crasto-border-soft, rgba(1,14,38,.14))", borderRadius: 8, overflow: "hidden" }}>
+          {tabs.map(([k, lbl]) => (
+            <button key={k} type="button" onClick={() => setOrig(k)} style={{ padding: "3px 10px", fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", background: orig === k ? "var(--crasto-blue, #4E93D4)" : "transparent", color: orig === k ? "#fff" : "var(--crasto-text-muted)" }}>{lbl}</button>
+          ))}
+        </div>
+      </div>
       <div className="cc-fn">
         {rows.map((r, i) => {
-          const gargalo = i === gargaloIdx;
+          const gargalo = i === gargL;
           const pct = mx > 0 ? Math.round((r.n / mx) * 100) : 0;
           // Rótulo FORA da barra (coluna própria): antes ele ia DENTRO da barra e, quando a etapa
           // era pequena, a barra encolhia (~14%) e o texto ficava cortado/apagado — ilegível.
@@ -286,7 +302,7 @@ function Funil({ funil, diag, gargaloIdx, on, t }: { funil: { prospecto: number;
       {/* "Perdido" = balde TERMINAL (recusou a oportunidade), fora do funil de conversão. */}
       <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))", fontSize: 12, color: "var(--crasto-text-muted)" }}>
         <span style={{ width: 9, height: 9, borderRadius: 999, background: "var(--crasto-text-faint, #98A2B3)", flex: "0 0 auto" }} />
-        {t("Perdido")} <b style={{ color: "var(--crasto-text-body)", fontWeight: 700 }}>{funil.perdido}</b>
+        {t("Perdido")} <b style={{ color: "var(--crasto-text-body)", fontWeight: 700 }}>{perdidoN}</b>
         <span style={{ fontSize: 10.5, color: "var(--crasto-text-faint)" }}>· {t("recusou a oportunidade")}</span>
       </div>
     </div>

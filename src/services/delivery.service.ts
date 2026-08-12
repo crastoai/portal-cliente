@@ -182,7 +182,7 @@ export const moduleSessions = {
 export type CockpitMetric = { key: string; label: string; unidade: string; melhor: "maior" | "menor"; antes: number | null; fonte_antes: string | null; depois: number | null; trend: number | null };
 export type KpiAnalise = { tom: "green" | "amber" | "red"; motivo: string; impacto: string; acao: string };
 export type CockpitKpis = {
-  funil: { prospecto: number; lead: number; lead_frios: number; lead_mornos: number; lead_quentes: number; oportunidade: number; ganho: number; perdido: number } | null;
+  funil: { prospecto: number; prospecto_in: number; lead: number; lead_in: number; lead_frios: number; lead_frios_in: number; lead_mornos: number; lead_mornos_in: number; lead_quentes: number; lead_quentes_in: number; oportunidade: number; oportunidade_in: number; ganho: number; ganho_in: number; perdido: number; perdido_in: number } | null;
   sla: { pct5: number | null; mediana_s: number; respondidas: number; sem_resposta: number } | null;
   pico: number[][] | null;
   roi_horas_ia: number | null;
