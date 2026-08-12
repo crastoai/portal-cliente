@@ -206,15 +206,16 @@ export default function Financeiro() {
     }).sort((a, b) => b.total - a.total);
   }
   const payItems = [...pay.map(acctToItem), ...costs.map(costToItem)];
-  // Conta recorrente = a que compõe o MRR. Espelha `mensalDe` da Visão geral: parcelada, ou recorrência mensal/anual.
-  const isRecurring = (a: any) => (Array.isArray(a?.payment_schedule) && a.payment_schedule.length > 0) || ["monthly", "mensal", "yearly", "anual"].includes(a?.recurrence);
+  // Conta recorrente = ASSINATURA de verdade (campo recurrence), NÃO "tem parcelas". Um deal pontual
+  // parcelado (workshop, projeto one-off) não é recorrente. Espelha `mensalDe` da Visão geral. (Crasto 12/08)
+  const isRecurring = (a: any) => ["monthly", "mensal", "yearly", "anual"].includes(String(a?.recurrence || "").toLowerCase());
   const recSource = tab === "receber" && recOnly ? rec.filter(isRecurring) : rec;
   const groups = tab === "pagar" ? buildGroups(payItems) : tab === "receber" ? buildGroups(recSource.map(acctToItem)) : [];
 
   // Recebíveis RECORRENTES (contratos) — base dos cards da aba A Receber (Fatia 1).
   // `mensalDe` espelha a Visão geral: parcela = a mensalidade; recorrência mensal = valor;
   // anual = valor/12. Como não-recorrente dá 0, o MRR aqui bate com o da Visão geral.
-  const mensalDe = (a: any) => { const p = parcelas(a); if (p.length) return Number(p[0]?.amount || 0); if (a.recurrence === "monthly" || a.recurrence === "mensal") return Number(a.amount || 0); if (a.recurrence === "yearly" || a.recurrence === "anual") return Number(a.amount || 0) / 12; return 0; };
+  const mensalDe = (a: any) => { const r = String(a?.recurrence || "").toLowerCase(); if (r === "mensal" || r === "monthly") { const p = parcelas(a); return p.length ? Number(p[0]?.amount || 0) : Number(a.amount || 0); } if (r === "anual" || r === "yearly") return Number(a.amount || 0) / 12; return 0; };
   const recContratos = rec.filter((r) => r.status !== "cancelled" && isRecurring(r));
   const mrrMensal = recContratos.reduce((a, r) => a + mensalDe(r), 0);
   const nContratos = recContratos.length;
