@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Plus, Pencil, Trash2, Search, ChevronRight, ChevronDown, CheckCircle2, Repeat, ArrowRight } from "lucide-react";
 import { services, errorMessage } from "../../services";
@@ -104,6 +104,10 @@ export default function Financeiro() {
   // É pra onde o card MRR da Visão geral aponta (?tab=receber&rec=1) — traça o número até a origem.
   const [recOnly, setRecOnly] = useState(sp.get("rec") === "1");
   const [cobFiltro, setCobFiltro] = useState("todas"); // aba Cobrança: recorte por vencimento/comprovante
+  // Cards de baixo (A Pagar/A Receber) filtram a LISTA: chips de status + Despesas por tipo. Os totais limpam.
+  const [statusF, setStatusF] = useState<"todos" | "vencidos" | "hoje" | "avencer" | "pagos">("todos");
+  const [catF, setCatF] = useState<"consumo" | "revenda" | null>(null); // só faz sentido em A Pagar (expense_type)
+  useEffect(() => { setStatusF("todos"); setCatF(null); }, [tab]); // trocar de aba zera os filtros dos cards de baixo
   const toggleRecOnly = () => setRecOnly((v) => {
     const nv = !v; const next = new URLSearchParams(sp);
     if (nv) next.set("rec", "1"); else next.delete("rec");
@@ -211,7 +215,11 @@ export default function Financeiro() {
   // parcelado (workshop, projeto one-off) não é recorrente. Espelha `mensalDe` da Visão geral. (Crasto 12/08)
   const isRecurring = (a: any) => ["monthly", "mensal", "yearly", "anual"].includes(String(a?.recurrence || "").toLowerCase());
   const recSource = tab === "receber" && recOnly ? rec.filter(isRecurring) : rec;
-  const groups = tab === "pagar" ? buildGroups(payItems) : tab === "receber" ? buildGroups(recSource.map(acctToItem)) : [];
+  // Filtro dos cards de baixo aplicado à LISTA (os totais/chips seguem mostrando o valor cheio).
+  const passStatus = (i: any) => statusF === "todos" ? true : statusF === "vencidos" ? vencidoDe(i) > 0 : statusF === "hoje" ? hojeDe(i) > 0 : statusF === "avencer" ? avencerDe(i) > 0 : Number(i.amount_paid || 0) > 0;
+  const passCat = (i: any) => tab !== "pagar" || !catF || i.expense_type === catF;
+  const rawItems = tab === "pagar" ? payItems : tab === "receber" ? recSource.map(acctToItem) : [];
+  const groups = buildGroups(rawItems.filter((i) => passStatus(i) && passCat(i)));
 
   // Recebíveis RECORRENTES (contratos) — base dos cards da aba A Receber (Fatia 1).
   // `mensalDe` espelha a Visão geral: parcela = a mensalidade; recorrência mensal = valor;
@@ -559,10 +567,10 @@ export default function Financeiro() {
         {/* resumo (só A Pagar tem os cards de custo) */}
         {tab === "pagar" && (
           <div className="kpis" style={{ marginBottom: 14 }}>
-            <div className="kpi g"><div className="lab">{t("Total Mensal")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(totalMensal)}</div><div className="delta">{t("custos recorrentes do mês")}</div></div>
-            <div className="kpi"><div className="lab">{t("Total Ano")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(totalAno)}</div><div className="delta">{t("Mensal×12 + Anual + Pontual")}</div></div>
-            <div className="kpi"><div className="lab">{t("Despesas de Consumo")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(consumo.reduce((a, r) => a + Number(r.amount || 0), 0))}</div><div className="delta">{t("{n} lançamentos", { n: consumo.length })}</div></div>
-            <div className="kpi"><div className="lab">{t("Despesas de Revenda")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(revenda.reduce((a, r) => a + Number(r.amount || 0), 0))}</div><div className="delta">{t("{n} lançamentos", { n: revenda.length })}</div></div>
+            <button className="kpi g kpi-btn" onClick={() => { setStatusF("todos"); setCatF(null); }} title={t("Ver todos os lançamentos")}><div className="lab">{t("Total Mensal")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(totalMensal)}</div><div className="delta">{t("custos recorrentes do mês")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => { setStatusF("todos"); setCatF(null); }} title={t("Ver todos os lançamentos")}><div className="lab">{t("Total Ano")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(totalAno)}</div><div className="delta">{t("Mensal×12 + Anual + Pontual")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setCatF(catF === "consumo" ? null : "consumo")} title={t("Filtrar por despesas de consumo")} style={{ boxShadow: catF === "consumo" ? "inset 0 0 0 2px var(--crasto-blue, #3E6FB8)" : undefined }}><div className="lab">{t("Despesas de Consumo")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(consumo.reduce((a, r) => a + Number(r.amount || 0), 0))}</div><div className="delta">{t("{n} lançamentos", { n: consumo.length })}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setCatF(catF === "revenda" ? null : "revenda")} title={t("Filtrar por despesas de revenda")} style={{ boxShadow: catF === "revenda" ? "inset 0 0 0 2px var(--crasto-blue, #3E6FB8)" : undefined }}><div className="lab">{t("Despesas de Revenda")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(revenda.reduce((a, r) => a + Number(r.amount || 0), 0))}</div><div className="delta">{t("{n} lançamentos", { n: revenda.length })}</div></button>
           </div>
         )}
 
@@ -579,11 +587,11 @@ export default function Financeiro() {
 
         {/* status cards */}
         <div className="finstatus">
-          <div className="fs red"><span>{t("Vencidos")}</span><b>{money(stVencidos)}</b></div>
-          <div className="fs amber"><span>{t("Vencem hoje")}</span><b>{money(stHoje)}</b></div>
-          <div className="fs blue"><span>{t("A vencer")}</span><b>{money(stAvencer)}</b></div>
-          <div className="fs green"><span>{tab === "pagar" ? t("Pagos") : t("Recebidos")}</span><b>{money(stPagos)}</b></div>
-          <div className="fs"><span>{t("Total período")}</span><b>{money(stTotal)}</b></div>
+          <button type="button" className="fs red" onClick={() => setStatusF(statusF === "vencidos" ? "todos" : "vencidos")} style={{ font: "inherit", textAlign: "left", width: "100%", cursor: "pointer", boxShadow: statusF === "vencidos" ? "inset 0 0 0 2px #B42318" : undefined }}><span>{t("Vencidos")}</span><b>{money(stVencidos)}</b></button>
+          <button type="button" className="fs amber" onClick={() => setStatusF(statusF === "hoje" ? "todos" : "hoje")} style={{ font: "inherit", textAlign: "left", width: "100%", cursor: "pointer", boxShadow: statusF === "hoje" ? "inset 0 0 0 2px #B54708" : undefined }}><span>{t("Vencem hoje")}</span><b>{money(stHoje)}</b></button>
+          <button type="button" className="fs blue" onClick={() => setStatusF(statusF === "avencer" ? "todos" : "avencer")} style={{ font: "inherit", textAlign: "left", width: "100%", cursor: "pointer", boxShadow: statusF === "avencer" ? "inset 0 0 0 2px #175CD3" : undefined }}><span>{t("A vencer")}</span><b>{money(stAvencer)}</b></button>
+          <button type="button" className="fs green" onClick={() => setStatusF(statusF === "pagos" ? "todos" : "pagos")} style={{ font: "inherit", textAlign: "left", width: "100%", cursor: "pointer", boxShadow: statusF === "pagos" ? "inset 0 0 0 2px #067647" : undefined }}><span>{tab === "pagar" ? t("Pagos") : t("Recebidos")}</span><b>{money(stPagos)}</b></button>
+          <button type="button" className="fs" onClick={() => { setStatusF("todos"); setCatF(null); }} title={t("Ver tudo (limpar filtro)")} style={{ font: "inherit", textAlign: "left", width: "100%", cursor: "pointer" }}><span>{t("Total período")}</span><b>{money(stTotal)}</b></button>
         </div>
 
         {/* tabela agrupada por empresa */}
