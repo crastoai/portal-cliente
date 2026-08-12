@@ -73,6 +73,10 @@ export default function VisaoGeral() {
   };
   const mrr = receber.reduce((s: number, a: any) => s + mensalDe(a), 0);
   const aReceber = receber.reduce((s: number, a: any) => s + (Number(a.amount || 0) - Number(a.amount_paid || 0)), 0);
+  // Mensalidade equivalente (Crasto 12/08): TODO contrato de cliente anualizado ÷12, mesmo pago adiantado
+  // (Carneiro 10k → 833/mês). Exclui avulso/workshop. Difere do MRR (só assinatura que se renova).
+  const isAvulso = (a: any) => /avulso|workshop/i.test(String(a?.category || "") + " " + String(a?.description || ""));
+  const mensalEquiv = receber.filter((a: any) => !isAvulso(a)).reduce((s: number, a: any) => s + Number(a.contract_total || a.amount || 0) / 12, 0);
 
   // ── Tabela em ESCALA — arquitetura de filtros (pesquisa dos subagentes): UM estado como fonte
   // da verdade, com dois pontos de entrada (categoria no topo + filtro por coluna nos cabeçalhos)
@@ -269,8 +273,9 @@ export default function VisaoGeral() {
         </>} />
 
       <div className="conslabel">{t("comercial (hoje)")}</div>
-      <div className="kpis kpis--5">
+      <div className="kpis kpis--6">
         <button className="kpi navy kpi-btn" onClick={() => navigate("/admin/financeiro?tab=receber&rec=1")}><div className="lab">{t("MRR (receita recorrente)")}</div><div className="val tnum">{money(mrr)}</div><div className="delta">{t("recorrente · financeiro")} <ArrowRight size={11} /></div></button>
+        <button className="kpi kpi-btn" onClick={() => navigate("/admin/financeiro?tab=receber")} title={t("Mensalidade equivalente: todo contrato de cliente ÷ 12")}><div className="lab">{t("Mensalidade equivalente")}</div><div className="val tnum">{money(mensalEquiv)}</div><div className="delta">{t("contratos ÷ 12")} <ArrowRight size={11} /></div></button>
         <button className="kpi kpi-btn" onClick={() => navigate("/admin/financeiro?tab=receber")}><div className="lab">{t("A receber")}</div><div className="val tnum">{money(aReceber)}</div><div className="delta">{t("em aberto · financeiro")} <ArrowRight size={11} /></div></button>
         <button className="kpi kpi-btn" onClick={verClientes} title={t("Ver os clientes ativos na lista abaixo")}><div className="lab">{t("Clientes ativos")}</div><div className="val tnum">{clientesAtivos}</div><div className="delta">{t("no portal")} <ArrowDown size={11} /></div></button>
         <button className="kpi g kpi-btn" onClick={() => (hasMods ? setModOpen(true) : verModulos())} title={t("Ver os módulos entregues por cliente")}>

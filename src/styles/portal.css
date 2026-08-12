@@ -848,8 +848,9 @@ body.impersonating .main { margin-top: 96px; }
 
 /* Visão geral: linha comercial com 5 KPIs (MRR + A receber + 3). Colapsa em telas menores. */
 .kpis--5 { grid-template-columns: repeat(5, 1fr); }
-@media (max-width: 1200px) { .kpis--5 { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 680px) { .kpis--5 { grid-template-columns: repeat(2, 1fr); } }
+.kpis--6 { grid-template-columns: repeat(6, 1fr); }
+@media (max-width: 1200px) { .kpis--5 { grid-template-columns: repeat(3, 1fr); } .kpis--6 { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 680px) { .kpis--5 { grid-template-columns: repeat(2, 1fr); } .kpis--6 { grid-template-columns: repeat(2, 1fr); } }
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════
    CAMADA MOBILE GLOBAL DO PORTAL — só afeta o celular (≤900px = o ponto em que vira drawer).

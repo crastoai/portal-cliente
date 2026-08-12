@@ -568,8 +568,9 @@ export default function Financeiro() {
 
         {/* resumo de recebíveis recorrentes (só A Receber) — quebra o "A Receber" em MRR + contratos */}
         {tab === "receber" && (
-          <div className="kpis" style={{ marginBottom: 14 }}>
+          <div className="kpis kpis--5" style={{ marginBottom: 14 }}>
             <div className="kpi navy"><div className="lab">{t("Recorrente / mês (MRR)")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(mrrMensal)}</div><div className="delta">{t("receita recorrente mensal")}</div></div>
+            <div className="kpi"><div className="lab">{t("Mensalidade equivalente")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(mensalEquiv)}</div><div className="delta">{t("contratos ÷ 12 (mesmo pago adiantado)")}</div></div>
             <div className="kpi"><div className="lab">{t("Recorrente / ano (ARR)")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(mrrMensal * 12)}</div><div className="delta">{t("MRR × 12")}</div></div>
             <div className="kpi"><div className="lab">{t("Contratos recorrentes")}</div><div className="val tnum" style={{ fontSize: 20 }}>{nContratos}</div><div className="delta">{t("{n} ativos", { n: nContratos })}</div></div>
             <div className="kpi g"><div className="lab">{t("Saldo a receber (contratos)")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(saldoRecorrente)}</div><div className="delta">{t("ainda a receber")}</div></div>
