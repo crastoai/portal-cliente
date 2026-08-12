@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Plus, Pencil, Trash2, Search, ChevronRight, ChevronDown, CheckCircle2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, ChevronRight, ChevronDown, CheckCircle2, Repeat } from "lucide-react";
 import { services, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, money, Field, useSort, SortTh } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
@@ -90,8 +90,17 @@ export default function Financeiro() {
   const pay = data?.pay ?? [], rec = data?.rec ?? [], costs = data?.costs ?? [], tx = data?.tx ?? [], orgs = data?.orgs ?? [];
   // sugestões de empresa: clientes cadastrados + nomes já usados em lançamentos
   const companySuggestions = Array.from(new Set([...orgs.map((o: any) => o.name), ...[...pay, ...rec].map((r: any) => r.contact_name).filter(Boolean)])).sort();
-  const [sp] = useSearchParams();
+  const [sp, setSp] = useSearchParams();
   const [tab, setTab] = useState(sp.get("tab") || "pagar"); // permite abrir direto numa aba (ex.: ?tab=receber)
+  // A Receber "visão de recorrentes": só as contas que formam o MRR (parceladas ou recorrência mensal/anual).
+  // É pra onde o card MRR da Visão geral aponta (?tab=receber&rec=1) — traça o número até a origem.
+  const [recOnly, setRecOnly] = useState(sp.get("rec") === "1");
+  const toggleRecOnly = () => setRecOnly((v) => {
+    const nv = !v; const next = new URLSearchParams(sp);
+    if (nv) next.set("rec", "1"); else next.delete("rec");
+    setSp(next, { replace: true });
+    return nv;
+  });
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   // Edição INLINE de UMA parcela direto na lista (sem abrir o modal). {acc:idConta, inst:nºparcela}
@@ -189,7 +198,10 @@ export default function Financeiro() {
     }).sort((a, b) => b.total - a.total);
   }
   const payItems = [...pay.map(acctToItem), ...costs.map(costToItem)];
-  const groups = tab === "pagar" ? buildGroups(payItems) : tab === "receber" ? buildGroups(rec.map(acctToItem)) : [];
+  // Conta recorrente = a que compõe o MRR. Espelha `mensalDe` da Visão geral: parcelada, ou recorrência mensal/anual.
+  const isRecurring = (a: any) => (Array.isArray(a?.payment_schedule) && a.payment_schedule.length > 0) || ["monthly", "mensal", "yearly", "anual"].includes(a?.recurrence);
+  const recSource = tab === "receber" && recOnly ? rec.filter(isRecurring) : rec;
+  const groups = tab === "pagar" ? buildGroups(payItems) : tab === "receber" ? buildGroups(recSource.map(acctToItem)) : [];
 
   // resumo A Pagar (custos)
   const activeCosts = costs.filter((c) => c.is_active);
@@ -198,7 +210,7 @@ export default function Financeiro() {
   const consumo = pay.filter((r) => r.expense_type === "consumo");
   const revenda = pay.filter((r) => r.expense_type === "revenda");
   // status cards (do lado ativo)
-  const curItems = tab === "pagar" ? payItems : rec.map(acctToItem);
+  const curItems = tab === "pagar" ? payItems : recSource.map(acctToItem);
   const stVencidos = curItems.reduce((a, i) => a + vencidoDe(i), 0);   // só as parcelas realmente vencidas
   const stHoje = curItems.reduce((a, i) => a + hojeDe(i), 0);
   const stAvencer = curItems.reduce((a, i) => a + avencerDe(i), 0);
@@ -433,6 +445,7 @@ export default function Financeiro() {
             <Search size={16} />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("Pesquisar…")} />
           </div>
+          {tab === "receber" && <button className={"crasto-btn crasto-btn--sm " + (recOnly ? "crasto-btn--primary" : "crasto-btn--ghost")} onClick={toggleRecOnly} title={t("Mostrar só as contas recorrentes — a origem do MRR")} aria-pressed={recOnly}><span className="crasto-btn__icon"><Repeat size={14} /></span><span className="crasto-btn__label">{t("Só recorrentes")}{recOnly ? " ✓" : ""}</span></button>}
           <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => newAccount(tab === "pagar" ? "payable" : "receivable")}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Novo lançamento")}</span></button>
           {tab === "pagar" && <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => { setCf({ ...C_EMPTY }); setCOpen(true); }}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Novo custo")}</span></button>}
         </div>
