@@ -171,6 +171,27 @@
 .joy-cta:hover { border-color: var(--crasto-blue, #6E9CE8); background: var(--crasto-navy-05); }
 .joy-cta--wa { background: #1FA855; border-color: #1FA855; color: #fff; }
 .joy-cta--wa:hover { background: #1b9a4d; border-color: #1b9a4d; }
+/* Chat interativo (digitar/falar) */
+.joy-thread { gap: 12px; }
+.joy-row { display: flex; flex-direction: column; gap: 7px; }
+.joy-msg { max-width: 90%; font-size: 13.5px; line-height: 1.55; padding: 10px 13px; border-radius: 14px; white-space: pre-line; word-break: break-word; }
+.joy-msg--joy { align-self: flex-start; background: var(--crasto-navy-05); color: var(--crasto-text-body); border-bottom-left-radius: 5px; }
+.joy-msg--user { align-self: flex-end; background: #24589f; color: #fff; border-bottom-right-radius: 5px; }
+.joy-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.joy-chip { border: 1px solid var(--crasto-border); background: var(--crasto-surface); color: var(--crasto-blue-ink, #3E6FB8); border-radius: 999px; padding: 6px 11px; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: .14s; }
+.joy-chip:hover { border-color: var(--crasto-blue, #6E9CE8); background: var(--crasto-navy-05); }
+.joy-inputbar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--crasto-border-soft); }
+.joy-inputbar input { flex: 1; min-width: 0; border: 1px solid var(--crasto-border); border-radius: 999px; padding: 9px 14px; font-size: 13.5px; background: var(--crasto-surface); color: var(--crasto-text-primary); outline: none; transition: border-color .14s; }
+.joy-inputbar input:focus { border-color: var(--crasto-blue, #6E9CE8); }
+.joy-mic, .joy-send { flex: none; width: 38px; height: 38px; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer; transition: filter .14s, background .14s; }
+.joy-mic { background: var(--crasto-navy-05); color: var(--crasto-text-primary); }
+.joy-mic:hover { background: var(--crasto-border); }
+.joy-mic.on { background: #e5484d; color: #fff; animation: joy-mic-pulse 1s infinite; }
+@keyframes joy-mic-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(229,72,77,.5); } 70% { box-shadow: 0 0 0 8px rgba(229,72,77,0); } }
+.joy-send { background: #24589f; color: #fff; }
+.joy-send:hover { filter: brightness(1.1); }
+.joy-send:disabled { opacity: .45; cursor: default; filter: none; }
+@media (prefers-reduced-motion: reduce) { .joy-mic.on { animation: none; } }
 @media (max-width: 640px) {
   .joy-fab { right: 16px; bottom: 80px; }
   .joy-panel { right: 12px; left: 12px; width: auto; bottom: 148px; }
