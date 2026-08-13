@@ -228,6 +228,24 @@ export class UsersService {
   }
 
   /**
+   * DONO/ADMIN define uma senha DIRETAMENTE para a pessoa (reset MANUAL — NÃO envia e-mail).
+   * Uso: a pessoa perdeu acesso ao e-mail; o admin define a senha e a repassa por outro canal
+   * (WhatsApp etc.). A guarda de QUEM pode fazer isso é feita no controller (mesma do resend-owner).
+   */
+  async setPassword(req: any, userId: string, password: string) {
+    const u = await this.db.asService(async (c) =>
+      (await c.query(`select email, full_name, organization_id, role from public.profiles where id=$1`, [userId])).rows[0]);
+    if (!u?.email) throw new BadRequestException('Usuário não encontrado.');
+    if (u.role === 'crasto_admin') throw new BadRequestException('Não se redefine a senha de administrador por aqui.');
+    await this.idp.setPassword(userId, password);
+    await this.audit.log(req, 'password_set', {
+      targetType: 'user', targetId: userId, org: u.organization_id,
+      ctx: { email: u.email, manual: true },
+    });
+    return { ok: true, email: u.email };
+  }
+
+  /**
    * "Acessar como" (impersonação para AUDITORIA). Só crasto_admin (AdminGuard no controller).
    * Gera uma sessão do usuário-alvo SEM senha e devolve os tokens; o front do admin assume a
    * sessão e volta num clique. AUDITADO SEMPRE (ator = admin do JWT, nunca do corpo). Bloqueia

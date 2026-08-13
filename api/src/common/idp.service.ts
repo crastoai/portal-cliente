@@ -110,6 +110,24 @@ export class IdpService {
     }
   }
 
+  /**
+   * Define uma SENHA diretamente para o usuário (ato de admin/dono) via GoTrue admin — NÃO envia
+   * e-mail. Usado no reset manual (a pessoa perdeu acesso ao e-mail e recebe a senha por outro canal).
+   */
+  async setPassword(id: string, password: string): Promise<void> {
+    if (!this.svcKey) throw new BadRequestException('PORTAL_SERVICE_KEY ausente na API.');
+    const r = await fetch(`${this.gotrue}/admin/users/${id}`, {
+      method: 'PUT',
+      headers: { apikey: this.svcKey, Authorization: 'Bearer ' + this.svcKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    const j: any = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      this.log.warn(`admin set password ${id} ${r.status}: ${j?.msg || j?.message || ''}`);
+      throw new BadRequestException(j?.msg || j?.message || `Falha ao redefinir a senha (${r.status}).`);
+    }
+  }
+
   async deleteUser(id: string): Promise<void> {
     if (!this.svcKey) throw new BadRequestException('PORTAL_SERVICE_KEY ausente na API.');
     const r = await fetch(`${this.gotrue}/admin/users/${id}`, {

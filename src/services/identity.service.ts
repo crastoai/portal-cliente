@@ -112,6 +112,10 @@ export const users = {
   resendByOwner: async (userId: string): Promise<{ ok: boolean; email_sent?: boolean; error?: string }> => {
     try { return await api.post(`/api/identity/users/${userId}/resend-owner`); } catch (e) { return failed(e); }
   },
+  /** DONO/ADMIN define uma senha DIRETAMENTE para a pessoa (reset manual — NÃO envia e-mail). */
+  setPassword: async (userId: string, password: string): Promise<{ ok: boolean; error?: string }> => {
+    try { return await api.post(`/api/identity/users/${userId}/set-password`, { password }); } catch (e) { return failed(e); }
+  },
   /** Admin edita nome / e-mail / papel de um usuário do Portal. */
   update: async (id: string, body: { email?: string; full_name?: string; role?: string }): Promise<{ ok: boolean; error?: string }> => {
     try { return await api.patch(`/api/identity/users/${id}`, body); } catch (e) { return failed(e); }

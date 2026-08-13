@@ -181,6 +181,9 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [toast, setToast] = useState("");
+  const [newPw, setNewPw] = useState("");       // reset MANUAL de senha (admin/dono) — sem e-mail
+  const [showPw, setShowPw] = useState(false);
+  const [pwBusy, setPwBusy] = useState(false);
   const setField = (k: keyof typeof EMPTY_FORM, v: string) => setF((s) => ({ ...s, [k]: v }));
 
   // Quem vê TUDO (sem árvore, só a mensagem de acesso total): o DONO (owner) OU o nível ADMIN
@@ -299,6 +302,17 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
   }
   const countOn = (g: Group) => g.items.filter((i) => isOn(g.kind, i.key, i.base)).length;
 
+  function gerarSenha() { const cs = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"; let s = ""; for (let i = 0; i < 12; i++) s += cs[Math.floor(Math.random() * cs.length)]; setNewPw(s); setShowPw(true); }
+  async function definirSenha() {
+    if (!user?.id || newPw.trim().length < 8) return;
+    setPwBusy(true);
+    try {
+      const r = await services.identity.users.setPassword(user.id, newPw.trim());
+      if (!r.ok) throw new Error(r.error || t("Falha ao redefinir a senha."));
+      setToast(t("Senha redefinida ✓ — repasse a senha manualmente à pessoa.")); setNewPw(""); setShowPw(false); setTimeout(() => setToast(""), 6000);
+    } catch (e: any) { setToast(errorMessage(e)); setTimeout(() => setToast(""), 6000); }
+    finally { setPwBusy(false); }
+  }
   async function reenviar() {
     if (!user) return;
     setBusy(true);
@@ -421,6 +435,18 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
               <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} onClick={reenviar}>
                 <span className="crasto-btn__icon"><RefreshCw size={13} /></span><span className="crasto-btn__label">{t("Reenviar acesso")}</span>
               </button>
+            </div>
+          )}
+          {!isNew && podeVerCusto && (
+            <div className="ec-field" style={{ marginTop: 12 }}>
+              <label>{t("Resetar senha manualmente")}</label>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <input type={showPw ? "text" : "password"} value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder={t("Nova senha (mín. 8 caracteres)")} autoComplete="new-password" style={{ flex: 1, minWidth: 200 }} />
+                <button type="button" className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setShowPw((v) => !v)}><span className="crasto-btn__label">{showPw ? t("Ocultar") : t("Mostrar")}</span></button>
+                <button type="button" className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={gerarSenha}><span className="crasto-btn__label">{t("Gerar")}</span></button>
+                <button type="button" className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={pwBusy || newPw.trim().length < 8} onClick={definirSenha}><span className="crasto-btn__label">{pwBusy ? t("Salvando…") : t("Definir senha")}</span></button>
+              </div>
+              <span className="muted sm" style={{ display: "block", marginTop: 4 }}>{t("Define a senha na hora — NÃO envia e-mail. Use quando a pessoa perdeu o acesso ao e-mail; depois repasse a senha por outro canal (ex.: WhatsApp).")}</span>
             </div>
           )}
           {isNew && <div className="note" style={{ marginTop: 12 }}><span>{t("A pessoa recebe um e-mail de acesso da Crasto.AI e define a própria senha no primeiro login.")}</span></div>}

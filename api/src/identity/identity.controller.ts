@@ -103,6 +103,25 @@ export class IdentityController {
     return this.users.resend(req, id);
   }
 
+  /** DONO/ADMIN define uma SENHA diretamente para alguém da PRÓPRIA empresa (reset MANUAL, sem e-mail).
+   *  Mesma guarda do resend-owner: crasto_admin (qualquer org), o dono, ou admin-level da mesma org.
+   *  Uso: a pessoa perdeu acesso ao e-mail; define-se a senha e repassa-se por outro canal. */
+  @Post('users/:id/set-password')
+  async setPassword(@Req() req: any, @Param('id') id: string, @Body() b: any) {
+    const password = String(b?.password ?? '');
+    if (password.length < 8) return { ok: false, error: 'A senha precisa de ao menos 8 caracteres.' };
+    const ok = await this.db.asService(async (c) => {
+      const caller = (await c.query(`select role::text r, organization_id o, access_level al from public.profiles where id=$1`, [this.uid(req)])).rows[0];
+      const target = (await c.query(`select organization_id o from public.profiles where id=$1`, [id])).rows[0];
+      if (!caller || !target) return false;
+      if (caller.r === 'crasto_admin') return true;
+      if (caller.o !== target.o) return false;
+      return caller.r === 'client_owner' || (caller.r === 'client_member' && caller.al === 'admin');
+    });
+    if (!ok) return { ok: false, error: 'sem permissão' };
+    return this.users.setPassword(req, id, password);
+  }
+
   /** Admin exclui um usuário do Portal (Auth + profiles). */
   @Delete('users/:id')
   @UseGuards(AdminGuard)
