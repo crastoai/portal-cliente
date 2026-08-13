@@ -530,7 +530,9 @@ export default function CrmEmbed() {
         </div>
       ) : null}
 
-      {kpiBar}
+      {/* No celular a régua de KPI (e a tirinha "Mostrar métricas") SOME — ela roubava altura e empurrava
+          o composer pra fora ("chat escondido"). As métricas seguem no tablet/desktop. */}
+      {!isNarrow && kpiBar}
 
       <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
         {/* Visão única (config/agenda/tarefas/contatos/deep-link): iframe montado SÓ quando a seção é
