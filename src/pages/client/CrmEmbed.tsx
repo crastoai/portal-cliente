@@ -198,8 +198,11 @@ export default function CrmEmbed() {
   // Tela pequena/baixa → modo COMPACTO: encurta o topo (menos padding, esconde subtítulo/badge P1)
   // pra sobrar altura pra conversa. Feedback do Crasto (usuários da SR Brasil em telas menores).
   const [compact, setCompact] = useState<boolean>(() => typeof window !== "undefined" && (window.innerHeight < 820 || window.innerWidth < 1000));
+  // Cockpit no celular: abaixo de 768px força 1 painel só (N iframes lado a lado viram 90–190px cada e
+  // o CRM fica ilegível). NÃO mexe no store → ao voltar pro desktop os painéis do usuário reaparecem.
+  const [isNarrow, setIsNarrow] = useState<boolean>(() => typeof window !== "undefined" && window.innerWidth < 768);
   useEffect(() => {
-    const on = () => setCompact(window.innerHeight < 820 || window.innerWidth < 1000);
+    const on = () => { setCompact(window.innerHeight < 820 || window.innerWidth < 1000); setIsNarrow(window.innerWidth < 768); };
     window.addEventListener("resize", on);
     return () => window.removeEventListener("resize", on);
   }, []);
@@ -471,14 +474,15 @@ export default function CrmEmbed() {
   // Grid de painéis de UMA seção (usado tanto na ativa quanto nas visitadas que ficam montadas).
   const renderGrid = (gsec: string) => {
     const gp = store[gsec] || [{ id: `seed-${gsec}`, agent: null }];
+    const shown = isNarrow ? gp.slice(0, 1) : gp; // celular: 1 painel só (store preservado p/ o desktop)
     return (
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        {gp.map((panel, i) => (
+        {shown.map((panel, i) => (
           <div key={panel.id} style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", borderLeft: i > 0 ? "1px solid var(--crasto-border-soft, rgba(1,14,38,.10))" : "none" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: compact ? "3px 6px 3px 8px" : "6px 8px 6px 10px", background: "var(--crasto-surface, #fff)", borderBottom: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))", flex: "0 0 auto", position: "relative", zIndex: 5 }}>
-              {(!compact || gp.length > 1) && <span title={t("Painel {n}", { n: i + 1 })} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--crasto-blue, #6E9CE8)", color: "#fff", fontSize: 11, fontWeight: 700, fontFamily: "ui-monospace, monospace", padding: "2px 7px", borderRadius: 6, flex: "0 0 auto" }}>P{i + 1}</span>}
+              {(!compact || shown.length > 1) && <span title={t("Painel {n}", { n: i + 1 })} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--crasto-blue, #6E9CE8)", color: "#fff", fontSize: 11, fontWeight: 700, fontFamily: "ui-monospace, monospace", padding: "2px 7px", borderRadius: 6, flex: "0 0 auto" }}>P{i + 1}</span>}
               <AgentPicker agents={visAgents} value={panel.agent} onChange={(v) => setPanelAgent(panel.id, v)} t={t} />
-              {gp.length > 1 && (
+              {shown.length > 1 && (
                 <button onClick={() => removePanel(panel.id)} title={t("Fechar painel")} style={{ display: "inline-grid", placeItems: "center", width: 26, height: 26, border: 0, background: "transparent", color: "var(--crasto-text-muted)", cursor: "pointer", flex: "0 0 auto", borderRadius: 6, marginLeft: "auto" }}><X size={15} /></button>
               )}
             </div>
@@ -501,6 +505,7 @@ export default function CrmEmbed() {
             <div style={{ fontSize: compact ? 12.5 : 13.5, fontWeight: 700, color: "var(--crasto-text-primary)", lineHeight: 1.15 }}>{t(SECTION_LABEL[sec] || "WhatsApp CRM")}</div>
             {!compact && <div style={{ fontSize: 11, color: "var(--crasto-text-muted)" }}>{t("Multi-painel")} · {panels.length} {panels.length === 1 ? t("painel") : t("painéis")}</div>}
           </div>
+          {!isNarrow && (
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ display: "inline-flex", border: "1px solid var(--crasto-border-soft, rgba(1,14,38,.14))", borderRadius: 8, overflow: "hidden" }}>
               {[1, 2, 3, 4].map((n) => (
@@ -514,6 +519,7 @@ export default function CrmEmbed() {
               <button onClick={resetPanels} title={t("Voltar a 1 painel")} style={iconBtn}><RotateCcw size={14} /></button>
             )}
           </div>
+          )}
         </div>
       ) : showChips ? (
         // Config/Agendamentos/Contatos: MESMO seletor discreto do multi-painel (dropdown "Todos os
