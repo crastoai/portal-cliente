@@ -18,10 +18,24 @@ export class IdentityController {
   // ── acesso de pessoas ao Portal (substitui as Edge Functions de convite) ──
   // Nenhuma senha é gerada/enviada/exibida: vai um link e a pessoa escolhe a dela.
 
-  /** Admin cria o login de um cliente. */
+  /** Admin cria o login de um cliente. Se a org tiver o módulo WhatsApp CRM ativo, concede acesso
+   *  ao CRM POR PADRÃO (mesmo comportamento do convite pelo dono) — papel dono→owner, senão member;
+   *  as telas do não-dono se refinam depois nas Permissões. Falha na concessão não derruba a criação. */
   @Post('users')
   @UseGuards(AdminGuard)
-  createUser(@Req() req: any, @Body() b: any) { return this.users.createByAdmin(req, b); }
+  async createUser(@Req() req: any, @Body() b: any) {
+    const result = await this.users.createByAdmin(req, b);
+    if (result?.ok && result?.id && b?.organization_id) {
+      try {
+        const crm = await this.crmAccess.grantCrmForOwner(req, b.organization_id, result.id, b.email, b.full_name, b.role);
+        if (crm) (result as any).crm_granted = true;
+      } catch (e: any) {
+        this.log.warn(`CRM grant for admin-created user ${result.id}: ${e?.message}`);
+        (result as any).crm_grant_error = e?.message;
+      }
+    }
+    return result;
+  }
 
   /** Cliente-dono convida alguém da própria empresa (o serviço confere o papel).
    *  Se a org tiver módulo CRM ativo, concede acesso ao CRM automaticamente. */
