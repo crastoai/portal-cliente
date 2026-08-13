@@ -232,6 +232,9 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
   const [notifCount, setNotifCount] = useState(0);
   const [bellOpen, setBellOpen] = useState(false);
   const [profOpen, setProfOpen] = useState(false); // dropdown do perfil (Hostinger-like)
+  // Celular estreito: Idioma+Tema saem do topbar (que lotava/sobrepunha) e vão pro dropdown de perfil.
+  const [narrow, setNarrow] = useState<boolean>(() => typeof window !== "undefined" && window.matchMedia("(max-width: 560px)").matches);
+  useEffect(() => { const mq = window.matchMedia("(max-width: 560px)"); const on = () => setNarrow(mq.matches); mq.addEventListener("change", on); return () => mq.removeEventListener("change", on); }, []);
   const prevNotif = useRef<number | null>(null);
   useEffect(() => {
     if (!profile?.id) return;
@@ -307,6 +310,9 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
             </button>
             <input ref={avInput} type="file" accept="image/*" hidden onChange={onAvatar} />
             <div className="tb-prof__sep" />
+            {/* Celular: Idioma + Tema vivem aqui (saíram do topbar apertado). */}
+            {narrow && <div className="tb-prof__prefs"><LangSwitcher /><ThemeToggle /></div>}
+            {narrow && <div className="tb-prof__sep" />}
             <button className="pm-item" onClick={() => { setProfOpen(false); navigate(goProfile); }}><IdCard size={16} /> {t("Configurações")}</button>
             <button className="pm-item" onClick={() => { setProfOpen(false); navigate(profile?.role === "crasto_admin" ? goProfile : `${goProfile}?sec=notif`); }}><Bell size={16} /> {t("Notificações")}</button>
             <button className="pm-item" onClick={() => { setProfOpen(false); navigate(`${goProfile}?sec=seguranca`); }}><ShieldCheck size={16} /> {t("Autenticação em duas etapas")}</button>
@@ -349,8 +355,8 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
         </div>
         <div className="tb-right">
           <UnitSwitcher />
-          <LangSwitcher />
-          <ThemeToggle />
+          {!narrow && <LangSwitcher />}
+          {!narrow && <ThemeToggle />}
           {userCluster}
         </div>
       </header>

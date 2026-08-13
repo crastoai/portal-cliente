@@ -292,6 +292,8 @@ body.impersonating .main { margin-top: 96px; }
 .tb-prof { position: relative; }
 .tb-prof__ovl { position: fixed; inset: 0; z-index: 40; }
 .tb-prof__panel { position: absolute; top: calc(100% + 8px); right: 0; z-index: 50; width: 262px; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: 14px; box-shadow: var(--crasto-shadow-lg); padding: 6px; animation: navfly-in .12s ease-out; }
+/* Idioma + Tema dentro do dropdown de perfil (só no celular, onde saem do topbar apertado). */
+.tb-prof__prefs { display: flex; align-items: center; gap: 8px; padding: 4px 6px; }
 .tb-prof__head { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px; border: 0; background: transparent; cursor: pointer; border-radius: 10px; }
 .tb-prof__head:hover { background: var(--crasto-navy-05); }
 .tb-prof__av { position: relative; width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; font-weight: 700; color: #fff; font-size: 14px; background: linear-gradient(145deg, var(--crasto-navy), #0a2350); flex: none; overflow: hidden; }

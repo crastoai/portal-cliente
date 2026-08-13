@@ -498,8 +498,8 @@ export default function CrmEmbed() {
 
   return (
     <div className="admin-crm-fill">
-      {isMulti ? (
-        // HEADER do cockpit — título da seção à esquerda; layout [1][2][3][4] + Painel + Reset à direita.
+      {isMulti ? (isNarrow ? null : (
+        // HEADER do cockpit — no celular ELE SOME (redundante: você já entrou por "Conversas") → sobra tela pras mensagens.
         <div style={{ display: "flex", alignItems: "center", gap: compact ? 8 : 12, padding: compact ? "4px 10px" : "8px 16px", background: "var(--crasto-surface, #fff)", borderBottom: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))", flex: "0 0 auto" }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: compact ? 12.5 : 13.5, fontWeight: 700, color: "var(--crasto-text-primary)", lineHeight: 1.15 }}>{t(SECTION_LABEL[sec] || "WhatsApp CRM")}</div>
@@ -521,7 +521,7 @@ export default function CrmEmbed() {
           </div>
           )}
         </div>
-      ) : showChips ? (
+      )) : showChips ? (
         // Config/Agendamentos/Contatos: MESMO seletor discreto do multi-painel (dropdown "Todos os
         // Agentes ▾"), no lugar dos chips — mais sutil e consistente.
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 16px", background: "var(--crasto-surface, #fff)", borderBottom: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))", flex: "0 0 auto", position: "relative", zIndex: 5 }}>
