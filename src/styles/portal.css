@@ -99,6 +99,24 @@
 .navtree .navlink--child.on:hover { background: var(--crasto-navy-05); }
 [data-theme="dark"] .navtree .navlink--parent.on { color: #fff; }
 [data-theme="dark"] .navtree .navlink--child.on { background: rgba(255,255,255,.06); color: #fff; }
+/* NOME DO MÓDULO (nó pai) — negrito + AZUL GRADIENTE chamativo (pedido do Crasto): mais ênfase que
+   os sub-itens. Gradiente aplicado no texto (background-clip). O ícone do módulo puxa o mesmo azul. */
+.navlink--parent.navlink--mod .navlink-lbl {
+  font-weight: 800; letter-spacing: .005em;
+  background: linear-gradient(92deg, #2F5FB0 0%, #4E93D4 48%, #59B7F0 100%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+}
+.navlink--parent.navlink--mod > svg:first-child { color: #3E6FB8; opacity: .92; }
+.navlink--parent.navlink--mod:hover { background: var(--crasto-navy-05); }
+[data-theme="dark"] .navlink--parent.navlink--mod .navlink-lbl {
+  background: linear-gradient(92deg, #7FB0FF 0%, #6FA8F2 48%, #63C6FF 100%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+}
+[data-theme="dark"] .navlink--parent.navlink--mod > svg:first-child { color: #7FB0FF; }
+/* Sinal "+/−" no lugar da setinha, pra expandir/recolher a árvore do módulo. */
+.navtree-plus { flex: none; opacity: .75; color: var(--crasto-blue-ink, #3E6FB8); transition: opacity .15s ease; }
+.navlink--parent:hover .navtree-plus { opacity: 1; }
+[data-theme="dark"] .navtree-plus { color: #7FB0FF; }
 /* Flyout do sidebar RECOLHIDO — popup à direita do ícone (rótulo dos itens simples OU sub-abas do
    WhatsApp CRM). fixed + top vindo do JS, p/ não ser cortado pelo overflow da sidebar. */
 .navfly { position: fixed; left: 64px; z-index: 80; min-width: 190px; max-width: 244px; max-height: 84vh; overflow-y: auto; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: 12px; box-shadow: var(--crasto-shadow-lg); padding: 6px; display: flex; flex-direction: column; gap: 2px; animation: navfly-in .12s ease-out; }

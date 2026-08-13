@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { LogOut, Menu, X, Camera, Lock, ChevronLeft, ChevronRight, ChevronDown, Bell, Rocket, Sparkles, AlertTriangle, DollarSign, MessageCircle, IdCard, ShieldCheck, Wallet, Building2, Check, Plus, type LucideIcon } from "lucide-react";
+import { LogOut, Menu, X, Camera, Lock, ChevronLeft, ChevronRight, ChevronDown, Bell, Rocket, Sparkles, AlertTriangle, DollarSign, MessageCircle, IdCard, ShieldCheck, Wallet, Building2, Check, Plus, Minus, type LucideIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { services } from "../services";
 import ThemeToggle from "../ui/ThemeToggle";
@@ -192,11 +192,16 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
           <button key={n.label} type="button" className="navlink" onClick={() => { setOpen(false); (kids.find((c) => c.onClick) || kids[0])?.onClick?.(); }} title={t(n.label)} {...hoverProps(n)}>{ic}</button>
         );
       }
+      const todosBloqueados = n.children.every((c) => c.locked); // módulo não contratado → cadeado no pai
       return (
         <div key={n.label} className={"navtree" + (aberto ? " open" : "")}>
-          <button type="button" className={"navlink navlink--parent" + (paiAtivo ? " on" : "")} aria-expanded={aberto} onClick={() => toggleTree(n.label)}>
+          {/* Nó PAI = nome do MÓDULO (azul, negrito) com "+/−" pra expandir a árvore (pedido do Crasto). */}
+          <button type="button" className={"navlink navlink--parent navlink--mod" + (paiAtivo ? " on" : "")} aria-expanded={aberto} onClick={() => toggleTree(n.label)}>
             <n.icon size={17} /> <span className="navlink-lbl">{t(n.label)}</span>
-            <ChevronDown size={14} className="navtree-chev" />
+            {todosBloqueados && <Lock size={12} className="navlink-lock" style={{ marginLeft: "auto" }} />}
+            {aberto
+              ? <Minus size={15} className="navtree-plus" style={todosBloqueados ? { marginLeft: 6 } : { marginLeft: "auto" }} />
+              : <Plus size={15} className="navtree-plus" style={todosBloqueados ? { marginLeft: 6 } : { marginLeft: "auto" }} />}
           </button>
           <div className="navtree-kids">
             {n.children.map((c) => {

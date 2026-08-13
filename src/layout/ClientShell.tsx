@@ -10,7 +10,7 @@ import { preview } from "../lib/preview";
 import { useT } from "../lib/i18n";
 import { CLIENT_SCREENS, allowedScreens, firstAllowedPath } from "../lib/screens";
 import { UnitScopeContext, type Unit } from "../lib/unitScope";
-import Shell, { type NavItem } from "./Shell";
+import Shell, { type NavItem, type NavChild } from "./Shell";
 
 const SCREEN_ICON: Record<string, any> = {
   inicio: Home, modulos: LayoutGrid, implementacao: Activity, solucoes: Sparkles,
@@ -193,22 +193,38 @@ export default function ClientShell() {
     if (owned) return { tag: t("em breve"), onClick: () => navigate("/app/modulos") };
     return { locked: true, onClick: () => navigate("/app/catalogo") };
   };
-  // Marketing/Social/Tráfego agrupados sob um subgrupo colapsável "Marketing & Growth" (mesmo padrão
-  // do WhatsApp CRM). Cada filho preserva seu estado real (aberto / em breve / bloqueado).
+  // Marketing/Social/Tráfego agrupados sob "Marketing & Growth". Cada filho preserva seu estado real.
   const MKT_KEYS = new Set(["marketing", "social", "trafego"]);
   const mktChildren = MODULES.filter((m) => MKT_KEYS.has(m.key)).map((m) => ({ label: m.label, ...slotFor(m) }));
-  const modItems: NavItem[] = [];
-  for (const m of MODULES) {
-    if (m.key === "social" || m.key === "trafego") continue; // entram dentro do grupo
-    if (m.key === "marketing") { modItems.push({ icon: TrendingUp, label: "Marketing & Growth", section: "Módulos", children: mktChildren }); continue; }
-    modItems.push({ icon: m.icon, label: m.label, section: "Módulos", ...slotFor(m) });
-  }
-  // Extras: contratados que NÃO são o CRM e NÃO casam com nenhum canônico → pelo nome real.
-  // SEM exigir URL: módulo liberado tem de aparecer para o cliente mesmo antes de ter
-  // endereço publicado (antes ele sumia do menu e o cliente não via o que já era dele).
+
+  // TODO módulo vira uma ÁRVORE (pedido do Crasto): o nome do módulo é o nó PAI (azul, negrito, com
+  // "+"); quem tem sub-telas (Vendas, Marketing & Growth) expande as seções, e os de destino único
+  // (Financeiro, Compras, Importação…) expandem UM galho que carrega a ação real (abrir / cadeado).
+  const galhoUnico = (label: string, slot: Partial<NavItem>): NavChild => {
+    if (slot.locked) return { label: t("Conhecer módulo"), locked: true, onClick: slot.onClick };
+    if (slot.tag) return { label: t("Abrir") + " " + label, tag: slot.tag, onClick: slot.onClick };
+    if (slot.to) return { label: t("Abrir") + " " + label, to: slot.to };
+    return { label: t("Abrir") + " " + label, onClick: slot.onClick };
+  };
+  const moduloArvore = (m: (typeof MODULES)[number]): NavItem => {
+    const slot = slotFor(m);
+    const children = (slot.children && slot.children.length) ? slot.children : [galhoUnico(m.label, slot)];
+    return { icon: m.icon, label: m.label, section: "Módulos", to: slot.to, children };
+  };
+  const byKey = (k: string) => MODULES.find((m) => m.key === k)!;
+  // Ordem pedida: Vendas · Marketing & Growth · Financeiro · Compras · Importação (Financeiro sobe
+  // pra logo acima de Compras).
+  const modItems: NavItem[] = [
+    moduloArvore(byKey("crm")),                                                    // Vendas
+    { icon: TrendingUp, label: "Marketing & Growth", section: "Módulos", children: mktChildren },
+    ...["financeiro", "compras", "importacao"].map((k) => moduloArvore(byKey(k))),
+  ];
+  // Extras: contratados que NÃO são o CRM e NÃO casam com nenhum canônico → também como árvore.
   for (const c of cs) {
-    if (c.active && !c.isCrm && !MODULES.some((m) => m.rx.test(c.text)))
-      modItems.push({ icon: LayoutGrid, label: c.name, section: "Módulos", ...abrir(c) });
+    if (c.active && !c.isCrm && !MODULES.some((m) => m.rx.test(c.text))) {
+      const s = abrir(c);
+      modItems.push({ icon: LayoutGrid, label: c.name, section: "Módulos", to: s.to, children: [galhoUnico(c.name, s)] });
+    }
   }
 
   // Guarda de rota: se cair numa tela sem permissão (inclusive o Início, que o dono pode
@@ -227,22 +243,32 @@ export default function ClientShell() {
   // Seções do protótipo aprovado (Minha Crasto.AI · Módulos · Ajuda). O Shell agrupa por seção
   // CONSECUTIVA — por isso a montagem do nav abaixo mantém cada seção junta e na ordem certa.
   const REL = "Minha Crasto.AI";
-  const COLAB = "Colaboradores"; // grupo próprio: gente/equipe ≠ módulos contratados (pedido do Crasto).
   const SECAO: Record<string, string | undefined> = {
     inicio: REL, modulos: REL, implementacao: REL, solucoes: REL, financeiro: REL, perfil: REL,
-    usuarios: COLAB,           // Gestão de Acessos vive no grupo "Colaboradores", NÃO em "Módulos".
-    suporte: "Ajuda",
+    // `usuarios` e `suporte` NÃO entram aqui: viram a árvore "Gestão de RH" e o item solto
+    // "Suporte Crasto.ai" (ambos por último) — montados à parte abaixo (pedido do Crasto).
   };
   const telas = CLIENT_SCREENS
     .filter((s) => allowed.has(s.key))
     .filter((s) => s.key !== "implementacao" || !implDone)
+    .filter((s) => s.key !== "usuarios" && s.key !== "suporte")
     .map((s) => ({ to: s.to, end: s.key === "inicio", icon: SCREEN_ICON[s.key], label: s.label, section: SECAO[s.key] }));
-  // Ordem: Minha Crasto.AI (Cockpit no topo) → Módulos (contratados) → Colaboradores (equipe) → Ajuda.
+  // "Gestão de RH" (o antigo grupo "Colaboradores" foi eliminado): árvore com "Gestão de Acessos"
+  // dentro — pronta p/ ganhar Equipe/Cargos depois. Vai por ÚLTIMO entre os módulos.
+  const rhNav: NavItem[] = allowed.has("usuarios")
+    ? [{ icon: Users, label: "Gestão de RH", section: "Módulos", children: [{ to: "/app/usuarios", label: "Gestão de Acessos" }] }]
+    : [];
+  // "Suporte Crasto.ai": item SOLTO (sem cabeçalho de seção), o ÚLTIMO de todos, ícone de boia.
+  const suporteNav: NavItem[] = allowed.has("suporte")
+    ? [{ to: "/app/suporte", icon: LifeBuoy, label: "Suporte Crasto.ai" }]
+    : [];
+  // Ordem: Minha Crasto.AI → Módulos (Vendas · Mkt&Growth · Financeiro · Compras · Importação · …
+  // · Gestão de RH) → Suporte Crasto.ai (solto, no rodapé).
   const nav: NavItem[] = [
     ...telas.filter((s) => s.section === REL),
     ...modItems,
-    ...telas.filter((s) => s.section === COLAB),
-    ...telas.filter((s) => s.section === "Ajuda"),
+    ...rhNav,
+    ...suporteNav,
   ];
 
   // Barra inferior do CELULAR (thumb zone): prioriza Início, WhatsApp CRM, Suporte, Perfil e
