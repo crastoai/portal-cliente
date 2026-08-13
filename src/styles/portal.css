@@ -127,7 +127,7 @@
   transition: transform .18s cubic-bezier(.2,.8,.2,1), box-shadow .2s ease;
   animation: joy-bob 3.4s ease-in-out infinite;
 }
-.joy-fab__mk { width: 30px; height: 30px; object-fit: contain; }
+.joy-fab__mk { width: 46px; height: 46px; object-fit: contain; }
 .joy-fab:hover { transform: translateY(-3px) scale(1.06); animation-play-state: paused;
   box-shadow: 0 16px 34px -8px rgba(30,75,143,.7), 0 0 0 6px rgba(78,147,212,.18), 0 0 24px rgba(90,150,240,.6); }
 .joy-fab:active { transform: scale(.96); }

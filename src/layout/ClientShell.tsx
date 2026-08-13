@@ -213,12 +213,25 @@ export default function ClientShell() {
     return { icon: m.icon, label: m.label, section: "Módulos", to: slot.to, children };
   };
   const byKey = (k: string) => MODULES.find((m) => m.key === k)!;
-  // Ordem pedida: Vendas · Marketing & Growth · Financeiro · Compras · Importação (Financeiro sobe
-  // pra logo acima de Compras).
+  // Importação é SUB-MENU de Compras (pedido do Crasto): entra como galho dentro da árvore Compras,
+  // preservando seu estado real (aberto / em breve / cadeado). Não aparece mais como módulo de topo.
+  const impSlot = slotFor(byKey("importacao"));
+  const impChild: NavChild = impSlot.locked
+    ? { label: "Importação", locked: true, onClick: impSlot.onClick }
+    : impSlot.to ? { label: "Importação", to: impSlot.to }
+      : { label: "Importação", tag: impSlot.tag, onClick: impSlot.onClick };
+  const comprasM = byKey("compras");
+  const comprasSlot = slotFor(comprasM);
+  const comprasChildren: NavChild[] = (comprasSlot.children && comprasSlot.children.length)
+    ? [...comprasSlot.children, impChild]
+    : [galhoUnico(comprasM.label, comprasSlot), impChild];
+  const comprasTree: NavItem = { icon: comprasM.icon, label: comprasM.label, section: "Módulos", to: comprasSlot.to, children: comprasChildren };
+  // Ordem: Vendas · Marketing · Financeiro · Compras (com Importação dentro).
   const modItems: NavItem[] = [
     moduloArvore(byKey("crm")),                                                    // Vendas
     { icon: TrendingUp, label: "Marketing", section: "Módulos", children: mktChildren },
-    ...["financeiro", "compras", "importacao"].map((k) => moduloArvore(byKey(k))),
+    moduloArvore(byKey("financeiro")),
+    comprasTree,
   ];
   // Extras: contratados que NÃO são o CRM e NÃO casam com nenhum canônico → também como árvore.
   for (const c of cs) {
