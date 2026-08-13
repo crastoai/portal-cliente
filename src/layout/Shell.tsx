@@ -335,6 +335,7 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
               exclusividade + saber de cara em qual está). Nome vem da matriz (unidade primária). */}
           {brandTag ? (
             <span
+              className="tb-company"
               title={brandTag}
               style={{
                 display: "inline-flex", alignItems: "center", maxWidth: "min(38vw, 220px)", marginLeft: 6,

@@ -489,6 +489,17 @@ body.impersonating .main { margin-top: 96px; }
 .soon { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: var(--crasto-blue, #3E6FB8); background: rgba(62,111,184,.1); border-radius: 999px; padding: 3px 10px; }
 .pay-methods { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 560px) { .pay-methods { grid-template-columns: 1fr; } }
+/* TOPBAR apertada no celular estreito: a tag de EMPRESA (redundante — a mesma empresa aparece no
+   seletor de unidade logo à direita) some; o seletor de unidade encolhe e trunca; o gap do cluster
+   direito diminui. Assim os controles (unidade/idioma/tema/perfil) param de estourar a barra sem
+   perder nenhuma função. */
+@media (max-width: 560px) {
+  .tb-company { display: none !important; }
+  .unitdd { margin-left: 6px; }
+  .unitdd-btn { max-width: 44vw; padding: 0 8px; }
+  .tb-right { gap: 4px; }
+  .topbar { gap: 6px; }
+}
 .paymethod { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; border: 1px dashed var(--crasto-border); border-radius: var(--crasto-radius-md); background: var(--crasto-bg-2); color: var(--crasto-text-muted); font-size: 14px; font-weight: 600; cursor: not-allowed; opacity: .8; }
 .paymethod svg { opacity: .7; }
 .pay-note { font-size: 12.5px; color: var(--crasto-text-muted); margin: 14px 0; }
@@ -915,6 +926,11 @@ body.impersonating .main { margin-top: 96px; }
   :root[data-theme="dark"] .pbn-item.on { color: var(--crasto-blue, #6E9CE8); }
   /* espaço p/ a barra não cobrir o conteúdo (altura + barra de gestos do aparelho) */
   .canvas { padding-bottom: calc(72px + env(safe-area-inset-bottom)) !important; }
+  /* O CRM embutido (.admin-crm-fill) é position:absolute; inset:0 → ele cobre TAMBÉM os 72px que o
+     padding-bottom acima reserva à bottom-nav (padding não afeta filho absoluto). Sem isto o composer
+     do WhatsApp fica ATRÁS da barra e não dá pra digitar. Sobe o fundo do CRM até o topo da nav —
+     bate exato com a altura dela (72px + gesto), sem vão nem sobreposição. */
+  .admin-crm-fill { bottom: calc(72px + env(safe-area-inset-bottom)); }
 }
 
 /* POPUP do CRM no CENTRO DA TELA: o iframe que abriu um modal vira tela-cheia por cima de tudo
