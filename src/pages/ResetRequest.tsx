@@ -28,7 +28,7 @@ export default function ResetRequest() {
     <div className="login-wrap">
       <aside className="login-aside crasto-noise">
         <div className="brand-mark">
-          <img src="/crasto-wordmark-white.png" alt="Crasto.AI" style={{ height: 30, display: "block" }} />
+          <img src="/crasto-lockup-white.png" alt="crasto.ai" style={{ height: 30, display: "block" }} />
         </div>
         <div>
           <h2>{t("O seu Portal de Inteligência Artificial, num só lugar.")}</h2>

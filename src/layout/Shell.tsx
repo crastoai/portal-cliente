@@ -81,12 +81,12 @@ function notifIcon(type: string) {
 }
 const ASSIGNEE_L: Record<string, string> = { agente_ia: "Jorge (IA)", john: "John", crasto: "Crasto" };
 
-// Wordmark completo (logo Crasto.AI) — navy no claro, branco no escuro.
+// Logo OFICIAL crasto.ai (lockup minúsculo do DS/site) — navy no claro, branco no escuro.
 function Wordmark() {
   return (
     <span className="side-wordmark">
-      <img className="mk-light" src="/crasto-wordmark-navy.png" alt="Crasto.AI" />
-      <img className="mk-dark" src="/crasto-wordmark-white.png" alt="Crasto.AI" />
+      <img className="mk-light" src="/crasto-lockup-navy.png" alt="crasto.ai" />
+      <img className="mk-dark" src="/crasto-lockup-white.png" alt="crasto.ai" />
     </span>
   );
 }
