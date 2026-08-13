@@ -140,14 +140,14 @@ export default function JoyWidget() {
     <>
       <button type="button" className={"joy-fab" + (open ? " joy-fab--open" : "")} onClick={() => setOpen((o) => !o)}
         aria-label={open ? t("Fechar a JOY") : t("Abrir a JOY (ajuda)")} title={t("JOY · Assistente Crasto.AI")}>
-        {open ? <X size={22} /> : <img src="/crasto-monogram-white.png" alt="JOY" className="joy-fab__mk" />}
+        {open ? <X size={22} /> : <img src="/crasto-monogram-navy.png" alt="JOY" className="joy-fab__mk" />}
         {!open && <span className="joy-fab__ping" aria-hidden="true" />}
       </button>
 
       {open && (
         <div className="joy-panel" role="dialog" aria-label="JOY">
           <div className="joy-head">
-            <span className="joy-head__av"><img src="/crasto-monogram-white.png" alt="" /></span>
+            <span className="joy-head__av"><img src="/crasto-monogram-navy.png" alt="" /></span>
             <div className="joy-head__id"><b>{t("JOY")}</b><span>{t("Assistente Crasto.AI")}</span></div>
             <button type="button" className="joy-head__x" onClick={() => setOpen(false)} aria-label={t("Fechar")}><X size={18} /></button>
           </div>
