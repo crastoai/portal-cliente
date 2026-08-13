@@ -96,7 +96,10 @@ function Wordmark() {
 // Filho de um grupo colapsável. Antes só link simples (to obrigatório); agora suporta também
 // filho BLOQUEADO (cadeado + upsell) e AÇÃO (onClick sem to) — p/ agrupar módulos como Marketing.
 export type NavChild = { to?: string; label: string; end?: boolean; tag?: string; locked?: boolean; onClick?: () => void };
-export type NavItem = { to?: string; end?: boolean; icon: LucideIcon; label: string; tag?: string; section?: string; locked?: boolean; onClick?: () => void; children?: NavChild[] };
+// `mod` = pinta o nome/ícone com a cor de MÓDULO (azul, negrito) — o mesmo sinal visual do cliente.
+// Usado hoje pelos itens do admin (que ainda são links planos, sem árvore); os nós-pai de árvore já
+// recebem `navlink--mod` sozinhos no render.
+export type NavItem = { to?: string; end?: boolean; icon: LucideIcon; label: string; tag?: string; section?: string; locked?: boolean; mod?: boolean; onClick?: () => void; children?: NavChild[] };
 
 export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: { nav: NavItem[]; who: string; sub: string; logoTone?: string; bottomNav?: NavItem[]; brandTag?: string }) {
   const { profile, signOut, refreshProfile } = useAuth();
@@ -222,16 +225,18 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
     }
     const inner = <><n.icon size={17} /> <span className="navlink-lbl">{t(n.label)}</span>
       {n.locked ? <Lock size={13} className="navlink-lock" /> : n.tag ? <span className="tag">{n.tag}</span> : null}</>;
+    // `mod` pinta o link plano com a cor de módulo (azul) — mesmo sinal do cliente.
+    const modCls = n.mod ? " navlink--mod" : "";
     if (n.locked) return (
-      <button key={n.label} type="button" className="navlink navlink--locked" title={t("Conteúdo indisponível no momento")} onClick={() => { setOpen(false); setLockedMsg(true); }} {...hoverProps(n)}>{inner}</button>
+      <button key={n.label} type="button" className={"navlink navlink--locked" + modCls} title={t("Conteúdo indisponível no momento")} onClick={() => { setOpen(false); setLockedMsg(true); }} {...hoverProps(n)}>{inner}</button>
     );
     if (!n.to && n.onClick) return (
-      <button key={n.label} type="button" className="navlink" onClick={() => { setOpen(false); n.onClick?.(); }} {...hoverProps(n)}>{inner}</button>
+      <button key={n.label} type="button" className={"navlink" + modCls} onClick={() => { setOpen(false); n.onClick?.(); }} {...hoverProps(n)}>{inner}</button>
     );
     return (
       <NavLink key={n.to} to={n.to!} end={n.end} onClick={() => setOpen(false)} {...hoverProps(n)} className={({ isActive }) => {
         const match = isActive || (n.to === "/admin/clientes" && pathname.startsWith("/admin/cliente/"));
-        return "navlink" + (match ? " on" : "");
+        return "navlink" + (match ? " on" : "") + modCls;
       }}>{inner}</NavLink>
     );
   };

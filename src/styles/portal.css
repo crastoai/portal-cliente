@@ -99,13 +99,14 @@
 .navtree .navlink--child.on:hover { background: var(--crasto-navy-05); }
 [data-theme="dark"] .navtree .navlink--parent.on { color: #fff; }
 [data-theme="dark"] .navtree .navlink--child.on { background: rgba(255,255,255,.06); color: #fff; }
-/* NOME DO MÓDULO (nó pai) — negrito + AZUL ESCURO sólido (pedido do Crasto: sem gradiente). Mais
-   ênfase que os sub-itens. O ícone do módulo puxa o mesmo azul. */
-.navlink--parent.navlink--mod .navlink-lbl { font-weight: 800; letter-spacing: .005em; color: #1D4E89; }
-.navlink--parent.navlink--mod > svg:first-child { color: #1D4E89; opacity: .95; }
-.navlink--parent.navlink--mod:hover { background: var(--crasto-navy-05); }
-[data-theme="dark"] .navlink--parent.navlink--mod .navlink-lbl { color: #7FB0FF; }
-[data-theme="dark"] .navlink--parent.navlink--mod > svg:first-child { color: #7FB0FF; }
+/* NOME DO MÓDULO — negrito + AZUL ESCURO sólido (pedido do Crasto: sem gradiente). Mais ênfase que
+   os sub-itens. O ícone puxa o mesmo azul. Vale tanto pro nó-pai de árvore (cliente) quanto pros
+   links planos marcados com `mod` (admin), por isso o seletor é só `.navlink--mod`. */
+.navlink--mod .navlink-lbl { font-weight: 800; letter-spacing: .005em; color: #1D4E89; }
+.navlink--mod > svg:first-child { color: #1D4E89; opacity: .95; }
+.navlink--mod:hover { background: var(--crasto-navy-05); }
+[data-theme="dark"] .navlink--mod .navlink-lbl { color: #7FB0FF; }
+[data-theme="dark"] .navlink--mod > svg:first-child { color: #7FB0FF; }
 /* Sinal "+/−" no lugar da setinha, pra expandir/recolher a árvore do módulo. */
 .navtree-plus { flex: none; opacity: .75; color: #1D4E89; transition: opacity .15s ease; }
 .navlink--parent:hover .navtree-plus { opacity: 1; }

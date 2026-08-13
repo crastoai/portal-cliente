@@ -1,12 +1,11 @@
-import { LayoutDashboard, Users, Grid3x3, FileText, Tag, Share2, Coins, TrendingUp, Plug, LifeBuoy, Rocket, DollarSign, Cpu, Activity, BookOpen, ScrollText, Lock, ClipboardList, KeyRound, Blocks, MessageCircle } from "lucide-react";
+import { LayoutDashboard, Users, Grid3x3, FileText, Tag, Share2, Coins, TrendingUp, Plug, LifeBuoy, Rocket, DollarSign, Cpu, Activity, BookOpen, ScrollText, Lock, ClipboardList, KeyRound, Blocks } from "lucide-react";
 import Shell, { type NavItem } from "./Shell";
 import JulieWidget from "../ui/JulieWidget";
 
 const CONSOLE = "Console · IA 🔒";
 const NAV: NavItem[] = [
-  { to: "/admin", end: true, icon: LayoutDashboard, label: "Visão geral" },
-  { to: "/admin/clientes", icon: Users, label: "Empresas", section: "Operação" },
-  { to: "/admin/crm", icon: MessageCircle, label: "WhatsApp CRM", section: "Operação" },
+  { to: "/admin", end: true, icon: LayoutDashboard, label: "CEO Crasto.ai" },
+  { to: "/admin/clientes", icon: Users, label: "Clientes", section: "Operação" },
   { to: "/admin/servicos", icon: Tag, label: "Catálogo de serviços", section: "Operação" },
   { to: "/admin/catalogo", icon: Grid3x3, label: "Catálogo de módulos", section: "Operação" },
   { to: "/admin/propostas", icon: FileText, label: "Gerador de propostas", section: "Operação" },
@@ -28,10 +27,15 @@ const NAV: NavItem[] = [
   { to: "/admin/integracoes", icon: Plug, label: "Integrações", section: "Financeiro & Parceiros" },
 ];
 
+// Os itens de módulo (tudo que tem `section`) ganham a COR de módulo — azul, negrito — igual à
+// visão do cliente (`.navlink--mod`). A home ("CEO Crasto.ai", sem seção) fica neutra, como o
+// "Início" do cliente. (1º passo rumo à estrutura em árvore que o Crasto vai incrementar depois.)
+const NAV_MOD: NavItem[] = NAV.map((n) => (n.section ? { ...n, mod: true } : n));
+
 export default function AdminShell() {
   return (
     <>
-      <Shell nav={NAV} who="Crasto.AI · Admin" sub="Super-admin (RLS)" logoTone="linear-gradient(145deg,#010E26,#0a2350)" />
+      <Shell nav={NAV_MOD} who="Crasto.AI · Admin" sub="Super-admin (RLS)" logoTone="linear-gradient(145deg,#010E26,#0a2350)" />
       {/* Julie — CFO de IA, flutuante em todo o admin */}
       <JulieWidget />
     </>

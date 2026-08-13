@@ -2161,6 +2161,7 @@ export const DICT: Record<string, Partial<Record<Lang, string>>> = {
   "Vira oportunidade quando há uma proposta gerada (você gera no Gerador de propostas).": { en: "Becomes an opportunity when a proposal is generated (you generate it in the Proposal Generator).", es: "Se convierte en oportunidad cuando hay una propuesta generada (la generas en el Generador de propuestas)." },
   "Visão de dono": { en: "Owner view", es: "Vista de dueño" },
   "Visão geral": { en: "Overview", es: "Visión general" },
+  "CEO Crasto.ai": { en: "CEO Crasto.ai", es: "CEO Crasto.ai" },
   "Visão geral do negócio": { en: "Business overview", es: "Visión general del negocio" },
   "Visualização (admin)": { en: "Preview (admin)", es: "Vista previa (admin)" },
   "Visualizando como": { en: "Viewing as", es: "Viendo como" },
