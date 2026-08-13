@@ -11,6 +11,7 @@ import { useT } from "../lib/i18n";
 import { CLIENT_SCREENS, allowedScreens, firstAllowedPath } from "../lib/screens";
 import { UnitScopeContext, type Unit } from "../lib/unitScope";
 import Shell, { type NavItem, type NavChild } from "./Shell";
+import JoyWidget from "../ui/JoyWidget";
 
 const SCREEN_ICON: Record<string, any> = {
   inicio: Home, modulos: LayoutGrid, implementacao: Activity, solucoes: Sparkles,
@@ -216,7 +217,7 @@ export default function ClientShell() {
   // pra logo acima de Compras).
   const modItems: NavItem[] = [
     moduloArvore(byKey("crm")),                                                    // Vendas
-    { icon: TrendingUp, label: "Marketing & Growth", section: "Módulos", children: mktChildren },
+    { icon: TrendingUp, label: "Marketing", section: "Módulos", children: mktChildren },
     ...["financeiro", "compras", "importacao"].map((k) => moduloArvore(byKey(k))),
   ];
   // Extras: contratados que NÃO são o CRM e NÃO casam com nenhum canônico → também como árvore.
@@ -253,22 +254,18 @@ export default function ClientShell() {
     .filter((s) => s.key !== "implementacao" || !implDone)
     .filter((s) => s.key !== "usuarios" && s.key !== "suporte")
     .map((s) => ({ to: s.to, end: s.key === "inicio", icon: SCREEN_ICON[s.key], label: s.label, section: SECAO[s.key] }));
-  // "Gestão de RH" (o antigo grupo "Colaboradores" foi eliminado): árvore com "Gestão de Acessos"
-  // dentro — pronta p/ ganhar Equipe/Cargos depois. Vai por ÚLTIMO entre os módulos.
+  // "RH" (o antigo grupo "Colaboradores" foi eliminado): árvore com "Gestão de Acessos" dentro —
+  // pronta p/ ganhar Equipe/Cargos depois. Vai por ÚLTIMO entre os módulos.
   const rhNav: NavItem[] = allowed.has("usuarios")
-    ? [{ icon: Users, label: "Gestão de RH", section: "Módulos", children: [{ to: "/app/usuarios", label: "Gestão de Acessos" }] }]
+    ? [{ icon: Users, label: "RH", section: "Módulos", children: [{ to: "/app/usuarios", label: "Gestão de Acessos" }] }]
     : [];
-  // "Suporte Crasto.ai": item SOLTO (sem cabeçalho de seção), o ÚLTIMO de todos, ícone de boia.
-  const suporteNav: NavItem[] = allowed.has("suporte")
-    ? [{ to: "/app/suporte", icon: LifeBuoy, label: "Suporte Crasto.ai" }]
-    : [];
-  // Ordem: Minha Crasto.AI → Módulos (Vendas · Mkt&Growth · Financeiro · Compras · Importação · …
-  // · Gestão de RH) → Suporte Crasto.ai (solto, no rodapé).
+  // NB: o "Suporte" SAIU da sidebar (pedido do Crasto) — agora o suporte é acessado pela JOY, o
+  // agente flutuante no canto inferior direito (ver JoyWidget). A rota /app/suporte segue existindo
+  // como back-end de chamados/horas, mas a JOY é a porta de entrada.
   const nav: NavItem[] = [
     ...telas.filter((s) => s.section === REL),
     ...modItems,
     ...rhNav,
-    ...suporteNav,
   ];
 
   // Barra inferior do CELULAR (thumb zone): prioriza Início, WhatsApp CRM, Suporte, Perfil e
@@ -293,6 +290,9 @@ export default function ClientShell() {
   return (
     <UnitScopeContext.Provider value={{ units, unitId, setUnitId, canManage: canManageUnits, createUnit, reload: reloadUnits }}>
       <Shell nav={nav} bottomNav={bottomNav} brandTag={companyName} who={pv.active ? pv.name : (profile?.full_name || "Cliente")} sub={pv.active ? t("Visualização (admin)") : "Portal do Cliente"} logoTone="linear-gradient(145deg,#1F8A5B,#0d5c3a)" />
+      {/* JOY — assistente de suporte flutuante (canto inferior direito). Substitui o antigo item
+          "Suporte" da sidebar; sem IA/API (FAQ local + fallback humano). Só no portal do cliente. */}
+      <JoyWidget />
       {pv.active && (
         <div style={{ position: "fixed", top: 14, left: "50%", transform: "translateX(-50%)", zIndex: 9999, display: "flex", alignItems: "center", gap: 12, background: "var(--crasto-text-primary)", color: "#fff", padding: "10px 8px 10px 16px", borderRadius: 999, boxShadow: "0 10px 34px rgba(1,14,38,.34)", fontSize: 13.5, maxWidth: "92vw" }}>
           <Eye size={15} style={{ flex: "none" }} />

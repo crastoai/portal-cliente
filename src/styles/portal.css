@@ -99,24 +99,82 @@
 .navtree .navlink--child.on:hover { background: var(--crasto-navy-05); }
 [data-theme="dark"] .navtree .navlink--parent.on { color: #fff; }
 [data-theme="dark"] .navtree .navlink--child.on { background: rgba(255,255,255,.06); color: #fff; }
-/* NOME DO MÓDULO (nó pai) — negrito + AZUL GRADIENTE chamativo (pedido do Crasto): mais ênfase que
-   os sub-itens. Gradiente aplicado no texto (background-clip). O ícone do módulo puxa o mesmo azul. */
-.navlink--parent.navlink--mod .navlink-lbl {
-  font-weight: 800; letter-spacing: .005em;
-  background: linear-gradient(92deg, #2F5FB0 0%, #4E93D4 48%, #59B7F0 100%);
-  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
-}
-.navlink--parent.navlink--mod > svg:first-child { color: #3E6FB8; opacity: .92; }
+/* NOME DO MÓDULO (nó pai) — negrito + AZUL ESCURO sólido (pedido do Crasto: sem gradiente). Mais
+   ênfase que os sub-itens. O ícone do módulo puxa o mesmo azul. */
+.navlink--parent.navlink--mod .navlink-lbl { font-weight: 800; letter-spacing: .005em; color: #1D4E89; }
+.navlink--parent.navlink--mod > svg:first-child { color: #1D4E89; opacity: .95; }
 .navlink--parent.navlink--mod:hover { background: var(--crasto-navy-05); }
-[data-theme="dark"] .navlink--parent.navlink--mod .navlink-lbl {
-  background: linear-gradient(92deg, #7FB0FF 0%, #6FA8F2 48%, #63C6FF 100%);
-  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
-}
+[data-theme="dark"] .navlink--parent.navlink--mod .navlink-lbl { color: #7FB0FF; }
 [data-theme="dark"] .navlink--parent.navlink--mod > svg:first-child { color: #7FB0FF; }
 /* Sinal "+/−" no lugar da setinha, pra expandir/recolher a árvore do módulo. */
-.navtree-plus { flex: none; opacity: .75; color: var(--crasto-blue-ink, #3E6FB8); transition: opacity .15s ease; }
+.navtree-plus { flex: none; opacity: .75; color: #1D4E89; transition: opacity .15s ease; }
 .navlink--parent:hover .navtree-plus { opacity: 1; }
 [data-theme="dark"] .navtree-plus { color: #7FB0FF; }
+/* Respiro entre os itens do menu (Crasto: "ficaram muito socados"). */
+.side-nav { gap: 14px; }
+.navgroup { gap: 5px; }
+.navsec-items-in { gap: 5px; }
+.navtree-kids { gap: 4px; margin-top: 4px; }
+.navlink { padding-top: 10px; padding-bottom: 10px; }
+
+/* ══ JOY — assistente de suporte flutuante (canto inferior direito) ══ */
+.joy-fab {
+  position: fixed; right: 22px; bottom: 22px; z-index: 60;
+  width: 58px; height: 58px; border-radius: 50%; border: 0; cursor: pointer;
+  display: grid; place-items: center; color: #fff;
+  background: radial-gradient(120% 120% at 30% 20%, #24589f 0%, #132a52 55%, #0c1a36 100%);
+  box-shadow: 0 12px 26px -8px rgba(13,28,58,.6), inset 0 0 0 1px rgba(255,255,255,.06);
+  transition: transform .18s cubic-bezier(.2,.8,.2,1), box-shadow .2s ease;
+  animation: joy-bob 3.4s ease-in-out infinite;
+}
+.joy-fab__mk { width: 30px; height: 30px; object-fit: contain; }
+.joy-fab:hover { transform: translateY(-3px) scale(1.06); animation-play-state: paused;
+  box-shadow: 0 16px 34px -8px rgba(30,75,143,.7), 0 0 0 6px rgba(78,147,212,.18), 0 0 24px rgba(90,150,240,.6); }
+.joy-fab:active { transform: scale(.96); }
+.joy-fab--open { animation: none; }
+.joy-fab__ping { position: absolute; inset: -4px; border-radius: 50%; border: 2px solid rgba(90,150,240,.5); pointer-events: none; animation: joy-ping 2.4s ease-out infinite; }
+@keyframes joy-ping { 0% { opacity: .5; transform: scale(.92); } 70%,100% { opacity: 0; transform: scale(1.28); } }
+@keyframes joy-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .joy-fab, .joy-fab__ping { animation: none; } }
+
+.joy-panel { position: fixed; right: 22px; bottom: 92px; z-index: 61; width: min(360px, calc(100vw - 32px));
+  max-height: min(560px, calc(100vh - 130px)); display: flex; flex-direction: column;
+  background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: 18px;
+  box-shadow: var(--crasto-shadow-lg, 0 24px 60px -20px rgba(1,14,38,.5)); overflow: hidden; animation: joy-in .16s ease-out; }
+@keyframes joy-in { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+.joy-head { display: flex; align-items: center; gap: 11px; padding: 14px; color: #fff;
+  background: radial-gradient(120% 140% at 15% 0%, #24589f 0%, #132a52 60%, #0c1a36 100%); }
+.joy-head__av { width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,.12); display: grid; place-items: center; flex: none; }
+.joy-head__av img { width: 20px; height: 20px; object-fit: contain; }
+.joy-head__id { display: flex; flex-direction: column; line-height: 1.2; flex: 1; }
+.joy-head__id b { font-size: 14.5px; font-weight: 800; letter-spacing: .05em; }
+.joy-head__id span { font-size: 11.5px; opacity: .82; }
+.joy-head__x { background: rgba(255,255,255,.14); border: 0; color: #fff; width: 28px; height: 28px; border-radius: 8px; cursor: pointer; display: grid; place-items: center; }
+.joy-head__x:hover { background: rgba(255,255,255,.24); }
+.joy-body { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.joy-hi { font-size: 13.5px; color: var(--crasto-text-body); background: var(--crasto-navy-05); border-radius: 12px; padding: 11px 13px; }
+.joy-search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--crasto-border); border-radius: 10px; padding: 8px 11px; color: var(--crasto-text-faint); }
+.joy-search input { border: 0; outline: 0; background: transparent; flex: 1; font-size: 13.5px; color: var(--crasto-text-primary); }
+.joy-list { display: flex; flex-direction: column; gap: 6px; }
+.joy-topic { display: flex; align-items: center; justify-content: space-between; gap: 10px; text-align: left; width: 100%;
+  border: 1px solid var(--crasto-border-soft); background: var(--crasto-surface); color: var(--crasto-text-body);
+  border-radius: 11px; padding: 11px 13px; font-size: 13.5px; cursor: pointer; transition: border-color .14s, background .14s; }
+.joy-topic:hover { border-color: var(--crasto-blue, #6E9CE8); background: var(--crasto-navy-05); }
+.joy-topic svg { color: var(--crasto-blue, #6E9CE8); flex: none; }
+.joy-empty { font-size: 13px; color: var(--crasto-text-muted); padding: 8px 2px; }
+.joy-back { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; color: var(--crasto-blue-ink, #3E6FB8); font-size: 13px; font-weight: 600; cursor: pointer; padding: 2px 0; }
+.joy-ans-q { font-size: 14.5px; font-weight: 700; color: var(--crasto-text-primary); }
+.joy-ans-p { font-size: 13.5px; line-height: 1.6; color: var(--crasto-text-body); margin: 0; }
+.joy-ans-foot { font-size: 12.5px; color: var(--crasto-text-muted); margin-top: 2px; }
+.joy-foot { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--crasto-border-soft); background: var(--crasto-bg-subtle, rgba(1,14,38,.02)); }
+.joy-cta { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border-radius: 10px; padding: 10px 12px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid var(--crasto-border); background: var(--crasto-surface); color: var(--crasto-text-primary); transition: .14s; }
+.joy-cta:hover { border-color: var(--crasto-blue, #6E9CE8); background: var(--crasto-navy-05); }
+.joy-cta--wa { background: #1FA855; border-color: #1FA855; color: #fff; }
+.joy-cta--wa:hover { background: #1b9a4d; border-color: #1b9a4d; }
+@media (max-width: 640px) {
+  .joy-fab { right: 16px; bottom: 80px; }
+  .joy-panel { right: 12px; left: 12px; width: auto; bottom: 148px; }
+}
 /* Flyout do sidebar RECOLHIDO — popup à direita do ícone (rótulo dos itens simples OU sub-abas do
    WhatsApp CRM). fixed + top vindo do JS, p/ não ser cortado pelo overflow da sidebar. */
 .navfly { position: fixed; left: 64px; z-index: 80; min-width: 190px; max-width: 244px; max-height: 84vh; overflow-y: auto; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: 12px; box-shadow: var(--crasto-shadow-lg); padding: 6px; display: flex; flex-direction: column; gap: 2px; animation: navfly-in .12s ease-out; }
