@@ -198,6 +198,15 @@
   .joy-fab { right: 16px; bottom: 80px; }
   .joy-panel { right: 12px; left: 12px; width: auto; bottom: 148px; }
 }
+
+/* ══ Aviso central: MÓDULO BLOQUEADO (não contratado) — clicar mostra esta mensagem ══ */
+.lockmsg-ovl { position: fixed; inset: 0; z-index: 300; background: rgba(1,14,38,.42); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 20px; animation: joy-in .14s ease-out; }
+.lockmsg { width: min(400px, 94vw); background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: 18px; box-shadow: var(--crasto-shadow-lg, 0 24px 60px -20px rgba(1,14,38,.5)); padding: 26px 24px; text-align: center; }
+.lockmsg-ic { display: inline-grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: var(--crasto-navy-05); color: var(--crasto-blue-ink, #3E6FB8); margin-bottom: 14px; }
+.lockmsg h3 { font-size: 17px; font-weight: 800; color: var(--crasto-text-primary); margin: 0 0 8px; }
+.lockmsg p { font-size: 13.7px; line-height: 1.6; color: var(--crasto-text-body); margin: 0 0 20px; }
+.lockmsg-btn { width: 100%; border: 0; border-radius: 11px; padding: 11px 16px; font-size: 14px; font-weight: 700; cursor: pointer; color: #fff; background: #24589f; transition: filter .14s; }
+.lockmsg-btn:hover { filter: brightness(1.08); }
 /* Flyout do sidebar RECOLHIDO — popup à direita do ícone (rótulo dos itens simples OU sub-abas do
    WhatsApp CRM). fixed + top vindo do JS, p/ não ser cortado pelo overflow da sidebar. */
 .navfly { position: fixed; left: 64px; z-index: 80; min-width: 190px; max-width: 244px; max-height: 84vh; overflow-y: auto; background: var(--crasto-surface); border: 1px solid var(--crasto-border-soft); border-radius: 12px; box-shadow: var(--crasto-shadow-lg); padding: 6px; display: flex; flex-direction: column; gap: 2px; animation: navfly-in .12s ease-out; }

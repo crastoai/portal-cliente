@@ -107,6 +107,9 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
   // Barra lateral SEMPRE entra ABERTA (pedido do Crasto, reunião Connect): recolher é uma ação
   // temporária da sessão — não persiste entre entradas, para nunca "entrar recolhido".
   const [collapsed, setCollapsed] = useState<boolean>(false);
+  // Mensagem central ao clicar num item BLOQUEADO (módulo não contratado) — pedido do Crasto: em vez
+  // de mandar pro catálogo, avisa que o conteúdo está indisponível e orienta falar com o comercial.
+  const [lockedMsg, setLockedMsg] = useState(false);
   const [avBusy, setAvBusy] = useState(false);
   const avInput = useRef<HTMLInputElement>(null);
   const ini = initials(profile?.full_name || profile?.email);
@@ -189,7 +192,7 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
         return alvo ? (
           <NavLink key={n.label} to={alvo} onClick={() => setOpen(false)} className={"navlink" + (paiAtivo ? " on" : "")} title={t(n.label)} {...hoverProps(n)}>{ic}</NavLink>
         ) : (
-          <button key={n.label} type="button" className="navlink" onClick={() => { setOpen(false); (kids.find((c) => c.onClick) || kids[0])?.onClick?.(); }} title={t(n.label)} {...hoverProps(n)}>{ic}</button>
+          <button key={n.label} type="button" className="navlink" onClick={() => { setOpen(false); if (kids.every((c) => c.locked)) setLockedMsg(true); else (kids.find((c) => c.onClick) || kids[0])?.onClick?.(); }} title={t(n.label)} {...hoverProps(n)}>{ic}</button>
         );
       }
       const todosBloqueados = n.children.every((c) => c.locked); // módulo não contratado → cadeado no pai
@@ -210,7 +213,7 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
                 <NavLink key={c.label} to={c.to} end={c.end} onClick={() => setOpen(false)} className={({ isActive }) => "navlink navlink--child" + (isActive ? " on" : "")}>{ci}</NavLink>
               );
               return (
-                <button key={c.label} type="button" className={"navlink navlink--child" + (c.locked ? " navlink--locked" : "")} title={c.locked ? t("Módulo não contratado — fale com a Crasto.AI para liberar") : undefined} onClick={() => { setOpen(false); c.onClick?.(); }}>{ci}</button>
+                <button key={c.label} type="button" className={"navlink navlink--child" + (c.locked ? " navlink--locked" : "")} title={c.locked ? t("Conteúdo indisponível no momento") : undefined} onClick={() => { setOpen(false); if (c.locked) setLockedMsg(true); else c.onClick?.(); }}>{ci}</button>
               );
             })}
           </div>
@@ -220,7 +223,7 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
     const inner = <><n.icon size={17} /> <span className="navlink-lbl">{t(n.label)}</span>
       {n.locked ? <Lock size={13} className="navlink-lock" /> : n.tag ? <span className="tag">{n.tag}</span> : null}</>;
     if (n.locked) return (
-      <button key={n.label} type="button" className="navlink navlink--locked" title={t("Módulo não contratado — fale com a Crasto.AI para liberar")} onClick={() => { setOpen(false); n.onClick?.(); }} {...hoverProps(n)}>{inner}</button>
+      <button key={n.label} type="button" className="navlink navlink--locked" title={t("Conteúdo indisponível no momento")} onClick={() => { setOpen(false); setLockedMsg(true); }} {...hoverProps(n)}>{inner}</button>
     );
     if (!n.to && n.onClick) return (
       <button key={n.label} type="button" className="navlink" onClick={() => { setOpen(false); n.onClick?.(); }} {...hoverProps(n)}>{inner}</button>
@@ -405,14 +408,14 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
                 c.to ? (
                   <NavLink key={c.label} to={c.to} end={c.end} onClick={() => setFly(null)} className={({ isActive }) => "navfly-item" + (isActive ? " on" : "")}>{t(c.label)}</NavLink>
                 ) : (
-                  <button key={c.label} className="navfly-item" onClick={() => { setFly(null); c.onClick?.(); }}>{t(c.label)}{c.locked ? " 🔒" : ""}</button>
+                  <button key={c.label} className="navfly-item" onClick={() => { setFly(null); if (c.locked) setLockedMsg(true); else c.onClick?.(); }}>{t(c.label)}{c.locked ? " 🔒" : ""}</button>
                 )
               ))}
             </>
           ) : fly.item.to ? (
             <NavLink to={fly.item.to} end={fly.item.end} onClick={() => setFly(null)} className={({ isActive }) => "navfly-item" + (isActive ? " on" : "")}>{t(fly.item.label)}</NavLink>
           ) : (
-            <button className="navfly-item" onClick={() => { setFly(null); fly.item.onClick?.(); }}>{t(fly.item.label)}{fly.item.locked ? " 🔒" : ""}</button>
+            <button className="navfly-item" onClick={() => { setFly(null); if (fly.item.locked) setLockedMsg(true); else fly.item.onClick?.(); }}>{t(fly.item.label)}{fly.item.locked ? " 🔒" : ""}</button>
           )}
         </div>
       )}
@@ -436,6 +439,18 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
           </nav>
         )}
       </main>
+
+      {/* Aviso central ao clicar num MÓDULO bloqueado (não contratado) — pedido do Crasto. */}
+      {lockedMsg && (
+        <div className="lockmsg-ovl" onClick={() => setLockedMsg(false)}>
+          <div className="lockmsg" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <span className="lockmsg-ic"><Lock size={22} /></span>
+            <h3>{t("Conteúdo indisponível no momento")}</h3>
+            <p>{t("Para ativar o conteúdo, entre em contato com o seu representante comercial da Crasto.AI.")}</p>
+            <button type="button" className="lockmsg-btn" onClick={() => setLockedMsg(false)}>{t("Entendi")}</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
