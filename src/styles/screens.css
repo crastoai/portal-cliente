@@ -315,6 +315,12 @@
 .tb-bell-wrap { position: relative; }
 .tb-bell__ovl { position: fixed; inset: 0; z-index: 40; }
 .tb-bell__panel { position: absolute; top: calc(100% + 8px); right: 0; z-index: 50; width: 340px; max-width: 92vw; max-height: 420px; overflow-y: auto; background: var(--crasto-surface); border: 1px solid var(--crasto-border); border-radius: 14px; box-shadow: 0 16px 44px rgba(1,14,38,.22); padding: 6px; }
+/* CELULAR: o sino fica no meio do topo → o painel absolute (right:0) vazava/desalinhava. Vira faixa
+   FIXA da largura da tela (mesmo tratamento do seletor de unidade). */
+@media (max-width: 560px) {
+  .tb-bell__panel { position: fixed; top: 62px; left: 10px; right: 10px; width: auto; max-width: none; }
+  body.impersonating .tb-bell__panel { top: 102px; }
+}
 .tb-bell__head { font-size: 12px; font-weight: 700; color: var(--crasto-text-muted); text-transform: uppercase; letter-spacing: .05em; padding: 8px 10px 6px; }
 .tb-bell__empty { font-size: 13px; color: var(--crasto-text-muted); padding: 14px 10px; text-align: center; }
 .tb-bell__item { display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left; border: none; background: transparent; border-radius: 10px; padding: 9px 10px; cursor: pointer; }
