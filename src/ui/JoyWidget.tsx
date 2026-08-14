@@ -89,6 +89,12 @@ export default function JoyWidget() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [ouvindo, setOuvindo] = useState(false);
+  // Posição arrastável do FAB (persistida). Guarda o canto {right,bottom} em px; null = usa o CSS padrão.
+  const [fabPos, setFabPos] = useState<{ right: number; bottom: number } | null>(() => {
+    try { const s = localStorage.getItem("joy.fabpos"); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
+  const dragRef = useRef<{ sx: number; sy: number; sr: number; sb: number; cur: { right: number; bottom: number } } | null>(null);
+  const draggedRef = useRef(false);
   const idRef = useRef(0);
   const nextId = () => ++idRef.current;
   const [msgs, setMsgs] = useState<Msg[]>(() => [
@@ -136,16 +142,49 @@ export default function JoyWidget() {
   }
   function abrirChamado() { setOpen(false); nav("/app/suporte"); }
 
+  // --- Arraste do FAB (mouse/toque). Distingue clique de arraste por um limiar de 6px. ---
+  function onFabPointerDown(e: React.PointerEvent) {
+    if (open) return; // aberto, o botão é o X (fechar) — não arrasta
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const right = window.innerWidth - r.right;
+    const bottom = window.innerHeight - r.bottom;
+    dragRef.current = { sx: e.clientX, sy: e.clientY, sr: right, sb: bottom, cur: { right, bottom } };
+    draggedRef.current = false;
+    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ok */ }
+  }
+  function onFabPointerMove(e: React.PointerEvent) {
+    const d = dragRef.current; if (!d) return;
+    const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+    if (!draggedRef.current && Math.hypot(dx, dy) < 6) return;
+    draggedRef.current = true;
+    const size = (e.currentTarget as HTMLElement).offsetWidth || 58, m = 8;
+    const right = Math.min(window.innerWidth - size - m, Math.max(m, d.sr - dx));
+    const bottom = Math.min(window.innerHeight - size - m, Math.max(m, d.sb - dy));
+    d.cur = { right, bottom };
+    setFabPos({ right, bottom });
+  }
+  function onFabPointerUp(e: React.PointerEvent) {
+    const d = dragRef.current; dragRef.current = null;
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ok */ }
+    if (draggedRef.current && d) {
+      try { localStorage.setItem("joy.fabpos", JSON.stringify(d.cur)); } catch { /* ok */ }
+    }
+  }
+
   return (
     <>
-      <button type="button" className={"joy-fab" + (open ? " joy-fab--open" : "")} onClick={() => setOpen((o) => !o)}
-        aria-label={open ? t("Fechar a JOY") : t("Abrir a JOY (ajuda)")} title={t("JOY · Assistente Crasto.AI")}>
+      <button type="button" className={"joy-fab" + (open ? " joy-fab--open" : "")}
+        style={fabPos ? { right: fabPos.right + "px", bottom: fabPos.bottom + "px", left: "auto", top: "auto" } : undefined}
+        onPointerDown={onFabPointerDown} onPointerMove={onFabPointerMove} onPointerUp={onFabPointerUp}
+        onClick={() => { if (draggedRef.current) { draggedRef.current = false; return; } setOpen((o) => !o); }}
+        aria-label={open ? t("Fechar a JOY") : t("Abrir a JOY (ajuda)")} title={t("JOY · Assistente Crasto.AI · arraste para mover")}>
         {open ? <X size={22} /> : <img src="/crasto-monogram-navy.png" alt="JOY" className="joy-fab__mk" />}
         {!open && <span className="joy-fab__ping" aria-hidden="true" />}
       </button>
 
       {open && (
-        <div className="joy-panel" role="dialog" aria-label="JOY">
+        <div className="joy-panel" role="dialog" aria-label="JOY"
+          style={fabPos ? { bottom: (fabPos.bottom + 70) + "px" } : undefined}>
           <div className="joy-head">
             <span className="joy-head__av"><img src="/crasto-monogram-navy.png" alt="" /></span>
             <div className="joy-head__id"><b>{t("JOY")}</b><span>{t("Assistente Crasto.AI")}</span></div>

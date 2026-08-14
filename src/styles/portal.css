@@ -121,7 +121,8 @@
 /* ══ JOY — assistente de suporte flutuante (canto inferior direito) ══ */
 .joy-fab {
   position: fixed; right: 22px; bottom: 22px; z-index: 60;
-  width: 58px; height: 58px; border-radius: 50%; border: 0; cursor: pointer;
+  width: 58px; height: 58px; border-radius: 50%; border: 0; cursor: grab;
+  touch-action: none; -webkit-user-select: none; user-select: none;
   display: grid; place-items: center; color: #fff;
   background: radial-gradient(120% 120% at 30% 20%, #24589f 0%, #132a52 55%, #0c1a36 100%);
   box-shadow: 0 12px 26px -8px rgba(13,28,58,.6), inset 0 0 0 1px rgba(255,255,255,.06);
@@ -471,8 +472,13 @@ body.impersonating .main { margin-top: 96px; }
     position: fixed; left: 0; top: 56px; height: calc(100dvh - 56px); width: 284px; max-width: 86vw;
     transform: translateX(-100%); transition: transform .28s cubic-bezier(.2,.7,.2,1);
     z-index: 70; box-shadow: 0 20px 60px -10px var(--crasto-navy-40);
+    padding: 8px 12px 12px; /* mobile: sem a marca do topo, encosta a nav no topo (some a faixa vazia) */
   }
   .side.open { transform: translateX(0); }
+  /* a nav começa no topo; deixa respiro à direita da 1ª linha p/ não colidir com o X (absolute) */
+  .side .side-nav { padding-top: 2px; }
+  .side .navgroup:first-child .navsec,
+  .side .navgroup:first-child .navsec--btn { padding-right: 46px; }
   .side-overlay { display: block; position: fixed; inset: 0; z-index: 65; background: rgba(1,14,38,.42); backdrop-filter: blur(2px); }
   .side-close { display: grid; place-items: center; position: absolute; top: 14px; right: 12px; width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--crasto-border-soft); background: transparent; color: var(--crasto-text-body); }
 
