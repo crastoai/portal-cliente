@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Grid3x3, FileText, Tag, Share2, Coins, TrendingUp, Plug, LifeBuoy, Rocket, DollarSign, Cpu, Activity, BookOpen, ScrollText, Lock, ClipboardList, KeyRound, Blocks } from "lucide-react";
+import { LayoutDashboard, Users, Grid3x3, FileText, Tag, Share2, Coins, TrendingUp, Plug, LifeBuoy, Rocket, DollarSign, Cpu, Activity, BookOpen, ScrollText, ClipboardList, KeyRound, Blocks } from "lucide-react";
 import Shell, { type NavItem } from "./Shell";
 import JulieWidget from "../ui/JulieWidget";
 
@@ -15,7 +15,8 @@ const NAV: NavItem[] = [
   { to: "/admin/console/health", icon: Activity, label: "Health Check", section: CONSOLE },
   { to: "/admin/console/memorias", icon: BookOpen, label: "Memórias & Conhecimento", section: CONSOLE },
   { to: "/admin/console/regras", icon: ScrollText, label: "Regras Globais", section: CONSOLE },
-  { to: "/admin/console/permissoes", icon: Lock, label: "Permissões & Acessos", section: CONSOLE },
+  // "Permissões & Acessos" saiu do sidebar (pedido do Crasto): já é acessível pelo ícone de escudo
+  // na lista de Clientes (por cliente). A rota /admin/console/permissoes segue viva.
   { to: "/admin/console/auditoria", icon: ClipboardList, label: "Auditoria & Logs", section: CONSOLE },
   { to: "/admin/integracoes", icon: KeyRound, label: "APIs & Chaves", section: CONSOLE },
   { to: "/admin/console/modelos", icon: Cpu, label: "Modelos LLM", section: CONSOLE },
