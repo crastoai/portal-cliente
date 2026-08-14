@@ -119,10 +119,12 @@
 .navlink { padding-top: 10px; padding-bottom: 10px; }
 
 /* ══ JOY — assistente de suporte flutuante (canto inferior direito) ══ */
+/* wrapper arrastável (carrega a posição fixa; o botão fica relativo dentro) */
+.joy-fab-wrap { position: fixed; right: 22px; bottom: 22px; z-index: 60; touch-action: none; cursor: grab; }
 .joy-fab {
-  position: fixed; right: 22px; bottom: 22px; z-index: 60;
+  position: relative; z-index: 1;
   width: 58px; height: 58px; border-radius: 50%; border: 0; cursor: grab;
-  touch-action: none; -webkit-user-select: none; user-select: none;
+  -webkit-user-select: none; user-select: none;
   display: grid; place-items: center; color: #fff;
   background: radial-gradient(120% 120% at 30% 20%, #24589f 0%, #132a52 55%, #0c1a36 100%);
   box-shadow: 0 12px 26px -8px rgba(13,28,58,.6), inset 0 0 0 1px rgba(255,255,255,.06);
@@ -140,6 +142,24 @@
 @keyframes joy-ping { 0% { opacity: .5; transform: scale(.92); } 70%,100% { opacity: 0; transform: scale(1.28); } }
 @keyframes joy-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) { .joy-fab, .joy-fab__ping { animation: none; } }
+
+/* Botão × p/ OCULTAR a JOY (aparece no hover no desktop, sempre no toque). */
+.joy-fab-x { position: absolute; top: -3px; right: -3px; z-index: 2; width: 20px; height: 20px; border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer; padding: 0; line-height: 0;
+  background: var(--crasto-surface); color: var(--crasto-text-body); border: 1px solid var(--crasto-border-soft);
+  box-shadow: 0 2px 6px -1px rgba(13,28,58,.35); opacity: 0; transform: scale(.85); transition: opacity .15s, transform .15s, color .15s; }
+.joy-fab-wrap:hover .joy-fab-x, .joy-fab-x:focus-visible { opacity: 1; transform: scale(1); }
+.joy-fab-x:hover { color: #c0392b; border-color: #c0392b; }
+@media (hover: none) { .joy-fab-x { opacity: 1; transform: scale(1); } }
+
+/* Aba discreta na borda direita p/ REABRIR a JOY depois de ocultada. */
+.joy-reopen { position: fixed; right: 0; bottom: 88px; z-index: 60; display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 12px 8px 13px; border: 0; cursor: pointer; border-radius: 999px 0 0 999px; color: #fff;
+  background: radial-gradient(120% 120% at 30% 20%, #24589f 0%, #132a52 55%, #0c1a36 100%);
+  box-shadow: 0 10px 22px -10px rgba(13,28,58,.6), inset 0 0 0 1px rgba(255,255,255,.06);
+  font-weight: 800; font-size: 12px; letter-spacing: .04em; opacity: .92; transition: opacity .15s; }
+.joy-reopen:hover, .joy-reopen:focus-visible { opacity: 1; }
+.joy-reopen__mk { width: 20px; height: 20px; object-fit: contain; filter: brightness(0) invert(1); flex: none; }
 
 .joy-panel { position: fixed; right: 22px; bottom: 92px; z-index: 61; width: min(360px, calc(100vw - 32px));
   max-height: min(560px, calc(100vh - 130px)); display: flex; flex-direction: column;
@@ -197,8 +217,9 @@
 .joy-send:disabled { opacity: .45; cursor: default; filter: none; }
 @media (prefers-reduced-motion: reduce) { .joy-mic.on { animation: none; } }
 @media (max-width: 640px) {
-  .joy-fab { right: 16px; bottom: 80px; }
+  .joy-fab-wrap { right: 16px; bottom: 80px; }
   .joy-panel { right: 12px; left: 12px; width: auto; bottom: 148px; }
+  .joy-reopen { bottom: 132px; } /* acima da barra inferior do mobile */
 }
 
 /* ══ Aviso central: MÓDULO BLOQUEADO (não contratado) — clicar mostra esta mensagem ══ */

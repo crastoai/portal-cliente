@@ -95,6 +95,8 @@ export default function JoyWidget() {
   });
   const dragRef = useRef<{ sx: number; sy: number; sr: number; sb: number; cur: { right: number; bottom: number } } | null>(null);
   const draggedRef = useRef(false);
+  // A pessoa pode OCULTAR a JOY (fica só a abinha "JOY" na borda p/ reabrir). Persistido.
+  const [hidden, setHidden] = useState<boolean>(() => { try { return localStorage.getItem("joy.hidden") === "1"; } catch { return false; } });
   const idRef = useRef(0);
   const nextId = () => ++idRef.current;
   const [msgs, setMsgs] = useState<Msg[]>(() => [
@@ -142,6 +144,9 @@ export default function JoyWidget() {
   }
   function abrirChamado() { setOpen(false); nav("/app/suporte"); }
 
+  function ocultarJoy() { setOpen(false); setHidden(true); try { localStorage.setItem("joy.hidden", "1"); } catch { /* ok */ } }
+  function reabrirJoy() { setHidden(false); try { localStorage.setItem("joy.hidden", "0"); } catch { /* ok */ } }
+
   // --- Arraste do FAB (mouse/toque). Distingue clique de arraste por um limiar de 6px. ---
   function onFabPointerDown(e: React.PointerEvent) {
     if (open) return; // aberto, o botão é o X (fechar) — não arrasta
@@ -173,14 +178,30 @@ export default function JoyWidget() {
 
   return (
     <>
-      <button type="button" className={"joy-fab" + (open ? " joy-fab--open" : "")}
-        style={fabPos ? { right: fabPos.right + "px", bottom: fabPos.bottom + "px", left: "auto", top: "auto" } : undefined}
-        onPointerDown={onFabPointerDown} onPointerMove={onFabPointerMove} onPointerUp={onFabPointerUp}
-        onClick={() => { if (draggedRef.current) { draggedRef.current = false; return; } setOpen((o) => !o); }}
-        aria-label={open ? t("Fechar a JOY") : t("Abrir a JOY (ajuda)")} title={t("JOY · Assistente Crasto.AI · arraste para mover")}>
-        {open ? <X size={22} /> : <img src="/crasto-monogram-navy.png" alt="JOY" className="joy-fab__mk" />}
-        {!open && <span className="joy-fab__ping" aria-hidden="true" />}
-      </button>
+      {!hidden && (
+        <div className="joy-fab-wrap"
+          style={fabPos ? { right: fabPos.right + "px", bottom: fabPos.bottom + "px", left: "auto", top: "auto" } : undefined}
+          onPointerDown={onFabPointerDown} onPointerMove={onFabPointerMove} onPointerUp={onFabPointerUp}>
+          <button type="button" className={"joy-fab" + (open ? " joy-fab--open" : "")}
+            onClick={() => { if (draggedRef.current) { draggedRef.current = false; return; } setOpen((o) => !o); }}
+            aria-label={open ? t("Fechar a JOY") : t("Abrir a JOY (ajuda)")} title={t("JOY · Assistente Crasto.AI · arraste para mover")}>
+            {open ? <X size={22} /> : <img src="/crasto-monogram-navy.png" alt="JOY" className="joy-fab__mk" />}
+            {!open && <span className="joy-fab__ping" aria-hidden="true" />}
+          </button>
+          {!open && (
+            <button type="button" className="joy-fab-x" onPointerDown={(e) => e.stopPropagation()}
+              onClick={ocultarJoy} aria-label={t("Ocultar a JOY")} title={t("Ocultar a JOY (reabre na aba lateral)")}><X size={12} /></button>
+          )}
+        </div>
+      )}
+
+      {hidden && (
+        <button type="button" className="joy-reopen" onClick={reabrirJoy}
+          aria-label={t("Abrir a JOY (ajuda)")} title={t("Abrir a JOY")}>
+          <img src="/crasto-monogram-navy.png" alt="" className="joy-reopen__mk" />
+          <span>{t("JOY")}</span>
+        </button>
+      )}
 
       {open && (
         <div className="joy-panel" role="dialog" aria-label="JOY"
