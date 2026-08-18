@@ -304,7 +304,7 @@ export default function CrmEmbed() {
   }, [isMulti, sec, agents]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── VISÃO ÚNICA (config/agenda/contatos/tarefas/deep-link) — 1 iframe; seção troca por postMessage ──
-  const singleAgent = isUnified || convParam ? "*" : solo; // Tarefas e deep-link = todos; resto = escopo
+  const singleAgent = isUnified ? "*" : solo; // Tarefas = todos; deep-link de conversa e demais visões únicas seguem o seletor de Agente (default "*" = todos, então a conversa sempre aparece)
   const sectionPath = convParam ? `/chat/${encodeURIComponent(convParam)}` : (SECTION_TO_PATH[sec] || "/");
   // A src da visão única reflete a SEÇÃO ATUAL (recarrega ao trocar de seção). Antes ficava
   // "congelada" no caminho inicial → Minhas Tarefas/Agendamentos abriam o Dashboard. Agora carrega certo.
@@ -392,7 +392,7 @@ export default function CrmEmbed() {
   }
 
   const panels = store[sec] || [{ id: `seed-${sec}`, agent: null }];
-  const showChips = !isMulti && !isUnified && !convParam && visAgents.length > 1; // config/agenda/contatos
+  const showChips = !isMulti && !isUnified && visAgents.length > 1; // config/agenda/contatos + deep-link de conversa (abrir pelo CRM): mostra o seletor de Agente
   const panelSrc = (gsec: string, ag: string | null) => {
     const q = ag ? `&agent=${encodeURIComponent(ag)}` : "";
     const rf = refreshTok ? `&refresh_token=${encodeURIComponent(refreshTok)}` : "";
