@@ -110,12 +110,12 @@ function AgentPicker({ agents, value, onChange, t }: { agents: Agent[]; value: s
           {/* backdrop: 1 clique fora fecha; fica ATRÁS do painel, então o clique no item aplica de 1ª */}
           <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 99998 }} />
         <div ref={panelRef} className="crm-switch-panel crm-switch-panel--portal" style={{ position: "fixed", top: pos.top, left: pos.left, minWidth: pos.width, zIndex: 99999 }}>
-          <button className="crm-switch-item" onClick={() => pick(null)}>
+          <button className="crm-switch-item" onPointerDown={(e) => { e.preventDefault(); pick(null); }}>
             <MessageSquare size={15} /> <b>{t("Todos os Agentes")}</b>
           </button>
           <div className="crm-switch-sep">{t("Agentes")}</div>
           {agents.map((a) => (
-            <button key={a.id} className="crm-switch-item" onClick={() => pick(a.id)}>
+            <button key={a.id} className="crm-switch-item" onPointerDown={(e) => { e.preventDefault(); pick(a.id); }}>
               <span style={dotStyle(a)} /> <b>{a.name}</b>{a.slug ? <span className="crm-switch-sub">{a.slug}</span> : null}
             </button>
           ))}
