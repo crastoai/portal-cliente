@@ -83,10 +83,17 @@ function AgentPicker({ agents, value, onChange, t }: { agents: Agent[]; value: s
   // pointerdown em captura — esse fechava ANTES do onClick do item aplicar = o bug do "clicar 2x").
   useEffect(() => {
     if (!open) return;
-    const fechar = () => setOpen(false);
-    window.addEventListener("scroll", fechar, true);
-    window.addEventListener("resize", fechar);
-    return () => { window.removeEventListener("scroll", fechar, true); window.removeEventListener("resize", fechar); };
+    // Antes FECHAVA ao rolar/redimensionar (capture=true) — mas isso disparava com qualquer scroll
+    // logo após abrir e fechava o dropdown ANTES do 1º clique no item registrar (= o "clicar 2x").
+    // Agora REPOSICIONA o painel colado ao botão; só fecha se o botão sair mesmo da tela.
+    const reposicionar = () => {
+      const r = btnRef.current?.getBoundingClientRect();
+      if (!r || r.bottom < 0 || r.top > window.innerHeight) { setOpen(false); return; }
+      setPos({ top: r.bottom + 6, left: r.left, width: Math.max(240, r.width) });
+    };
+    window.addEventListener("scroll", reposicionar, true);
+    window.addEventListener("resize", reposicionar);
+    return () => { window.removeEventListener("scroll", reposicionar, true); window.removeEventListener("resize", reposicionar); };
   }, [open]);
 
   const pick = (v: string | null) => { onChange(v); setOpen(false); };
