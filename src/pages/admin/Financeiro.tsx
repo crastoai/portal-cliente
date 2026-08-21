@@ -62,6 +62,7 @@ function AiSpendPanel() {
   const [from, setFrom] = useState("2025-01-01");
   const [to, setTo] = useState(isoDay(now));
   const [unit, setUnit] = useState<"mes" | "semana">("mes");
+  const [open, setOpen] = useState(false); // recolhido por padrão — não poluir o A Pagar no dia a dia
   const activePreset = presets.find((p) => p.from === from && p.to === to)?.key || "custom";
   const { data, loading } = useAsync(async () => {
     const [range, p25, p26] = await Promise.all([
@@ -81,12 +82,17 @@ function AiSpendPanel() {
   const dateInp = { padding: "7px 10px", borderRadius: 8, border: "1px solid var(--crasto-border-soft,#e5e7eb)", fontSize: 13 };
   const dateLab = { display: "flex", flexDirection: "column" as const, gap: 4, fontSize: 12, fontWeight: 600, color: "var(--crasto-text-muted,#667085)" };
   return (
-    <div className="card" style={{ padding: 16, marginBottom: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
-        <strong style={{ fontSize: 15 }}>📊 {t("Gasto de IA por período")}</strong>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-          {presets.map((p) => <button key={p.key} className={"crasto-btn crasto-btn--sm " + (activePreset === p.key ? "crasto-btn--primary" : "crasto-btn--ghost")} onClick={() => { setFrom(p.from); setTo(p.to); }}><span className="crasto-btn__label">{t(p.label)}</span></button>)}
-        </div>
+    <div className="card" style={{ padding: open ? 16 : "10px 16px", marginBottom: 14 }}>
+      <button onClick={() => setOpen(!open)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: 10, background: "none", border: 0, padding: 0, cursor: "pointer", font: "inherit" }}>
+        <strong style={{ fontSize: 14 }}>📊 {t("Gasto de IA por período")}</strong>
+        <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--crasto-text-muted,#667085)" }}>
+          {!open && <span className="tnum" style={{ fontWeight: 700 }}>{loading ? "…" : money(total)}</span>}
+          {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        </span>
+      </button>
+      {open && <>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginTop: 12, marginBottom: 12 }}>
+        {presets.map((p) => <button key={p.key} className={"crasto-btn crasto-btn--sm " + (activePreset === p.key ? "crasto-btn--primary" : "crasto-btn--ghost")} onClick={() => { setFrom(p.from); setTo(p.to); }}><span className="crasto-btn__label">{t(p.label)}</span></button>)}
       </div>
       <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 14 }}>
         <label style={dateLab}>{t("De")}<input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} style={dateInp} /></label>
@@ -104,6 +110,7 @@ function AiSpendPanel() {
         <div className="kpi"><div className="lab">{t("Média/mês · 2025")}</div><div className="val tnum" style={{ fontSize: 22 }}>{loading ? "…" : money(m25)}</div><div className="delta">{t("total")} {money(y25)}</div></div>
         <div className="kpi"><div className="lab">{t("Média/mês · 2026")}</div><div className="val tnum" style={{ fontSize: 22 }}>{loading ? "…" : money(m26)}</div><div className="delta">{t("total")} {money(y26)}</div></div>
       </div>
+      </>}
     </div>
   );
 }
