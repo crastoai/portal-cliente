@@ -376,7 +376,10 @@ export default function Financeiro() {
   const aReceberMes = recFlat.filter((p) => !p.paid && inMes(p.date)).reduce((a, p) => a + p.amount, 0);
   const totalReceberMes = recebidoMes + aReceberMes;
   // A pagar no mês = custos recorrentes mensalizados (mensal + anual/12), por categoria da taxonomia
-  const custoMensalCat = (cat?: string) => activeCosts.filter((c) => !cat || c.category === cat).reduce((a, c) => a + (c.recurrence === "mensal" ? Number(c.amount_brl || 0) : c.recurrence === "anual" ? Number(c.amount_brl || 0) / 12 : 0), 0);
+  // "A pagar no mês" = SÓ o que sai TODO mês (recorrência mensal, incl. parcelados como Viver de IA/Dell).
+  // Anuais NÃO entram aqui (foram pagos adiantado no ano) — aparecem em "Renovações anuais" e no Total do ano.
+  const custoMensalCat = (cat?: string) => activeCosts.filter((c) => (!cat || c.category === cat) && c.recurrence === "mensal").reduce((a, c) => a + Number(c.amount_brl || 0), 0);
+  const custoAnualCat = (cat?: string) => activeCosts.filter((c) => (!cat || c.category === cat) && c.recurrence === "anual").reduce((a, c) => a + Number(c.amount_brl || 0), 0);
   const aPagarMes = custoMensalCat();
   const resultadoMes = totalReceberMes - aPagarMes;
   // A Receber: com contrato (recorrente) × sem contrato (avulso)
@@ -395,8 +398,8 @@ export default function Financeiro() {
   const rowsSemContrato = rec.filter((r) => r.status !== "cancelled" && !isRecurring(r)).map((r) => ({ name: r.contact_name, detail: (r.description || t("avulso")), value: rem(r), tone: "mute", status: r.status === "paid" ? t("Pago") : t("Em aberto") }));
   const rowsVencidos = recFlat.filter((p) => !p.paid && p.date && p.date < today()).map((p) => ({ name: p.name, detail: `${t("venceu")} ${fmtD(p.date)}`, value: p.amount, tone: "warn", status: t("Vencido") }));
   // A pagar
-  const rowsPagarMes = activeCosts.filter((c) => c.recurrence === "mensal" || c.recurrence === "anual").map((c) => ({ name: c.vendor_name, detail: `${catLabel(c.category)} · ${c.recurrence}`, value: custoMensalDe(c), tone: "mute", status: catLabel(c.category) })).sort((a, b) => b.value - a.value);
-  const rowsFerramentas = activeCosts.filter((c) => c.category === "ferramenta").map((c) => ({ name: c.vendor_name, detail: c.recurrence, value: custoMensalDe(c), tone: "mute", status: c.recurrence })).sort((a, b) => b.value - a.value);
+  const rowsPagarMes = activeCosts.filter((c) => c.recurrence === "mensal").map((c) => ({ name: c.vendor_name, detail: `${catLabel(c.category)} · ${t("mensal")}`, value: Number(c.amount_brl || 0), tone: "mute", status: catLabel(c.category) })).sort((a, b) => b.value - a.value);
+  const rowsAnuais = activeCosts.filter((c) => c.recurrence === "anual").map((c) => ({ name: c.vendor_name, detail: `${catLabel(c.category)} · ${t("renova")} ${fmtD(c.next_payment_date)}`, value: Number(c.amount_brl || 0), tone: "info", status: t("anual") })).sort((a, b) => b.value - a.value);
   const rowsAnoTudo = activeCosts.map((c) => ({ name: c.vendor_name, detail: `${catLabel(c.category)} · ${c.recurrence}`, value: c.recurrence === "mensal" ? Number(c.amount_brl || 0) * 12 : Number(c.amount_brl || 0), tone: "mute", status: catLabel(c.category) })).sort((a, b) => b.value - a.value);
   const rowsResultado = [
     { name: t("A receber no mês"), detail: t("entradas previstas + recebidas"), value: totalReceberMes, tone: "ok", status: "+" },
@@ -709,7 +712,7 @@ export default function Financeiro() {
           <div className="kpis" style={{ marginBottom: 10 }}>
             <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("A pagar no mês"), rows: rowsPagarMes, foot: { label: t("Total/mês"), value: aPagarMes } })} title={t("Ver detalhes")}><div className="lab">{t("A pagar no mês")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(aPagarMes)}</div><div className="delta">{t("ferramenta + infra + serviço")}</div></button>
             <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Total no ano"), rows: rowsAnoTudo, foot: { label: t("Total no ano"), value: totalAno } })} title={t("Ver detalhes")}><div className="lab">{t("Total no ano")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(totalAno)}</div><div className="delta">{t("Mensal×12 + Anual + Pontual")}</div></button>
-            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Ferramentas de IA"), rows: rowsFerramentas, foot: { label: t("Ferramentas/mês"), value: custoMensalCat("ferramenta") } })} title={t("Ver detalhes")}><div className="lab">{t("Ferramentas de IA")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(custoMensalCat("ferramenta"))}</div><div className="delta">{t("por mês")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Renovações anuais"), rows: rowsAnuais, foot: { label: t("Total anual (pago adiantado)"), value: custoAnualCat() } })} title={t("Assinaturas anuais já pagas — renovam 1×/ano")}><div className="lab">{t("Renovações anuais")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(custoAnualCat())}</div><div className="delta">{t("pago adiantado no ano")}</div></button>
             <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado do mês"), rows: rowsResultado, foot: { label: t("Resultado"), value: resultadoMes } })} title={t("Resultado do mês = a receber − a pagar")}><div className="lab">{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 20, color: resultadoMes < 0 ? "#B54708" : "#1F8A5B" }}>{money(resultadoMes)}</div><div className="delta">{t("recebe − paga")}</div></button>
           </div>
           {/* filtro por categoria — pedido do Crasto: ferramenta · infraestrutura · serviço · salário */}
