@@ -542,6 +542,12 @@ body.impersonating .main { margin-top: 96px; }
   border-color: rgba(255,255,255,.16);
   box-shadow: 0 1px 0 rgba(255,255,255,.06) inset, 0 22px 42px -16px rgba(0,0,0,.7);
 }
+/* Dark: mais contraste/atenção nos cards do Financeiro (rótulos e bordas apagados demais) */
+[data-theme="dark"] .kpi { border-color: rgba(255,255,255,.12); }
+[data-theme="dark"] .kpi .lab { color: #C7CFDB; }
+[data-theme="dark"] .kpi .delta { color: var(--crasto-text-muted); }
+[data-theme="dark"] .kpi.g { border-color: color-mix(in srgb, var(--crasto-success) 34%, transparent); }
+[data-theme="dark"] .kpi.navy { background: linear-gradient(180deg, #1b2a4d, #142138); border-color: rgba(124,178,255,.28); }
 @media (max-width: 600px) { .main { padding: 22px 18px 40px; } }
 .phead { margin-bottom: 24px; }
 .phead .ey { font-size: 11px; font-weight: 700; letter-spacing: var(--crasto-ls-label); text-transform: uppercase; color: var(--crasto-blue-ink, #3E6FB8); margin-bottom: 7px; }

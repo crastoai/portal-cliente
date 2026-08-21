@@ -140,7 +140,7 @@ function vereditoParcela(p: any, todayIso: string): { tone: string; icon: string
   if (venc && atrasoHoje != null && atrasoHoje > 0) return { tone: "bad", icon: "🔴", text: `sem pagamento · vencida há ${atrasoHoje} dia(s)` };
   return { tone: "pending", icon: "⏳", text: venc ? `a vencer em ${brDate(venc)}` : "a vencer" };
 }
-const TONE_COLOR: Record<string, string> = { ok: "#1F8A5B", warn: "#B54708", bad: "#B42318", pending: "#475467", muted: "#98A2B3" };
+const TONE_COLOR: Record<string, string> = { ok: "var(--fin-green)", warn: "var(--fin-orange)", bad: "var(--fin-red)", pending: "#475467", muted: "#98A2B3" };
 const C_EMPTY = { id: "", vendor_name: "", description: "", category: "", currency: "BRL", amount_original: "", exchange_rate: "1", amount_brl: "", recurrence: "mensal", cost_type: "fixo", cost_nature: "recorrente", next_payment_date: "", is_active: true, notes: "" };
 const T_EMPTY = { id: "", type: "income", category: "", amount: "", description: "", status: "completed", transaction_date: "", contact_name: "", payment_method: "", notes: "" };
 
@@ -576,9 +576,9 @@ export default function Financeiro() {
       {/* KPIs topo — clicáveis: cada card leva à aba/tela correspondente (dado real) */}
       <div className="kpis" style={{ marginBottom: 16 }}>
         <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("A receber no mês"), rows: rowsRecMes, foot: { label: t("Total do mês"), value: totalReceberMes } })} title={t("Ver detalhes")}><div className="lab">{t("A receber no mês")}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(totalReceberMes)}</div><div className="delta">{money(recebidoMes)} {t("recebido")} · {money(aReceberMes)} {t("a receber")}</div></button>
-        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A pagar no mês"), rows: rowsPagarMes, foot: { label: t("Total/mês"), value: aPagarMes } })} title={t("Ver detalhes")}><div className="lab">{t("A pagar no mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "#B54708" }}>{money(aPagarMes)}</div><div className="delta">{t("ferramentas + infra + serviço")}</div></button>
-        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado do mês"), rows: rowsResultado, foot: { label: t("Resultado"), value: resultadoMes } })} title={t("Resultado do mês = a receber − a pagar")}><div className="lab">{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: resultadoMes < 0 ? "#B54708" : "#1F8A5B" }}>{money(resultadoMes)}</div><div className="delta">{t("recebe − paga (mês)")}</div></button>
-        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Vencidos"), rows: rowsVencidos, foot: { label: t("Total vencido"), value: inadimplencia } })} title={t("Ver detalhes")}><div className="lab">{t("Vencidos")}</div><div className="val tnum" style={{ fontSize: 22, color: inadimplencia > 0 ? "#B54708" : "#1F8A5B" }}>{money(inadimplencia)}</div><div className="delta">{inadimplencia > 0 ? t("a receber vencido") : t("nada vencido ✓")}</div></button>
+        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A pagar no mês"), rows: rowsPagarMes, foot: { label: t("Total/mês"), value: aPagarMes } })} title={t("Ver detalhes")}><div className="lab">{t("A pagar no mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "var(--fin-orange)" }}>{money(aPagarMes)}</div><div className="delta">{t("ferramentas + infra + serviço")}</div></button>
+        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado do mês"), rows: rowsResultado, foot: { label: t("Resultado"), value: resultadoMes } })} title={t("Resultado do mês = a receber − a pagar")}><div className="lab">{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: resultadoMes < 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(resultadoMes)}</div><div className="delta">{t("recebe − paga (mês)")}</div></button>
+        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Vencidos"), rows: rowsVencidos, foot: { label: t("Total vencido"), value: inadimplencia } })} title={t("Ver detalhes")}><div className="lab">{t("Vencidos")}</div><div className="val tnum" style={{ fontSize: 22, color: inadimplencia > 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(inadimplencia)}</div><div className="delta">{inadimplencia > 0 ? t("a receber vencido") : t("nada vencido ✓")}</div></button>
       </div>
 
       <div className="ptabs">
@@ -600,9 +600,9 @@ export default function Financeiro() {
 
         {/* resumo tesouraria */}
         <div className="kpis" style={{ marginBottom: 14 }}>
-          <div className="kpi g"><div className="lab">{t("Entradas realizadas")}</div><div className="val tnum" style={{ fontSize: 20, color: "#1F8A5B" }}>{money(entradasReal)}</div></div>
-          <div className="kpi"><div className="lab">{t("Saídas realizadas")}</div><div className="val tnum" style={{ fontSize: 20, color: "#B54708" }}>{money(saidasReal)}</div></div>
-          <div className="kpi"><div className="lab">{t("Saldo em Caixa")}</div><div className="val tnum" style={{ fontSize: 20, color: saldoCaixa < 0 ? "#B54708" : "#1F8A5B" }}>{money(saldoCaixa)}</div></div>
+          <div className="kpi g"><div className="lab">{t("Entradas realizadas")}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-green)" }}>{money(entradasReal)}</div></div>
+          <div className="kpi"><div className="lab">{t("Saídas realizadas")}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-orange)" }}>{money(saidasReal)}</div></div>
+          <div className="kpi"><div className="lab">{t("Saldo em Caixa")}</div><div className="val tnum" style={{ fontSize: 20, color: saldoCaixa < 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(saldoCaixa)}</div></div>
           <div className="kpi"><div className="lab">{t("Previsto (entradas − saídas)")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(entradasPrev - saidasPrev)}</div><div className="delta">{t("lançamentos pendentes")}</div></div>
         </div>
 
@@ -635,7 +635,7 @@ export default function Financeiro() {
                   <td><div className="nm">{r.description}</div>{r.contact_name && <div className="mt">{r.contact_name}</div>}</td>
                   <td>{r.category || "—"}</td>
                   <td><Pill tone={r.type === "income" ? "ok" : "warn"}>{r.type === "income" ? t("Entrada") : t("Saída")}</Pill></td>
-                  <td className="tnum" style={{ textAlign: "right", fontWeight: 700, color: r.type === "income" ? "#1F8A5B" : "#B54708" }}>{r.type === "income" ? "+" : "−"}{money(Number(r.amount || 0))}</td>
+                  <td className="tnum" style={{ textAlign: "right", fontWeight: 700, color: r.type === "income" ? "var(--fin-green)" : "var(--fin-orange)" }}>{r.type === "income" ? "+" : "−"}{money(Number(r.amount || 0))}</td>
                   <td><Pill tone={r.status === "completed" ? "ok" : r.status === "cancelled" ? "mute" : "info"}>{r.status === "completed" ? t("Realizado") : r.status === "cancelled" ? t("Cancelada") : t("Pendente")}</Pill></td>
                   <td>
                     <div style={{ display: "flex", gap: 4 }}>
@@ -669,7 +669,7 @@ export default function Financeiro() {
                cobRows.length === 0 ? <tr><td colSpan={7} style={{ color: "var(--crasto-text-muted)", padding: 14 }}>{t("Nada com esse filtro.")}</td></tr> :
                cobRows.map((row, i) => {
                  const c = cobClass(row);
-                 const cor = c === "pago" ? "#1F8A5B" : c === "vencida" ? "#B83A3A" : c === "hoje" ? "#B8863A" : "#3E6FB8";
+                 const cor = c === "pago" ? "var(--fin-green)" : c === "vencida" ? "#B83A3A" : c === "hoje" ? "#B8863A" : "#3E6FB8";
                  const lbl = c === "pago" ? t("Pago") : c === "vencida" ? t("Vencido") : c === "hoje" ? t("Vence hoje") : t("A vencer");
                  const semComp = row.status === "paid" && !row.proof_url;
                  return (
@@ -720,7 +720,7 @@ export default function Financeiro() {
             <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("A pagar no mês"), rows: rowsPagarMes, foot: { label: t("Total/mês"), value: aPagarMes } })} title={t("Ver detalhes")}><div className="lab">{t("A pagar no mês")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(aPagarMes)}</div><div className="delta">{t("ferramenta + infra + serviço")}</div></button>
             <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Total no ano"), rows: rowsAnoTudo, foot: { label: t("Total no ano"), value: totalAno } })} title={t("Ver detalhes")}><div className="lab">{t("Total no ano")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(totalAno)}</div><div className="delta">{t("Mensal×12 + Anual + Pontual")}</div></button>
             <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Renovações anuais"), rows: rowsAnuais, foot: { label: t("Total anual (pago adiantado)"), value: custoAnualCat() } })} title={t("Assinaturas anuais já pagas — renovam 1×/ano")}><div className="lab">{t("Renovações anuais")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(custoAnualCat())}</div><div className="delta">{t("pago adiantado no ano")}</div></button>
-            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado do mês"), rows: rowsResultado, foot: { label: t("Resultado"), value: resultadoMes } })} title={t("Resultado do mês = a receber − a pagar")}><div className="lab">{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 20, color: resultadoMes < 0 ? "#B54708" : "#1F8A5B" }}>{money(resultadoMes)}</div><div className="delta">{t("recebe − paga")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado do mês"), rows: rowsResultado, foot: { label: t("Resultado"), value: resultadoMes } })} title={t("Resultado do mês = a receber − a pagar")}><div className="lab">{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 20, color: resultadoMes < 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(resultadoMes)}</div><div className="delta">{t("recebe − paga")}</div></button>
           </div>
           {/* filtro por categoria — pedido do Crasto: ferramenta · infraestrutura · serviço · salário */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
@@ -738,7 +738,7 @@ export default function Financeiro() {
           <div className="kpis kpis--5" style={{ marginBottom: 14 }}>
             <button className="kpi navy kpi-btn" onClick={() => setDrill({ title: t("Recorrente / mês (MRR)"), rows: rowsMRR, foot: { label: t("MRR"), value: mrrMensal } })} title={t("Ver detalhes")}><div className="lab">{t("Recorrente / mês (MRR)")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(mrrMensal)}</div><div className="delta">{t("ARR")} {money(mrrMensal * 12)}/{t("ano")}</div></button>
             <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A receber no mês"), rows: rowsRecMes, foot: { label: t("Total do mês"), value: totalReceberMes } })} title={t("Ver detalhes")}><div className="lab">{t("A receber no mês")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(aReceberMes)}</div><div className="delta">{t("ainda este mês")}</div></button>
-            <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Recebido no mês"), rows: rowsRecebidoMes, foot: { label: t("Recebido no mês"), value: recebidoMes } })} title={t("Ver detalhes")}><div className="lab">{t("Recebido no mês")}</div><div className="val tnum" style={{ fontSize: 20, color: "#1F8A5B" }}>{money(recebidoMes)}</div><div className="delta">{t("já entrou este mês")}</div></button>
+            <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Recebido no mês"), rows: rowsRecebidoMes, foot: { label: t("Recebido no mês"), value: recebidoMes } })} title={t("Ver detalhes")}><div className="lab">{t("Recebido no mês")}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-green)" }}>{money(recebidoMes)}</div><div className="delta">{t("já entrou este mês")}</div></button>
             <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Com contrato"), rows: rowsComContrato, foot: { label: t("Saldo com contrato"), value: comContrato } })} title={t("Ver detalhes")}><div className="lab">{t("Com contrato")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(comContrato)}</div><div className="delta">{t("{n} contratos · saldo", { n: nContratos })}</div></button>
             <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Sem contrato"), rows: rowsSemContrato, foot: { label: t("Saldo sem contrato"), value: semContrato } })} title={t("Ver detalhes")}><div className="lab">{t("Sem contrato")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(semContrato)}</div><div className="delta">{t("avulsos · saldo")}</div></button>
           </div>
@@ -746,9 +746,9 @@ export default function Financeiro() {
 
         {/* status cards */}
         <div className="finstatus">
-          <button type="button" className="fs red" onClick={() => setStatusF(statusF === "vencidos" ? "todos" : "vencidos")} style={{ font: "inherit", textAlign: "left", width: "100%", cursor: "pointer", boxShadow: statusF === "vencidos" ? "inset 0 0 0 2px #B42318" : undefined }}><span>{t("Vencidos")}</span><b>{money(stVencidos)}</b></button>
-          <button type="button" className="fs amber" onClick={() => setStatusF(statusF === "hoje" ? "todos" : "hoje")} style={{ font: "inherit", textAlign: "left", width: "100%", cursor: "pointer", boxShadow: statusF === "hoje" ? "inset 0 0 0 2px #B54708" : undefined }}><span>{t("Vencem hoje")}</span><b>{money(stHoje)}</b></button>
-          <button type="button" className="fs blue" onClick={() => setStatusF(statusF === "avencer" ? "todos" : "avencer")} style={{ font: "inherit", textAlign: "left", width: "100%", cursor: "pointer", boxShadow: statusF === "avencer" ? "inset 0 0 0 2px #175CD3" : undefined }}><span>{t("A vencer")}</span><b>{money(stAvencer)}</b></button>
+          <button type="button" className="fs red" onClick={() => setStatusF(statusF === "vencidos" ? "todos" : "vencidos")} style={{ font: "inherit", textAlign: "left", width: "100%", cursor: "pointer", boxShadow: statusF === "vencidos" ? "inset 0 0 0 2px var(--fin-red)" : undefined }}><span>{t("Vencidos")}</span><b>{money(stVencidos)}</b></button>
+          <button type="button" className="fs amber" onClick={() => setStatusF(statusF === "hoje" ? "todos" : "hoje")} style={{ font: "inherit", textAlign: "left", width: "100%", cursor: "pointer", boxShadow: statusF === "hoje" ? "inset 0 0 0 2px var(--fin-orange)" : undefined }}><span>{t("Vencem hoje")}</span><b>{money(stHoje)}</b></button>
+          <button type="button" className="fs blue" onClick={() => setStatusF(statusF === "avencer" ? "todos" : "avencer")} style={{ font: "inherit", textAlign: "left", width: "100%", cursor: "pointer", boxShadow: statusF === "avencer" ? "inset 0 0 0 2px var(--fin-blue)" : undefined }}><span>{t("A vencer")}</span><b>{money(stAvencer)}</b></button>
           <button type="button" className="fs green" onClick={() => setStatusF(statusF === "pagos" ? "todos" : "pagos")} style={{ font: "inherit", textAlign: "left", width: "100%", cursor: "pointer", boxShadow: statusF === "pagos" ? "inset 0 0 0 2px #067647" : undefined }}><span>{tab === "pagar" ? t("Pagos") : t("Recebidos")}</span><b>{money(stPagos)}</b></button>
           <button type="button" className="fs" onClick={() => { setStatusF("todos"); setCatF(null); }} title={t("Ver tudo (limpar filtro)")} style={{ font: "inherit", textAlign: "left", width: "100%", cursor: "pointer" }}><span>{tab === "pagar" ? t("Total a pagar (tudo)") : t("Total a receber (tudo)")}</span><b>{money(stTotal)}</b></button>
         </div>
@@ -786,8 +786,8 @@ export default function Financeiro() {
                     <td><Pill tone="mute">{g.tipo}</Pill></td>
                     <td className="tnum">{g.due ? new Date(g.due + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</td>
                     <td className="tnum" style={{ textAlign: "right", fontWeight: 700 }}>{money(g.total)}</td>
-                    <td className="tnum" style={{ textAlign: "right", color: "#1F8A5B" }}>{money(g.pago)}</td>
-                    <td className="tnum" style={{ textAlign: "right", color: g.restante > 0 ? "#B54708" : "var(--crasto-text-muted)" }}>{money(g.restante)}</td>
+                    <td className="tnum" style={{ textAlign: "right", color: "var(--fin-green)" }}>{money(g.pago)}</td>
+                    <td className="tnum" style={{ textAlign: "right", color: g.restante > 0 ? "var(--fin-orange)" : "var(--crasto-text-muted)" }}>{money(g.restante)}</td>
                     <td><Pill tone={stTone(g.status) as any}>{stLabel(g.status)}</Pill></td>
                   </tr>
                   {expanded[g.name] && g.list.map((i: any) => {
@@ -800,7 +800,7 @@ export default function Financeiro() {
                       <td colSpan={2}><div className="nm" style={{ fontSize: 13 }}>{i.description || i.contact_name}</div><div className="mt">{[i.category, i._kind === "cost" ? t("Custo") : t("Conta"), parc.length ? t("{n} parcelas", { n: parc.length }) : ""].filter(Boolean).join(" · ")}</div></td>
                       <td className="tnum">{venc ? new Date(venc + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</td>
                       <td className="tnum" style={{ textAlign: "right" }}>{money(Number(i.amount || 0))}</td>
-                      <td className="tnum" style={{ textAlign: "right", color: "#1F8A5B" }}>{money(Number(i.amount_paid || 0))}</td>
+                      <td className="tnum" style={{ textAlign: "right", color: "var(--fin-green)" }}>{money(Number(i.amount_paid || 0))}</td>
                       <td className="tnum" style={{ textAlign: "right" }}>{money(rem(i))}</td>
                       <td>
                         <div style={{ display: "flex", gap: 4 }}>
@@ -824,7 +824,7 @@ export default function Financeiro() {
                         </td>
                         <td className="tnum">{p.date ? new Date(ymd(p.date) + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</td>
                         <td className="tnum" style={{ textAlign: "right" }}>{money(Number(p.amount || 0))}</td>
-                        <td className="tnum" style={{ textAlign: "right", color: "#1F8A5B" }}>{money(p.status === "paid" ? Number(p.amount || 0) : 0)}</td>
+                        <td className="tnum" style={{ textAlign: "right", color: "var(--fin-green)" }}>{money(p.status === "paid" ? Number(p.amount || 0) : 0)}</td>
                         <td className="tnum" style={{ textAlign: "right" }}>{money(p.status === "paid" ? 0 : Number(p.amount || 0))}</td>
                         <td>
                           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -875,12 +875,12 @@ export default function Financeiro() {
                 <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "10px 2px", borderBottom: "1px solid var(--crasto-border-soft, #f0f0f0)" }}>
                   <div style={{ minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{r.name}</div><div style={{ fontSize: 12, color: "var(--crasto-text-muted, #667085)" }}>{r.detail}</div></div>
                   <div style={{ textAlign: "right", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 8 }}>
-                    <span className="tnum" style={{ fontWeight: 700, color: r.value < 0 ? "#B54708" : undefined }}>{money(r.value)}</span>
+                    <span className="tnum" style={{ fontWeight: 700, color: r.value < 0 ? "var(--fin-orange)" : undefined }}>{money(r.value)}</span>
                     {r.status && <Pill tone={(r.tone || "mute") as any}>{r.status}</Pill>}
                   </div>
                 </div>
               ))}
-              {drill.foot && <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 2px 2px", marginTop: 6, borderTop: "2px solid var(--crasto-border, #e5e7eb)", fontWeight: 800, fontSize: 16 }}><span>{drill.foot.label}</span><span className="tnum" style={{ color: drill.foot.value < 0 ? "#B54708" : "#1F8A5B" }}>{money(drill.foot.value)}</span></div>}
+              {drill.foot && <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 2px 2px", marginTop: 6, borderTop: "2px solid var(--crasto-border, #e5e7eb)", fontWeight: 800, fontSize: 16 }}><span>{drill.foot.label}</span><span className="tnum" style={{ color: drill.foot.value < 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(drill.foot.value)}</span></div>}
             </div>
         )}
       </Modal>
@@ -1018,7 +1018,7 @@ export default function Financeiro() {
                             ); })()}
                             <div style={{ marginTop: 2 }}>
                               {editado ? (
-                                <span style={{ color: "#B54708" }}>
+                                <span style={{ color: "var(--fin-orange)" }}>
                                   ✏️ {t("ajustado à mão")}. {t("Contrato:")} {dataMudou ? brDate(p.origin_date) : ""}{dataMudou && valorMudou ? " · " : ""}{valorMudou ? money(Number(p.origin_amount)) : ""}
                                 </span>
                               ) : (

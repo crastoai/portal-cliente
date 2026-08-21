@@ -92,6 +92,12 @@
   --crasto-warning: #010E26;
   --crasto-danger:  #B83A3A;
 
+  /* Financeiro — cores de valor (claras). No dark viram versões VIVAS (ver bloco dark). */
+  --fin-green:  #1F8A5B;
+  --fin-orange: #B54708;
+  --fin-red:    #B42318;
+  --fin-blue:   #175CD3;
+
   /* ========== EDITORIAL INK SCALE =============================
      Aliases curtos · 100% mapeados nos CSS dos componentes (700+ usos)
      Não remover sem migrar todas as referências.
@@ -291,6 +297,14 @@
   --crasto-coral-dark: #E89B9B;
   /* danger (#B83A3A) usado como texto de erro em campos · clareia no dark */
   --crasto-danger: #E58A8A;
+
+  /* Verde de status VIVO no dark (o #1F8A5B ficava apagado sobre card escuro) */
+  --crasto-success: #34D399;
+  /* Financeiro — versões VIVAS pro dark (mais contraste, chamam atenção) */
+  --fin-green:  #34D399;
+  --fin-orange: #FDB022;
+  --fin-red:    #F97066;
+  --fin-blue:   #7CB2FF;
 }
 
 /* Google Search ad · headline azul precisa virar variante dark-safe */
