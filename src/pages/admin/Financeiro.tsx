@@ -176,6 +176,7 @@ export default function Financeiro() {
   // Cards de baixo (A Pagar/A Receber) filtram a LISTA: chips de status + Despesas por tipo. Os totais limpam.
   const [statusF, setStatusF] = useState<"todos" | "vencidos" | "hoje" | "avencer" | "pagos">("todos");
   const [catF, setCatF] = useState<string | null>(null); // A Pagar: filtro por categoria (ferramenta/infraestrutura/servico/salario)
+  const [drill, setDrill] = useState<any>(null); // pop-up de detalhes de um card (drill-down)
   useEffect(() => { setStatusF("todos"); setCatF(null); }, [tab]); // trocar de aba zera os filtros dos cards de baixo
   const toggleRecOnly = () => setRecOnly((v) => {
     const nv = !v; const next = new URLSearchParams(sp);
@@ -367,8 +368,8 @@ export default function Financeiro() {
   const flatParc = (list: any[]) => list.flatMap((r) => {
     const ps = parcelas(r);
     return ps.length
-      ? ps.filter((p) => p.status !== "cancelled").map((p) => ({ date: ymd(p.date), amount: Number(p.amount || 0), paid: p.status === "paid" }))
-      : (r.status !== "cancelled" ? [{ date: ymd(r.due_date), amount: Number(r.amount || 0), paid: r.status === "paid" }] : []);
+      ? ps.filter((p) => p.status !== "cancelled").map((p) => ({ date: ymd(p.date), amount: Number(p.amount || 0), paid: p.status === "paid", name: r.contact_name, ref: r }))
+      : (r.status !== "cancelled" ? [{ date: ymd(r.due_date), amount: Number(r.amount || 0), paid: r.status === "paid", name: r.contact_name, ref: r }] : []);
   });
   const recFlat = flatParc(rec);
   const recebidoMes = recFlat.filter((p) => p.paid && inMes(p.date)).reduce((a, p) => a + p.amount, 0);
@@ -381,6 +382,26 @@ export default function Financeiro() {
   // A Receber: com contrato (recorrente) × sem contrato (avulso)
   const comContrato = rec.filter((r) => r.status !== "cancelled" && isRecurring(r)).reduce((a, r) => a + rem(r), 0);
   const semContrato = rec.filter((r) => r.status !== "cancelled" && !isRecurring(r)).reduce((a, r) => a + rem(r), 0);
+
+  // ── Drill-down: linhas de detalhe por card (o Crasto quer todo card clicável com suas infos) ──
+  const catLabel = (c: string) => (({ ferramenta: t("Ferramenta"), infraestrutura: t("Infraestrutura"), servico: t("Serviço"), salario: t("Salário") } as any)[c] || c || t("Outro"));
+  const fmtD = (d: any) => (ymd(d) ? new Date(ymd(d) + "T00:00:00").toLocaleDateString("pt-BR") : "—");
+  const custoMensalDe = (c: any) => (c.recurrence === "mensal" ? Number(c.amount_brl || 0) : c.recurrence === "anual" ? Number(c.amount_brl || 0) / 12 : 0);
+  // A receber
+  const rowsRecMes = recFlat.filter((p) => inMes(p.date)).map((p) => ({ name: p.name, detail: fmtD(p.date), value: p.amount, tone: p.paid ? "ok" : "info", status: p.paid ? t("Recebido") : t("A receber") }));
+  const rowsRecebidoMes = recFlat.filter((p) => p.paid && inMes(p.date)).map((p) => ({ name: p.name, detail: fmtD(p.date), value: p.amount, tone: "ok", status: t("Recebido") }));
+  const rowsMRR = recContratos.map((r) => ({ name: r.contact_name, detail: t("recorrente/mês"), value: mensalDe(r), tone: "mute", status: r.recurrence }));
+  const rowsComContrato = rec.filter((r) => r.status !== "cancelled" && isRecurring(r)).map((r) => ({ name: r.contact_name, detail: `${t("saldo")} · ${t("pago")} ${money(Number(r.amount_paid || 0))}`, value: rem(r), tone: "info", status: t("contrato") }));
+  const rowsSemContrato = rec.filter((r) => r.status !== "cancelled" && !isRecurring(r)).map((r) => ({ name: r.contact_name, detail: (r.description || t("avulso")), value: rem(r), tone: "mute", status: r.status === "paid" ? t("Pago") : t("Em aberto") }));
+  const rowsVencidos = recFlat.filter((p) => !p.paid && p.date && p.date < today()).map((p) => ({ name: p.name, detail: `${t("venceu")} ${fmtD(p.date)}`, value: p.amount, tone: "warn", status: t("Vencido") }));
+  // A pagar
+  const rowsPagarMes = activeCosts.filter((c) => c.recurrence === "mensal" || c.recurrence === "anual").map((c) => ({ name: c.vendor_name, detail: `${catLabel(c.category)} · ${c.recurrence}`, value: custoMensalDe(c), tone: "mute", status: catLabel(c.category) })).sort((a, b) => b.value - a.value);
+  const rowsFerramentas = activeCosts.filter((c) => c.category === "ferramenta").map((c) => ({ name: c.vendor_name, detail: c.recurrence, value: custoMensalDe(c), tone: "mute", status: c.recurrence })).sort((a, b) => b.value - a.value);
+  const rowsAnoTudo = activeCosts.map((c) => ({ name: c.vendor_name, detail: `${catLabel(c.category)} · ${c.recurrence}`, value: c.recurrence === "mensal" ? Number(c.amount_brl || 0) * 12 : Number(c.amount_brl || 0), tone: "mute", status: catLabel(c.category) })).sort((a, b) => b.value - a.value);
+  const rowsResultado = [
+    { name: t("A receber no mês"), detail: t("entradas previstas + recebidas"), value: totalReceberMes, tone: "ok", status: "+" },
+    { name: t("A pagar no mês"), detail: t("ferramenta + infra + serviço"), value: -aPagarMes, tone: "warn", status: "−" },
+  ];
 
   // status cards (do lado ativo)
   const curItems = tab === "pagar" ? payItems : recSource.map(acctToItem);
@@ -544,10 +565,10 @@ export default function Financeiro() {
 
       {/* KPIs topo — clicáveis: cada card leva à aba/tela correspondente (dado real) */}
       <div className="kpis" style={{ marginBottom: 16 }}>
-        <button className="kpi g kpi-btn" onClick={() => setTab("receber")} title={t("Ver contas a receber")}><div className="lab">{t("A receber no mês")}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(totalReceberMes)}</div><div className="delta">{money(recebidoMes)} {t("recebido")} · {money(aReceberMes)} {t("a receber")}</div></button>
-        <button className="kpi kpi-btn" onClick={() => setTab("pagar")} title={t("Ver contas a pagar")}><div className="lab">{t("A pagar no mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "#B54708" }}>{money(aPagarMes)}</div><div className="delta">{t("ferramentas + infra + serviço")} <ArrowRight size={11} /></div></button>
-        <button className="kpi kpi-btn" onClick={() => setTab("receber")} title={t("Resultado do mês = a receber − a pagar")}><div className="lab">{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: resultadoMes < 0 ? "#B54708" : "#1F8A5B" }}>{money(resultadoMes)}</div><div className="delta">{t("recebe − paga (mês)")}</div></button>
-        <button className="kpi kpi-btn" onClick={() => { setTab("cobranca"); setCobFiltro("vencidas"); }} title={t("Ver as parcelas vencidas (Cobrança)")}><div className="lab">{t("Vencidos")}</div><div className="val tnum" style={{ fontSize: 22, color: inadimplencia > 0 ? "#B54708" : "#1F8A5B" }}>{money(inadimplencia)}</div><div className="delta">{inadimplencia > 0 ? t("a receber vencido") : t("nada vencido ✓")} <ArrowRight size={11} /></div></button>
+        <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("A receber no mês"), rows: rowsRecMes, foot: { label: t("Total do mês"), value: totalReceberMes } })} title={t("Ver detalhes")}><div className="lab">{t("A receber no mês")}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(totalReceberMes)}</div><div className="delta">{money(recebidoMes)} {t("recebido")} · {money(aReceberMes)} {t("a receber")}</div></button>
+        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A pagar no mês"), rows: rowsPagarMes, foot: { label: t("Total/mês"), value: aPagarMes } })} title={t("Ver detalhes")}><div className="lab">{t("A pagar no mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "#B54708" }}>{money(aPagarMes)}</div><div className="delta">{t("ferramentas + infra + serviço")}</div></button>
+        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado do mês"), rows: rowsResultado, foot: { label: t("Resultado"), value: resultadoMes } })} title={t("Resultado do mês = a receber − a pagar")}><div className="lab">{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: resultadoMes < 0 ? "#B54708" : "#1F8A5B" }}>{money(resultadoMes)}</div><div className="delta">{t("recebe − paga (mês)")}</div></button>
+        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Vencidos"), rows: rowsVencidos, foot: { label: t("Total vencido"), value: inadimplencia } })} title={t("Ver detalhes")}><div className="lab">{t("Vencidos")}</div><div className="val tnum" style={{ fontSize: 22, color: inadimplencia > 0 ? "#B54708" : "#1F8A5B" }}>{money(inadimplencia)}</div><div className="delta">{inadimplencia > 0 ? t("a receber vencido") : t("nada vencido ✓")}</div></button>
       </div>
 
       <div className="ptabs">
@@ -686,10 +707,10 @@ export default function Financeiro() {
         {/* resumo (só A Pagar tem os cards de custo) */}
         {tab === "pagar" && (<>
           <div className="kpis" style={{ marginBottom: 10 }}>
-            <button className="kpi g kpi-btn" onClick={() => { setStatusF("todos"); setCatF(null); }} title={t("Custos recorrentes mensalizados (mensal + anual÷12)")}><div className="lab">{t("A pagar no mês")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(aPagarMes)}</div><div className="delta">{t("ferramenta + infra + serviço")}</div></button>
-            <button className="kpi kpi-btn" onClick={() => { setStatusF("todos"); setCatF(null); }} title={t("Total do ano: mensal×12 + anual + pontual")}><div className="lab">{t("Total no ano")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(totalAno)}</div><div className="delta">{t("Mensal×12 + Anual + Pontual")}</div></button>
-            <button className="kpi kpi-btn" onClick={() => setTab("custos-ia")} title={t("Ver os custos de IA em detalhe")}><div className="lab">{t("Ferramentas de IA")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(custoMensalCat("ferramenta"))}</div><div className="delta">{t("por mês")} <ArrowRight size={11} /></div></button>
-            <button className="kpi kpi-btn" onClick={() => setTab("receber")} title={t("Resultado do mês = a receber − a pagar")}><div className="lab">{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 20, color: resultadoMes < 0 ? "#B54708" : "#1F8A5B" }}>{money(resultadoMes)}</div><div className="delta">{t("recebe − paga")}</div></button>
+            <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("A pagar no mês"), rows: rowsPagarMes, foot: { label: t("Total/mês"), value: aPagarMes } })} title={t("Ver detalhes")}><div className="lab">{t("A pagar no mês")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(aPagarMes)}</div><div className="delta">{t("ferramenta + infra + serviço")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Total no ano"), rows: rowsAnoTudo, foot: { label: t("Total no ano"), value: totalAno } })} title={t("Ver detalhes")}><div className="lab">{t("Total no ano")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(totalAno)}</div><div className="delta">{t("Mensal×12 + Anual + Pontual")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Ferramentas de IA"), rows: rowsFerramentas, foot: { label: t("Ferramentas/mês"), value: custoMensalCat("ferramenta") } })} title={t("Ver detalhes")}><div className="lab">{t("Ferramentas de IA")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(custoMensalCat("ferramenta"))}</div><div className="delta">{t("por mês")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado do mês"), rows: rowsResultado, foot: { label: t("Resultado"), value: resultadoMes } })} title={t("Resultado do mês = a receber − a pagar")}><div className="lab">{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 20, color: resultadoMes < 0 ? "#B54708" : "#1F8A5B" }}>{money(resultadoMes)}</div><div className="delta">{t("recebe − paga")}</div></button>
           </div>
           {/* filtro por categoria — pedido do Crasto: ferramenta · infraestrutura · serviço · salário */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
@@ -705,11 +726,11 @@ export default function Financeiro() {
         {/* resumo de recebíveis recorrentes (só A Receber) — quebra o "A Receber" em MRR + contratos */}
         {tab === "receber" && (
           <div className="kpis kpis--5" style={{ marginBottom: 14 }}>
-            <div className="kpi navy"><div className="lab">{t("Recorrente / mês (MRR)")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(mrrMensal)}</div><div className="delta">{t("ARR")} {money(mrrMensal * 12)}/{t("ano")}</div></div>
-            <div className="kpi"><div className="lab">{t("A receber no mês")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(aReceberMes)}</div><div className="delta">{t("ainda este mês")}</div></div>
-            <div className="kpi g"><div className="lab">{t("Recebido no mês")}</div><div className="val tnum" style={{ fontSize: 20, color: "#1F8A5B" }}>{money(recebidoMes)}</div><div className="delta">{t("já entrou este mês")}</div></div>
-            <div className="kpi"><div className="lab">{t("Com contrato")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(comContrato)}</div><div className="delta">{t("{n} contratos · saldo", { n: nContratos })}</div></div>
-            <div className="kpi"><div className="lab">{t("Sem contrato")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(semContrato)}</div><div className="delta">{t("avulsos · saldo")}</div></div>
+            <button className="kpi navy kpi-btn" onClick={() => setDrill({ title: t("Recorrente / mês (MRR)"), rows: rowsMRR, foot: { label: t("MRR"), value: mrrMensal } })} title={t("Ver detalhes")}><div className="lab">{t("Recorrente / mês (MRR)")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(mrrMensal)}</div><div className="delta">{t("ARR")} {money(mrrMensal * 12)}/{t("ano")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A receber no mês"), rows: rowsRecMes, foot: { label: t("Total do mês"), value: totalReceberMes } })} title={t("Ver detalhes")}><div className="lab">{t("A receber no mês")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(aReceberMes)}</div><div className="delta">{t("ainda este mês")}</div></button>
+            <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Recebido no mês"), rows: rowsRecebidoMes, foot: { label: t("Recebido no mês"), value: recebidoMes } })} title={t("Ver detalhes")}><div className="lab">{t("Recebido no mês")}</div><div className="val tnum" style={{ fontSize: 20, color: "#1F8A5B" }}>{money(recebidoMes)}</div><div className="delta">{t("já entrou este mês")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Com contrato"), rows: rowsComContrato, foot: { label: t("Saldo com contrato"), value: comContrato } })} title={t("Ver detalhes")}><div className="lab">{t("Com contrato")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(comContrato)}</div><div className="delta">{t("{n} contratos · saldo", { n: nContratos })}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Sem contrato"), rows: rowsSemContrato, foot: { label: t("Saldo sem contrato"), value: semContrato } })} title={t("Ver detalhes")}><div className="lab">{t("Sem contrato")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(semContrato)}</div><div className="delta">{t("avulsos · saldo")}</div></button>
           </div>
         )}
 
@@ -834,6 +855,25 @@ export default function Financeiro() {
           </table>
         </div>
       </>)}
+
+      {/* Pop-up de detalhes de um card (drill-down) */}
+      <Modal title={drill?.title || ""} open={!!drill} onClose={() => setDrill(null)}>
+        {drill && (drill.rows.length === 0
+          ? <div style={{ padding: 22, color: "var(--crasto-text-muted)", textAlign: "center" }}>{t("Nada aqui neste momento. ✓")}</div>
+          : <div>
+              {drill.rows.map((r: any, i: number) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "10px 2px", borderBottom: "1px solid var(--crasto-border-soft, #f0f0f0)" }}>
+                  <div style={{ minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{r.name}</div><div style={{ fontSize: 12, color: "var(--crasto-text-muted, #667085)" }}>{r.detail}</div></div>
+                  <div style={{ textAlign: "right", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 8 }}>
+                    <span className="tnum" style={{ fontWeight: 700, color: r.value < 0 ? "#B54708" : undefined }}>{money(r.value)}</span>
+                    {r.status && <Pill tone={(r.tone || "mute") as any}>{r.status}</Pill>}
+                  </div>
+                </div>
+              ))}
+              {drill.foot && <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 2px 2px", marginTop: 6, borderTop: "2px solid var(--crasto-border, #e5e7eb)", fontWeight: 800, fontSize: 16 }}><span>{drill.foot.label}</span><span className="tnum" style={{ color: drill.foot.value < 0 ? "#B54708" : "#1F8A5B" }}>{money(drill.foot.value)}</span></div>}
+            </div>
+        )}
+      </Modal>
 
       {/* Modal conta (lançamento rico) */}
       <Modal title={(af.id ? t("Editar Lançamento") : t("Novo Lançamento")) + " — " + (af.account_type === "payable" ? t("A Pagar") : t("A Receber"))} open={aOpen} onClose={() => setAOpen(false)} wide fullscreen
