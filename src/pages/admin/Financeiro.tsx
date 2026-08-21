@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Plus, Pencil, Trash2, Search, ChevronRight, ChevronDown, CheckCircle2, Repeat, ArrowRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, ChevronRight, ChevronDown, CheckCircle2, Repeat, ArrowRight, Filter, X } from "lucide-react";
 import { services, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, money, Field, useSort, SortTh } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
@@ -184,6 +184,8 @@ export default function Financeiro() {
   const [statusF, setStatusF] = useState<"todos" | "vencidos" | "hoje" | "avencer" | "pagos">("todos");
   const [catF, setCatF] = useState<string | null>(null); // A Pagar: filtro por categoria (ferramenta/infraestrutura/servico/salario)
   const [drill, setDrill] = useState<any>(null); // pop-up de detalhes de um card (drill-down)
+  const [per, setPer] = useState<{ from: string; to: string; label: string } | null>(null); // filtro por período (null = mês atual)
+  const [perOpen, setPerOpen] = useState(false); // popover do filtro personalizado
   useEffect(() => { setStatusF("todos"); setCatF(null); }, [tab]); // trocar de aba zera os filtros dos cards de baixo
   const toggleRecOnly = () => setRecOnly((v) => {
     const nv = !v; const next = new URLSearchParams(sp);
@@ -370,7 +372,21 @@ export default function Financeiro() {
 
   // === MENSAL-FIRST — retrato do mês corrente (pra "bater o olho e saber") ===
   const mesAtual = today().slice(0, 7); // "YYYY-MM"
-  const inMes = (d: any) => ymd(d).slice(0, 7) === mesAtual;
+  // Filtro por período (o Crasto quer projeções): se `per` setado, usa a faixa; senão, o mês atual.
+  const inMes = (d: any) => { const x = ymd(d); if (!x) return false; return per ? (x >= per.from && x <= per.to) : x.slice(0, 7) === mesAtual; };
+  const noMesLbl = per ? t("no período") : t("no mês");
+  const perPresets = () => {
+    const [y, mo] = today().split("-").map(Number);
+    const f = (yy: number, mm: number) => `${yy}-${String(mm).padStart(2, "0")}-01`;
+    const l = (yy: number, mm: number) => `${yy}-${String(mm).padStart(2, "0")}-${String(new Date(yy, mm, 0).getDate()).padStart(2, "0")}`;
+    const pv = mo === 1 ? [y - 1, 12] : [y, mo - 1], nx = mo === 12 ? [y + 1, 1] : [y, mo + 1];
+    return [
+      { key: "mes", label: t("Este mês"), from: f(y, mo), to: l(y, mo) },
+      { key: "ant", label: t("Mês passado"), from: f(pv[0], pv[1]), to: l(pv[0], pv[1]) },
+      { key: "prox", label: t("Próximo mês"), from: f(nx[0], nx[1]), to: l(nx[0], nx[1]) },
+      { key: "ano", label: t("Este ano"), from: `${y}-01-01`, to: `${y}-12-31` },
+    ];
+  };
   // achata cada conta nas suas parcelas (ou a própria conta, se não tiver parcelas)
   const flatParc = (list: any[]) => list.flatMap((r) => {
     const ps = parcelas(r);
@@ -575,7 +591,7 @@ export default function Financeiro() {
 
       {/* KPIs topo — clicáveis: cada card leva à aba/tela correspondente (dado real) */}
       <div className="kpis" style={{ marginBottom: 16 }}>
-        <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("A receber no mês"), rows: rowsRecMes, foot: { label: t("Total do mês"), value: totalReceberMes } })} title={t("Ver detalhes")}><div className="lab">{t("A receber no mês")}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(totalReceberMes)}</div><div className="delta">{money(recebidoMes)} {t("recebido")} · {money(aReceberMes)} {t("a receber")}</div></button>
+        <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("A receber no mês"), rows: rowsRecMes, foot: { label: t("Total do mês"), value: totalReceberMes } })} title={t("Ver detalhes")}><div className="lab">{t("A receber")} {noMesLbl}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(totalReceberMes)}</div><div className="delta">{money(recebidoMes)} {t("recebido")} · {money(aReceberMes)} {t("a receber")}</div></button>
         <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A pagar no mês"), rows: rowsPagarMes, foot: { label: t("Total/mês"), value: aPagarMes } })} title={t("Ver detalhes")}><div className="lab">{t("A pagar no mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "var(--fin-orange)" }}>{money(aPagarMes)}</div><div className="delta">{t("ferramentas + infra + serviço")}</div></button>
         <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado do mês"), rows: rowsResultado, foot: { label: t("Resultado"), value: resultadoMes } })} title={t("Resultado do mês = a receber − a pagar")}><div className="lab">{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: resultadoMes < 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(resultadoMes)}</div><div className="delta">{t("recebe − paga (mês)")}</div></button>
         <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Vencidos"), rows: rowsVencidos, foot: { label: t("Total vencido"), value: inadimplencia } })} title={t("Ver detalhes")}><div className="lab">{t("Vencidos")}</div><div className="val tnum" style={{ fontSize: 22, color: inadimplencia > 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(inadimplencia)}</div><div className="delta">{inadimplencia > 0 ? t("a receber vencido") : t("nada vencido ✓")}</div></button>
@@ -705,9 +721,32 @@ export default function Financeiro() {
       ) : (<>
         {/* barra de ação */}
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
-          <div className="catsearch" style={{ margin: 0, flex: 1, minWidth: 220 }}>
+          <div className="catsearch" style={{ margin: 0, flex: 1, minWidth: 200 }}>
             <Search size={16} />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("Pesquisar…")} />
+          </div>
+          {/* Filtro personalizado por período — calendário estilizado (projeções) */}
+          <div style={{ position: "relative" }}>
+            <button className={"crasto-btn crasto-btn--sm " + (per ? "crasto-btn--primary" : "crasto-btn--ghost")} onClick={() => setPerOpen((o) => !o)} title={t("Filtrar por período (projeções)")}>
+              <span className="crasto-btn__icon"><Filter size={14} /></span>
+              <span className="crasto-btn__label">{per ? per.label : t("Filtro por período")}</span>
+              {per && <span onClick={(e) => { e.stopPropagation(); setPer(null); setPerOpen(false); }} style={{ marginLeft: 6, display: "inline-flex" }}><X size={13} /></span>}
+            </button>
+            {perOpen && <>
+              <div onClick={() => setPerOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 39 }} />
+              <div className="card" style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 40, width: 330, padding: 16, boxShadow: "0 20px 44px -12px rgba(0,0,0,.45)" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}><Filter size={14} /> {t("Filtrar por período")}</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+                  {perPresets().map((p) => <button key={p.key} className={"crasto-btn crasto-btn--sm " + (per && per.from === p.from && per.to === p.to ? "crasto-btn--primary" : "crasto-btn--ghost")} onClick={() => { setPer({ from: p.from, to: p.to, label: p.label }); setPerOpen(false); }}><span className="crasto-btn__label">{p.label}</span></button>)}
+                </div>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--crasto-text-muted)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>{t("Personalizado")}</div>
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontWeight: 600, color: "var(--crasto-text-muted)" }}>{t("De")}<input id="finper-from" type="date" defaultValue={per?.from || mesAtual + "-01"} style={{ padding: "7px 9px", borderRadius: 8, border: "1px solid var(--crasto-border-soft)", background: "var(--crasto-surface)", color: "var(--crasto-text-primary)", fontSize: 12 }} /></label>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontWeight: 600, color: "var(--crasto-text-muted)" }}>{t("Até")}<input id="finper-to" type="date" defaultValue={per?.to || ""} style={{ padding: "7px 9px", borderRadius: 8, border: "1px solid var(--crasto-border-soft)", background: "var(--crasto-surface)", color: "var(--crasto-text-primary)", fontSize: 12 }} /></label>
+                  <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => { const fr = (document.getElementById("finper-from") as HTMLInputElement)?.value; const to2 = (document.getElementById("finper-to") as HTMLInputElement)?.value; if (fr && to2 && fr <= to2) { setPer({ from: fr, to: to2, label: new Date(fr + "T00:00:00").toLocaleDateString("pt-BR") + " – " + new Date(to2 + "T00:00:00").toLocaleDateString("pt-BR") }); setPerOpen(false); } }}><span className="crasto-btn__label">{t("Aplicar")}</span></button>
+                </div>
+              </div>
+            </>}
           </div>
           {tab === "receber" && <button className={"crasto-btn crasto-btn--sm " + (recOnly ? "crasto-btn--primary" : "crasto-btn--ghost")} onClick={toggleRecOnly} title={t("Mostrar só as contas recorrentes — a origem do MRR")} aria-pressed={recOnly}><span className="crasto-btn__icon"><Repeat size={14} /></span><span className="crasto-btn__label">{t("Só recorrentes")}{recOnly ? " ✓" : ""}</span></button>}
           <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => newAccount(tab === "pagar" ? "payable" : "receivable")}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Novo lançamento")}</span></button>
@@ -737,8 +776,8 @@ export default function Financeiro() {
         {tab === "receber" && (
           <div className="kpis kpis--5" style={{ marginBottom: 14 }}>
             <button className="kpi navy kpi-btn" onClick={() => setDrill({ title: t("Recorrente / mês (MRR)"), rows: rowsMRR, foot: { label: t("MRR"), value: mrrMensal } })} title={t("Ver detalhes")}><div className="lab">{t("Recorrente / mês (MRR)")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(mrrMensal)}</div><div className="delta">{t("ARR")} {money(mrrMensal * 12)}/{t("ano")}</div></button>
-            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A receber no mês"), rows: rowsRecMes, foot: { label: t("Total do mês"), value: totalReceberMes } })} title={t("Ver detalhes")}><div className="lab">{t("A receber no mês")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(aReceberMes)}</div><div className="delta">{t("ainda este mês")}</div></button>
-            <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Recebido no mês"), rows: rowsRecebidoMes, foot: { label: t("Recebido no mês"), value: recebidoMes } })} title={t("Ver detalhes")}><div className="lab">{t("Recebido no mês")}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-green)" }}>{money(recebidoMes)}</div><div className="delta">{t("já entrou este mês")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A receber no mês"), rows: rowsRecMes, foot: { label: t("Total do mês"), value: totalReceberMes } })} title={t("Ver detalhes")}><div className="lab">{t("A receber")} {noMesLbl}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(aReceberMes)}</div><div className="delta">{per ? t("a receber no período") : t("ainda este mês")}</div></button>
+            <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Recebido no mês"), rows: rowsRecebidoMes, foot: { label: t("Recebido no mês"), value: recebidoMes } })} title={t("Ver detalhes")}><div className="lab">{t("Recebido")} {noMesLbl}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-green)" }}>{money(recebidoMes)}</div><div className="delta">{per ? t("entrou no período") : t("já entrou este mês")}</div></button>
             <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Com contrato"), rows: rowsComContrato, foot: { label: t("Saldo com contrato"), value: comContrato } })} title={t("Ver detalhes")}><div className="lab">{t("Com contrato")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(comContrato)}</div><div className="delta">{t("{n} contratos · saldo", { n: nContratos })}</div></button>
             <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Sem contrato"), rows: rowsSemContrato, foot: { label: t("Saldo sem contrato"), value: semContrato } })} title={t("Ver detalhes")}><div className="lab">{t("Sem contrato")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(semContrato)}</div><div className="delta">{t("avulsos · saldo")}</div></button>
           </div>
