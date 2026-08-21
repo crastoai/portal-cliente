@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { services, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, money, Field, useToast, useSort, SortTh } from "../../ui/ui";
@@ -33,81 +33,8 @@ const platLabel = (row: { provider?: string; platform?: string }) => {
 };
 const monthISO = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
 const monthEndISO = (d: Date) => new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
-const iso = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10);
-// nº de meses (>=1) e de dias (>=1) que uma faixa [from,to] abrange — base das médias
-const monthsInRange = (a: string, b: string) => { const [ay, am] = a.split("-").map(Number); const [by, bm] = b.split("-").map(Number); return Math.max(1, (by * 12 + bm) - (ay * 12 + am) + 1); };
-const daysInRange = (a: string, b: string) => Math.max(1, Math.round((+new Date(b) - +new Date(a)) / 86400000) + 1);
-// Atalhos de período para a análise de gasto de IA (além do "mês" navegável já existente).
-function aiPeriods() {
-  const now = new Date(), y = now.getFullYear();
-  return [
-    { key: "desde25", label: "Desde 01/01/2025", from: "2025-01-01", to: iso(now) },
-    { key: "ano", label: "Este ano", from: `${y}-01-01`, to: iso(now) },
-    { key: "12m", label: "Últimos 12 meses", from: iso(new Date(y, now.getMonth() - 11, 1)), to: iso(now) },
-    { key: "2025", label: "2025", from: "2025-01-01", to: "2025-12-31" },
-    { key: "2026", label: "2026", from: "2026-01-01", to: "2026-12-31" },
-  ];
-}
 const fmtTokens = (n: number) => (!n ? "—" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : String(n));
 const E_EMPTY = { id: "", organization_id: "", provider: "", platform: "claude_api", purpose: "", kind: "cliente", status: "active", tokens_in: "", tokens_out: "", cost: "", period_start: "", period_end: "" };
-
-// Painel de ANÁLISE de gasto de IA por período — total no período, média por mês/semana
-// (toggle) e comparativo 2025 × 2026. Autocontido: tem seu próprio período e não interfere
-// na visão mensal abaixo. Usa a mesma RPC admin_ai_cost(from,to) do resto da aba.
-function AiSpendAnalysis() {
-  const t = useT();
-  const now = new Date();
-  const presets = aiPeriods();
-  const [pkey, setPkey] = useState("desde25");
-  const [cFrom, setCFrom] = useState("2025-01-01");
-  const [cTo, setCTo] = useState(iso(now));
-  const [unit, setUnit] = useState<"mes" | "semana">("mes");
-  const p = presets.find((x) => x.key === pkey);
-  const from = pkey === "custom" ? cFrom : (p?.from || "2025-01-01");
-  const to = pkey === "custom" ? cTo : (p?.to || iso(now));
-  const { data, loading } = useAsync(async () => {
-    const [range, p25, p26] = await Promise.all([
-      services.finance.aiCost.panel(from, to),
-      services.finance.aiCost.panel("2025-01-01", "2025-12-31").catch(() => null),
-      services.finance.aiCost.panel("2026-01-01", iso(now)).catch(() => null),
-    ]);
-    return { total: Number((range as any)?.summary?.total || 0), y25: Number((p25 as any)?.summary?.total || 0), y26: Number((p26 as any)?.summary?.total || 0) };
-  }, [from, to]);
-  const total = data?.total || 0, y25 = data?.y25 || 0, y26 = data?.y26 || 0;
-  const months = monthsInRange(from, to), weeks = daysInRange(from, to) / 7;
-  const avg = unit === "mes" ? total / months : total / weeks;
-  const m25 = y25 / 12; // 2025 fechado (12 meses)
-  const me26 = now.getFullYear() > 2026 ? 12 : now.getFullYear() < 2026 ? 1 : now.getMonth() + 1;
-  const m26 = y26 / me26; // 2026 até hoje
-  const segBtn = (on: boolean): CSSProperties => ({ border: 0, borderRadius: 0, padding: "2px 10px", cursor: "pointer", fontSize: 12, fontWeight: 700, background: on ? "var(--crasto-navy, #010E26)" : "transparent", color: on ? "#fff" : "var(--crasto-text-muted, #667085)" });
-  return (
-    <div className="card" style={{ padding: 16, marginBottom: 18 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
-        <strong style={{ fontSize: 15 }}>📊 {t("Análise de gasto de IA por período")}</strong>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-          {presets.map((x) => <button key={x.key} className={"pill" + (pkey === x.key ? " pill--on" : "")} style={{ cursor: "pointer" }} onClick={() => setPkey(x.key)}>{t(x.label)}</button>)}
-          <button className={"pill" + (pkey === "custom" ? " pill--on" : "")} style={{ cursor: "pointer" }} onClick={() => setPkey("custom")}>{t("Personalizado")}</button>
-          {pkey === "custom" && <>
-            <input type="date" className="inp" value={cFrom} max={cTo} onChange={(e) => setCFrom(e.target.value)} style={{ width: 148 }} />
-            <span className="muted">→</span>
-            <input type="date" className="inp" value={cTo} min={cFrom} onChange={(e) => setCTo(e.target.value)} style={{ width: 148 }} />
-          </>}
-        </div>
-      </div>
-      <div className="kpis">
-        <div className="kpi g"><div className="lab">{t("Total no período")}</div><div className="val tnum" style={{ fontSize: 24 }}>{loading ? "…" : money(total)}</div><div className="delta">{new Date(from).toLocaleDateString("pt-BR")} → {new Date(to).toLocaleDateString("pt-BR")} · {months} {t("meses")}</div></div>
-        <div className="kpi"><div className="lab" style={{ display: "flex", alignItems: "center", gap: 8 }}>{t("Média")}
-          <span style={{ display: "inline-flex", border: "1px solid var(--crasto-border-soft, #e5e7eb)", borderRadius: 999, overflow: "hidden" }}>
-            <button style={segBtn(unit === "mes")} onClick={() => setUnit("mes")}>{t("mês")}</button>
-            <button style={segBtn(unit === "semana")} onClick={() => setUnit("semana")}>{t("semana")}</button>
-          </span></div><div className="val tnum" style={{ fontSize: 24 }}>{loading ? "…" : money(avg)}</div><div className="delta">{unit === "mes" ? t("por mês no período") : t("por semana no período")}</div></div>
-        <div className="kpi"><div className="lab">{t("Média/mês · 2025")}</div><div className="val tnum" style={{ fontSize: 22 }}>{loading ? "…" : money(m25)}</div><div className="delta">{t("total")} {money(y25)}</div></div>
-        <div className="kpi"><div className="lab">{t("Média/mês · 2026")}</div><div className="val tnum" style={{ fontSize: 22 }}>{loading ? "…" : money(m26)}</div><div className="delta">{t("total")} {money(y26)}</div></div>
-      </div>
-      <div className="note" style={{ marginTop: 10 }}><span>{t("Soma os custos de IA registrados (uso por plataforma no período). Escolha um atalho ou Personalizado; a média alterna entre mês e semana. O comparativo usa 2025 fechado e 2026 até hoje.")}</span></div>
-    </div>
-  );
-}
 
 export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
   const t = useT();
@@ -223,9 +150,6 @@ export default function CustoIA({ embedded }: { embedded?: boolean } = {}) {
       <div className="note" style={{ marginBottom: 14 }}>
         <span><b>{t("Custo real automático:")}</b> Anthropic {bkStatus?.anthropic_admin ? "✓" : t("— falta a Admin key")} · OpenAI {bkStatus?.openai_admin ? "✓" : t("— falta a Admin key")} · Gemini {bkStatus?.google_billing ? "✓" : t("— falta a Service Account (Google)")}. {t("Cadastre em Console → Integrações & pagamentos (Admin keys + Google Cloud Billing) e clique em \"Sincronizar custos\".")}</span>
       </div>
-
-      {/* ANÁLISE por período (total + médias mês/semana + 2025×2026) — no topo, autocontido */}
-      <AiSpendAnalysis />
 
       {/* seletor de período (visão mês-a-mês das tabelas abaixo) */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>

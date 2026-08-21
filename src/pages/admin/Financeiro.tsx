@@ -38,6 +38,75 @@ function buildSchedule(n: number, first: string, day: any, val: number) {
   }
   return out;
 }
+
+// ===== Painel: análise de gasto de IA por período (fica em A Pagar) =====
+const isoDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10);
+const monthsInRange = (a: string, b: string) => { const [ay, am] = a.split("-").map(Number); const [by, bm] = b.split("-").map(Number); return Math.max(1, (by * 12 + bm) - (ay * 12 + am) + 1); };
+const daysInRange = (a: string, b: string) => Math.max(1, Math.round((+new Date(b) - +new Date(a)) / 86400000) + 1);
+function aiPeriods() {
+  const now = new Date(), y = now.getFullYear();
+  return [
+    { key: "desde25", label: "Desde 2025", from: "2025-01-01", to: isoDay(now) },
+    { key: "ano", label: "Este ano", from: `${y}-01-01`, to: isoDay(now) },
+    { key: "12m", label: "Últimos 12 meses", from: isoDay(new Date(y, now.getMonth() - 11, 1)), to: isoDay(now) },
+    { key: "2025", label: "2025", from: "2025-01-01", to: "2025-12-31" },
+    { key: "2026", label: "2026", from: "2026-01-01", to: "2026-12-31" },
+  ];
+}
+// Total gasto em IA no período + média por mês/semana (toggle) + comparativo 2025×2026.
+// Calendário sempre visível (personalizável) e atalhos de período. Usa services.finance.aiCost.panel.
+function AiSpendPanel() {
+  const t = useT();
+  const now = new Date();
+  const presets = aiPeriods();
+  const [from, setFrom] = useState("2025-01-01");
+  const [to, setTo] = useState(isoDay(now));
+  const [unit, setUnit] = useState<"mes" | "semana">("mes");
+  const activePreset = presets.find((p) => p.from === from && p.to === to)?.key || "custom";
+  const { data, loading } = useAsync(async () => {
+    const [range, p25, p26] = await Promise.all([
+      services.finance.aiCost.panel(from, to),
+      services.finance.aiCost.panel("2025-01-01", "2025-12-31").catch(() => null),
+      services.finance.aiCost.panel("2026-01-01", isoDay(now)).catch(() => null),
+    ]);
+    return { total: Number((range as any)?.summary?.total || 0), y25: Number((p25 as any)?.summary?.total || 0), y26: Number((p26 as any)?.summary?.total || 0) };
+  }, [from, to]);
+  const total = data?.total || 0, y25 = data?.y25 || 0, y26 = data?.y26 || 0;
+  const months = monthsInRange(from, to), weeks = daysInRange(from, to) / 7;
+  const avg = unit === "mes" ? total / months : total / weeks;
+  const m25 = y25 / 12; // 2025 fechado (12 meses)
+  const me26 = now.getFullYear() > 2026 ? 12 : now.getFullYear() < 2026 ? 1 : now.getMonth() + 1;
+  const m26 = y26 / me26; // 2026 até hoje
+  const seg = (on: boolean) => ({ border: 0, padding: "3px 12px", cursor: "pointer", fontSize: 12, fontWeight: 700, background: on ? "var(--crasto-navy, #010E26)" : "transparent", color: on ? "#fff" : "var(--crasto-text-muted, #667085)" });
+  const dateInp = { padding: "7px 10px", borderRadius: 8, border: "1px solid var(--crasto-border-soft,#e5e7eb)", fontSize: 13 };
+  const dateLab = { display: "flex", flexDirection: "column" as const, gap: 4, fontSize: 12, fontWeight: 600, color: "var(--crasto-text-muted,#667085)" };
+  return (
+    <div className="card" style={{ padding: 16, marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+        <strong style={{ fontSize: 15 }}>📊 {t("Gasto de IA por período")}</strong>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          {presets.map((p) => <button key={p.key} className={"crasto-btn crasto-btn--sm " + (activePreset === p.key ? "crasto-btn--primary" : "crasto-btn--ghost")} onClick={() => { setFrom(p.from); setTo(p.to); }}><span className="crasto-btn__label">{t(p.label)}</span></button>)}
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 14 }}>
+        <label style={dateLab}>{t("De")}<input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} style={dateInp} /></label>
+        <span style={{ paddingBottom: 8, color: "var(--crasto-text-muted,#667085)" }}>→</span>
+        <label style={dateLab}>{t("Até")}<input type="date" value={to} min={from} max={isoDay(now)} onChange={(e) => setTo(e.target.value)} style={dateInp} /></label>
+        {activePreset === "custom" && <span style={{ paddingBottom: 9, fontSize: 12, color: "var(--crasto-navy,#010E26)", fontWeight: 700 }}>• {t("Personalizado")}</span>}
+      </div>
+      <div className="kpis">
+        <div className="kpi g"><div className="lab">{t("Total no período")}</div><div className="val tnum" style={{ fontSize: 24 }}>{loading ? "…" : money(total)}</div><div className="delta">{new Date(from + "T00:00:00").toLocaleDateString("pt-BR")} → {new Date(to + "T00:00:00").toLocaleDateString("pt-BR")} · {months} {t("meses")}</div></div>
+        <div className="kpi"><div className="lab" style={{ display: "flex", alignItems: "center", gap: 8 }}>{t("Média")}
+          <span style={{ display: "inline-flex", border: "1px solid var(--crasto-border-soft, #e5e7eb)", borderRadius: 999, overflow: "hidden" }}>
+            <button style={seg(unit === "mes")} onClick={() => setUnit("mes")}>{t("mês")}</button>
+            <button style={seg(unit === "semana")} onClick={() => setUnit("semana")}>{t("semana")}</button>
+          </span></div><div className="val tnum" style={{ fontSize: 24 }}>{loading ? "…" : money(avg)}</div><div className="delta">{unit === "mes" ? t("por mês no período") : t("por semana no período")}</div></div>
+        <div className="kpi"><div className="lab">{t("Média/mês · 2025")}</div><div className="val tnum" style={{ fontSize: 22 }}>{loading ? "…" : money(m25)}</div><div className="delta">{t("total")} {money(y25)}</div></div>
+        <div className="kpi"><div className="lab">{t("Média/mês · 2026")}</div><div className="val tnum" style={{ fontSize: 22 }}>{loading ? "…" : money(m26)}</div><div className="delta">{t("total")} {money(y26)}</div></div>
+      </div>
+    </div>
+  );
+}
 // dd/mm/aaaa a partir de ISO (yyyy-mm-dd)
 function brDate(iso?: string) { if (!iso) return "—"; const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; }
 // diferença em dias: b − a (positivo = b depois de a)
@@ -189,8 +258,35 @@ export default function Financeiro() {
   const saldoCaixa = entradasReal - saidasReal;
   const entradasPrev = txSum("income", "pending"), saidasPrev = txSum("expense", "pending");
 
-  // custo → "lançamento" a pagar (histórico pago se inativo; ativo = pendente)
-  const costToItem = (c: any) => ({ id: c.id, _kind: "cost", description: c.description, contact_name: c.vendor_name, category: c.category, amount: Number(c.amount_brl || 0), amount_paid: c.is_active ? 0 : Number(c.amount_brl || 0), due_date: c.next_payment_date, payment_date: c.is_active ? null : c.reference_date, status: c.is_active ? "pending" : "paid", recurrence: c.recurrence });
+  // Parcelamento REAL de um custo (ex.: Viver de IA 12x no cartão). Só mensal com "Nx" (N>1) no texto.
+  // Assinatura recorrente de valor fixo NÃO é parcelada → sem parcelas (linha recorrente, igual avulso de A Receber).
+  const addMonthsISO = (iso: string, k: number) => { const d = new Date(iso + "T00:00:00"); d.setMonth(d.getMonth() + k); return d.toISOString().slice(0, 10); };
+  const costSchedule = (c: any): any[] => {
+    const per = Number(c.amount_brl || 0);
+    if (!per || String(c.recurrence || "").toLowerCase() !== "mensal") return [];
+    const mx = String(c.notes || "").match(/(\d{1,3})\s*x\b/i);
+    const count = mx ? Number(mx[1]) : 0;
+    if (count < 2) return [];
+    const start = ymd(c.reference_date) || addMonthsISO(today(), -(count - 1));
+    const base = start.slice(0, 7) + "-" + (start.slice(8, 10) || "01");
+    const hoje = today();
+    return Array.from({ length: count }, (_, k) => {
+      const date = addMonthsISO(base, k);
+      const paid = date <= hoje;
+      return { installment: k + 1, date, amount: per, status: paid ? "paid" : "pending", paid_date: paid ? date : "", amount_paid: paid ? per : 0, origin: "parcelamento", penalty_amount: 0, penalty_waived: false, _virtual: true };
+    });
+  };
+  // custo → "lançamento" a pagar. Parcelado (Viver de IA) abre em parcelas, igual A Receber;
+  // recorrente/pontual segue linha única (histórico pago se inativo; ativo = pendente).
+  const costToItem = (c: any) => {
+    const ps = costSchedule(c);
+    if (ps.length) {
+      const total = ps.reduce((a, p) => a + Number(p.amount || 0), 0);
+      const pago = ps.filter((p) => p.status === "paid").reduce((a, p) => a + Number(p.amount || 0), 0);
+      return { id: c.id, _kind: "cost", description: c.description, contact_name: c.vendor_name, category: c.category, amount: total, amount_paid: pago, due_date: ps.find((p) => p.status !== "paid")?.date || c.next_payment_date, payment_date: null, status: pago >= total ? "paid" : "partial", recurrence: c.recurrence, payment_schedule: ps };
+    }
+    return { id: c.id, _kind: "cost", description: c.description, contact_name: c.vendor_name, category: c.category, amount: Number(c.amount_brl || 0), amount_paid: c.is_active ? 0 : Number(c.amount_brl || 0), due_date: c.next_payment_date, payment_date: c.is_active ? null : c.reference_date, status: c.is_active ? "pending" : "paid", recurrence: c.recurrence };
+  };
   const acctToItem = (r: any) => ({ ...r, _kind: "account" });
 
   // === grupos por empresa (A Pagar = contas payable + custos) ===
@@ -574,6 +670,9 @@ export default function Financeiro() {
           </div>
         )}
 
+        {/* análise de gasto de IA por período (só A Pagar) — calendário personalizável + médias + 2025×2026 */}
+        {tab === "pagar" && <AiSpendPanel />}
+
         {/* resumo de recebíveis recorrentes (só A Receber) — quebra o "A Receber" em MRR + contratos */}
         {tab === "receber" && (
           <div className="kpis kpis--5" style={{ marginBottom: 14 }}>
@@ -632,7 +731,7 @@ export default function Financeiro() {
                     <td><Pill tone={stTone(g.status) as any}>{stLabel(g.status)}</Pill></td>
                   </tr>
                   {expanded[g.name] && g.list.map((i: any) => {
-                    const parc = i._kind === "account" && Array.isArray(i.payment_schedule) ? i.payment_schedule : [];
+                    const parc = Array.isArray(i.payment_schedule) ? i.payment_schedule : [];
                     const venc = proxVenc(i);
                     return (
                     <Fragment key={i.id}>
@@ -654,12 +753,13 @@ export default function Financeiro() {
                     {parc.map((p: any) => {
                       const isEd = parcEdit != null && parcEdit.acc === i.id && parcEdit.inst === p.installment;
                       const v = vereditoParcela({ ...p, date: ymd(p.date), paid_date: p.paid_date ? ymd(p.paid_date) : "" }, new Date().toISOString().slice(0, 10));
+                      const roEd = i._kind === "account"; // custo = parcela virtual (só leitura); conta = editável/baixável
                       return (
                       <Fragment key={i.id + "-p" + p.installment}>
-                      <tr className={"finrow finparc" + (isEd ? " is-editing" : "")} style={{ cursor: "pointer" }} title={t("Clique para editar esta parcela")} onClick={() => (isEd ? (setParcEdit(null), setParcDraft(null)) : openParc(i, p))}>
+                      <tr className={"finrow finparc" + (isEd ? " is-editing" : "")} style={{ cursor: roEd ? "pointer" : "default" }} title={roEd ? t("Clique para editar esta parcela") : t("Parcela do parcelamento (recorrente) — só leitura")} onClick={roEd ? () => (isEd ? (setParcEdit(null), setParcDraft(null)) : openParc(i, p)) : undefined}>
                         <td></td>
                         <td colSpan={2}>
-                          <div className="mt" style={{ paddingLeft: 12 }}>{t("Parcela {k}/{n}", { k: p.installment, n: parc.length })} <Pencil size={11} style={{ opacity: .4, verticalAlign: "-1px" }} /></div>
+                          <div className="mt" style={{ paddingLeft: 12 }}>{t("Parcela {k}/{n}", { k: p.installment, n: parc.length })} {roEd && <Pencil size={11} style={{ opacity: .4, verticalAlign: "-1px" }} />}</div>
                           <div style={{ paddingLeft: 12, color: TONE_COLOR[v.tone], fontSize: 11, fontWeight: 600 }}>{v.icon} {v.text}</div>
                         </td>
                         <td className="tnum">{p.date ? new Date(ymd(p.date) + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</td>
@@ -669,7 +769,7 @@ export default function Financeiro() {
                         <td>
                           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                             <Pill tone={p.status === "paid" ? "ok" : "info"}>{p.status === "paid" ? t("Paga") : t("Pendente")}</Pill>
-                            <button className="icobtn" title={p.status === "paid" ? t("Reabrir parcela") : t("Baixar parcela")} onClick={(e) => { e.stopPropagation(); toggleInstallment(i, p.installment); }}><CheckCircle2 size={13} /></button>
+                            {roEd && <button className="icobtn" title={p.status === "paid" ? t("Reabrir parcela") : t("Baixar parcela")} onClick={(e) => { e.stopPropagation(); toggleInstallment(i, p.installment); }}><CheckCircle2 size={13} /></button>}
                           </div>
                         </td>
                       </tr>
