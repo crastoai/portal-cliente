@@ -132,6 +132,9 @@ export class SupportInternalController {
   @Post('channel-down')
   async channelDown(@Headers('x-service-key') chave: string, @Body() b: any) {
     this.autorizar(chave);
+    // ALERTA DE ERRO POR E-MAIL DESATIVADO (pedido do Crasto, 2026-08-14): não dispara e-mail de
+    // queda de canal. O Discord (via Jorge) segue avisando o time. Reativar = env ALERT_EMAILS_ENABLED=true.
+    if (process.env.ALERT_EMAILS_ENABLED !== 'true') return { ok: true, skipped: 'e-mail de alerta desativado' };
     const agente = String(b?.agente || '').trim() || '?';
     const cliente = String(b?.cliente || '').trim() || '—';
     const motivo = String(b?.motivo || '').trim() || 'desconectado';
@@ -157,6 +160,9 @@ export class SupportInternalController {
   @Post('ops-alert')
   async opsAlert(@Headers('x-service-key') chave: string, @Body() b: any) {
     this.autorizar(chave);
+    // ALERTA DE ERRO POR E-MAIL DESATIVADO (pedido do Crasto, 2026-08-14): não dispara e-mail de
+    // falha operacional/IA. O Discord (via Jorge) segue avisando o time. Reativar = env ALERT_EMAILS_ENABLED=true.
+    if (process.env.ALERT_EMAILS_ENABLED !== 'true') return { ok: true, skipped: 'e-mail de alerta desativado' };
     const titulo = String(b?.titulo || '').trim() || 'Alerta operacional';
     const detalhe = String(b?.detalhe || '').trim();
     let para = String(process.env.SUPPORT_ESCALATION_EMAILS || '').split(',').map((s) => s.trim()).filter((s) => s.includes('@'));
