@@ -395,16 +395,20 @@ export default function Financeiro() {
       : (r.status !== "cancelled" ? [{ date: ymd(r.due_date), amount: Number(r.amount || 0), paid: r.status === "paid", name: r.contact_name, ref: r }] : []);
   });
   const recFlat = flatParc(rec);
-  const recebidoMes = recFlat.filter((p) => p.paid && inMes(p.date)).reduce((a, p) => a + p.amount, 0);
-  const aReceberMes = recFlat.filter((p) => !p.paid && inMes(p.date)).reduce((a, p) => a + p.amount, 0);
-  const totalReceberMes = recebidoMes + aReceberMes;
+  const recFlatRec = flatParc(rec.filter((r) => isRecurring(r))); // SÓ recorrentes (o Crasto: pontual/avulso NÃO entra em "a receber no mês")
+  const recorRecebido = recFlatRec.filter((p) => p.paid && inMes(p.date)).reduce((a, p) => a + p.amount, 0);
+  const recorPend = recFlatRec.filter((p) => !p.paid && inMes(p.date)).reduce((a, p) => a + p.amount, 0);
+  const totalReceberMes = recorRecebido + recorPend;   // "A receber no mês" = recorrente do mês (mensalidades)
+  const aReceberMes = recorPend;                        // recorrente que ainda falta no mês
+  const recebidoMes = recFlat.filter((p) => p.paid && inMes(p.date)).reduce((a, p) => a + p.amount, 0); // "Recebido no mês" = TUDO que entrou (com avulsos)
+  const totalMesAll = recFlat.filter((p) => inMes(p.date)).reduce((a, p) => a + p.amount, 0); // tudo do mês (recorrente + avulso) — base do Resultado
   // A pagar no mês = custos recorrentes mensalizados (mensal + anual/12), por categoria da taxonomia
   // "A pagar no mês" = SÓ o que sai TODO mês (recorrência mensal, incl. parcelados como Viver de IA/Dell).
   // Anuais NÃO entram aqui (foram pagos adiantado no ano) — aparecem em "Renovações anuais" e no Total do ano.
   const custoMensalCat = (cat?: string) => activeCosts.filter((c) => (!cat || c.category === cat) && c.recurrence === "mensal").reduce((a, c) => a + Number(c.amount_brl || 0), 0);
   const custoAnualCat = (cat?: string) => activeCosts.filter((c) => (!cat || c.category === cat) && c.recurrence === "anual").reduce((a, c) => a + Number(c.amount_brl || 0), 0);
   const aPagarMes = custoMensalCat();
-  const resultadoMes = totalReceberMes - aPagarMes;
+  const resultadoMes = totalMesAll - aPagarMes; // tudo que entra no mês (recorrente + avulso) − custo mensal
   // A Receber: com contrato (recorrente) × sem contrato (avulso)
   const comContrato = rec.filter((r) => r.status !== "cancelled" && isRecurring(r)).reduce((a, r) => a + rem(r), 0);
   const semContrato = rec.filter((r) => r.status !== "cancelled" && !isRecurring(r)).reduce((a, r) => a + rem(r), 0);
@@ -414,7 +418,7 @@ export default function Financeiro() {
   const fmtD = (d: any) => (ymd(d) ? new Date(ymd(d) + "T00:00:00").toLocaleDateString("pt-BR") : "—");
   const custoMensalDe = (c: any) => (c.recurrence === "mensal" ? Number(c.amount_brl || 0) : c.recurrence === "anual" ? Number(c.amount_brl || 0) / 12 : 0);
   // A receber
-  const rowsRecMes = recFlat.filter((p) => inMes(p.date)).map((p) => ({ name: p.name, detail: fmtD(p.date), value: p.amount, tone: p.paid ? "ok" : "info", status: p.paid ? t("Recebido") : t("A receber") }));
+  const rowsRecMes = recFlatRec.filter((p) => inMes(p.date)).map((p) => ({ name: p.name, detail: fmtD(p.date), value: p.amount, tone: p.paid ? "ok" : "info", status: p.paid ? t("Recebido") : t("A receber") }));
   const rowsRecebidoMes = recFlat.filter((p) => p.paid && inMes(p.date)).map((p) => ({ name: p.name, detail: fmtD(p.date), value: p.amount, tone: "ok", status: t("Recebido") }));
   const rowsMRR = recContratos.map((r) => ({ name: r.contact_name, detail: t("recorrente/mês"), value: mensalDe(r), tone: "mute", status: r.recurrence }));
   const rowsComContrato = rec.filter((r) => r.status !== "cancelled" && isRecurring(r)).map((r) => ({ name: r.contact_name, detail: `${t("saldo")} · ${t("pago")} ${money(Number(r.amount_paid || 0))}`, value: rem(r), tone: "info", status: t("contrato") }));
@@ -425,7 +429,7 @@ export default function Financeiro() {
   const rowsAnuais = activeCosts.filter((c) => c.recurrence === "anual").map((c) => ({ name: c.vendor_name, detail: `${catLabel(c.category)} · ${t("renova")} ${fmtD(c.next_payment_date)}`, value: Number(c.amount_brl || 0), tone: "info", status: t("anual") })).sort((a, b) => b.value - a.value);
   const rowsAnoTudo = activeCosts.map((c) => ({ name: c.vendor_name, detail: `${catLabel(c.category)} · ${c.recurrence}`, value: c.recurrence === "mensal" ? Number(c.amount_brl || 0) * 12 : Number(c.amount_brl || 0), tone: "mute", status: catLabel(c.category) })).sort((a, b) => b.value - a.value);
   const rowsResultado = [
-    { name: t("A receber no mês"), detail: t("entradas previstas + recebidas"), value: totalReceberMes, tone: "ok", status: "+" },
+    { name: t("Entradas do mês"), detail: t("recorrentes + avulsos"), value: totalMesAll, tone: "ok", status: "+" },
     { name: t("A pagar no mês"), detail: t("ferramenta + infra + serviço"), value: -aPagarMes, tone: "warn", status: "−" },
   ];
 
@@ -591,7 +595,7 @@ export default function Financeiro() {
 
       {/* KPIs topo — clicáveis: cada card leva à aba/tela correspondente (dado real) */}
       <div className="kpis" style={{ marginBottom: 16 }}>
-        <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("A receber no mês"), rows: rowsRecMes, foot: { label: t("Total do mês"), value: totalReceberMes } })} title={t("Ver detalhes")}><div className="lab">{t("A receber")} {noMesLbl}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(totalReceberMes)}</div><div className="delta">{money(recebidoMes)} {t("recebido")} · {money(aReceberMes)} {t("a receber")}</div></button>
+        <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("A receber no mês"), rows: rowsRecMes, foot: { label: t("Total do mês"), value: totalReceberMes } })} title={t("Ver detalhes")}><div className="lab">{t("A receber")} {noMesLbl}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(totalReceberMes)}</div><div className="delta">{money(recorRecebido)} {t("recebido")} · {money(aReceberMes)} {t("a receber")}</div></button>
         <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A pagar no mês"), rows: rowsPagarMes, foot: { label: t("Total/mês"), value: aPagarMes } })} title={t("Ver detalhes")}><div className="lab">{t("A pagar no mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "var(--fin-orange)" }}>{money(aPagarMes)}</div><div className="delta">{t("ferramentas + infra + serviço")}</div></button>
         <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado do mês"), rows: rowsResultado, foot: { label: t("Resultado"), value: resultadoMes } })} title={t("Resultado do mês = a receber − a pagar")}><div className="lab">{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: resultadoMes < 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(resultadoMes)}</div><div className="delta">{t("recebe − paga (mês)")}</div></button>
         <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Vencidos"), rows: rowsVencidos, foot: { label: t("Total vencido"), value: inadimplencia } })} title={t("Ver detalhes")}><div className="lab">{t("Vencidos")}</div><div className="val tnum" style={{ fontSize: 22, color: inadimplencia > 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(inadimplencia)}</div><div className="delta">{inadimplencia > 0 ? t("a receber vencido") : t("nada vencido ✓")}</div></button>
@@ -776,7 +780,7 @@ export default function Financeiro() {
         {tab === "receber" && (
           <div className="kpis kpis--5" style={{ marginBottom: 14 }}>
             <button className="kpi navy kpi-btn" onClick={() => setDrill({ title: t("Recorrente / mês (MRR)"), rows: rowsMRR, foot: { label: t("MRR"), value: mrrMensal } })} title={t("Ver detalhes")}><div className="lab">{t("Recorrente / mês (MRR)")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(mrrMensal)}</div><div className="delta">{t("ARR")} {money(mrrMensal * 12)}/{t("ano")}</div></button>
-            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A receber no mês"), rows: rowsRecMes, foot: { label: t("Total do mês"), value: totalReceberMes } })} title={t("Ver detalhes")}><div className="lab">{t("A receber")} {noMesLbl}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(totalReceberMes)}</div><div className="delta">{money(recebidoMes)} {t("recebido")} · {money(aReceberMes)} {t("falta")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A receber no mês"), rows: rowsRecMes, foot: { label: t("Total do mês"), value: totalReceberMes } })} title={t("Ver detalhes")}><div className="lab">{t("A receber")} {noMesLbl}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(totalReceberMes)}</div><div className="delta">{money(recorRecebido)} {t("recebido")} · {money(aReceberMes)} {t("falta")}</div></button>
             <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Recebido no mês"), rows: rowsRecebidoMes, foot: { label: t("Recebido no mês"), value: recebidoMes } })} title={t("Ver detalhes")}><div className="lab">{t("Recebido")} {noMesLbl}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-green)" }}>{money(recebidoMes)}</div><div className="delta">{per ? t("entrou no período") : t("já entrou este mês")}</div></button>
             <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Com contrato"), rows: rowsComContrato, foot: { label: t("Saldo com contrato"), value: comContrato } })} title={t("Ver detalhes")}><div className="lab">{t("Com contrato")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(comContrato)}</div><div className="delta">{t("{n} contratos · saldo", { n: nContratos })}</div></button>
             <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Sem contrato"), rows: rowsSemContrato, foot: { label: t("Saldo sem contrato"), value: semContrato } })} title={t("Ver detalhes")}><div className="lab">{t("Sem contrato")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(semContrato)}</div><div className="delta">{t("avulsos · saldo")}</div></button>
