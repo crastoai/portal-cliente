@@ -147,9 +147,8 @@ const T_EMPTY = { id: "", type: "income", category: "", amount: "", description:
 const TABS = [
   { key: "pagar", label: "A Pagar" }, { key: "receber", label: "A Receber" },
   { key: "cobranca", label: "Cobrança" }, { key: "conciliacao", label: "Conciliação" },
-  { key: "nfs", label: "NFs" }, { key: "tesouraria", label: "Tesouraria" },
   { key: "custos-ia", label: "Custos de IA" },
-  { key: "antecipacoes", label: "Antecipações" }, { key: "transacoes", label: "Transações" },
+  // Removidas a pedido do Crasto (não usamos): NFs, Tesouraria, Antecipações, Transações.
 ];
 
 // Filtros da aba Cobrança (painel de recebimentos por parcela) — "pagas sem comprovante" é o gap real.
