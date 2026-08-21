@@ -175,7 +175,7 @@ export default function Financeiro() {
   const [cobFiltro, setCobFiltro] = useState("todas"); // aba Cobrança: recorte por vencimento/comprovante
   // Cards de baixo (A Pagar/A Receber) filtram a LISTA: chips de status + Despesas por tipo. Os totais limpam.
   const [statusF, setStatusF] = useState<"todos" | "vencidos" | "hoje" | "avencer" | "pagos">("todos");
-  const [catF, setCatF] = useState<"consumo" | "revenda" | null>(null); // só faz sentido em A Pagar (expense_type)
+  const [catF, setCatF] = useState<string | null>(null); // A Pagar: filtro por categoria (ferramenta/infraestrutura/servico/salario)
   useEffect(() => { setStatusF("todos"); setCatF(null); }, [tab]); // trocar de aba zera os filtros dos cards de baixo
   const toggleRecOnly = () => setRecOnly((v) => {
     const nv = !v; const next = new URLSearchParams(sp);
@@ -313,7 +313,7 @@ export default function Financeiro() {
   const recSource = tab === "receber" && recOnly ? rec.filter(isRecurring) : rec;
   // Filtro dos cards de baixo aplicado à LISTA (os totais/chips seguem mostrando o valor cheio).
   const passStatus = (i: any) => statusF === "todos" ? true : statusF === "vencidos" ? vencidoDe(i) > 0 : statusF === "hoje" ? hojeDe(i) > 0 : statusF === "avencer" ? avencerDe(i) > 0 : Number(i.amount_paid || 0) > 0;
-  const passCat = (i: any) => tab !== "pagar" || !catF || i.expense_type === catF;
+  const passCat = (i: any) => tab !== "pagar" || !catF || i.category === catF;
   const rawItems = tab === "pagar" ? payItems : tab === "receber" ? recSource.map(acctToItem) : [];
   const groups = buildGroups(rawItems.filter((i) => passStatus(i) && passCat(i)));
 
@@ -359,6 +359,29 @@ export default function Financeiro() {
   const totalAno = totalMensal * 12 + activeCosts.filter((c) => c.recurrence === "anual").reduce((a, c) => a + Number(c.amount_brl || 0), 0) + activeCosts.filter((c) => c.recurrence === "pontual").reduce((a, c) => a + Number(c.amount_brl || 0), 0);
   const consumo = pay.filter((r) => r.expense_type === "consumo");
   const revenda = pay.filter((r) => r.expense_type === "revenda");
+
+  // === MENSAL-FIRST — retrato do mês corrente (pra "bater o olho e saber") ===
+  const mesAtual = today().slice(0, 7); // "YYYY-MM"
+  const inMes = (d: any) => ymd(d).slice(0, 7) === mesAtual;
+  // achata cada conta nas suas parcelas (ou a própria conta, se não tiver parcelas)
+  const flatParc = (list: any[]) => list.flatMap((r) => {
+    const ps = parcelas(r);
+    return ps.length
+      ? ps.filter((p) => p.status !== "cancelled").map((p) => ({ date: ymd(p.date), amount: Number(p.amount || 0), paid: p.status === "paid" }))
+      : (r.status !== "cancelled" ? [{ date: ymd(r.due_date), amount: Number(r.amount || 0), paid: r.status === "paid" }] : []);
+  });
+  const recFlat = flatParc(rec);
+  const recebidoMes = recFlat.filter((p) => p.paid && inMes(p.date)).reduce((a, p) => a + p.amount, 0);
+  const aReceberMes = recFlat.filter((p) => !p.paid && inMes(p.date)).reduce((a, p) => a + p.amount, 0);
+  const totalReceberMes = recebidoMes + aReceberMes;
+  // A pagar no mês = custos recorrentes mensalizados (mensal + anual/12), por categoria da taxonomia
+  const custoMensalCat = (cat?: string) => activeCosts.filter((c) => !cat || c.category === cat).reduce((a, c) => a + (c.recurrence === "mensal" ? Number(c.amount_brl || 0) : c.recurrence === "anual" ? Number(c.amount_brl || 0) / 12 : 0), 0);
+  const aPagarMes = custoMensalCat();
+  const resultadoMes = totalReceberMes - aPagarMes;
+  // A Receber: com contrato (recorrente) × sem contrato (avulso)
+  const comContrato = rec.filter((r) => r.status !== "cancelled" && isRecurring(r)).reduce((a, r) => a + rem(r), 0);
+  const semContrato = rec.filter((r) => r.status !== "cancelled" && !isRecurring(r)).reduce((a, r) => a + rem(r), 0);
+
   // status cards (do lado ativo)
   const curItems = tab === "pagar" ? payItems : recSource.map(acctToItem);
   const stVencidos = curItems.reduce((a, i) => a + vencidoDe(i), 0);   // só as parcelas realmente vencidas
@@ -521,10 +544,10 @@ export default function Financeiro() {
 
       {/* KPIs topo — clicáveis: cada card leva à aba/tela correspondente (dado real) */}
       <div className="kpis" style={{ marginBottom: 16 }}>
-        <button className="kpi kpi-btn" onClick={() => setTab("pagar")} title={t("Ver contas a pagar")}><div className="lab">{t("A Pagar")}</div><div className="val tnum" style={{ fontSize: 22, color: "#B54708" }}>{money(aPagar)}</div><div className="delta">{t("ver contas a pagar")} <ArrowRight size={11} /></div></button>
-        <button className="kpi g kpi-btn" onClick={() => setTab("receber")} title={t("Ver contas a receber")}><div className="lab">{t("A Receber")}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(aReceber)}</div><div className="delta">{t("ver contas a receber")} <ArrowRight size={11} /></div></button>
-        <button className="kpi kpi-btn" onClick={() => setTab("tesouraria")} title={t("Ver o fluxo de caixa (Tesouraria)")}><div className="lab">{t("Saldo em Caixa")}</div><div className="val tnum" style={{ fontSize: 22, color: saldoCaixa < 0 ? "#B54708" : "#1F8A5B" }}>{money(saldoCaixa)}</div><div className="delta">{t("entradas − saídas realizadas")} <ArrowRight size={11} /></div></button>
-        <button className="kpi kpi-btn" onClick={() => { setTab("cobranca"); setCobFiltro("vencidas"); }} title={t("Ver as parcelas vencidas (Cobrança)")}><div className="lab">{t("Vencidos")}</div><div className="val tnum" style={{ fontSize: 22, color: inadimplencia > 0 ? "#B54708" : undefined }}>{money(inadimplencia)}</div><div className="delta">{t("a receber vencido")} <ArrowRight size={11} /></div></button>
+        <button className="kpi g kpi-btn" onClick={() => setTab("receber")} title={t("Ver contas a receber")}><div className="lab">{t("A receber no mês")}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(totalReceberMes)}</div><div className="delta">{money(recebidoMes)} {t("recebido")} · {money(aReceberMes)} {t("a receber")}</div></button>
+        <button className="kpi kpi-btn" onClick={() => setTab("pagar")} title={t("Ver contas a pagar")}><div className="lab">{t("A pagar no mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "#B54708" }}>{money(aPagarMes)}</div><div className="delta">{t("ferramentas + infra + serviço")} <ArrowRight size={11} /></div></button>
+        <button className="kpi kpi-btn" onClick={() => setTab("receber")} title={t("Resultado do mês = a receber − a pagar")}><div className="lab">{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: resultadoMes < 0 ? "#B54708" : "#1F8A5B" }}>{money(resultadoMes)}</div><div className="delta">{t("recebe − paga (mês)")}</div></button>
+        <button className="kpi kpi-btn" onClick={() => { setTab("cobranca"); setCobFiltro("vencidas"); }} title={t("Ver as parcelas vencidas (Cobrança)")}><div className="lab">{t("Vencidos")}</div><div className="val tnum" style={{ fontSize: 22, color: inadimplencia > 0 ? "#B54708" : "#1F8A5B" }}>{money(inadimplencia)}</div><div className="delta">{inadimplencia > 0 ? t("a receber vencido") : t("nada vencido ✓")} <ArrowRight size={11} /></div></button>
       </div>
 
       <div className="ptabs">
@@ -661,14 +684,20 @@ export default function Financeiro() {
         </div>
 
         {/* resumo (só A Pagar tem os cards de custo) */}
-        {tab === "pagar" && (
-          <div className="kpis" style={{ marginBottom: 14 }}>
-            <button className="kpi g kpi-btn" onClick={() => { setStatusF("todos"); setCatF(null); }} title={t("Ver todos os lançamentos")}><div className="lab">{t("Total Mensal")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(totalMensal)}</div><div className="delta">{t("custos recorrentes do mês")}</div></button>
-            <button className="kpi kpi-btn" onClick={() => { setStatusF("todos"); setCatF(null); }} title={t("Ver todos os lançamentos")}><div className="lab">{t("Total Ano")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(totalAno)}</div><div className="delta">{t("Mensal×12 + Anual + Pontual")}</div></button>
-            <button className="kpi kpi-btn" onClick={() => setCatF(catF === "consumo" ? null : "consumo")} title={t("Filtrar por despesas de consumo")} style={{ boxShadow: catF === "consumo" ? "inset 0 0 0 2px var(--crasto-blue, #3E6FB8)" : undefined }}><div className="lab">{t("Despesas de Consumo")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(consumo.reduce((a, r) => a + Number(r.amount || 0), 0))}</div><div className="delta">{t("{n} lançamentos", { n: consumo.length })}</div></button>
-            <button className="kpi kpi-btn" onClick={() => setCatF(catF === "revenda" ? null : "revenda")} title={t("Filtrar por despesas de revenda")} style={{ boxShadow: catF === "revenda" ? "inset 0 0 0 2px var(--crasto-blue, #3E6FB8)" : undefined }}><div className="lab">{t("Despesas de Revenda")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(revenda.reduce((a, r) => a + Number(r.amount || 0), 0))}</div><div className="delta">{t("{n} lançamentos", { n: revenda.length })}</div></button>
+        {tab === "pagar" && (<>
+          <div className="kpis" style={{ marginBottom: 10 }}>
+            <button className="kpi g kpi-btn" onClick={() => { setStatusF("todos"); setCatF(null); }} title={t("Custos recorrentes mensalizados (mensal + anual÷12)")}><div className="lab">{t("A pagar no mês")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(aPagarMes)}</div><div className="delta">{t("ferramenta + infra + serviço")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => { setStatusF("todos"); setCatF(null); }} title={t("Total do ano: mensal×12 + anual + pontual")}><div className="lab">{t("Total no ano")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(totalAno)}</div><div className="delta">{t("Mensal×12 + Anual + Pontual")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setTab("custos-ia")} title={t("Ver os custos de IA em detalhe")}><div className="lab">{t("Ferramentas de IA")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(custoMensalCat("ferramenta"))}</div><div className="delta">{t("por mês")} <ArrowRight size={11} /></div></button>
+            <button className="kpi kpi-btn" onClick={() => setTab("receber")} title={t("Resultado do mês = a receber − a pagar")}><div className="lab">{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 20, color: resultadoMes < 0 ? "#B54708" : "#1F8A5B" }}>{money(resultadoMes)}</div><div className="delta">{t("recebe − paga")}</div></button>
           </div>
-        )}
+          {/* filtro por categoria — pedido do Crasto: ferramenta · infraestrutura · serviço · salário */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+            {([["", t("Todos")], ["ferramenta", t("Ferramenta")], ["infraestrutura", t("Infraestrutura")], ["servico", t("Serviço")], ["salario", t("Salário")]] as [string, string][]).map(([v, l]) => (
+              <button key={v || "todos"} className={"crasto-btn crasto-btn--sm " + ((catF || "") === v ? "crasto-btn--primary" : "crasto-btn--ghost")} onClick={() => setCatF(v || null)}><span className="crasto-btn__label">{l}{v && custoMensalCat(v) > 0 ? " · " + money(custoMensalCat(v)) : ""}</span></button>
+            ))}
+          </div>
+        </>)}
 
         {/* análise de gasto de IA por período (só A Pagar) — calendário personalizável + médias + 2025×2026 */}
         {tab === "pagar" && <AiSpendPanel />}
@@ -676,11 +705,11 @@ export default function Financeiro() {
         {/* resumo de recebíveis recorrentes (só A Receber) — quebra o "A Receber" em MRR + contratos */}
         {tab === "receber" && (
           <div className="kpis kpis--5" style={{ marginBottom: 14 }}>
-            <div className="kpi navy"><div className="lab">{t("Recorrente / mês (MRR)")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(mrrMensal)}</div><div className="delta">{t("receita recorrente mensal")}</div></div>
-            <div className="kpi"><div className="lab">{t("Mensalidade equivalente")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(mensalEquiv)}</div><div className="delta">{t("contratos ÷ 12 (mesmo pago adiantado)")}</div></div>
-            <div className="kpi"><div className="lab">{t("Recorrente / ano (ARR)")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(mrrMensal * 12)}</div><div className="delta">{t("MRR × 12")}</div></div>
-            <div className="kpi"><div className="lab">{t("Contratos recorrentes")}</div><div className="val tnum" style={{ fontSize: 20 }}>{nContratos}</div><div className="delta">{t("{n} ativos", { n: nContratos })}</div></div>
-            <div className="kpi g"><div className="lab">{t("Saldo a receber (contratos)")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(saldoRecorrente)}</div><div className="delta">{t("ainda a receber")}</div></div>
+            <div className="kpi navy"><div className="lab">{t("Recorrente / mês (MRR)")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(mrrMensal)}</div><div className="delta">{t("ARR")} {money(mrrMensal * 12)}/{t("ano")}</div></div>
+            <div className="kpi"><div className="lab">{t("A receber no mês")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(aReceberMes)}</div><div className="delta">{t("ainda este mês")}</div></div>
+            <div className="kpi g"><div className="lab">{t("Recebido no mês")}</div><div className="val tnum" style={{ fontSize: 20, color: "#1F8A5B" }}>{money(recebidoMes)}</div><div className="delta">{t("já entrou este mês")}</div></div>
+            <div className="kpi"><div className="lab">{t("Com contrato")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(comContrato)}</div><div className="delta">{t("{n} contratos · saldo", { n: nContratos })}</div></div>
+            <div className="kpi"><div className="lab">{t("Sem contrato")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(semContrato)}</div><div className="delta">{t("avulsos · saldo")}</div></div>
           </div>
         )}
 
@@ -690,7 +719,7 @@ export default function Financeiro() {
           <button type="button" className="fs amber" onClick={() => setStatusF(statusF === "hoje" ? "todos" : "hoje")} style={{ font: "inherit", textAlign: "left", width: "100%", cursor: "pointer", boxShadow: statusF === "hoje" ? "inset 0 0 0 2px #B54708" : undefined }}><span>{t("Vencem hoje")}</span><b>{money(stHoje)}</b></button>
           <button type="button" className="fs blue" onClick={() => setStatusF(statusF === "avencer" ? "todos" : "avencer")} style={{ font: "inherit", textAlign: "left", width: "100%", cursor: "pointer", boxShadow: statusF === "avencer" ? "inset 0 0 0 2px #175CD3" : undefined }}><span>{t("A vencer")}</span><b>{money(stAvencer)}</b></button>
           <button type="button" className="fs green" onClick={() => setStatusF(statusF === "pagos" ? "todos" : "pagos")} style={{ font: "inherit", textAlign: "left", width: "100%", cursor: "pointer", boxShadow: statusF === "pagos" ? "inset 0 0 0 2px #067647" : undefined }}><span>{tab === "pagar" ? t("Pagos") : t("Recebidos")}</span><b>{money(stPagos)}</b></button>
-          <button type="button" className="fs" onClick={() => { setStatusF("todos"); setCatF(null); }} title={t("Ver tudo (limpar filtro)")} style={{ font: "inherit", textAlign: "left", width: "100%", cursor: "pointer" }}><span>{t("Total período")}</span><b>{money(stTotal)}</b></button>
+          <button type="button" className="fs" onClick={() => { setStatusF("todos"); setCatF(null); }} title={t("Ver tudo (limpar filtro)")} style={{ font: "inherit", textAlign: "left", width: "100%", cursor: "pointer" }}><span>{tab === "pagar" ? t("Total a pagar (tudo)") : t("Total a receber (tudo)")}</span><b>{money(stTotal)}</b></button>
         </div>
 
         {/* tabela agrupada por empresa */}
