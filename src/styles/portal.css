@@ -835,6 +835,8 @@ body.impersonating .main { margin-top: 96px; }
 .ptab { display: inline-flex; align-items: center; gap: 7px; padding: 9px 15px; border-radius: var(--crasto-radius-sm); border: none; background: transparent; color: var(--crasto-text-body); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; }
 .ptab:hover { background: var(--crasto-bg-2); color: var(--crasto-text-primary); }
 .ptab.is-active { background: var(--crasto-text-primary); color: #fff; }
+/* Dark: a aba ativa ficava branco-no-branco (bg text-primary ~branco + texto branco). Pílula clara + texto escuro. */
+[data-theme="dark"] .ptab.is-active { background: #EDF1F7; color: #0C0E13; }
 .finstatus { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 10px; margin-bottom: 6px; }
 @media (max-width: 820px) { .finstatus { grid-template-columns: repeat(2,1fr); } }
 .finstatus .fs { border: 1px solid var(--crasto-border-soft); border-radius: var(--crasto-radius-md); padding: 12px 14px; background: var(--crasto-surface); }
