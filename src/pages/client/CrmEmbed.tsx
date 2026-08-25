@@ -575,26 +575,29 @@ export default function CrmEmbed() {
 // inteiro, não só o iframe do CRM). Largo. Lê a trilha da wacrm-api com o token do Portal, atualiza
 // a cada 5s (ao vivo) e permite registrar um log manual. Global (todo cliente). ──
 type AuditEv = { id: string; at: string; action: string; actor_name?: string | null; actor_email?: string | null; context?: Record<string, unknown> };
-function frasearEvento(e: AuditEv): string {
-  const ator = e.actor_name || e.actor_email || "Alguém";
-  const c = (e.context || {}) as Record<string, string>;
-  const contato = c.contato ? ` com ${c.contato}` : "";
-  switch (e.action) {
-    case "assumiu": return `${ator} assumiu a conversa${contato}`;
-    case "devolveu_ia": return `${ator} devolveu${contato} para a IA`;
-    case "transferiu": return `${ator} transferiu${contato} para ${c.para || "um colega"}`;
-    case "descartou_auto": return `IA moveu${contato} para Descartados (${c.motivo || "recusa"})`;
-    case "nota": return `${ator}: ${c.texto || ""}${c.contato ? ` (${c.contato})` : ""}`;
-    case "entrou_no_crm": return `${ator} entrou no CRM`;
-    case "conversation_deleted": return `${ator} apagou uma conversa`;
-    case "conversation_cleared": return `${ator} limpou uma conversa`;
-    default: return `${ator} — ${e.action}`;
-  }
-}
 const dotColor: Record<string, string> = { assumiu: "#2E6F9E", transferiu: "#C9922B", devolveu_ia: "#8892A6", descartou_auto: "#B85C5C", nota: "#1F8A5B" };
-function tempoRel(iso: string): string {
-  const s = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (s < 60) return "agora"; if (s < 3600) return Math.floor(s / 60) + "m"; if (s < 86400) return Math.floor(s / 3600) + "h"; return Math.floor(s / 86400) + "d";
+// Data e hora EXATAS, até o segundo (um log tem que saber de tudo): DD/MM/AAAA HH:MM:SS.
+function dataHora(iso: string): string {
+  return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+function quemDe(e: AuditEv): string {
+  if (e.action === "descartou_auto") return "IA (automático)";
+  return e.actor_name || e.actor_email || "Sistema";
+}
+function acaoDe(e: AuditEv): string {
+  const c = (e.context || {}) as Record<string, string>;
+  const contato = c.contato ? ` ${c.contato}` : "";
+  switch (e.action) {
+    case "assumiu": return `Assumiu a conversa com${contato}`;
+    case "devolveu_ia": return `Devolveu${contato} para a IA`;
+    case "transferiu": return `Transferiu${contato} para ${c.para || "um colega"}`;
+    case "descartou_auto": return `Moveu${contato} para Descartados (${c.motivo || "recusa"})`;
+    case "nota": return `Nota: ${c.texto || ""}${c.contato ? ` — ${c.contato}` : ""}`;
+    case "entrou_no_crm": return "Entrou no CRM";
+    case "conversation_deleted": return "Apagou uma conversa";
+    case "conversation_cleared": return "Limpou uma conversa";
+    default: return e.action;
+  }
 }
 function HistoricoPortal({ apiBase, token, t, onClose }: { apiBase: string; token: string | null; t: (s: string) => string; onClose: () => void }) {
   const [evs, setEvs] = useState<AuditEv[]>([]);
@@ -631,16 +634,31 @@ function HistoricoPortal({ apiBase, token, t, onClose }: { apiBase: string; toke
             style={{ flex: 1, background: "var(--crasto-bg, #f6f8fb)", border: "1px solid var(--crasto-border-soft, rgba(1,14,38,.14))", borderRadius: 9, padding: "9px 13px", fontSize: 13.5, color: "var(--crasto-text-primary)" }} />
           <button onClick={registrar} disabled={salvando || !nota.trim()} style={{ padding: "0 18px", borderRadius: 9, border: 0, background: nota.trim() ? "#2E6F9E" : "var(--crasto-border-soft, #cfd6e2)", color: "#fff", fontWeight: 600, fontSize: 13.5, cursor: nota.trim() ? "pointer" : "default" }}>{t("Registrar")}</button>
         </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px 14px" }}>
-          {carregando && evs.length === 0 && <div style={{ padding: 16, color: "var(--crasto-text-muted)", fontSize: 13.5 }}>{t("Carregando…")}</div>}
-          {!carregando && evs.length === 0 && <div style={{ padding: 16, color: "var(--crasto-text-muted)", fontSize: 13.5 }}>{t("Sem registros ainda.")}</div>}
-          {evs.map((e) => (
-            <div key={e.id} style={{ display: "grid", gridTemplateColumns: "48px 9px 1fr", alignItems: "baseline", gap: 10, padding: "8px 10px", borderRadius: 8 }}>
-              <span title={new Date(e.at).toLocaleString("pt-BR")} style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{tempoRel(e.at)}</span>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor[e.action] || "#8892A6", alignSelf: "center" }} />
-              <span style={{ fontSize: 13.5, color: "var(--crasto-text-primary)", lineHeight: 1.35 }}>{frasearEvento(e)}</span>
-            </div>
-          ))}
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          {carregando && evs.length === 0 && <div style={{ padding: 20, color: "var(--crasto-text-muted)", fontSize: 13.5 }}>{t("Carregando…")}</div>}
+          {!carregando && evs.length === 0 && <div style={{ padding: 20, color: "var(--crasto-text-muted)", fontSize: 13.5 }}>{t("Sem registros ainda.")}</div>}
+          {evs.length > 0 && (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr>
+                  {[t("Data e hora"), t("Usuário"), t("Ação")].map((h, i) => (
+                    <th key={i} style={{ position: "sticky", top: 0, zIndex: 1, background: "var(--crasto-bg, #f6f8fb)", textAlign: "left", padding: "10px 16px", fontSize: 10.5, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--crasto-text-muted)", fontWeight: 700, borderBottom: "1px solid var(--crasto-border-soft, rgba(1,14,38,.14))", width: i === 2 ? "100%" : undefined, whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {evs.map((e) => (
+                  <tr key={e.id} style={{ borderTop: "1px solid var(--crasto-border-soft, rgba(1,14,38,.07))" }}>
+                    <td style={{ padding: "9px 16px", verticalAlign: "top", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", color: "var(--crasto-text-muted)", lineHeight: 1.4 }}>{dataHora(e.at)}</td>
+                    <td style={{ padding: "9px 16px", verticalAlign: "top", whiteSpace: "nowrap", fontWeight: 600, color: "var(--crasto-text-primary)", lineHeight: 1.4 }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: dotColor[e.action] || "#8892A6", flex: "0 0 auto" }} />{quemDe(e)}</span>
+                    </td>
+                    <td style={{ padding: "9px 16px", verticalAlign: "top", color: "var(--crasto-text-primary)", lineHeight: 1.4 }}>{acaoDe(e)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>,
