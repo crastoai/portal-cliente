@@ -604,13 +604,20 @@ function HistoricoPortal({ apiBase, token, t, onClose }: { apiBase: string; toke
   const [carregando, setCarregando] = useState(true);
   const [nota, setNota] = useState("");
   const [salvando, setSalvando] = useState(false);
+  const [de, setDe] = useState("");   // filtro de período: data inicial (YYYY-MM-DD)
+  const [ate, setAte] = useState(""); // data final
   const carregar = useMemo(() => async () => {
     if (!token) return;
     try {
-      const r = await fetch(`${apiBase}/api/audit/history?limit=200`, { headers: { Authorization: "Bearer " + token } });
+      const q = new URLSearchParams({ limit: "500" });
+      if (de) q.set("from", de);
+      if (ate) q.set("to", ate);
+      const r = await fetch(`${apiBase}/api/audit/history?${q.toString()}`, { headers: { Authorization: "Bearer " + token } });
       const d = await r.json(); if (Array.isArray(d)) setEvs(d);
     } catch { /* silencioso — tenta de novo no próximo ciclo */ } finally { setCarregando(false); }
-  }, [apiBase, token]);
+  }, [apiBase, token, de, ate]);
+  const hoje = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  const diasAtras = (n: number) => { const d = new Date(Date.now() - n * 86400000); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
   useEffect(() => { carregar(); const iv = setInterval(carregar, 5000); return () => clearInterval(iv); }, [carregar]);
   useEffect(() => { const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", esc); return () => window.removeEventListener("keydown", esc); }, [onClose]);
   async function registrar() {
@@ -633,6 +640,19 @@ function HistoricoPortal({ apiBase, token, t, onClose }: { apiBase: string; toke
             placeholder={t("Registrar um log (ex.: liguei, cliente pediu retorno)…")}
             style={{ flex: 1, background: "var(--crasto-bg, #f6f8fb)", border: "1px solid var(--crasto-border-soft, rgba(1,14,38,.14))", borderRadius: 9, padding: "9px 13px", fontSize: 13.5, color: "var(--crasto-text-primary)" }} />
           <button onClick={registrar} disabled={salvando || !nota.trim()} style={{ padding: "0 18px", borderRadius: 9, border: 0, background: nota.trim() ? "#2E6F9E" : "var(--crasto-border-soft, #cfd6e2)", color: "#fff", fontWeight: 600, fontSize: 13.5, cursor: nota.trim() ? "pointer" : "default" }}>{t("Registrar")}</button>
+        </div>
+        {/* FILTRO POR PERÍODO — presets + data específica (padrão do sistema). */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "10px 20px", borderBottom: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))" }}>
+          <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--crasto-text-muted)" }}>{t("Período")}</span>
+          {([[t("Tudo"), "", ""], [t("Hoje"), hoje(), hoje()], [t("7 dias"), diasAtras(6), hoje()], [t("30 dias"), diasAtras(29), hoje()]] as const).map(([lb, f, tt], i) => {
+            const ativo = de === f && ate === tt;
+            return <button key={i} onClick={() => { setDe(f); setAte(tt); }} style={{ padding: "5px 12px", borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: "pointer", border: "1px solid " + (ativo ? "#2E6F9E" : "var(--crasto-border-soft, rgba(1,14,38,.14))"), background: ativo ? "#2E6F9E" : "transparent", color: ativo ? "#fff" : "var(--crasto-text-body)" }}>{lb}</button>;
+          })}
+          <span style={{ width: 1, height: 20, background: "var(--crasto-border-soft, rgba(1,14,38,.12))", margin: "0 2px" }} />
+          <input type="date" value={de} max={ate || undefined} onChange={(e) => setDe(e.target.value)} title={t("De")} style={{ padding: "5px 9px", borderRadius: 8, border: "1px solid var(--crasto-border-soft, rgba(1,14,38,.14))", background: "var(--crasto-bg, #f6f8fb)", color: "var(--crasto-text-primary)", fontSize: 12.5 }} />
+          <span style={{ color: "var(--crasto-text-muted)", fontSize: 12 }}>{t("até")}</span>
+          <input type="date" value={ate} min={de || undefined} onChange={(e) => setAte(e.target.value)} title={t("Até")} style={{ padding: "5px 9px", borderRadius: 8, border: "1px solid var(--crasto-border-soft, rgba(1,14,38,.14))", background: "var(--crasto-bg, #f6f8fb)", color: "var(--crasto-text-primary)", fontSize: 12.5 }} />
+          <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--crasto-text-muted)" }}>{evs.length} {evs.length === 1 ? t("registro") : t("registros")}</span>
         </div>
         <div style={{ flex: 1, overflowY: "auto" }}>
           {carregando && evs.length === 0 && <div style={{ padding: 20, color: "var(--crasto-text-muted)", fontSize: 13.5 }}>{t("Carregando…")}</div>}
