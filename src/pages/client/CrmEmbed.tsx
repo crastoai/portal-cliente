@@ -254,6 +254,19 @@ export default function CrmEmbed() {
         const wanted = agentParam && ags.some((a) => a.id === agentParam) ? agentParam : null;
         setSolo(wanted || (ags.length === 1 ? ags[0].id : "*"));
         if (wanted) setStore((prev) => ({ ...prev, [sec]: [{ id: newId(), agent: wanted }] }));
+        else {
+          // Sem deep-link ativo: a Leads/Funil (CRM) NÃO pode abrir presa num único agente — o painel
+          // fica GRAVADO no localStorage (`store.funil`) quando alguém abre com `?agent=` uma vez, e
+          // depois nunca volta para "Todos". Isso era o filtro "preso na Giovana" (reunião El Shadai
+          // 25/08). Se o funil ficou com UM painel de UM agente (resquício do deep-link), auto-cura
+          // para "Todos os Agentes" (= todos os vendedores). Layout multi-painel deliberado (2+) é
+          // preservado. Só quando a org tem mais de um agente (senão Todos == o único agente).
+          if (ags.length > 1) setStore((prev) => {
+            const f = prev["funil"];
+            if (f && f.length === 1 && f[0].agent) return { ...prev, funil: [{ id: newId(), agent: null }] };
+            return prev;
+          });
+        }
       } catch (e: any) { setErr(e?.message || t("Não foi possível abrir o WhatsApp CRM.")); }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
