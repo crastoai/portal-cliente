@@ -51,7 +51,7 @@ const KB: Kb[] = [
     a: ["Em Vendas → Minhas Tarefas fica a sua central (A fazer / Em andamento / Aguardando / Encerrado). Ali chegam as ligações da fila e os pedidos de aprovação da IA.",
         "O sininho no topo avisa quando cai algo novo pra você."],
     ir: { to: "/app/crm/tarefas", label: "Abrir Minhas Tarefas" } },
-  { id: "contatos", q: "Onde ficam os meus contatos?", keywords: "contatos contato lista pessoas telefone número numero cadastro base agenda de contatos ver todos",
+  { id: "contatos", q: "Onde ficam os meus contatos?", keywords: "contatos contato lista pessoas telefone número numero cadastro base agenda de contatos todos os contatos onde estao estão ficam vejo achar meus",
     a: ["Em Vendas → Contatos fica a lista completa. Clique num contato pra ver o histórico e abrir a conversa. Pra trazer uma lista de fora, use o “Importar” dentro do CRM."],
     ir: { to: "/app/crm/contatos", label: "Abrir Contatos" } },
   { id: "empresa_pesquisa", q: "Para que serve o bloco “O que é a empresa”?", keywords: "pesquisa empresa resumo quem é o lead informações informacoes cnpj razão social site gancho catálogo catalogo inteligência inteligencia painel direito perfil",
@@ -61,11 +61,11 @@ const KB: Kb[] = [
   { id: "agenda", q: "Como agendo uma reunião?", keywords: "agenda agendamento agendamentos agendar reunião reuniao compromisso calendário calendario marcar horário horario visita call encontro data",
     a: ["Em Vendas → Agendamentos você vê e cria compromissos ligados aos seus leads. Escolha data e horário e vincule ao contato — assim ninguém perde o combinado."],
     ir: { to: "/app/crm/agenda", label: "Abrir Agendamentos" } },
-  { id: "usuarios", q: "Como adiciono um usuário e dou acesso?", keywords: "usuário usuários acesso acessos permissão permissões equipe colaborador funcionário vendedor vendedora vendedores rh adicionar convidar cadastrar liberar tela bloquear senha convite",
+  { id: "usuarios", q: "Como adiciono um usuário e dou acesso?", keywords: "usuário usuários acesso acessos permissão permissões equipe colaborador funcionário vendedor vendedora vendedores rh adicionar convidar cadastrar liberar tela bloquear convite",
     a: ["Vá em RH → Gestão de Acessos. Adicione a pessoa (nome e e-mail) e, para quem não é dono, libere exatamente quais telas ela enxerga na aba Permissões.",
         "Ela recebe um link pra criar a própria senha. O acesso ao WhatsApp CRM já vem por padrão — o que controla o que cada um vê é a parte de Permissões."],
     ir: { to: "/app/usuarios", label: "Abrir Gestão de Acessos" } },
-  { id: "dashboard", q: "Onde vejo os números das vendas?", keywords: "dashboard painel vendas números numeros métricas metricas resultados gráfico grafico taxa resposta conversão conversao receita indicadores relatório relatorio",
+  { id: "dashboard", q: "Onde vejo os números das vendas?", keywords: "dashboard painel vendas vendi vendeu vendemos vendido faturei faturamento fechei quanto total mês mes período periodo números numeros métricas metricas resultados gráfico grafico taxa resposta conversão conversao receita indicadores relatório relatorio",
     a: ["Em Vendas → Dashboard estão os números do funil: leads por etapa, taxa de resposta, conversão e receita, com filtro por período e por vendedor.",
         "A tela inicial (Cockpit) traz o resumo do seu resultado e deixa comparar vendedores."],
     ir: { to: "/app/crm", label: "Abrir o Dashboard" } },
@@ -79,7 +79,7 @@ const KB: Kb[] = [
     ir: { to: "/app/financeiro", label: "Abrir o Financeiro" } },
   { id: "unidades", q: "Como troco de empresa / CNPJ?", keywords: "unidade unidades cnpj empresa empresas matriz filial trocar seletor multi adicionar outra",
     a: ["No topo, à direita, há o seletor de unidade (CNPJ): alterne entre suas empresas ou veja “Todas as unidades”. Sendo dono ou admin, dá pra adicionar outra empresa ali mesmo."] },
-  { id: "conta", q: "Como troco minha senha ou ativo a verificação em 2 etapas?", keywords: "senha password conta perfil segurança 2fa dois fatores duas etapas login trocar alterar mudar esqueci redefinir dados cadastrais foto avatar",
+  { id: "conta", q: "Como troco minha senha ou ativo a verificação em 2 etapas?", keywords: "senha senhas password conta perfil segurança 2fa dois fatores duas etapas login trocar troco alterar altero mudar mudo mudei esqueci redefinir dados cadastrais foto avatar",
     a: ["Clique no seu avatar (canto superior direito) → Configurações. Lá você edita seus dados, troca a foto, muda a senha e ativa a autenticação em duas etapas."],
     ir: { to: "/app/perfil", label: "Abrir meu perfil" } },
   { id: "solucoes", q: "O que eu já contratei e o que posso contratar?", keywords: "minhas soluções solucoes solução contratado ativo produtos meus módulos catálogo catalogo o que tenho contratar novo",
@@ -115,6 +115,10 @@ function toks(s: string): string[] {
   return (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((w) => w.length > 1 && !STOP.has(w));
 }
 const KB_TOKS = KB.map((k) => new Set([...toks(k.q), ...toks(k.keywords)]));
+// Tokens do TÍTULO do tema. Empate no score era decidido pela ordem do array (o tema que
+// estivesse escrito primeiro no arquivo vencia) — foi assim que "como mudo minha senha" caiu em
+// "Gestão de Acessos" e "quanto vendi esse mês" caiu em "Contatos". Casar com o título vale mais.
+const KB_Q_TOKS = KB.map((k) => new Set(toks(k.q)));
 function rank(query: string): { k: Kb; s: number }[] {
   const q = toks(query); if (!q.length) return [];
   return KB.map((k, i) => {
@@ -129,6 +133,7 @@ function rank(query: string): { k: Kb; s: number }[] {
         else if (Math.min(e.length, w.length) > 3 && (e.includes(w) || w.includes(e))) best = Math.max(best, 0.5);
       }
       s += best;
+      if (best > 0 && KB_Q_TOKS[i].has(w)) s += 0.25; // bateu no título do tema: sinal mais forte
     }
     return { k, s };
   }).filter((x) => x.s > 0).sort((a, b) => b.s - a.s);
@@ -163,11 +168,16 @@ export default function JoyWidget() {
 
   useEffect(() => { threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: "smooth" }); }, [msgs, open]);
 
+  // Palavras de SOCORRO: "travou", "não funciona", "deu erro"... Quem escreve isso não quer um
+  // passeio pelo menu — quer alguém. Antes, "o sistema travou" casava com a palavra "sistema" e a
+  // JOY respondia o tour de boas-vindas. Isso vai na frente do ranqueamento, de propósito.
+  const SOCORRO = /(travou|travando|nao funciona|não funciona|nao abre|não abre|deu erro|deu pau|bugou|com bug|quebrou|parou de|urgente|reclama)/i;
+
   function responder(pergunta: string) {
     const q = pergunta.trim(); if (!q) return;
     setInput("");
     setMsgs((m) => [...m, { id: nextId(), from: "user", text: q }]);
-    const hits = rank(q);
+    const hits = SOCORRO.test(q.normalize("NFC")) ? [{ k: KB.find((x) => x.id === "humano")!, s: 99 }] : rank(q);
     setTimeout(() => {
       if (hits.length && hits[0].s >= 1) {
         const top = hits[0].k;
