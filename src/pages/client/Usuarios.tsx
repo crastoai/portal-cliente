@@ -36,8 +36,15 @@ export default function Usuarios() {
 
   const funcao = (u: CollaboratorRow) => (u.role === "client_owner" ? t("Dono") : u.access_level ? t(NIVEL[u.access_level] ?? u.access_level) : t("Membro"));
   const tipoLabel = (u: CollaboratorRow) => (u.tipo_contrato ? (TIPO[u.tipo_contrato] ?? u.tipo_contrato) : "—");
+  // "Último acesso": data + hora:min EXATAS (pedido da reunião El Shadai 25/08 — antes era relativo
+  // "Hoje/há N dias", que não servia para conferir quem entrou e quando).
   const ultimo = (s: string | null) => {
     if (!s) return t("Nunca");
+    return new Date(s).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  };
+  // Dica relativa no tooltip (Hoje / há N dias), sem poluir a coluna.
+  const ultimoRel = (s: string | null) => {
+    if (!s) return t("Nunca acessou");
     const d = Math.floor((Date.now() - new Date(s).getTime()) / 86400000);
     return d <= 0 ? t("Hoje") : t("há {n} dia(s)", { n: d });
   };
@@ -116,7 +123,7 @@ export default function Usuarios() {
                   <td>{u.departamento || "—"}</td>
                   <td>{u.telefone || "—"}</td>
                   <td><span className={"collab-status" + (u.active ? " on" : "")}>{u.active ? t("Ativo") : t("Inativo")}</span></td>
-                  <td>{ultimo(u.last_login)}</td>
+                  <td title={ultimoRel(u.last_login)}>{ultimo(u.last_login)}</td>
                   <td>
                     <div className="collab-actions">
                       <button title={t("Editar")} disabled={busyId === u.id} onClick={() => setEdit({ user: u })}><Pencil size={15} /></button>
