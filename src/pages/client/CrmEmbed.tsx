@@ -652,6 +652,11 @@ function HistoricoPortal({ apiBase, token, t, onClose }: { apiBase: string; toke
           <input type="date" value={de} max={ate || undefined} onChange={(e) => setDe(e.target.value)} title={t("De")} style={{ padding: "5px 9px", borderRadius: 8, border: "1px solid var(--crasto-border-soft, rgba(1,14,38,.14))", background: "var(--crasto-bg, #f6f8fb)", color: "var(--crasto-text-primary)", fontSize: 12.5 }} />
           <span style={{ color: "var(--crasto-text-muted)", fontSize: 12 }}>{t("até")}</span>
           <input type="date" value={ate} min={de || undefined} onChange={(e) => setAte(e.target.value)} title={t("Até")} style={{ padding: "5px 9px", borderRadius: 8, border: "1px solid var(--crasto-border-soft, rgba(1,14,38,.14))", background: "var(--crasto-bg, #f6f8fb)", color: "var(--crasto-text-primary)", fontSize: 12.5 }} />
+          {(de || ate) && (
+            <button onClick={() => { setDe(""); setAte(""); }} title={t("Limpar filtro")} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: "pointer", border: "1px solid var(--crasto-border-soft, rgba(1,14,38,.14))", background: "transparent", color: "var(--crasto-text-muted)" }}>
+              <X size={12} /> {t("Limpar filtro")}
+            </button>
+          )}
           <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--crasto-text-muted)" }}>{evs.length} {evs.length === 1 ? t("registro") : t("registros")}</span>
         </div>
         <div style={{ flex: 1, overflowY: "auto" }}>
