@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ChevronDown, ChevronUp, MessageSquare, Plus, RotateCcw, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Clock, MessageSquare, Plus, RotateCcw, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { services } from "../../services";
 import { useT } from "../../lib/i18n";
@@ -152,6 +152,7 @@ export default function CrmEmbed() {
   const [token, setToken] = useState<string | null>(null);
   const [refreshTok, setRefreshTok] = useState<string | undefined>(undefined); // p/ o wacrm se auto-renovar
   const [agents, setAgents] = useState<Agent[] | null>(null);
+  const [showHist, setShowHist] = useState(false); // pop-up Histórico (auditoria) — nível Portal
   const [solo, setSolo] = useState<string>(agentParam || "*"); // escopo da VISÃO ÚNICA (config/agenda/contatos)
   const [store, setStore] = useState<Store>(loadStore); // COCKPIT MULTI-PAINEL, por seção
   const [err, setErr] = useState<string>("");
@@ -490,7 +491,15 @@ export default function CrmEmbed() {
               {(!compact || shown.length > 1) && <span title={t("Painel {n}", { n: i + 1 })} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--crasto-blue, #6E9CE8)", color: "#fff", fontSize: 11, fontWeight: 700, fontFamily: "ui-monospace, monospace", padding: "2px 7px", borderRadius: 6, flex: "0 0 auto" }}>P{i + 1}</span>}
               <AgentPicker agents={visAgents} value={panel.agent} onChange={(v) => setPanelAgent(panel.id, v)} t={t} />
               {shown.length > 1 && (
-                <button onClick={() => removePanel(panel.id)} title={t("Fechar painel")} style={{ display: "inline-grid", placeItems: "center", width: 26, height: 26, border: 0, background: "transparent", color: "var(--crasto-text-muted)", cursor: "pointer", flex: "0 0 auto", borderRadius: 6, marginLeft: "auto" }}><X size={15} /></button>
+                <button onClick={() => removePanel(panel.id)} title={t("Fechar painel")} style={{ display: "inline-grid", placeItems: "center", width: 26, height: 26, border: 0, background: "transparent", color: "var(--crasto-text-muted)", cursor: "pointer", flex: "0 0 auto", borderRadius: 6 }}><X size={15} /></button>
+              )}
+              {/* HISTÓRICO (auditoria) — ao lado do seletor de agentes. Pop-up de nível Portal
+                  (cobre o sistema todo). Só no 1º painel para não duplicar. Global, todo cliente. */}
+              {i === 0 && (
+                <button onClick={() => setShowHist(true)} title={t("Histórico de ações (auditoria)")}
+                  style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 13px", flex: "0 0 auto", border: "1px solid var(--crasto-border-soft, rgba(1,14,38,.14))", borderRadius: 8, background: "var(--crasto-surface, #fff)", color: "var(--crasto-text-primary)", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
+                  <Clock size={14} /> {t("Histórico")}
+                </button>
               )}
             </div>
             <iframe title={panel.agent ? (agents.find((a) => a.id === panel.agent)?.name || t("Painel {n}", { n: i + 1 })) : t("Todos os Agentes")} src={panelSrc(gsec, panel.agent)} className="crm-fs-frame" allow="clipboard-write; microphone; camera; autoplay"
@@ -557,6 +566,84 @@ export default function CrmEmbed() {
           </div>
         ))}
       </div>
+      {showHist && <HistoricoPortal apiBase={WACRM_API} token={token} t={t} onClose={() => setShowHist(false)} />}
     </div>
+  );
+}
+
+// ── HISTÓRICO (auditoria) — pop-up de nível PORTAL (createPortal no body → o blur cobre o sistema
+// inteiro, não só o iframe do CRM). Largo. Lê a trilha da wacrm-api com o token do Portal, atualiza
+// a cada 5s (ao vivo) e permite registrar um log manual. Global (todo cliente). ──
+type AuditEv = { id: string; at: string; action: string; actor_name?: string | null; actor_email?: string | null; context?: Record<string, unknown> };
+function frasearEvento(e: AuditEv): string {
+  const ator = e.actor_name || e.actor_email || "Alguém";
+  const c = (e.context || {}) as Record<string, string>;
+  const contato = c.contato ? ` com ${c.contato}` : "";
+  switch (e.action) {
+    case "assumiu": return `${ator} assumiu a conversa${contato}`;
+    case "devolveu_ia": return `${ator} devolveu${contato} para a IA`;
+    case "transferiu": return `${ator} transferiu${contato} para ${c.para || "um colega"}`;
+    case "descartou_auto": return `IA moveu${contato} para Descartados (${c.motivo || "recusa"})`;
+    case "nota": return `${ator}: ${c.texto || ""}${c.contato ? ` (${c.contato})` : ""}`;
+    case "entrou_no_crm": return `${ator} entrou no CRM`;
+    case "conversation_deleted": return `${ator} apagou uma conversa`;
+    case "conversation_cleared": return `${ator} limpou uma conversa`;
+    default: return `${ator} — ${e.action}`;
+  }
+}
+const dotColor: Record<string, string> = { assumiu: "#2E6F9E", transferiu: "#C9922B", devolveu_ia: "#8892A6", descartou_auto: "#B85C5C", nota: "#1F8A5B" };
+function tempoRel(iso: string): string {
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60) return "agora"; if (s < 3600) return Math.floor(s / 60) + "m"; if (s < 86400) return Math.floor(s / 3600) + "h"; return Math.floor(s / 86400) + "d";
+}
+function HistoricoPortal({ apiBase, token, t, onClose }: { apiBase: string; token: string | null; t: (s: string) => string; onClose: () => void }) {
+  const [evs, setEvs] = useState<AuditEv[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [nota, setNota] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const carregar = useMemo(() => async () => {
+    if (!token) return;
+    try {
+      const r = await fetch(`${apiBase}/api/audit/history?limit=200`, { headers: { Authorization: "Bearer " + token } });
+      const d = await r.json(); if (Array.isArray(d)) setEvs(d);
+    } catch { /* silencioso — tenta de novo no próximo ciclo */ } finally { setCarregando(false); }
+  }, [apiBase, token]);
+  useEffect(() => { carregar(); const iv = setInterval(carregar, 5000); return () => clearInterval(iv); }, [carregar]);
+  useEffect(() => { const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", esc); return () => window.removeEventListener("keydown", esc); }, [onClose]);
+  async function registrar() {
+    const txt = nota.trim(); if (!txt || salvando || !token) return;
+    setSalvando(true);
+    try { await fetch(`${apiBase}/api/audit/note`, { method: "POST", headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" }, body: JSON.stringify({ text: txt }) }); setNota(""); await carregar(); }
+    finally { setSalvando(false); }
+  }
+  return createPortal(
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 100000, background: "rgba(3,10,26,.55)", backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "3vh 3vw" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(1100px, 96vw)", height: "min(78vh, 820px)", display: "flex", flexDirection: "column", background: "var(--crasto-surface, #fff)", border: "1px solid var(--crasto-border-soft, rgba(1,14,38,.12))", borderRadius: 16, boxShadow: "0 24px 70px rgba(1,14,38,.35)", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 20px", borderBottom: "1px solid var(--crasto-border-soft, rgba(1,14,38,.1))" }}>
+          <Clock size={18} style={{ color: "#2E6F9E" }} />
+          <b style={{ fontSize: 16, color: "var(--crasto-text-primary)" }}>{t("Histórico")}</b>
+          <span style={{ fontSize: 11, fontWeight: 600, color: "#1F8A5B", display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#1F8A5B", display: "inline-block" }} /> {t("ao vivo")}</span>
+          <button onClick={onClose} style={{ marginLeft: "auto", display: "grid", placeItems: "center", width: 30, height: 30, border: 0, borderRadius: 8, background: "transparent", color: "var(--crasto-text-muted)", cursor: "pointer" }}><X size={18} /></button>
+        </div>
+        <div style={{ display: "flex", gap: 10, padding: "12px 20px", borderBottom: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))" }}>
+          <input value={nota} onChange={(e) => setNota(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") registrar(); }}
+            placeholder={t("Registrar um log (ex.: liguei, cliente pediu retorno)…")}
+            style={{ flex: 1, background: "var(--crasto-bg, #f6f8fb)", border: "1px solid var(--crasto-border-soft, rgba(1,14,38,.14))", borderRadius: 9, padding: "9px 13px", fontSize: 13.5, color: "var(--crasto-text-primary)" }} />
+          <button onClick={registrar} disabled={salvando || !nota.trim()} style={{ padding: "0 18px", borderRadius: 9, border: 0, background: nota.trim() ? "#2E6F9E" : "var(--crasto-border-soft, #cfd6e2)", color: "#fff", fontWeight: 600, fontSize: 13.5, cursor: nota.trim() ? "pointer" : "default" }}>{t("Registrar")}</button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px 14px" }}>
+          {carregando && evs.length === 0 && <div style={{ padding: 16, color: "var(--crasto-text-muted)", fontSize: 13.5 }}>{t("Carregando…")}</div>}
+          {!carregando && evs.length === 0 && <div style={{ padding: 16, color: "var(--crasto-text-muted)", fontSize: 13.5 }}>{t("Sem registros ainda.")}</div>}
+          {evs.map((e) => (
+            <div key={e.id} style={{ display: "grid", gridTemplateColumns: "48px 9px 1fr", alignItems: "baseline", gap: 10, padding: "8px 10px", borderRadius: 8 }}>
+              <span title={new Date(e.at).toLocaleString("pt-BR")} style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{tempoRel(e.at)}</span>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor[e.action] || "#8892A6", alignSelf: "center" }} />
+              <span style={{ fontSize: 13.5, color: "var(--crasto-text-primary)", lineHeight: 1.35 }}>{frasearEvento(e)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
