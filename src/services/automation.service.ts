@@ -43,4 +43,12 @@ export const reminders = {
 // Webhook de transcrições (D5) — Google Meet em tempo real.
 export const meetWebhook = { info: async (): Promise<any> => api.get(`/api/automation/meet-webhook/info`) };
 
-export const automation = { integrations, whatsapp, rules, reminders, meetWebhook };
+// Integração Google Meet (D5) — OAuth INTERNAL + captura de transcrições.
+export const googleMeet = {
+  status: async (): Promise<any> => api.get(`/api/integrations/google-meet/status`),
+  start: async (): Promise<any> => api.get(`/api/integrations/google-meet/oauth/start`),
+  disconnect: async (): Promise<any> => api.post(`/api/integrations/google-meet/disconnect`, {}),
+  pollNow: async (): Promise<any> => api.post(`/api/integrations/google-meet/poll-now`, {}),
+};
+
+export const automation = { integrations, whatsapp, rules, reminders, meetWebhook, googleMeet };

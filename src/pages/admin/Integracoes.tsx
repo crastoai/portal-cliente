@@ -7,6 +7,7 @@ import Modal from "../../ui/Modal";
 import { fieldsFor, HINTS, SERVER_MANAGED, type IntegField } from "../../lib/integrations";
 import WhatsAppInstances from "./WhatsAppInstances";
 import AutomationRules from "./AutomationRules";
+import GoogleMeetConnect from "./GoogleMeetConnect";
 
 type Integ = { key: string; display_name: string; status: string };
 type Status = Record<string, { status: string; has_secret: boolean; from_addr: string | null }>;
@@ -80,6 +81,9 @@ export default function Integracoes() {
 
       {/* WhatsApp (Evolution) — gerenciador de instâncias do Portal (B5) */}
       <WhatsAppInstances />
+
+      {/* Google Meet — transcrições automáticas (D5) */}
+      <GoogleMeetConnect />
 
       {/* Automações configuráveis (B4) */}
       <AutomationRules />

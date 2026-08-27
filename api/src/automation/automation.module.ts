@@ -4,10 +4,12 @@ import { AutomationController } from './automation.controller';
 import { AutomationPublicController } from './automation.public.controller';
 import { AutomationEngineService } from './automation.engine';
 import { AutomationScheduler } from './automation.scheduler';
+import { GoogleMeetService } from './google-meet.service';
+import { IntegrationsGoogleController, IntegrationsGooglePublicController } from './integrations-google.controller';
 
 @Module({
   imports: [CommonModule],
-  controllers: [AutomationController, AutomationPublicController],
-  providers: [AutomationEngineService, AutomationScheduler],
+  controllers: [AutomationController, AutomationPublicController, IntegrationsGoogleController, IntegrationsGooglePublicController],
+  providers: [AutomationEngineService, AutomationScheduler, GoogleMeetService],
 })
 export class AutomationModule {}
