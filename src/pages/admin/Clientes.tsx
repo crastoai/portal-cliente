@@ -4,7 +4,7 @@
 // colunas ordenáveis, timestamps completos (dd/mm/aaaa hh:mm), ações inline (sem lixeira).
 // ============================================================================
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Search, Eye, Power, ArrowRightLeft, ShieldCheck, Trash2, ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown, Filter, ChevronDown, X, List, LayoutGrid } from "lucide-react";
+import { Plus, Search, Eye, Power, ArrowRightLeft, ShieldCheck, Trash2, ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown, Filter, ChevronDown, X, List, LayoutGrid, HeartHandshake } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, Empty, useAsync, money, initials, Field, Pill, useToast } from "../../ui/ui";
@@ -23,6 +23,7 @@ const FLAGS = [
   { key: "ativos", label: "Ativos", bg: "#E1F5EE", fg: "#085041" },
   { key: "inativos", label: "Inativos", bg: "var(--crasto-bg-2)", fg: "var(--crasto-text-body)" },
   { key: "oculto", label: "Cliente oculto", bg: "var(--crasto-bg-2)", fg: "var(--crasto-text-body)" },
+  { key: "doacoes", label: "Doações", bg: "#E7F4F1", fg: "#0F5F54" },
 ];
 
 export default function Clientes() {
@@ -61,6 +62,15 @@ export default function Clientes() {
     return c;
   }, [all]);
 
+  // Impacto social (Fatia 4): total doado no ano + acumulado + nº de instituições (Ganho pró-bono).
+  const impacto = useMemo(() => {
+    const dons = all.filter((c) => c.is_donation);
+    const year = new Date().getFullYear();
+    const sum = (arr: Client[]) => arr.reduce((s, d) => s + (d.donation_value || 0), 0);
+    const inYear = dons.filter((d) => d.donated_at && new Date(d.donated_at).getFullYear() === year);
+    return { count: dons.length, year, totalYear: sum(inYear), totalAll: sum(dons) };
+  }, [all]);
+
   function agentesOf(c: Client) { return agentsOv[c.id]?.agentes ?? null; }
   function hasEnv(c: Client) { return (c.modules?.length ?? 0) > 0 || c.stage === WON_STAGE || !!agentsOv[c.id]; }
   function farolOf(c: Client): string | null {
@@ -83,6 +93,7 @@ export default function Clientes() {
       case "ativos": return active && !c.churned_em;
       case "inativos": return !active;
       case "oculto": return !!c.cliente_oculto;
+      case "doacoes": return !!c.is_donation;
       default: return true;
     }
   }
@@ -208,6 +219,25 @@ export default function Clientes() {
       {/* Indicadores de persona (agregado, filtra por estágio) — decisão Crasto 2026-07-27 */}
       <PersonaStats />
 
+      {/* Impacto social — doações (Ganho pró-bono, lucro R$0). Só aparece quando há ≥1 doação. */}
+      {impacto.count > 0 && (
+        <div className="card" style={{ marginBottom: 12, background: "#F1F9F7", border: "1px solid #CDE8E1", display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <HeartHandshake size={22} style={{ color: "#0F7B6C", flex: "none" }} />
+            <div>
+              <div style={{ fontSize: 11.5, color: "#0F5F54", fontWeight: 700, letterSpacing: 0.3 }}>{t("IMPACTO SOCIAL")}</div>
+              <div style={{ fontSize: 13, color: "#0F5F54" }}>{t("Serviços doados a instituições (lucro R$0)")}</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 22, flexWrap: "wrap", marginLeft: "auto", alignItems: "center" }}>
+            <div><div style={{ fontSize: 11, color: "#0F5F54" }}>{t("Doado em {y}", { y: String(impacto.year) })}</div><div style={{ fontWeight: 800, fontSize: 20, color: "#0F5F54" }}>{money(impacto.totalYear)}</div></div>
+            <div><div style={{ fontSize: 11, color: "#0F5F54" }}>{t("Total acumulado")}</div><div style={{ fontWeight: 700, fontSize: 16, color: "#0F5F54" }}>{money(impacto.totalAll)}</div></div>
+            <div><div style={{ fontSize: 11, color: "#0F5F54" }}>{t("Instituições")}</div><div style={{ fontWeight: 700, fontSize: 16, color: "#0F5F54" }}>{impacto.count}</div></div>
+            <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setFlag(flag === "doacoes" ? "" : "doacoes")}><span className="crasto-btn__label" style={{ color: "#0F7B6C" }}>{flag === "doacoes" ? t("Ver todas") : t("Ver só doações")}</span></button>
+          </div>
+        </div>
+      )}
+
       {/* funil */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10, alignItems: "center" }}>
         {[{ key: "todos", label: "Todos" }, ...STAGES].map((s) => (
@@ -296,6 +326,7 @@ export default function Clientes() {
                           </div>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                          {c.is_donation && <span className="chip" style={{ background: "#E7F4F1", color: "#0F5F54" }} title={c.donation_note || t("Doação")}>💚 {t("Doação")}</span>}
                           {isTrial(c) && <span className="chip" style={{ background: "#FAEEDA", color: "#633806" }}>{t("Trial")}</span>}
                           {c.churned_em && <span className="chip" style={{ background: "#FCEBEB", color: "#791F1F" }}>{t("Churned")}</span>}
                           {c.lead_temperature && tempOf(c.lead_temperature) && <span className="chip" style={{ background: tempOf(c.lead_temperature)!.bg, color: tempOf(c.lead_temperature)!.fg }}>{t(tempOf(c.lead_temperature)!.label)}</span>}
@@ -350,6 +381,7 @@ export default function Clientes() {
                     <td>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                         <Pill tone={st.tone}>{t(st.label)}</Pill>
+                        {c.is_donation && <span className="chip" style={{ background: "#E7F4F1", color: "#0F5F54" }} title={c.donation_note || t("Doação (Ganho pró-bono, lucro R$0)")}>💚 {t("Doação")}{c.donation_value != null ? ` · ${money(c.donation_value)}` : ""}</span>}
                         {(c.papeis || []).filter((p) => p !== "cliente").map((p) => <span key={p} className="chip" style={{ background: "#EEEDFE", color: "#26215C" }}>{t(PAPEL_LABEL[p] || p)}</span>)}
                         {c.lead_temperature && tempOf(c.lead_temperature) && <span className="chip" style={{ background: tempOf(c.lead_temperature)!.bg, color: tempOf(c.lead_temperature)!.fg }} title={t("Temperatura")}>{t(tempOf(c.lead_temperature)!.label)}</span>}
                       </div>

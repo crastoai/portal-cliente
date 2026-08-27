@@ -8,9 +8,10 @@
 // ============================================================================
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Trash2, MapPin, Phone, Clock, FileText, ArrowRight, Building2 } from "lucide-react";
+import { Trash2, MapPin, Phone, Clock, FileText, ArrowRight, Building2, HeartHandshake } from "lucide-react";
 import { services as api } from "../../services";
-import { PageHead, Empty, Pill, useAsync, useToast, initials, prettyName } from "../../ui/ui";
+import { PageHead, Empty, Pill, useAsync, useToast, initials, prettyName, money, Field } from "../../ui/ui";
+import Modal from "../../ui/Modal";
 import { useT } from "../../lib/i18n";
 import { PIPELINE_STAGES, WON_STAGE, LOST_STAGE, stageOf, countryOf, TEMPS, COUNTRIES } from "../../lib/countries";
 import DiagnosticoMapa, { fmtDate } from "./DiagnosticoMapa";
@@ -25,6 +26,11 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
   const t = useT();
   const nav = useNavigate();
   const toast = useToast();
+  // Doação / pró-bono (Fatia 3): modal p/ transformar em Ganho com lucro R$0 + valor-equivalente doado.
+  const [donOpen, setDonOpen] = useState(false);
+  const [donValue, setDonValue] = useState("");
+  const [donNote, setDonNote] = useState("");
+  const [donBusy, setDonBusy] = useState(false);
 
   const { data, loading, reload } = useAsync(async () => {
     const [org, diag, people, phones, acts, proposals, fhist] = await Promise.all([
@@ -102,6 +108,44 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
     if (r.ok) nav("/admin/clientes", { replace: true });
     else toast.err(t("Erro ao apagar:") + " " + (r.error || ""));
   }
+  // Abre o modal de doação — pré-soma o valor-equivalente dos serviços já anexados (do Catálogo, editável).
+  async function openDonation() {
+    try {
+      const [rows, cat] = await Promise.all([
+        api.delivery.clientServices.listByOrg(id!).catch(() => []),
+        api.catalog.services.list().catch(() => []),
+      ]);
+      const list = (rows as any[]) ?? []; const catl = (cat as any[]) ?? [];
+      const sum = list.reduce((s, r) => s + Number(catl.find((c: any) => c.id === r.service_id)?.price_table ?? 0), 0);
+      const names = list.map((r) => r.service_name).filter(Boolean).join(" + ");
+      setDonValue(sum > 0 ? String(sum) : "");
+      setDonNote(names || org.deal_product || "");
+    } catch { setDonValue(""); setDonNote(""); }
+    setDonOpen(true);
+  }
+  // Confirma a doação: vira Ganho com lucro R$0, registra o valor-equivalente e marca os serviços como entregues.
+  async function confirmDonation() {
+    setDonBusy(true);
+    const nowISO = new Date().toISOString();
+    const val = donValue === "" ? null : Number(donValue);
+    try {
+      await api.identity.organizations.update(id!, {
+        is_donation: true, donation_value: val, donation_note: donNote || null,
+        donated_at: nowISO, deal_value: val, convertido_em: nowISO,
+      });
+      // marca os serviços de interesse/proposta como CONTRATADOS (entregues) — best effort
+      try {
+        const rows = (await api.delivery.clientServices.listByOrg(id!)) as any[];
+        await Promise.all((rows ?? []).map((r) => api.delivery.clientServices.update(r.id, { situacao: "contratado" })));
+      } catch { /* não bloqueia */ }
+      await api.identity.organizations.setStage(id!, WON_STAGE);
+      try { await api.crm.activities.add({ organization_id: id, type: "note", title: t("Doação registrada"), description: (donNote ? donNote + " · " : "") + (val != null ? money(val) : "") }); } catch { /* rastro é best-effort */ }
+      toast.ok(t("Doação registrada — Ganho pró-bono ✓"));
+      setDonOpen(false);
+      onStageChange?.(WON_STAGE);
+    } catch { toast.err(t("Erro ao registrar a doação.")); }
+    setDonBusy(false);
+  }
 
   return (
     <div>
@@ -130,7 +174,10 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
             <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={reabrir}><span className="crasto-btn__label">{t("Reabrir")}</span></button>
           </>
         ) : (
-          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={marcarPerdido} title={t("Marcar como Perdido")}><span className="crasto-btn__label" style={{ color: "#B42318" }}>{t("Marcar como Perdido")}</span></button>
+          <>
+            <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={marcarPerdido} title={t("Marcar como Perdido")}><span className="crasto-btn__label" style={{ color: "#B42318" }}>{t("Marcar como Perdido")}</span></button>
+            <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={openDonation} title={t("Registrar como doação (Ganho pró-bono, lucro R$0)")}><span className="crasto-btn__icon"><HeartHandshake size={14} /></span><span className="crasto-btn__label" style={{ color: "#0F7B6C" }}>{t("Marcar como Doação")}</span></button>
+          </>
         )}
         {org.intent_signal && <span className="chip" style={{ marginLeft: 4, background: org.intent_signal === "alto" ? "#FCE9E7" : "var(--crasto-bg-3)", color: org.intent_signal === "alto" ? "#B42318" : "var(--crasto-text-body)" }}>{t("Intenção")}: {t(org.intent_signal)}</span>}
         <span style={{ marginLeft: "auto", alignSelf: "center", fontSize: 12, color: "var(--crasto-text-muted)" }}>{t("Status atual:")} <b style={{ color: "var(--crasto-text-primary)" }}>{t(st.label)}</b></span>
@@ -230,6 +277,25 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
           ))}
         </div>
       )}
+
+      {/* Modal — registrar doação (Ganho pró-bono) */}
+      <Modal title={t("Registrar doação (Ganho pró-bono)")} open={donOpen} onClose={() => setDonOpen(false)}
+        footer={<>
+          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setDonOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button>
+          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={donBusy} onClick={confirmDonation}><span className="crasto-btn__icon"><HeartHandshake size={14} /></span><span className="crasto-btn__label">{donBusy ? t("Registrando…") : t("Registrar doação")}</span></button>
+        </>}>
+        <div className="alert" style={{ marginBottom: 12, background: "#E7F4F1", color: "#0F5F54", border: "1px solid #BFE3DC" }}>
+          {t("Isto move a empresa para GANHO como doação: lucro/receita = R$0, mas guardamos o valor-equivalente do serviço doado para o relatório de impacto social do ano.")}
+        </div>
+        <Field label={t("Valor-equivalente doado (R$)")}>
+          <input type="number" min="0" step="0.01" value={donValue} onChange={(e) => setDonValue(e.target.value)} placeholder={t("ex.: 4000")} />
+        </Field>
+        <div className="mt" style={{ fontSize: 11.5, marginTop: 2, marginBottom: 10 }}>{t("Pré-somado dos serviços do Catálogo anexados (ex.: site + funil). Ajuste se precisar.")}</div>
+        <Field label={t("O que foi doado (descrição)")}>
+          <input value={donNote} onChange={(e) => setDonNote(e.target.value)} placeholder={t("ex.: Website + estratégia de funil de arrecadação")} />
+        </Field>
+        <div className="mt" style={{ fontSize: 11, marginTop: 8 }}>{t("Fiscal: doação de serviços normalmente NÃO gera dedução automática — registre aqui para a conversa com o contador.")}</div>
+      </Modal>
     </div>
   );
 }

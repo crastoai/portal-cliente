@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { MessageCircle, Search, Send, Grid3x3, Pencil, Trash2, UserPlus, Plus, Upload, Download, FileText, Building2, Eye, Power, ShieldCheck } from "lucide-react";
+import { MessageCircle, Search, Send, Grid3x3, Pencil, Trash2, UserPlus, Plus, Upload, Download, FileText, Building2, Eye, Power, ShieldCheck, HeartHandshake } from "lucide-react";
 import { preview } from "../../lib/preview";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, initials, Field, money, prettyName } from "../../ui/ui";
@@ -325,6 +325,18 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
         })}
         <span style={{ marginLeft: "auto", alignSelf: "center", fontSize: 12, color: "var(--crasto-text-muted)" }}>{tr("Status atual:")} <b style={{ color: "var(--crasto-text-primary)" }}>{tr(st.label)}</b></span>
       </div>
+
+      {/* Selo de DOAÇÃO (Ganho pró-bono) — lucro R$0, valor-equivalente registrado p/ o impacto social */}
+      {org.is_donation && (
+        <div className="card" style={{ marginBottom: 18, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", background: "#E7F4F1", border: "1px solid #BFE3DC" }}>
+          <HeartHandshake size={20} style={{ color: "#0F7B6C", flex: "none" }} />
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontWeight: 700, color: "#0F5F54" }}>{tr("Doação — Ganho pró-bono")} {org.donation_value != null && <span>· {money(org.donation_value)}</span>}</div>
+            <div style={{ fontSize: 12.5, color: "#0F5F54", opacity: 0.9 }}>{org.donation_note || tr("Serviço doado (lucro R$0). Contabilizado no impacto social do ano.")}</div>
+          </div>
+          {org.donated_at && <span style={{ fontSize: 12, color: "#0F5F54" }}>{fmtDate(org.donated_at)}</span>}
+        </div>
+      )}
 
       {/* Dados da empresa — edição INLINE (clique e edite; salva sozinho, sem botão) */}
       <div className="card" style={{ marginBottom: 18 }}>

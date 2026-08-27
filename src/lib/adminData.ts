@@ -18,6 +18,8 @@ export type Client = {
   convertido_em?: string | null; churned_em?: string | null;
   trial_inicio?: string | null; trial_fim?: string | null; trial_resultado?: string | null;
   org_status?: string | null;
+  // CRM Doação / pró-bono (migration 049) — Ganho com lucro R$0 + valor-equivalente doado
+  is_donation?: boolean | null; donation_value?: number | null; donation_note?: string | null; donated_at?: string | null;
   // preenchido no front a partir de crmAccess.agentsOverview()
   agentes?: number; farol?: string | null;
 };
