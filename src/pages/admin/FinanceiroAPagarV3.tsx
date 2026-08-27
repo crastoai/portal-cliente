@@ -79,6 +79,14 @@ export default function FinanceiroAPagarV3({ pay, costs }: { pay: any[]; costs: 
   const bPagos = items.reduce((a, i) => a + i.pago, 0);
   const catTotal = (c: string) => items.filter(i => i.categoria === c).reduce((a, i) => a + i.total, 0);
 
+  // ---- Redução de despesas: custos ATIVOS com "custo mensal anterior" (prev_monthly) → economia real ----
+  const monthlyOfCost = (c: any) => c.recurrence === "anual" ? Number(c.amount_brl || 0) / 12 : Number(c.amount_brl || 0);
+  const reducoes = (costs || []).filter((c: any) => c.is_active !== false && Number(c.prev_monthly || 0) > 0)
+    .map((c: any) => { const atual = monthlyOfCost(c), antes = Number(c.prev_monthly || 0); return { nome: c.vendor_name, antes, atual, mensal: antes - atual, pct: antes > 0 ? Math.round(((antes - atual) / antes) * 100) : 0 }; })
+    .filter((r: any) => r.mensal > 0.005);
+  const reducaoMensal = reducoes.reduce((a: number, r: any) => a + r.mensal, 0);
+  const reducaoAnual = reducaoMensal * 12;
+
   // ---- pessoas por vínculo ----
   const pessoas = useMemo(() => {
     const src = [...(costs || []).filter((c: any) => catLabel(c.category) === "Pessoas"), ...(pay || []).filter((a: any) => catLabel(a.category) === "Pessoas")];
@@ -190,6 +198,20 @@ export default function FinanceiroAPagarV3({ pay, costs }: { pay: any[]; costs: 
         <div className="fv3-bucket blue"><div className="lbl">A vencer</div><div className="val">{BRL(bAvencer)}</div></div>
         <div className="fv3-bucket green"><div className="lbl">Pagos</div><div className="val">{BRL(bPagos)}</div></div>
       </div>
+
+      {/* Redução de despesas — economia real a partir de trocas de plano (ex.: OpenAI anual → ChatGPT Pro mensal) */}
+      {reducoes.length > 0 && <div className="fv3-reducao">
+        <div className="rmain">
+          <div className="rlbl">📉 Redução de despesas (anualizada)</div>
+          <div className="rval">− {BRL(reducaoAnual)}<span className="ryr"> /ano</span></div>
+          <div className="rsub">{BRL(reducaoMensal)}/mês economizados a partir das trocas de plano</div>
+        </div>
+        <div className="rlist">
+          {reducoes.map((r: any, k: number) => (
+            <div className="ritem" key={k}><span className="rn">{r.nome}</span><span className="rd">{BRL(r.antes)}/mês <b>→</b> {BRL(r.atual)}/mês</span><span className="rp">−{r.pct}%</span></div>
+          ))}
+        </div>
+      </div>}
 
       {/* IA em 2 painéis — linhas CLICÁVEIS (drill-down da origem) + Sincronizar (custo real em tempo real) */}
       <div className="fv3-sech"><h3>🤖 Despesas de IA</h3><span className="rt">Total no mês · <b>{BRL(iaTotal)}</b> <button className="fv3-btn" style={{ marginLeft: 10, padding: "5px 11px", fontSize: 12 }} onClick={doSync} disabled={syncing}>{syncing ? "Sincronizando…" : "🔄 Sincronizar"}</button></span></div>
@@ -410,5 +432,15 @@ const CSS = `
 .fv3-modal .mtab th{background:#FCFCFD;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted2);font-weight:700;text-align:left;padding:11px 13px;white-space:nowrap}
 .fv3-modal .mtab th.r,.fv3-modal .mtab td.r{text-align:right}
 .fv3-modal .mtab td{padding:11px 13px;border-top:1px solid var(--line);font-size:13px;white-space:nowrap}
+.fv3-reducao{display:flex;gap:20px;flex-wrap:wrap;align-items:center;justify-content:space-between;background:linear-gradient(180deg,#0E5C33,#0B4A29);color:#fff;border-radius:16px;padding:18px 22px;box-shadow:var(--shadow);margin:14px 0}
+.fv3-reducao .rlbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:#BFE8CE}
+.fv3-reducao .rval{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:6px 0 2px}
+.fv3-reducao .rval .ryr{font-size:15px;font-weight:600;color:#BFE8CE}
+.fv3-reducao .rsub{font-size:12.5px;color:#CDEBD9}
+.fv3-reducao .rlist{display:flex;flex-direction:column;gap:6px;min-width:280px}
+.fv3-reducao .ritem{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.10);border-radius:10px;padding:8px 12px;font-size:12.5px}
+.fv3-reducao .ritem .rn{font-weight:700}
+.fv3-reducao .ritem .rd{color:#DCF0E4}.fv3-reducao .ritem .rd b{color:#fff}
+.fv3-reducao .ritem .rp{margin-left:auto;font-weight:800;background:#fff;color:#0B4A29;border-radius:20px;padding:2px 9px}
 @media(max-width:1050px){.fv3-grid3,.fv3-buckets,.fv3-panels{grid-template-columns:1fr 1fr}}
 `;

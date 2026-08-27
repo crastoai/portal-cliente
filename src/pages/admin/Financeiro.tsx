@@ -145,7 +145,7 @@ function vereditoParcela(p: any, todayIso: string): { tone: string; icon: string
   return { tone: "pending", icon: "⏳", text: venc ? `a vencer em ${brDate(venc)}` : "a vencer" };
 }
 const TONE_COLOR: Record<string, string> = { ok: "var(--fin-green)", warn: "var(--fin-orange)", bad: "var(--fin-red)", pending: "#475467", muted: "#98A2B3" };
-const C_EMPTY = { id: "", vendor_name: "", description: "", category: "", currency: "BRL", amount_original: "", exchange_rate: "1", amount_brl: "", recurrence: "mensal", cost_type: "fixo", cost_nature: "recorrente", next_payment_date: "", is_active: true, notes: "", vinculo: "" };
+const C_EMPTY = { id: "", vendor_name: "", description: "", category: "", currency: "BRL", amount_original: "", exchange_rate: "1", amount_brl: "", recurrence: "mensal", cost_type: "fixo", cost_nature: "recorrente", next_payment_date: "", is_active: true, notes: "", vinculo: "", prev_monthly: "" };
 const T_EMPTY = { id: "", type: "income", category: "", amount: "", description: "", status: "completed", transaction_date: "", contact_name: "", payment_method: "", notes: "" };
 
 const TABS = [
@@ -472,7 +472,7 @@ export default function Financeiro() {
   // handlers conta
   function newAccount(type: string) { setAf({ ...A_EMPTY, account_type: type, status: "pending" }); setAOpen(true); }
   function editItem(i: any) {
-    if (i._kind === "cost") { const c = costs.find((x) => x.id === i.id); setCf({ id: c.id, vendor_name: c.vendor_name || "", description: c.description || "", category: c.category || "", currency: c.currency || "BRL", amount_original: String(c.amount_original ?? ""), exchange_rate: String(c.exchange_rate ?? "1"), amount_brl: String(c.amount_brl ?? ""), recurrence: c.recurrence || "mensal", cost_type: c.cost_type || "fixo", cost_nature: c.cost_nature || "recorrente", next_payment_date: ymd(c.next_payment_date), is_active: !!c.is_active, notes: c.notes || "", vinculo: c.vinculo || "" }); setCOpen(true); }
+    if (i._kind === "cost") { const c = costs.find((x) => x.id === i.id); setCf({ id: c.id, vendor_name: c.vendor_name || "", description: c.description || "", category: c.category || "", currency: c.currency || "BRL", amount_original: String(c.amount_original ?? ""), exchange_rate: String(c.exchange_rate ?? "1"), amount_brl: String(c.amount_brl ?? ""), recurrence: c.recurrence || "mensal", cost_type: c.cost_type || "fixo", cost_nature: c.cost_nature || "recorrente", next_payment_date: ymd(c.next_payment_date), is_active: !!c.is_active, notes: c.notes || "", vinculo: c.vinculo || "", prev_monthly: String(c.prev_monthly ?? "") }); setCOpen(true); }
     else { setAf({
       id: i.id, account_type: i.account_type,
       contact_name: i.contact_name || "", contact_reference: i.contact_reference || "", organization_id: i.organization_id || "", cnpj: i.cnpj || "",
@@ -1164,6 +1164,7 @@ export default function Financeiro() {
           <Field label="Fornecedor"><input value={cf.vendor_name} onChange={(e) => setCf({ ...cf, vendor_name: e.target.value })} /></Field>
           <Field label="Categoria"><input value={cf.category} onChange={(e) => setCf({ ...cf, category: e.target.value })} /></Field>
           <Field label={t("Vínculo (se pessoa/prestador)")}><select value={cf.vinculo || ""} onChange={(e) => setCf({ ...cf, vinculo: e.target.value })}><option value="">—</option><option value="PJ">PJ</option><option value="CLT">CLT</option><option value="Terceirizado">Terceirizado</option></select></Field>
+          <Field label={t("Custo mensal ANTERIOR (R$) — gera card de Redução de despesas")}><input type="number" step="0.01" value={cf.prev_monthly} onChange={(e) => setCf({ ...cf, prev_monthly: e.target.value })} placeholder={t("ex.: plano antigo por mês")} /></Field>
         </div>
         <Field label="Descrição *"><input value={cf.description} onChange={(e) => setCf({ ...cf, description: e.target.value })} /></Field>
         <div className="grid3">
