@@ -8,6 +8,7 @@ import Modal from "../../ui/Modal";
 import DocField from "../../ui/DocField";
 import CustoIA from "./CustoIA";
 import Conciliacao from "./Conciliacao";
+import FinanceiroAPagarV3 from "./FinanceiroAPagarV3";
 
 // Data de HOJE no fuso do Brasil (America/Sao_Paulo) em "YYYY-MM-DD". Usar toISOString()
 // (UTC) fazia o dia "virar" 3h antes à noite — e as parcelas são datas de calendário BR.
@@ -616,10 +617,10 @@ export default function Financeiro() {
 
       {/* KPIs topo — clicáveis: cada card leva à aba/tela correspondente (dado real) */}
       <div className="kpis" style={{ marginBottom: 16 }}>
-        <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("A receber no mês"), rows: rowsRecMes, foot: { label: t("Total do mês"), value: totalReceberMes } })} title={t("Ver detalhes")}><div className="lab">{t("A receber")} {noMesLbl}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(totalReceberMes)}</div><div className="delta">{money(recorRecebido)} {t("recebido")} · {money(aReceberMes)} {t("a receber")}</div></button>
-        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A pagar no mês"), rows: rowsPagarMes, foot: { label: t("Total/mês"), value: aPagarMes } })} title={t("Ver detalhes")}><div className="lab">{t("A pagar no mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "var(--fin-orange)" }}>{money(aPagarMes)}</div><div className="delta">{t("ferramentas + infra + serviço")}</div></button>
-        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado do mês"), rows: rowsResultado, foot: { label: t("Resultado"), value: resultadoMes } })} title={t("Resultado do mês = a receber − a pagar")}><div className="lab">{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: resultadoMes < 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(resultadoMes)}</div><div className="delta">{t("recebe − paga (mês)")}</div></button>
-        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Vencidos"), rows: rowsVencidos, foot: { label: t("Total vencido"), value: inadimplencia } })} title={t("Ver detalhes")}><div className="lab">{t("Vencidos")}</div><div className="val tnum" style={{ fontSize: 22, color: inadimplencia > 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(inadimplencia)}</div><div className="delta">{inadimplencia > 0 ? t("a receber vencido") : t("nada vencido ✓")}</div></button>
+        <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Recebido no mês"), rows: rowsRecebidoMes, foot: { label: t("Recebido no mês"), value: recebidoMes } })} title={t("Ver detalhes")}><div className="lab">{t("Entrou no mês (caixa)")}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(recebidoMes)}</div><div className="delta">{t("recebido de fato")}</div></button>
+        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A pagar no mês"), rows: rowsPagarMes, foot: { label: t("Total/mês"), value: aPagarMes } })} title={t("Ver detalhes")}><div className="lab">{t("Saiu no mês (caixa)")}</div><div className="val tnum" style={{ fontSize: 22, color: "var(--fin-orange)" }}>{money(aPagarMes)}</div><div className="delta">{t("IA + Pessoas + Ferramentas + Infra")}</div></button>
+        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado do mês"), rows: rowsResultado, foot: { label: t("Resultado"), value: resultadoMes } })} title={t("Resultado do mês = a receber − a pagar")} style={{ background: "linear-gradient(180deg,#0B1830,#010E26)", borderColor: "transparent", color: "#fff" }}><div className="lab" style={{ color: "#9DB4E0" }}>{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "#fff" }}>{money(resultadoMes)}</div><div className="delta" style={{ color: "#B7C6E6" }}>{t("recebido − pago (caixa)")}</div></button>
+        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Vencidos"), rows: rowsVencidos, foot: { label: t("Total vencido"), value: inadimplencia } })} title={t("Ver detalhes")}><div className="lab">{t("Vencidos (em aberto)")}</div><div className="val tnum" style={{ fontSize: 22, color: inadimplencia > 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(inadimplencia)}</div><div className="delta">{inadimplencia > 0 ? t("a receber vencido") : t("nada vencido ✓")}</div></button>
       </div>
 
       <div className="ptabs">
@@ -739,7 +740,15 @@ export default function Financeiro() {
         </div>
       </>) : tab === "conciliacao" ? (
         <Conciliacao rec={rec} reload={reload} flash={flash} />
-      ) : !built ? (
+      ) : tab === "pagar" ? (<>
+        {/* A Pagar — layout v3 APROVADO (2026-08-27): componente dedicado com dado real.
+            Substitui os KPIs antigos, o CustoIA embedded e a tabela agrupada. */}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginBottom: 12 }}>
+          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => newAccount("payable")}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Novo lançamento")}</span></button>
+          <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => { setCf({ ...C_EMPTY }); setCOpen(true); }}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Novo custo")}</span></button>
+        </div>
+        <FinanceiroAPagarV3 pay={pay} costs={costs} />
+      </>) : !built ? (
         <div className="card"><Empty><p><strong>{t("Em breve.")}</strong> {t("Esta aba está em construção — em breve você poderá gerenciar isso por aqui.")}</p></Empty></div>
       ) : (<>
         {/* barra de ação */}
