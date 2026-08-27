@@ -16,8 +16,9 @@ export class AutomationScheduler {
     catch (e: any) { this.log.error(`cron falhou: ${e?.message}`); }
   }
 
-  // A cada 5 min — captura de transcrições do Google Meet (a transcrição só existe pós-reunião).
-  @Cron('*/5 * * * *')
+  // A cada 2 min — captura de transcrições do Google Meet (a transcrição só existe pós-reunião;
+  // um poll de poucos minutos já é "tempo real" na prática, pois nasce quando a reunião termina).
+  @Cron('*/2 * * * *')
   async pollMeet() {
     try { const r = await this.gmeet.poll(); if (r.ingested) this.log.log(`meet poll: +${r.ingested} transcrições`); }
     catch (e: any) { this.log.warn(`meet poll falhou: ${e?.message}`); }

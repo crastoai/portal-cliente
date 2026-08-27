@@ -53,6 +53,7 @@ export class AutomationEngineService {
     return this.db.asService(async (c) => {
       const email = String(p?.contact_email || '').trim().toLowerCase();
       const name = String(p?.contact_name || p?.company || '').trim();
+      const allowCreate = p?.allow_create !== false;  // poller passa false p/ "casar ou pular" (sem criar lixo)
       let orgId: string | null = null, created = false, matched_by = 'none';
       if (email) {
         let r = (await c.query(`select organization_id from public.profiles where lower(email)=$1 and organization_id is not null limit 1`, [email])).rows[0];
@@ -60,12 +61,16 @@ export class AutomationEngineService {
         if (r?.organization_id) { orgId = r.organization_id; matched_by = 'email'; }
       }
       if (!orgId && name) {
-        const r = (await c.query(`select id from public.organizations where name ilike $1 order by created_at limit 1`, ['%' + name + '%'])).rows[0];
-        if (r?.id) { orgId = r.id; matched_by = 'nome'; }
+        // por pessoa (crm.people.full_name), depois por dono da empresa, depois pelo nome da empresa — bidirecional
+        let r = (await c.query(`select organization_id from crm.people where organization_id is not null and (full_name ilike '%'||$1||'%' or $1 ilike '%'||full_name||'%') order by is_primary desc nulls last limit 1`, [name])).rows[0];
+        if (r?.organization_id) { orgId = r.organization_id; matched_by = 'pessoa'; }
+        if (!orgId) { const o = (await c.query(`select id from public.organizations where owner_name is not null and (owner_name ilike '%'||$1||'%' or $1 ilike '%'||owner_name||'%') order by created_at limit 1`, [name])).rows[0]; if (o?.id) { orgId = o.id; matched_by = 'dono'; } }
+        if (!orgId) { const o = (await c.query(`select id from public.organizations where name ilike '%'||$1||'%' order by created_at limit 1`, [name])).rows[0]; if (o?.id) { orgId = o.id; matched_by = 'nome'; } }
       }
       if (!orgId) {
+        if (!allowCreate) return { ok: true, skipped: true, matched: false, reason: 'sem correspondência (não criei lead)' };
         const nm = String(p?.company || name || p?.title || 'Contato de reunião').trim().slice(0, 120);
-        const r = (await c.query(`insert into public.organizations (name, stage, source) values ($1,'lead','meet_webhook') returning id`, [nm])).rows[0];
+        const r = (await c.query(`insert into public.organizations (name, stage, source, owner_name) values ($1,'lead','meet_webhook',$2) returning id`, [nm, name || null])).rows[0];
         orgId = r.id; created = true; matched_by = 'novo';
       }
       const mr = (await c.query(

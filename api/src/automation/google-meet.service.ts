@@ -86,10 +86,29 @@ export class GoogleMeetService {
 
   private gget(url: string, access: string) { return fetch(url, { headers: { Authorization: `Bearer ${access}` } }).then((r) => r.json() as any); }
 
+  // Correlaciona a conferência do Meet com o evento do Calendar (mesmo código) p/ obter os
+  // e-mails REAIS dos participantes. Externo = fora de @crasto.com/@crasto.ai. Reunião interna
+  // (só crasto) → allInternal=true (o poller pula, não cria lead).
+  private async correlate(access: string, rec: any, startMs: number): Promise<{ emails: string[]; names: string[]; allInternal: boolean }> {
+    try {
+      let code = '';
+      if (rec.space) { const sp = await this.gget(`${MEET}/${rec.space}`, access); code = sp?.meetingCode || ''; }
+      const tMin = new Date(startMs - 2 * 3600e3).toISOString();
+      const tMax = new Date(startMs + 4 * 3600e3).toISOString();
+      const evd = await this.gget(`https://www.googleapis.com/calendar/v3/calendars/primary/events?singleEvents=true&orderBy=startTime&maxResults=25&timeMin=${encodeURIComponent(tMin)}&timeMax=${encodeURIComponent(tMax)}`, access);
+      const events: any[] = evd.items || [];
+      const ev = events.find((e) => code && ((e.conferenceData?.conferenceId === code) || String(e.hangoutLink || '').includes(code)));
+      const attendees: any[] = ev?.attendees || [];
+      const ext = attendees.filter((a) => a.email && !a.self && !a.resource && !/@crasto\.(com|ai)$/i.test(a.email));
+      const allInternal = attendees.length > 0 && ext.length === 0;
+      return { emails: ext.map((a) => String(a.email).toLowerCase()), names: ext.map((a) => a.displayName || String(a.email).split('@')[0]), allInternal };
+    } catch { return { emails: [], names: [], allInternal: false }; }
+  }
+
   // Poller: novas conferenceRecords desde o watermark → transcript entries → ingest.
-  async poll(): Promise<{ ok: boolean; ingested: number }> {
+  async poll(): Promise<{ ok: boolean; ingested: number; scanned: number; connected: boolean; last_poll_at: string | null }> {
     const conns = await this.db.asService(async (c) => (await c.query(`select * from automation.google_connections where refresh_token is not null`)).rows);
-    let ingested = 0;
+    let ingested = 0, scanned = 0;
     for (const conn of conns) {
       try {
         const access = await this.ensureAccess(conn);
@@ -97,14 +116,17 @@ export class GoogleMeetService {
         const filter = `start_time>="${new Date(sinceMs).toISOString()}"`;
         const data = await this.gget(`${MEET}/conferenceRecords?pageSize=20&filter=${encodeURIComponent(filter)}`, access);
         const records: any[] = data.conferenceRecords || [];
+        scanned += records.length;
         let maxStart = conn.watermark ? new Date(conn.watermark).getTime() : 0;
         for (const rec of records) {
           const startMs = new Date(rec.startTime).getTime();
           if (conn.watermark && startMs <= new Date(conn.watermark).getTime()) continue;
-          // transcript entries (texto estruturado, sem Drive)
+          // 1) transcrição primeiro — sem transcrição, adianta o watermark e pula (nada a registrar)
           const tr = await this.gget(`${MEET}/${rec.name}/transcripts`, access);
+          const transcripts: any[] = tr.transcripts || [];
+          if (!transcripts.length) { if (startMs > maxStart) maxStart = startMs; continue; }
           let text = '';
-          for (const t of (tr.transcripts || [])) {
+          for (const t of transcripts) {
             let pageToken = '';
             do {
               const ed = await this.gget(`${MEET}/${t.name}/entries?pageSize=100${pageToken ? `&pageToken=${pageToken}` : ''}`, access);
@@ -112,15 +134,22 @@ export class GoogleMeetService {
               pageToken = ed.nextPageToken || '';
             } while (pageToken);
           }
-          // participantes → attendees + tentativa de nome do contato (não-Crasto)
-          const pr = await this.gget(`${MEET}/${rec.name}/participants?pageSize=50`, access);
-          const names: string[] = (pr.participants || []).map((p: any) => p.signedinUser?.displayName || p.anonymousUser?.displayName || p.phoneUser?.displayName).filter(Boolean);
-          const attendees = names.join(', ');
-          const contactName = names.find((n) => n && !n.toLowerCase().includes('crasto')) || null;
-          if (text.trim()) {
-            await this.engine.ingestMeetTranscript({ title: `Reunião ${String(rec.startTime || '').slice(0, 10)}`.trim(), meeting_at: rec.startTime, attendees, transcript: text.trim(), contact_name: contactName });
-            ingested++;
+          if (!text.trim()) { if (startMs > maxStart) maxStart = startMs; continue; }
+          // 2) correlaciona com o Calendar p/ os e-mails reais dos participantes
+          const corr = await this.correlate(access, rec, startMs);
+          if (corr.allInternal) { if (startMs > maxStart) maxStart = startMs; continue; }  // reunião interna → não cria lead
+          let contactEmail: string | null = null, contactName: string | null = null, attendees = '', allowCreate = false;
+          if (corr.emails.length) {
+            contactEmail = corr.emails[0]; contactName = corr.names[0] || null; attendees = corr.names.join(', '); allowCreate = true;
+          } else {
+            // sem e-mail externo do Calendar → usa participantes do Meet só p/ CASAR (não criar lixo)
+            const pr = await this.gget(`${MEET}/${rec.name}/participants?pageSize=50`, access);
+            const names: string[] = (pr.participants || []).map((p: any) => p.signedinUser?.displayName || p.anonymousUser?.displayName || p.phoneUser?.displayName).filter(Boolean);
+            contactName = names.find((n) => n && !/crasto|jhon|john/i.test(n)) || null;
+            attendees = names.join(', '); allowCreate = false;
           }
+          const r = await this.engine.ingestMeetTranscript({ title: `Reunião ${String(rec.startTime || '').slice(0, 10)}`.trim(), meeting_at: rec.startTime, attendees, transcript: text.trim(), contact_email: contactEmail, contact_name: contactName, allow_create: allowCreate });
+          if (!(r as any)?.skipped) ingested++;
           if (startMs > maxStart) maxStart = startMs;
         }
         const newWatermark = maxStart ? new Date(maxStart).toISOString() : (conn.watermark || new Date(sinceMs).toISOString());
@@ -130,6 +159,7 @@ export class GoogleMeetService {
         this.log.warn(`poll ${conn.email}: ${e?.message}`);
       }
     }
-    return { ok: true, ingested };
+    const last = await this.db.asService(async (c) => (await c.query(`select to_char(max(last_poll_at),'YYYY-MM-DD"T"HH24:MI:SSOF') as t from automation.google_connections`)).rows[0]?.t);
+    return { ok: true, ingested, scanned, connected: conns.length > 0, last_poll_at: last ?? null };
   }
 }

@@ -16,6 +16,8 @@ export default function GoogleMeetConnect() {
   const { data, loading, reload } = useAsync(async () => (await api.automation.googleMeet.status().catch(() => null)) as any, []);
   const st = data || {};
   const [busy, setBusy] = useState(false);
+  const [polling, setPolling] = useState(false);
+  const [pollMsg, setPollMsg] = useState<string>("");
 
   // ouve o postMessage do popup de callback
   useEffect(() => {
@@ -24,6 +26,13 @@ export default function GoogleMeetConnect() {
     }
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // auto-refresh do status a cada 30s (mostra a "última verificação" do cron automático ao vivo)
+  useEffect(() => {
+    const id = setInterval(() => reload(), 30000);
+    return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -37,7 +46,18 @@ export default function GoogleMeetConnect() {
     finally { setBusy(false); }
   }
   async function desconectar() { if (!confirm(t("Desconectar o Google?"))) return; try { await api.automation.googleMeet.disconnect(); toast.ok(t("Desconectado ✓")); reload(); } catch { toast.err(t("Erro.")); } }
-  async function puxar() { setBusy(true); try { const r = await api.automation.googleMeet.pollNow(); toast.ok(t("Verificado ✓ ({n} novas)", { n: r?.ingested ?? 0 } as any)); reload(); } catch { toast.err(t("Erro ao puxar.")); } finally { setBusy(false); } }
+  async function puxar() {
+    setPolling(true); setPollMsg("");
+    try {
+      const r = await api.automation.googleMeet.pollNow();
+      const scanned = r?.scanned ?? 0, ingested = r?.ingested ?? 0;
+      const hh = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      setPollMsg(t("Verifiquei {s} reunião(ões) · {i} transcrição(ões) nova(s) · {h}", { s: String(scanned), i: String(ingested), h: hh } as any));
+      if (ingested > 0) toast.ok(t("{i} transcrição(ões) capturada(s) ✓", { i: String(ingested) } as any));
+      reload();
+    } catch { setPollMsg(t("Erro ao verificar. Tente de novo.")); toast.err(t("Erro ao puxar.")); }
+    finally { setPolling(false); }
+  }
 
   return (
     <div className="card" style={{ marginBottom: 18 }}>
@@ -49,14 +69,25 @@ export default function GoogleMeetConnect() {
       </div>
 
       {loading ? <div className="mt" style={{ padding: "6px 2px" }}>{t("Carregando…")}</div> : st.connected ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 6 }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 7, color: "#1D9E75", fontWeight: 600 }}><CheckCircle2 size={16} /> {t("Conectado")}{st.email ? ` · ${st.email}` : ""}</span>
-          {st.last_poll_at && <span className="mt" style={{ fontSize: 12 }}>{t("última verificação")}: {fmtDateTime(st.last_poll_at)}</span>}
-          {st.last_error && <span className="chip" style={{ background: "#FCEBEB", color: "#791F1F" }} title={st.last_error}><AlertTriangle size={11} style={{ verticalAlign: "-1px" }} /> {t("erro na última")}</span>}
-          <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-            <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={busy} onClick={puxar}><span className="crasto-btn__icon"><RefreshCw size={14} /></span><span className="crasto-btn__label">{t("Puxar agora")}</span></button>
-            <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={desconectar}><span className="crasto-btn__icon"><LogOut size={14} /></span><span className="crasto-btn__label">{t("Desconectar")}</span></button>
+        <div style={{ marginTop: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 7, color: "#1D9E75", fontWeight: 600 }}><CheckCircle2 size={16} /> {t("Conectado")}{st.email ? ` · ${st.email}` : ""}</span>
+            {st.last_error && <span className="chip" style={{ background: "#FCEBEB", color: "#791F1F" }} title={st.last_error}><AlertTriangle size={11} style={{ verticalAlign: "-1px" }} /> {t("erro na última verificação")}</span>}
+            <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+              <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={polling} onClick={puxar}><span className="crasto-btn__icon"><RefreshCw size={14} className={polling ? "spin" : undefined} /></span><span className="crasto-btn__label">{polling ? t("Verificando…") : t("Puxar agora")}</span></button>
+              <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={desconectar}><span className="crasto-btn__icon"><LogOut size={14} /></span><span className="crasto-btn__label">{t("Desconectar")}</span></button>
+            </div>
           </div>
+          {/* barra de status: automático (cron 2 min) + progresso/resultado do "Puxar agora" */}
+          <div style={{ marginTop: 10, padding: "9px 12px", background: "var(--crasto-bg-2)", border: "1px solid var(--crasto-border-soft)", borderRadius: "var(--crasto-radius-md)", fontSize: 12.5, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--crasto-text-body)" }}>
+              <RefreshCw size={13} className={polling ? "spin" : undefined} style={{ color: polling ? "var(--crasto-blue)" : "#1D9E75" }} />
+              {polling ? t("Verificando reuniões no Google…") : t("Automático: verifica sozinho a cada 2 min")}
+            </span>
+            {st.last_poll_at && <span className="mt">· {t("última verificação")}: <b style={{ color: "var(--crasto-text-primary)" }}>{fmtDateTime(st.last_poll_at)}</b></span>}
+            {pollMsg && <span style={{ marginLeft: "auto", color: "var(--crasto-blue)", fontWeight: 600 }}>{pollMsg}</span>}
+          </div>
+          <div className="mt" style={{ fontSize: 11, marginTop: 6 }}>{t("Só reuniões com transcrição LIGADA no Meet geram transcrição. Ative-a na reunião (⋮ → Ativar transcrição).")}</div>
         </div>
       ) : (
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 6 }}>
