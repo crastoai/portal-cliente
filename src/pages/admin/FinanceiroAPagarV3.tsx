@@ -36,9 +36,16 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[];
   const ano = today.slice(0, 4);
   const mes = today.slice(0, 7);
 
-  // ---- painel de IA (interno × cliente) ----
-  const from = mes + "-01";
-  const to = mes + "-31";
+  // ---- FILTRO DE PERÍODO (padrão = ano vigente, 01/jan → 31/dez) — dirige o acumulado de IA/conciliação ----
+  const yStart = ano + "-01-01", yEnd = ano + "-12-31";
+  const PERIODS = [
+    { key: "ano", label: "Este ano", from: yStart, to: yEnd },
+    { key: "mes", label: "Este mês", from: mes + "-01", to: mes + "-31" },
+  ];
+  const [period, setPeriod] = useState<{ from: string; to: string; label: string }>({ from: yStart, to: yEnd, label: "Este ano" });
+  const from = period.from, to = period.to;
+
+  // ---- painel de IA (interno × cliente) — agregado no PERÍODO (finance.ai_usage via admin_ai_cost) ----
   const { data: aiPanel, reload: reloadAi } = useAsync(async () => services.finance.aiCost.panel(from, to).catch(() => ({})), [from, to]);
   const s = (aiPanel as any)?.summary ?? { total: 0, client_cost: 0 };
   const iaTotal = Number(s.total || 0), iaCliente = Number(s.client_cost || 0), iaInterno = Math.max(0, iaTotal - iaCliente);
@@ -117,16 +124,24 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[];
   const [pdfRef, setPdfRef] = useState(today);
   const distinct = (k: string) => Array.from(new Set(items.map(i => String((i as any)[k])))).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
-  const filtered = useMemo(() => {
+  // Aplica todos os filtros ATIVOS; `except` ignora a coluna dada (cascata: as opções de cada coluna
+  // respeitam os filtros já escolhidos nas outras — a 1ª coluna escolhida "manda" nas opções das demais).
+  const applyF = (except: string | null) => {
     let r = items.slice();
-    if (chip !== "Todos") r = r.filter(i => i.categoria === chip);
-    (["empresa", "categoria", "status"] as const).forEach(k => { const set = cf[k]; if (set && set.size) r = r.filter(i => set.has(String((i as any)[k]))); });
-    const dr = (k: string, de: string, ate: string) => { if (de) r = r.filter(i => (i as any)[k] && ymd((i as any)[k]) >= de); if (ate) r = r.filter(i => (i as any)[k] && ymd((i as any)[k]) <= ate); };
+    if (chip !== "Todos" && except !== "categoria") r = r.filter(i => i.categoria === chip);
+    (["empresa", "categoria", "status"] as const).forEach(k => { if (k === except) return; const set = cf[k]; if (set && set.size) r = r.filter(i => set.has(String((i as any)[k]))); });
+    const dr = (k: string, de: string, ate: string) => { if (except === k) return; if (de) r = r.filter(i => (i as any)[k] && ymd((i as any)[k]) >= de); if (ate) r = r.filter(i => (i as any)[k] && ymd((i as any)[k]) <= ate); };
     dr("contratacao", cf.contratacaoDe, cf.contratacaoAte); dr("venc", cf.vencDe, cf.vencAte); dr("pag", cf.pagDe, cf.pagAte);
-    const nr = (k: string, mn: string, mx: string) => { if (mn !== "") r = r.filter(i => (i as any)[k] >= parseFloat(mn)); if (mx !== "") r = r.filter(i => (i as any)[k] <= parseFloat(mx)); };
+    const nr = (k: string, mn: string, mx: string) => { if (except === k) return; if (mn !== "") r = r.filter(i => (i as any)[k] >= parseFloat(mn)); if (mx !== "") r = r.filter(i => (i as any)[k] <= parseFloat(mx)); };
     nr("total", cf.totalMin, cf.totalMax); nr("pago", cf.pagoMin, cf.pagoMax); nr("restante", cf.restMin, cf.restMax);
     const q = search.trim().toLowerCase();
     if (q) r = r.filter(i => [i.empresa, i.categoria, i.status, fmtDT(i.venc), fmtDT(i.pag)].join(" ").toLowerCase().includes(q));
+    return r;
+  };
+  const distinctFor = (k: string) => Array.from(new Set(applyF(k).map(i => String((i as any)[k])))).sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+  const filtered = useMemo(() => {
+    const r = applyF(null);
     r.sort((a, b) => { let va: any = (a as any)[sortKey], vb: any = (b as any)[sortKey]; if (typeof va === "string") { va = va.toLowerCase(); vb = String(vb).toLowerCase(); } return (va > vb ? 1 : va < vb ? -1 : 0) * sortDir; });
     return r;
   }, [items, chip, cf, search, sortKey, sortDir]);
@@ -157,7 +172,7 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[];
   const openPop = (e: any, k: string, type: string) => { const r = e.currentTarget.getBoundingClientRect(); setPopSearch(""); setPop(p => p && p.col === k ? null : { col: k, type, x: Math.max(8, Math.min(r.left, window.innerWidth - 268)), y: r.bottom + 4 }); };
   useEffect(() => { const h = (e: any) => { if (!e.target.closest(".fv3-pop") && !e.target.closest(".fv3 th")) setPop(null); }; document.addEventListener("click", h); return () => document.removeEventListener("click", h); }, []);
 
-  const setColSet = (k: string, vals: string[]) => setCf((c: any) => ({ ...c, [k]: vals.length === distinct(k).length ? null : new Set(vals) }));
+  const setColSet = (k: string, vals: string[]) => setCf((c: any) => ({ ...c, [k]: vals.length === distinctFor(k).length ? null : new Set(vals) }));
 
   function exportPDF() {
     const refTxt = pdfRef ? pdfRef.split("-").reverse().join("/") : fmtDT(new Date().toISOString());
@@ -215,7 +230,15 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[];
       </div>}
 
       {/* IA em 2 painéis — linhas CLICÁVEIS (drill-down da origem) + Sincronizar (custo real em tempo real) */}
-      <div className="fv3-sech"><h3>🤖 Despesas de IA</h3><span className="rt">Total no mês · <b>{BRL(iaTotal)}</b> <button className="fv3-btn" style={{ marginLeft: 10, padding: "5px 11px", fontSize: 12 }} onClick={doSync} disabled={syncing}>{syncing ? "Sincronizando…" : "🔄 Sincronizar"}</button></span></div>
+      <div className="fv3-sech"><h3>🤖 Despesas de IA <span className="fv3-permini">{period.label} · {fmtDT(from)} – {fmtDT(to)}</span></h3><span className="rt">
+        <span className="fv3-period">
+          {PERIODS.map(p => <button key={p.key} className={"pbtn" + ((from === p.from && to === p.to) ? " on" : "")} onClick={() => setPeriod({ from: p.from, to: p.to, label: p.label })}>{p.label}</button>)}
+          <input type="date" value={from} onChange={e => setPeriod({ from: e.target.value, to, label: "Personalizado" })} title="de" />
+          <input type="date" value={to} onChange={e => setPeriod({ from, to: e.target.value, label: "Personalizado" })} title="até" />
+        </span>
+        Total no período · <b>{BRL(iaTotal)}</b>
+        <button className="fv3-btn" style={{ marginLeft: 10, padding: "5px 11px", fontSize: 12 }} onClick={doSync} disabled={syncing}>{syncing ? "Sincronizando…" : "🔄 Sincronizar"}</button>
+      </span></div>
       <div className="fv3-panels">
         <div className="fv3-panel">
           <div className="ph"><span className="t">IA da Crasto.AI (custo próprio)</span><span className="s">Overhead · {BRL(iaInterno)}</span></div>
@@ -302,15 +325,15 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[];
       </div>
 
       {/* popover de filtro (Excel) */}
-      {pop && createPortal(<ExcelPop pop={pop} cf={cf} setCf={setCf} distinct={distinct} setColSet={setColSet} setSortKey={setSortKey} setSortDir={setSortDir} close={() => setPop(null)} popSearch={popSearch} setPopSearch={setPopSearch} catEmoji={CAT_EMOJI} />, document.body)}
+      {pop && createPortal(<div className="fv3"><ExcelPop pop={pop} cf={cf} setCf={setCf} distinct={distinctFor} setColSet={setColSet} setSortKey={setSortKey} setSortDir={setSortDir} close={() => setPop(null)} popSearch={popSearch} setPopSearch={setPopSearch} catEmoji={CAT_EMOJI} /></div>, document.body)}
 
       {/* drill-down da ORIGEM do custo de IA (fonte: finance.ai_costs, custo real auto-sync) */}
-      {iaDrill && createPortal(<div className="fv3-modal" onClick={() => setIaDrill(null)}><div className="box" onClick={e => e.stopPropagation()}>
+      {iaDrill && createPortal(<div className="fv3"><div className="fv3-modal" onClick={() => setIaDrill(null)}><div className="box" onClick={e => e.stopPropagation()}>
         <div className="mh"><div><div className="m-t">{iaDrill.title}</div><div className="m-s">{iaDrill.sub}</div></div><button className="x" onClick={() => setIaDrill(null)}>✕</button></div>
         <div className="m-scroll"><table className="mtab"><thead><tr><th>Plataforma</th><th>Cliente / uso</th><th className="r">Tokens</th><th className="r">Custo</th><th>Período</th></tr></thead>
           <tbody>{iaDrill.rows.length ? iaDrill.rows.map((r: any, k: number) => (<tr key={k}><td>{r.platform || r.provider || "—"}</td><td>{r.organization_name || (r.kind === "interno" ? "Interno / plataforma" : "—")}</td><td className="r">{((Number(r.tokens_in || 0) + Number(r.tokens_out || 0)) || 0).toLocaleString("pt-BR")}</td><td className="r">{BRL(Number(r.cost || 0))}</td><td>{ymd(r.period_start)}{r.period_end ? " → " + ymd(r.period_end) : ""}</td></tr>)) : <tr><td colSpan={5} style={{ padding: 14, color: "#6B7280" }}>Sem lançamentos-fonte no período. Clique em <b>Sincronizar</b> para puxar o custo real das APIs de billing.</td></tr>}</tbody></table></div>
         <div className="fv3-note" style={{ margin: "12px 0 0" }}>Fonte: <b>finance.ai_costs</b> — custo REAL puxado das APIs de billing dos provedores (auto-sync). Anthropic/OpenAI via Admin key no cofre; Google/Gemini via Cloud Billing; DeepSeek por uso.</div>
-      </div></div>, document.body)}
+      </div></div></div>, document.body)}
     </div>
   );
 }
@@ -442,6 +465,11 @@ const CSS = `
 .fv3 .edit-hint{display:none;margin-left:8px;font-size:10px;font-weight:700;color:var(--blue-ink);background:#EAF1FC;border-radius:6px;padding:1px 7px}
 .fv3 tbody tr.erow:hover .edit-hint{display:inline-block}
 .fv3-tip{font-size:11.5px;color:var(--muted);background:#F4F6F9;border-radius:20px;padding:6px 12px;white-space:nowrap}
+.fv3-period{display:inline-flex;gap:4px;align-items:center;margin-right:10px;vertical-align:middle}
+.fv3-period .pbtn{border:1px solid var(--line2);background:#fff;border-radius:8px;padding:5px 10px;font:inherit;font-size:11.5px;font-weight:700;color:#5B6472;cursor:pointer}
+.fv3-period .pbtn.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.fv3-period input[type=date]{font:inherit;font-size:11.5px;border:1px solid var(--line2);border-radius:8px;padding:4px 7px}
+.fv3-permini{font-size:11px;font-weight:600;color:var(--muted);background:#F4F6F9;border-radius:20px;padding:3px 10px;margin-left:8px;vertical-align:2px}
 .fv3-reducao{display:flex;gap:20px;flex-wrap:wrap;align-items:center;justify-content:space-between;background:linear-gradient(180deg,#0E5C33,#0B4A29);color:#fff;border-radius:16px;padding:18px 22px;box-shadow:var(--shadow);margin:14px 0}
 .fv3-reducao .rlbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:#BFE8CE}
 .fv3-reducao .rval{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:6px 0 2px}
