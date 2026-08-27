@@ -257,6 +257,21 @@ export default function Clientes() {
         </div>
       )}
 
+      {/* D1 — KPI-herói: soma das propostas de Oportunidade (o mais importante do dashboard) */}
+      <div className="card" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", background: "linear-gradient(135deg, var(--crasto-navy), #0a2350)", border: "none", color: "#fff" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 22 }}>💰</span>
+          <div>
+            <div style={{ fontSize: 11.5, opacity: 0.8, fontWeight: 700, letterSpacing: 0.3 }}>{t("TOTAL EM PROPOSTAS · OPORTUNIDADES")}</div>
+            <div style={{ fontSize: 12, opacity: 0.85 }}>{t("soma do valor das propostas nas oportunidades abertas")}</div>
+          </div>
+        </div>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 22, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ textAlign: "right" }}><div className="tnum" style={{ fontWeight: 800, fontSize: 24 }}>{money(oppStats.total)}</div><div style={{ fontSize: 11, opacity: 0.8 }}>{oppStats.count} {oppStats.count === 1 ? t("oportunidade") : t("oportunidades")}</div></div>
+          {oppStats.missing > 0 && <button className="chip" onClick={() => setTab("oportunidade")} style={{ cursor: "pointer", background: "rgba(255,255,255,.15)", color: "#fff", border: "1px solid rgba(255,255,255,.3)" }} title={t("Oportunidade só vale com proposta + valor + soluções. Abra a ficha e preencha.")}>⚠ {oppStats.missing} {t("sem valor de proposta")}</button>}
+        </div>
+      </div>
+
       {/* funil */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10, alignItems: "center" }}>
         {[{ key: "todos", label: "Todos" }, ...STAGES].map((s) => (
@@ -357,6 +372,8 @@ export default function Clientes() {
                         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
                           {c.is_donation && <span className="chip" style={{ background: "#E7F4F1", color: "#0F5F54" }} title={c.donation_note || t("Doação")}>💚 {t("Doação")}</span>}
                           {c.contract_status === "pendente" && <span className="chip" style={{ background: "#FBEEDD", color: "#8A5A12" }} title={t("Contrato pendente de assinatura")}>⏳ {t("Pendente contrato")}</span>}
+                          {c.stage === "oportunidade" && !c.deal_value && <span className="chip" style={{ background: "#FCE9E7", color: "#B42318" }} title={t("Oportunidade sem valor de proposta")}>⚠ {t("sem valor")}</span>}
+                          {(c.meetings_count ?? 0) > 0 && <span className="chip" style={{ background: "#E7F0FA", color: "#1F5E8F" }} title={c.has_transcript ? t("Tem transcrição") : t("Reuniões")}>🗓 {c.meetings_count}{c.has_transcript ? " 📝" : ""}</span>}
                           {isTrial(c) && <span className="chip" style={{ background: "#FAEEDA", color: "#633806" }}>{t("Trial")}</span>}
                           {c.churned_em && <span className="chip" style={{ background: "#FCEBEB", color: "#791F1F" }}>{t("Churned")}</span>}
                           {c.lead_temperature && tempOf(c.lead_temperature) && <span className="chip" style={{ background: tempOf(c.lead_temperature)!.bg, color: tempOf(c.lead_temperature)!.fg }}>{t(tempOf(c.lead_temperature)!.label)}</span>}
@@ -440,6 +457,8 @@ export default function Clientes() {
                         <Pill tone={st.tone}>{t(st.label)}</Pill>
                         {c.is_donation && <span className="chip" style={{ background: "#E7F4F1", color: "#0F5F54" }} title={c.donation_note || t("Doação (Ganho pró-bono, lucro R$0)")}>💚 {t("Doação")}{c.donation_value != null ? ` · ${money(c.donation_value)}` : ""}</span>}
                         {c.contract_status === "pendente" && <span className="chip" style={{ background: "#FBEEDD", color: "#8A5A12" }} title={t("Contrato pendente de assinatura")}>⏳ {t("Pendente contrato")}</span>}
+                        {c.stage === "oportunidade" && !c.deal_value && <span className="chip" style={{ background: "#FCE9E7", color: "#B42318" }} title={t("Oportunidade sem valor de proposta — preencha na ficha (valor + soluções).")}>⚠ {t("sem valor")}</span>}
+                        {(c.meetings_count ?? 0) > 0 && <span className="chip" style={{ background: "#E7F0FA", color: "#1F5E8F" }} title={c.has_transcript ? t("Tem transcrição de reunião") : t("Reuniões registradas")}>🗓 {c.meetings_count}{c.last_meeting_at ? ` · ${new Date(c.last_meeting_at).toLocaleDateString("pt-BR")}` : ""}{c.has_transcript ? " 📝" : ""}</span>}
                         {(c.papeis || []).filter((p) => p !== "cliente").map((p) => <span key={p} className="chip" style={{ background: "#EEEDFE", color: "#26215C" }}>{t(PAPEL_LABEL[p] || p)}</span>)}
                         {c.lead_temperature && tempOf(c.lead_temperature) && <span className="chip" style={{ background: tempOf(c.lead_temperature)!.bg, color: tempOf(c.lead_temperature)!.fg }} title={t("Temperatura")}>{t(tempOf(c.lead_temperature)!.label)}</span>}
                       </div>

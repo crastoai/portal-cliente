@@ -22,6 +22,9 @@ export type Client = {
   is_donation?: boolean | null; donation_value?: number | null; donation_note?: string | null; donated_at?: string | null;
   // CRM contrato (migration 050) — assinado / pendente (aguardando) / isento
   contract_status?: string | null;
+  // ICP/Avatar (migration 053) + reuniões (054)
+  segmento?: string | null; uf?: string | null; is_ngo?: boolean | null;
+  meetings_count?: number | null; last_meeting_at?: string | null; has_transcript?: boolean | null;
   // preenchido no front a partir de crmAccess.agentsOverview()
   agentes?: number; farol?: string | null;
 };

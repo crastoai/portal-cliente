@@ -21,6 +21,7 @@ import SiteField from "./SiteField";
 import OrgInline from "./OrgInline";
 import ServicosDeal from "./ServicosDeal";
 import Reminders from "./Reminders";
+import Meetings from "./Meetings";
 
 export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: string) => void }) {
   const { id } = useParams();
@@ -281,6 +282,9 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
           </div>
         </div>
       )}
+
+      {/* Reuniões & transcrições (D5) */}
+      <Meetings orgId={id!} />
 
       {/* Agendamentos & lembretes (B3) */}
       <Reminders orgId={id!} />
