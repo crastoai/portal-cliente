@@ -40,4 +40,7 @@ export const reminders = {
   cancel: async (id: string): Promise<any> => api.post(`/api/automation/reminders/${encodeURIComponent(id)}/cancel`, {}),
 };
 
-export const automation = { integrations, whatsapp, rules, reminders };
+// Webhook de transcrições (D5) — Google Meet em tempo real.
+export const meetWebhook = { info: async (): Promise<any> => api.get(`/api/automation/meet-webhook/info`) };
+
+export const automation = { integrations, whatsapp, rules, reminders, meetWebhook };

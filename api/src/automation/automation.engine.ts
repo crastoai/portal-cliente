@@ -43,6 +43,40 @@ export class AutomationEngineService {
   }
   cancelReminder(id: string) { return this.db.asService(async (c) => { await c.query(`update automation.reminders set status='cancelled' where id=$1 and status='pending'`, [id]); return { ok: true }; }); }
 
+  // ── Webhook de transcrições (D5) ──
+  getWebhookSecret() { return this.db.asService(async (c) => (await c.query(`select value from automation.app_settings where key='meet_webhook_secret'`)).rows[0]?.value as string | undefined); }
+  webhookInfo() { return this.db.asService(async (c) => ({ secret: (await c.query(`select value from automation.app_settings where key='meet_webhook_secret'`)).rows[0]?.value })); }
+
+  // Recebe uma transcrição (Google Meet) e roteia: casa com o cliente existente (e-mail/nome) ou
+  // cria um novo (lead — houve reunião) e registra a reunião. Retorna o que aconteceu.
+  async ingestMeetTranscript(p: any) {
+    return this.db.asService(async (c) => {
+      const email = String(p?.contact_email || '').trim().toLowerCase();
+      const name = String(p?.contact_name || p?.company || '').trim();
+      let orgId: string | null = null, created = false, matched_by = 'none';
+      if (email) {
+        let r = (await c.query(`select organization_id from public.profiles where lower(email)=$1 and organization_id is not null limit 1`, [email])).rows[0];
+        if (!r) r = (await c.query(`select organization_id from crm.people where organization_id is not null and exists (select 1 from unnest(coalesce(emails,'{}'::text[])) e where lower(e)=$1) limit 1`, [email])).rows[0];
+        if (r?.organization_id) { orgId = r.organization_id; matched_by = 'email'; }
+      }
+      if (!orgId && name) {
+        const r = (await c.query(`select id from public.organizations where name ilike $1 order by created_at limit 1`, ['%' + name + '%'])).rows[0];
+        if (r?.id) { orgId = r.id; matched_by = 'nome'; }
+      }
+      if (!orgId) {
+        const nm = String(p?.company || name || p?.title || 'Contato de reunião').trim().slice(0, 120);
+        const r = (await c.query(`insert into public.organizations (name, stage, source) values ($1,'lead','meet_webhook') returning id`, [nm])).rows[0];
+        orgId = r.id; created = true; matched_by = 'novo';
+      }
+      const mr = (await c.query(
+        `insert into delivery.client_meetings (organization_id, meeting_at, title, attendees, summary, transcript, created_by_name) values ($1, coalesce($2::timestamptz, now()), $3, $4, $5, $6, 'Google Meet (webhook)') returning id`,
+        [orgId, p?.meeting_at || null, String(p?.title || 'Reunião').slice(0, 200), p?.attendees || null, p?.summary || null, p?.transcript || null],
+      )).rows[0];
+      this.log.log(`meet-webhook: org=${orgId} matched=${matched_by} created=${created}`);
+      return { ok: true, organization_id: orgId, created, matched_by, meeting_id: mr.id };
+    });
+  }
+
   // ── Disparo (usado pelo cron e pelo "rodar agora") ──
   async runDispatch(): Promise<{ reminders: number; rules: number }> {
     return this.db.asService(async (c) => {

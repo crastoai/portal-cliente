@@ -29,7 +29,8 @@ const CATMAP: Record<string, string> = { ferramenta: "Ferramenta", infraestrutur
 const catLabel = (c?: string) => (c ? (CATMAP[c] || c.charAt(0).toUpperCase() + c.slice(1)) : "Serviço");
 const CAT_EMOJI: Record<string, string> = { IA: "🤖", Pessoas: "👤", Ferramenta: "🛠️", Infraestrutura: "☁️", "Serviço": "📦" };
 
-type Item = { id: string; rawId: string; empresa: string; sub: string; categoria: string; contratacao: string; venc: string; pag: string; total: number; pago: number; restante: number; status: string };
+type Item = { id: string; rawId: string; empresa: string; sub: string; categoria: string; rec: string; contratacao: string; venc: string; pag: string; total: number; pago: number; restante: number; status: string };
+const RECLBL: Record<string, string> = { mensal: "Mensal", anual: "Anual", pontual: "Pontual", parcelado: "Parcelado", uso: "Por uso" };
 
 export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[]; costs: any[]; onEdit?: (rawId: string) => void }) {
   const today = todayISO();
@@ -61,17 +62,29 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[];
 
   // ---- itens (contas a pagar + custos operacionais) ----
   const statusOf = (venc: string, restante: number, paid: boolean) => paid || restante <= 0.005 ? "Pago" : (venc && ymd(venc) < today ? "Vencido" : "Pendente");
-  const items: Item[] = useMemo(() => {
+  const baseItems: Item[] = useMemo(() => {
     const A: Item[] = (pay || []).map((a: any) => {
       const total = Number(a.amount || 0), pago = Number(a.amount_paid || 0), rest = Math.max(0, total - pago);
-      return { id: "a_" + a.id, rawId: a.id, empresa: a.contact_name || a.description || "—", sub: a.description && a.contact_name ? a.description : (a.expense_type || "1 lançamento"), categoria: catLabel(a.category), contratacao: ymd(a.contract_signed_date) || ymd(a.created_at), venc: ymd(a.due_date), pag: ymd(a.payment_date), total, pago, restante: rest, status: statusOf(a.due_date, rest, a.status === "paid") };
+      const ps = Array.isArray(a.payment_schedule) ? a.payment_schedule : [];
+      const rec = a.recurrence === "mensal" || a.recurrence === "anual" ? a.recurrence : (ps.length ? "parcelado" : "pontual");
+      return { id: "a_" + a.id, rawId: a.id, empresa: a.contact_name || a.description || "—", sub: a.description && a.contact_name ? a.description : (a.expense_type || "1 lançamento"), categoria: catLabel(a.category), rec, contratacao: ymd(a.contract_signed_date) || ymd(a.created_at), venc: ymd(a.due_date), pag: ymd(a.payment_date), total, pago, restante: rest, status: statusOf(a.due_date, rest, a.status === "paid") };
     });
     const C: Item[] = (costs || []).filter((c: any) => c.is_active !== false).map((c: any) => {
       const total = Number(c.amount_brl || 0), pago = Number(c.amount_paid || 0), rest = Math.max(0, total - pago);
-      return { id: "c_" + c.id, rawId: c.id, empresa: c.vendor_name || "—", sub: (c.recurrence || "") + (c.purpose ? " · " + c.purpose : ""), categoria: catLabel(c.category), contratacao: ymd(c.reference_date) || ymd(c.created_at), venc: ymd(c.next_payment_date), pag: ymd(c.payment_date), total, pago, restante: rest, status: statusOf(c.next_payment_date, rest, pago >= total - 0.005) };
+      return { id: "c_" + c.id, rawId: c.id, empresa: c.vendor_name || "—", sub: (c.purpose || c.description || "assinatura"), categoria: catLabel(c.category), rec: (c.recurrence === "anual" ? "anual" : "mensal"), contratacao: ymd(c.reference_date) || ymd(c.created_at), venc: ymd(c.next_payment_date), pag: ymd(c.payment_date), total, pago, restante: rest, status: statusOf(c.next_payment_date, rest, pago >= total - 0.005) };
     });
     return [...A, ...C];
   }, [pay, costs]);
+  // Uso de IA por plataforma (finance.ai_usage, agregado no período) entra como LINHAS da tabela,
+  // para que ao filtrar por "Anthropic"/"Gemini" apareça TODO o gasto (assinatura + uso), somado.
+  const iaItems: Item[] = useMemo(() => {
+    const nm: Record<string, string> = { claude_api: "Anthropic · Claude (uso IA)", gemini: "Google · Gemini (uso IA)", deepseek_api: "DeepSeek (uso IA)", gpt: "OpenAI · GPT (uso IA)", other: "Outros · uso IA" };
+    return byPlatform.map((r: any) => {
+      const total = Number(r.cost || 0);
+      return { id: "ia_" + (r.platform || r.provider), rawId: "", empresa: nm[r.platform] || ((r.provider || r.platform || "IA") + " (uso IA)"), sub: "uso por token · " + period.label, categoria: "IA", rec: "uso", contratacao: "", venc: "", pag: "", total, pago: total, restante: 0, status: "Pago" } as Item;
+    }).filter((x: Item) => x.total > 0.005);
+  }, [aiPanel, period.label]);
+  const items: Item[] = useMemo(() => [...baseItems, ...iaItems], [baseItems, iaItems]);
 
   // ---- KPIs ----
   // Pago no ano = pagamentos com data neste ano (+ os marcados pagos sem data registrada).
@@ -276,7 +289,7 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[];
       <div className="fv3-toolbar">
         <div className="fv3-search">🔍 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar em qualquer coluna…" /></div>
         <span className="fv3-tip">Filtre clicando no <b>título de cada coluna ▾</b></span>
-        <button className="fv3-btn" onClick={() => { setCf(emptyCF()); setChip("Todos"); setSearch(""); }}>Limpar filtros</button>
+        <button className="fv3-btn" onClick={() => { setCf(emptyCF()); setChip("Todos"); setSearch(""); setPeriod({ from: yStart, to: yEnd, label: "Este ano" }); }}>Limpar filtros</button>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
           <label className="fv3-lbl">Exportar em <input type="date" value={pdfRef} onChange={e => setPdfRef(e.target.value)} /></label>
           <button className="fv3-btn dark" onClick={exportPDF}>⭳ Exportar PDF</button>
@@ -311,7 +324,7 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[];
               {shown.length === 0 ? <tr><td colSpan={9} style={{ padding: 16, color: "#6B7280" }}>Nenhum lançamento para este filtro.</td></tr> : shown.map(i => (
                 <tr key={i.id} className="erow" onClick={() => onEdit?.(i.rawId)} title="Clique para editar este lançamento na origem">
                   <td className="co">{i.empresa}<small>{i.sub}</small><span className="edit-hint">✎ editar</span></td>
-                  <td><span className="typ">{(CAT_EMOJI[i.categoria] || "")} {i.categoria}</span></td>
+                  <td><span className="typ">{(CAT_EMOJI[i.categoria] || "")} {i.categoria}</span> <span className={"recpill r-" + i.rec}>{RECLBL[i.rec] || i.rec}</span></td>
                   <td className="dt">{fmtDT(i.contratacao)}</td>
                   <td className="dt">{fmtDT(i.venc)}</td>
                   <td className="dt">{i.pag ? fmtDT(i.pag) : <small>—</small>}</td>
@@ -434,6 +447,11 @@ const CSS = `
 .fv3 td.co{font-weight:700}.fv3 td.co small{display:block;font-weight:500;color:var(--muted);font-size:11.5px;margin-top:2px}
 .fv3 td.dt{font-variant-numeric:tabular-nums;font-size:12.5px}
 .fv3 .typ{font-size:11.5px;font-weight:600;color:var(--muted);background:var(--hover);padding:4px 10px;border-radius:20px}
+.fv3 .recpill{font-size:10px;font-weight:800;letter-spacing:.02em;padding:2px 8px;border-radius:6px;white-space:nowrap;text-transform:uppercase}
+.fv3 .recpill.r-mensal{background:rgba(110,156,232,.16);color:var(--blue-ink)}
+.fv3 .recpill.r-anual{background:rgba(139,92,246,.16);color:#7c4ddb}
+.fv3 .recpill.r-uso{background:rgba(253,176,34,.18);color:var(--amber)}
+.fv3 .recpill.r-pontual,.fv3 .recpill.r-parcelado{background:var(--hover);color:var(--muted)}
 .fv3 .st{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:20px}
 .fv3 .st.pend{background:var(--track);color:var(--muted)}.fv3 .st.pago{background:var(--green-bg);color:var(--green-ink)}.fv3 .st.venc{background:var(--red-bg);color:var(--red)}
 .fv3 tfoot .totrow td{position:sticky;bottom:0;background:var(--bg2);border-top:2px solid var(--line2);font-weight:800;font-size:12.5px;padding:12px 14px}

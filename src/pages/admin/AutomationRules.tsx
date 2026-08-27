@@ -17,6 +17,9 @@ export default function AutomationRules() {
   const t = useT();
   const toast = useToast();
   const { data, loading, reload } = useAsync(async () => ((await api.automation.rules.list().catch(() => [])) as Rule[]) ?? [], []);
+  const { data: wh } = useAsync(async () => (await api.automation.meetWebhook.info().catch(() => null)) as any, []);
+  const apiBase = (import.meta as any).env?.VITE_API_URL || "";
+  const webhookUrl = wh?.secret ? `${apiBase}/api/automation/public/meet-webhook` : "";
   const [draft, setDraft] = useState<Record<string, Rule>>({});
   useEffect(() => { if (data) { const m: Record<string, Rule> = {}; data.forEach((r) => (m[r.rule_type] = { ...r, channels: r.channels || [] })); setDraft(m); } }, [data]);
 
@@ -69,6 +72,18 @@ export default function AutomationRules() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {wh?.secret && (
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--crasto-border-soft)" }}>
+          <div style={{ fontWeight: 700, fontSize: 12.5, color: "var(--crasto-text-primary)", marginBottom: 4 }}>{t("Captura de transcrições (Google Meet) — webhook")}</div>
+          <div className="mt" style={{ fontSize: 11.5, marginBottom: 8 }}>{t("Aponte o Google/n8n/Apps Script para esta URL ao fim de cada reunião. Casa com o cliente existente (por e-mail) ou cria um novo no funil.")}</div>
+          <div style={{ display: "grid", gap: 6 }}>
+            <div><div className="infolab" style={{ fontSize: 11 }}>URL (POST)</div><input className="inp" readOnly value={webhookUrl} onFocus={(e) => e.currentTarget.select()} style={{ width: "100%", fontFamily: "monospace", fontSize: 12 }} /></div>
+            <div><div className="infolab" style={{ fontSize: 11 }}>Secret</div><input className="inp" readOnly value={wh.secret} onFocus={(e) => e.currentTarget.select()} style={{ width: "100%", fontFamily: "monospace", fontSize: 12 }} /></div>
+          </div>
+          <div className="mt" style={{ fontSize: 11, marginTop: 6 }}>{t("Corpo JSON: { secret, title, meeting_at, attendees, transcript, summary, contact_email, contact_name }.")}</div>
         </div>
       )}
     </div>

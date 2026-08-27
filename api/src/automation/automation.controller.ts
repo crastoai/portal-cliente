@@ -19,6 +19,7 @@ export class AutomationController {
   @Post('reminders') createReminder(@Req() req: any, @Body() b: any) { return this.engine.createReminder(b, this.uid(req)); }
   @Post('reminders/:id/cancel') cancelReminder(@Param('id') id: string) { return this.engine.cancelReminder(id); }
   @Post('run-now') runNow() { return this.engine.runDispatch(); }
+  @Get('meet-webhook/info') webhookInfo() { return this.engine.webhookInfo(); }
 
   @Get('integrations')
   list(@Req() req: any) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select key,display_name,status from automation.integrations order by display_name')).rows); }
