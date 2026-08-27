@@ -39,15 +39,31 @@ export class AutomationController {
     } catch (e: any) { return { ok: false, error: e?.message || 'falha ao chamar a Evolution' }; }
   }
 
+  // Só as instâncias DO PORTAL (registro automation.wa_instances) — a Evolution é compartilhada
+  // com os clientes; nunca mostrar as instâncias deles aqui.
   @Get('whatsapp/instances')
-  async waList(@Req() req: any) { return this.evoCall(await this.evoCfg(req), '/instance/fetchInstances'); }
+  async waList(@Req() req: any) {
+    const cfg = await this.evoCfg(req);
+    const evo = await this.evoCall(cfg, '/instance/fetchInstances');
+    const reg: any[] = (await this.db.asUser(this.uid(req), async (c) => (await c.query('select public.admin_wa_instances() as r')).rows[0]?.r)) || [];
+    const mine = new Set(reg.map((x: any) => x.name));
+    const raw: any[] = Array.isArray((evo as any)?.data) ? (evo as any).data : [];
+    const items = raw
+      .map((it: any) => { const i = it.instance || it; return { name: i.instanceName || i.name || i.id || '', state: i.state || i.connectionStatus || i.status || 'unknown' }; })
+      .filter((x: any) => x.name && mine.has(x.name));
+    // registradas que a Evolution ainda não devolveu (ex.: recém-criada) → aparecem como aguardando
+    for (const r of reg) if (!items.find((x: any) => x.name === r.name)) items.push({ name: r.name, state: 'unknown' });
+    return { ok: true, data: items };
+  }
 
   @Post('whatsapp/instances')
   async waCreate(@Req() req: any, @Body() b: any) {
     const name = String(b?.name || '').trim();
     if (!name) return { ok: false, error: 'Informe o nome da instância.' };
     if (!/^[a-zA-Z0-9 _-]{2,60}$/.test(name)) return { ok: false, error: 'Nome inválido (2–60, letras/números/espaço/_/-).' };
-    return this.evoCall(await this.evoCfg(req), '/instance/create', 'POST', { instanceName: name, qrcode: true, integration: 'WHATSAPP-BAILEYS' });
+    const r = await this.evoCall(await this.evoCfg(req), '/instance/create', 'POST', { instanceName: name, qrcode: true, integration: 'WHATSAPP-BAILEYS' });
+    if ((r as any)?.ok) { try { await this.db.asUser(this.uid(req), async (c) => c.query('select public.admin_wa_instance_add($1,$2)', [name, name])); } catch { /* registro é best-effort */ } }
+    return r;
   }
 
   @Get('whatsapp/instances/:name/connect')
@@ -57,5 +73,9 @@ export class AutomationController {
   async waState(@Req() req: any, @Param('name') name: string) { return this.evoCall(await this.evoCfg(req), `/instance/connectionState/${encodeURIComponent(name)}`); }
 
   @Delete('whatsapp/instances/:name')
-  async waDelete(@Req() req: any, @Param('name') name: string) { return this.evoCall(await this.evoCfg(req), `/instance/delete/${encodeURIComponent(name)}`, 'DELETE'); }
+  async waDelete(@Req() req: any, @Param('name') name: string) {
+    const r = await this.evoCall(await this.evoCfg(req), `/instance/delete/${encodeURIComponent(name)}`, 'DELETE');
+    try { await this.db.asUser(this.uid(req), async (c) => c.query('select public.admin_wa_instance_remove($1)', [name])); } catch { /* best-effort */ }
+    return r;
+  }
 }
