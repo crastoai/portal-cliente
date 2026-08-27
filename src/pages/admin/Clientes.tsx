@@ -315,7 +315,7 @@ export default function Clientes() {
                   {(byStage[s.key] ?? []).length === 0 ? (
                     <div className="mt" style={{ padding: "6px 4px", fontSize: 12, opacity: 0.6 }}>{t("Vazio")}</div>
                   ) : (byStage[s.key] ?? []).map((c) => {
-                    const cor = farolOf(c); const propVal = c.deal_value ?? (c.mrr > 0 ? c.mrr : null);
+                    const cor = farolOf(c); const propVal = c.deal_value ?? (c.mrr > 0 ? c.mrr : null); const ag = agentesOf(c);
                     return (
                       <div key={c.id} className="card" onClick={() => nav(`/admin/cliente/${c.id}`)} style={{ padding: 12, cursor: "pointer", boxShadow: "var(--crasto-shadow-xs)" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -334,7 +334,34 @@ export default function Clientes() {
                           {c.churned_em && <span className="chip" style={{ background: "#FCEBEB", color: "#791F1F" }}>{t("Churned")}</span>}
                           {c.lead_temperature && tempOf(c.lead_temperature) && <span className="chip" style={{ background: tempOf(c.lead_temperature)!.bg, color: tempOf(c.lead_temperature)!.fg }}>{t(tempOf(c.lead_temperature)!.label)}</span>}
                           {(c.papeis || []).filter((p) => p !== "cliente").map((p) => <span key={p} className="chip" style={{ background: "#EEEDFE", color: "#26215C" }}>{t(PAPEL_LABEL[p] || p)}</span>)}
-                          {propVal != null && <span style={{ marginLeft: "auto", fontWeight: 700, fontSize: 12.5, color: "var(--crasto-text-primary)" }}>{money(propVal)}</span>}
+                        </div>
+                        {/* infos completas (mesmas colunas da lista) */}
+                        <div style={{ marginTop: 10, display: "grid", gap: 4, fontSize: 11.5 }}>
+                          {([
+                            [t("Contato"), c.owner_name || "—", "var(--crasto-text-body)"],
+                            [t("Telefone"), c.phone || "—", "var(--crasto-text-body)"],
+                            [t("Proposta"), propVal != null ? money(propVal) : "—", "var(--crasto-text-primary)"],
+                            [t("Criado em"), fmtDateTime(c.created_at), "var(--crasto-text-muted)"],
+                            [t("Convertido"), fmtDateTime(c.convertido_em), "var(--crasto-text-muted)"],
+                            [t("Agentes"), ag != null ? String(ag) : "—", "var(--crasto-text-body)"],
+                          ] as [string, string, string][]).map(([k, v, col]) => (
+                            <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                              <span style={{ color: "var(--crasto-text-faint)", flex: "none" }}>{k}</span>
+                              <span className="tnum" style={{ color: col, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v}</span>
+                            </div>
+                          ))}
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, cursor: "pointer" }} onClick={(e) => ver(c, e)}>
+                            <span style={{ color: "var(--crasto-text-faint)", flex: "none" }}>{t("Soluções")}</span>
+                            <span style={{ color: "var(--crasto-blue)" }}>{(c.modules?.length ?? 0) > 0 ? `${c.modules!.length} ${c.modules!.length === 1 ? t("solução") : t("soluções")}` : "—"}</span>
+                          </div>
+                        </div>
+                        {/* ações (as mesmas da lista) */}
+                        <div className="rowacts" style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid var(--crasto-border-soft)", display: "flex", justifyContent: "flex-end", gap: 2 }} onClick={(e) => e.stopPropagation()}>
+                          <button className="iconbtn" title={t("Ver detalhes")} onClick={(e) => ver(c, e)}><Eye size={16} /></button>
+                          <button className="iconbtn" title={t("Permissões & acessos")} onClick={(e) => acessos(c, e)}><ShieldCheck size={16} color="var(--crasto-blue)" /></button>
+                          <button className="iconbtn" title={(c.org_status ?? "active") === "active" ? t("Inativar") : t("Ativar")} onClick={(e) => ativar(c, e)}><Power size={16} color={(c.org_status ?? "active") === "active" ? "#1D9E75" : "var(--crasto-text-faint)"} /></button>
+                          <button className="iconbtn" title={t("Promover de estágio")} onClick={(e) => promover(c, e)}><ArrowRightLeft size={16} /></button>
+                          <button className="iconbtn" title={t("Excluir empresa (irreversível)")} onClick={(e) => { stop(e); setDelAlvo(c); setDelNome(""); }}><Trash2 size={16} color="var(--crasto-red, #E74C3C)" /></button>
                         </div>
                       </div>
                     );
