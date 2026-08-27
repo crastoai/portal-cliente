@@ -5,11 +5,12 @@
 // proposta. Fonte: delivery.client_meetings.
 // ============================================================================
 import { useState } from "react";
-import { CalendarDays, Plus, X, Trash2, FileText, ScrollText, ChevronDown, ChevronRight } from "lucide-react";
+import { CalendarDays, Plus, X, Trash2, FileText, ScrollText } from "lucide-react";
 import { services as api } from "../../services";
 import { useAsync, useToast, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import { fmtDateTime } from "../../lib/adminData";
+import TranscriptModal from "./TranscriptModal";
 
 export default function Meetings({ orgId }: { orgId: string }) {
   const t = useT();
@@ -20,7 +21,7 @@ export default function Meetings({ orgId }: { orgId: string }) {
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({ meeting_at: "", title: "", attendees: "", summary: "", transcript: "" });
   const [busy, setBusy] = useState(false);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [openMeeting, setOpenMeeting] = useState<any | null>(null);
 
   async function criar() {
     if (!f.meeting_at || !f.title.trim()) { toast.err(t("Informe a data e o título da reunião.")); return; }
@@ -65,31 +66,24 @@ export default function Meetings({ orgId }: { orgId: string }) {
         <div className="mt" style={{ padding: "6px 2px" }}>{t("Nenhuma reunião ainda. Toda reunião (do lead ao ganho) fica registrada aqui com transcrição e resumo.")}</div>
       ) : (
         <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
-          {list.map((m) => {
-            const ex = !!expanded[m.id];
-            return (
-              <div key={m.id} style={{ border: "1px solid var(--crasto-border-soft)", borderRadius: "var(--crasto-radius-md)", padding: "10px 12px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <button className="iconbtn" style={{ width: 22, height: 22 }} onClick={() => setExpanded((e) => ({ ...e, [m.id]: !ex }))}>{ex ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</button>
-                  <div style={{ flex: 1, minWidth: 160 }}>
-                    <div style={{ fontWeight: 600, color: "var(--crasto-text-primary)", fontSize: 13.5 }}>{m.title}</div>
-                    <div className="mt" style={{ fontSize: 12 }}>{fmtDateTime(m.meeting_at)}{m.attendees ? ` · ${m.attendees}` : ""}</div>
-                  </div>
-                  {m.summary && <span className="chip" style={{ background: "#EEF2FB", color: "#26478A" }}><FileText size={11} style={{ verticalAlign: "-1px" }} /> {t("resumo")}</span>}
-                  {m.transcript && <span className="chip" style={{ background: "#E7F0FA", color: "#1F5E8F" }}><ScrollText size={11} style={{ verticalAlign: "-1px" }} /> {t("transcrição")}</span>}
-                  <button className="iconbtn" title={t("Excluir")} onClick={() => del(m.id)}><Trash2 size={14} color="var(--crasto-red, #E74C3C)" /></button>
-                </div>
-                {ex && (m.summary || m.transcript) && (
-                  <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-                    {m.summary && <div><div className="infolab" style={{ fontSize: 11.5, color: "var(--crasto-text-muted)" }}>{t("Resumo")}</div><div style={{ fontSize: 13, whiteSpace: "pre-wrap" }}>{m.summary}</div></div>}
-                    {m.transcript && <div><div className="infolab" style={{ fontSize: 11.5, color: "var(--crasto-text-muted)" }}>{t("Transcrição")}</div><div style={{ fontSize: 12.5, whiteSpace: "pre-wrap", maxHeight: 260, overflow: "auto", background: "var(--crasto-bg-2)", borderRadius: 8, padding: 10 }}>{m.transcript}</div></div>}
-                  </div>
-                )}
+          {list.map((m) => (
+            <div key={m.id} onClick={() => setOpenMeeting(m)} title={t("Abrir transcrição")}
+              style={{ border: "1px solid var(--crasto-border-soft)", borderRadius: "var(--crasto-radius-md)", padding: "10px 12px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", cursor: "pointer" }}>
+              <ScrollText size={15} style={{ color: "var(--crasto-text-muted)", flex: "none" }} />
+              <div style={{ flex: 1, minWidth: 160 }}>
+                <div style={{ fontWeight: 600, color: "var(--crasto-text-primary)", fontSize: 13.5 }}>{m.title}</div>
+                <div className="mt" style={{ fontSize: 12 }}>{fmtDateTime(m.meeting_at)}{m.attendees ? ` · ${m.attendees}` : ""}</div>
               </div>
-            );
-          })}
+              {m.summary && <span className="chip" style={{ background: "#EEF2FB", color: "#26478A" }}><FileText size={11} style={{ verticalAlign: "-1px" }} /> {t("resumo")}</span>}
+              {m.transcript && <span className="chip" style={{ background: "#E7F0FA", color: "#1F5E8F" }}><ScrollText size={11} style={{ verticalAlign: "-1px" }} /> {t("transcrição")}</span>}
+              <button className="iconbtn" title={t("Excluir")} onClick={(e) => { e.stopPropagation(); del(m.id); }}><Trash2 size={14} color="var(--crasto-red, #E74C3C)" /></button>
+            </div>
+          ))}
         </div>
       )}
+
+      <TranscriptModal meeting={openMeeting} open={!!openMeeting} onClose={() => setOpenMeeting(null)}
+        onUpdated={(s) => { setOpenMeeting((mm: any) => (mm ? { ...mm, summary: s } : mm)); reload(); }} />
     </div>
   );
 }

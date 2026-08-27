@@ -43,6 +43,28 @@ export class AutomationEngineService {
   }
   cancelReminder(id: string) { return this.db.asService(async (c) => { await c.query(`update automation.reminders set status='cancelled' where id=$1 and status='pending'`, [id]); return { ok: true }; }); }
 
+  // ── Resumo de reunião por IA (Gemini) ──
+  async summarizeMeeting(id: string) {
+    return this.db.asService(async (c) => {
+      const m = (await c.query(`select id, title, attendees, transcript from delivery.client_meetings where id=$1`, [id])).rows[0];
+      if (!m) return { ok: false, error: 'reunião não encontrada' };
+      if (!m.transcript || !String(m.transcript).trim()) return { ok: false, error: 'esta reunião não tem transcrição para resumir' };
+      const key = (await c.query(`select public.reveal_provider_key('google') as k`)).rows[0]?.k;
+      if (!key) return { ok: false, error: 'IA (Gemini) não configurada no cofre' };
+      const prompt = `Você é um assistente comercial sênior da Crasto.AI. A partir da transcrição de reunião abaixo, gere um resumo claro e ACIONÁVEL para o CRM. Responda em Markdown, exatamente com estas seções:\n\n## Resumo\n(3 a 5 linhas objetivas)\n\n## Pontos-chave\n- (bullets)\n\n## Decisões\n- (bullets; se não houve, escreva "Nenhuma decisão registrada")\n\n## Próximos passos — Crasto\n- (tarefas concretas para a Crasto)\n\n## Próximos passos — Cliente\n- (tarefas concretas para o cliente)\n\nReunião: ${m.title || '—'}\nParticipantes: ${m.attendees || '—'}\n\nTRANSCRIÇÃO:\n${String(m.transcript).slice(0, 120000)}`;
+      const call = (mm: string) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mm}:generateContent`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      }).then(async (r) => ({ ok: r.ok, j: (await r.json()) as any }));
+      let res = await call('gemini-2.5-flash');
+      if (!res.ok) res = await call('gemini-flash-latest');
+      const text: string = (res.j?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text).join('').trim();
+      if (!text) return { ok: false, error: res.j?.error?.message || 'a IA não retornou resumo' };
+      await c.query(`update delivery.client_meetings set summary=$2, updated_at=now() where id=$1`, [id, text]);
+      return { ok: true, summary: text };
+    });
+  }
+
   // ── Webhook de transcrições (D5) ──
   getWebhookSecret() { return this.db.asService(async (c) => (await c.query(`select value from automation.app_settings where key='meet_webhook_secret'`)).rows[0]?.value as string | undefined); }
   webhookInfo() { return this.db.asService(async (c) => ({ secret: (await c.query(`select value from automation.app_settings where key='meet_webhook_secret'`)).rows[0]?.value })); }

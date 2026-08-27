@@ -9,6 +9,7 @@ import UsoModulos from "../../ui/UsoModulos";
 import Modal from "../../ui/Modal";
 import { COUNTRIES, countryOf, PIPELINE_STAGES, WON_STAGE, stageOf, DIAL_CODES } from "../../lib/countries";
 import Reminders from "./Reminders";
+import TranscriptModal from "./TranscriptModal";
 import { reg as regInfo, regTypeFor, COUNTRIES as REG_COUNTRIES, countryName as regCountryName } from "../../lib/registrations";
 import { CrmAccessSection } from "./CrmAccessSection";
 import SocialIntegracoes from "./SocialIntegracoes";
@@ -63,6 +64,7 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
   }, [id]);
 
   const [edit, setEdit] = useState(false);
+  const [openMeeting, setOpenMeeting] = useState<any>(null);
   const [ef, setEf] = useState<Org>(null);
   // Edição de usuário do Portal (nome/e-mail/papel).
   const [person, setPerson] = useState({ full_name: "", role: "", funcao: "", email: "", birthday: "", is_primary: false, disc_tipo: "", disc_data: "", notes: "" });
@@ -710,7 +712,7 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
         <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={addMeeting}><span className="crasto-btn__label">{busy ? tr("Salvando…") : tr("Registrar reunião")}</span></button>
       </div>
       {(meetings as any[]).length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Nenhuma reunião registrada — o cliente ainda não vê nada aqui.")}</div> : (meetings as any[]).map((m: any) => (
-        <div className="lead" key={m.id}><div className="av">📋</div><div style={{ flex: 1 }}><div className="nm">{m.title}</div><div className="mt">{fmtDate(m.meeting_at)}{m.attendees ? ` · ${m.attendees}` : ""}{m.created_by_name ? ` · ${tr("por")} ${m.created_by_name}` : ""}{m.transcript ? ` · ${tr("com minuta")}` : ""}</div></div><button className="icobtn rm" onClick={() => delMeeting(m.id)}><Trash2 size={13} /></button></div>
+        <div className="lead" key={m.id} onClick={() => setOpenMeeting(m)} title={tr("Abrir transcrição")} style={{ cursor: "pointer" }}><div className="av">📋</div><div style={{ flex: 1 }}><div className="nm">{m.title}</div><div className="mt">{fmtDate(m.meeting_at)}{m.attendees ? ` · ${m.attendees}` : ""}{m.created_by_name ? ` · ${tr("por")} ${m.created_by_name}` : ""}{m.transcript ? ` · ${tr("com minuta")}` : ""}</div></div>{m.transcript && <span className="chip" style={{ background: "#E7F0FA", color: "#1F5E8F" }}>{tr("ler")}</span>}<button className="icobtn rm" onClick={(e) => { e.stopPropagation(); delMeeting(m.id); }}><Trash2 size={13} /></button></div>
       ))}
 
       {/* Histórico */}
@@ -724,6 +726,8 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
       {acts.length === 0 ? <div className="mt" style={{ padding: "4px 2px" }}>{tr("Sem histórico ainda.")}</div> : acts.map((a) => (
         <div className="lead" key={a.id}><div className="av">{({ note: "📝", conversation: "💬", order: "🛒", meeting: "📅", proposal: "📄" } as any)[a.type] || "•"}</div><div><div className="nm">{a.title}</div><div className="mt">{a.description || a.type} · {fmtDate(a.occurred_at)}</div></div><button className="icobtn rm" onClick={() => delRow("crm", "activities", a.id)}><Trash2 size={13} /></button></div>
       ))}
+
+      <TranscriptModal meeting={openMeeting} open={!!openMeeting} onClose={() => setOpenMeeting(null)} onUpdated={() => reload()} />
 
       {toast && <div className="toast">{toast}</div>}
     </div>

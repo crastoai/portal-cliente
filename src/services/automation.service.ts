@@ -51,4 +51,7 @@ export const googleMeet = {
   pollNow: async (): Promise<any> => api.post(`/api/integrations/google-meet/poll-now`, {}),
 };
 
-export const automation = { integrations, whatsapp, rules, reminders, meetWebhook, googleMeet };
+// Reuniões — resumo por IA (Gemini).
+export const meetings = { summarize: async (id: string): Promise<any> => api.post(`/api/automation/meeting/${encodeURIComponent(id)}/summarize`, {}) };
+
+export const automation = { integrations, whatsapp, rules, reminders, meetWebhook, googleMeet, meetings };
