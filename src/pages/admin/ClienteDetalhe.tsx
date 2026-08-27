@@ -369,6 +369,8 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
           <div><div className="infolab">{tr("Fundação")}</div><OrgInline orgId={id!} field="founded_on" value={org.founded_on ? String(org.founded_on).slice(0, 10) : ""} type="date" flash={flash} /></div>
           <div><div className="infolab">{tr("Dono / Presidente")}</div><OrgInline orgId={id!} field="owner_name" value={org.owner_name} placeholder="—" flash={flash} /></div>
           <div><div className="infolab">{tr("Website")}</div><OrgInline orgId={id!} field="website" value={org.website} placeholder="https://…" flash={flash} /></div>
+          <div><div className="infolab">{tr("Segmento (nicho)")}</div><OrgInline orgId={id!} field="segmento" value={org.segmento} placeholder="—" flash={flash} /></div>
+          <div><div className="infolab">{tr("UF")}</div><OrgInline orgId={id!} field="uf" value={org.uf} placeholder={tr("ex.: SP")} flash={flash} /></div>
           <div><div className="infolab">{tr("Plano")}</div><OrgInline orgId={id!} field="plan" value={org.plan} placeholder="—" flash={flash} /></div>
         </div>
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--crasto-border-soft)" }}>

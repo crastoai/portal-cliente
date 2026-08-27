@@ -226,6 +226,8 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
           <div><div className="infolab">{t("Fundação")}</div><OrgInline orgId={id!} field="founded_on" value={org.founded_on ? String(org.founded_on).slice(0, 10) : ""} type="date" flash={(m) => toast.ok(m)} /></div>
           <div><div className="infolab">{t("Dono / Presidente")}</div><OrgInline orgId={id!} field="owner_name" value={org.owner_name} placeholder="—" flash={(m) => toast.ok(m)} /></div>
           <div><div className="infolab">{t("Website")}</div><OrgInline orgId={id!} field="website" value={org.website} placeholder="https://…" flash={(m) => toast.ok(m)} /></div>
+          <div><div className="infolab">{t("Segmento (nicho)")}</div><OrgInline orgId={id!} field="segmento" value={org.segmento} placeholder="—" flash={(m) => toast.ok(m)} /></div>
+          <div><div className="infolab">{t("UF")}</div><OrgInline orgId={id!} field="uf" value={org.uf} placeholder={t("ex.: SP")} flash={(m) => toast.ok(m)} /></div>
         </div>
         <div style={{ marginTop: 12 }}><div className="infolab">{t("Observações")}</div><OrgInline orgId={id!} field="notes" value={org.notes} placeholder={t("nota interna sobre a empresa")} flash={(m) => toast.ok(m)} /></div>
       </div>
