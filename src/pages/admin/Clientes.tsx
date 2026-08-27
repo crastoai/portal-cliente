@@ -3,8 +3,8 @@
 // Farol de saúde + funil + filtros cruzados (trial/churned/ativos/inativos/oculto/país/período),
 // colunas ordenáveis, timestamps completos (dd/mm/aaaa hh:mm), ações inline (sem lixeira).
 // ============================================================================
-import { useMemo, useState } from "react";
-import { Plus, Search, Eye, Power, ArrowRightLeft, ShieldCheck, Trash2, ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown, Filter, ChevronDown, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Plus, Search, Eye, Power, ArrowRightLeft, ShieldCheck, Trash2, ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown, Filter, ChevronDown, X, List, LayoutGrid } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, Empty, useAsync, money, initials, Field, Pill, useToast } from "../../ui/ui";
@@ -42,6 +42,9 @@ export default function Clientes() {
   const [dataAte, setDataAte] = useState<string>("");
   const [filtrosOpen, setFiltrosOpen] = useState(false);
   const [query, setQuery] = useState("");
+  // Visão da aba: lista (padrão — o Crasto prefere) ⇄ cards (kanban por estágio). Persistida por navegador.
+  const [view, setView] = useState<"list" | "cards">(() => (localStorage.getItem("crm_empresas_view") === "cards" ? "cards" : "list"));
+  useEffect(() => { try { localStorage.setItem("crm_empresas_view", view); } catch { /* storage off */ } }, [view]);
   const [sort, setSort] = useState<{ col: string; dir: 1 | -1 }>({ col: "created_at", dir: -1 });
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({ ...EMPTY });
@@ -122,6 +125,21 @@ export default function Clientes() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [all, agentsOv, tab, flag, pais, periodo, dataDe, dataAte, query, sort]);
 
+  // Kanban (visão cards): agrupa por estágio TODAS as empresas que passam nos filtros cruzados
+  // (ignora o `tab` do funil — no kanban as 5 colunas aparecem sempre). Cada coluna ordena por mais recente.
+  const byStage = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const pass = all.filter((c) =>
+      matchFlag(c) && (!pais || c.country === pais) && inPeriodo(c) &&
+      (!q || [c.name, c.tax_id, c.email, c.owner_name, c.phone].some((v) => (v || "").toLowerCase().includes(q))));
+    const map: Record<string, Client[]> = {};
+    STAGES.forEach((s) => (map[s.key] = []));
+    pass.forEach((c) => { (map[c.stage] ?? (map[c.stage] = [])).push(c); });
+    Object.values(map).forEach((arr) => arr.sort((a, b) => (b.created_at ? new Date(b.created_at).getTime() : 0) - (a.created_at ? new Date(a.created_at).getTime() : 0)));
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [all, flag, pais, periodo, dataDe, dataAte, query]);
+
   function toggleSort(col: string) { setSort((s) => ({ col, dir: s.col === col ? (s.dir === 1 ? -1 : 1) : 1 })); }
   const SortIcon = ({ col }: { col: string }) => sort.col === col ? (sort.dir === 1 ? <ArrowUp size={12} /> : <ArrowDown size={12} />) : <ChevronsUpDown size={12} style={{ opacity: 0.35 }} />;
 
@@ -193,10 +211,19 @@ export default function Clientes() {
       {/* funil */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10, alignItems: "center" }}>
         {[{ key: "todos", label: "Todos" }, ...STAGES].map((s) => (
-          <button key={s.key} className={"stagetab" + (tab === s.key ? " on" : "")} onClick={() => setTab(s.key)}>
+          <button key={s.key} className={"stagetab" + (tab === s.key ? " on" : "")} onClick={() => setTab(s.key)} style={view === "cards" ? { opacity: 0.5 } : undefined} title={view === "cards" ? t("No modo cards, todas as etapas aparecem em colunas.") : undefined}>
             {"dot" in s && <span className="dot" style={{ background: (s as any).dot }} />}{t(s.label)} <b>{counts[s.key] ?? 0}</b>
           </button>
         ))}
+        {/* alternância Lista ⇄ Cards (kanban) — decisão Crasto: lista é o padrão, cards é opcional */}
+        <div style={{ marginLeft: "auto", display: "inline-flex", border: "1px solid var(--crasto-border-soft)", borderRadius: "var(--crasto-radius-pill)", overflow: "hidden" }}>
+          {([["list", List, t("Lista")], ["cards", LayoutGrid, t("Cards")]] as const).map(([v, Icon, label]) => (
+            <button key={v} onClick={() => setView(v)} title={label}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", border: "none", background: view === v ? "var(--crasto-bg-2)" : "transparent", color: view === v ? "var(--crasto-text-primary)" : "var(--crasto-text-muted)" }}>
+              <Icon size={14} />{label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* filtros cruzados */}
@@ -242,7 +269,48 @@ export default function Clientes() {
         </div>
       </div>
 
-      {loading ? <Empty>Carregando…</Empty> : rows.length === 0 ? <Empty><p><strong>{t("Nada por aqui.")}</strong> {t("Ajuste os filtros ou clique em \"Nova empresa\".")}</p></Empty> : (
+      {view === "cards" ? (
+        loading ? <Empty>Carregando…</Empty> : (
+          <div style={{ display: "grid", gridAutoFlow: "column", gridAutoColumns: "minmax(248px, 1fr)", gap: 12, overflowX: "auto", paddingBottom: 6, alignItems: "start" }}>
+            {STAGES.map((s) => (
+              <div key={s.key} style={{ background: "var(--crasto-bg-2)", border: "1px solid var(--crasto-border-soft)", borderRadius: "var(--crasto-radius-md)", padding: 10, minWidth: 248 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "2px 4px 10px" }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: s.dot }} />
+                  <b style={{ fontSize: 13, color: "var(--crasto-text-primary)" }}>{t(s.label)}</b>
+                  <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--crasto-text-muted)", fontWeight: 600 }}>{byStage[s.key]?.length ?? 0}</span>
+                </div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {(byStage[s.key] ?? []).length === 0 ? (
+                    <div className="mt" style={{ padding: "6px 4px", fontSize: 12, opacity: 0.6 }}>{t("Vazio")}</div>
+                  ) : (byStage[s.key] ?? []).map((c) => {
+                    const cor = farolOf(c); const propVal = c.deal_value ?? (c.mrr > 0 ? c.mrr : null);
+                    return (
+                      <div key={c.id} className="card" onClick={() => nav(`/admin/cliente/${c.id}`)} style={{ padding: 12, cursor: "pointer", boxShadow: "var(--crasto-shadow-xs)" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span title={cor ? (cor === FAROL.ok ? t("Saudável") : cor === FAROL.warn ? t("Atenção") : t("Em risco")) : t("Sem ambiente ainda")}
+                            style={{ width: 9, height: 9, borderRadius: "50%", background: cor || "transparent", border: cor ? "none" : "1.5px solid var(--crasto-border)", flex: "none" }} />
+                          <div style={{ width: 28, height: 28, borderRadius: 8, display: "grid", placeItems: "center", color: "#fff", fontSize: 11, fontWeight: 700, background: "linear-gradient(145deg, var(--crasto-navy), #0a2350)", flex: "none" }}>{initials(c.name)}</div>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontWeight: 600, color: "var(--crasto-text-primary)", fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
+                            <div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.owner_name || c.email || "—"}</div>
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                          {isTrial(c) && <span className="chip" style={{ background: "#FAEEDA", color: "#633806" }}>{t("Trial")}</span>}
+                          {c.churned_em && <span className="chip" style={{ background: "#FCEBEB", color: "#791F1F" }}>{t("Churned")}</span>}
+                          {c.lead_temperature && tempOf(c.lead_temperature) && <span className="chip" style={{ background: tempOf(c.lead_temperature)!.bg, color: tempOf(c.lead_temperature)!.fg }}>{t(tempOf(c.lead_temperature)!.label)}</span>}
+                          {(c.papeis || []).filter((p) => p !== "cliente").map((p) => <span key={p} className="chip" style={{ background: "#EEEDFE", color: "#26215C" }}>{t(PAPEL_LABEL[p] || p)}</span>)}
+                          {propVal != null && <span style={{ marginLeft: "auto", fontWeight: 700, fontSize: 12.5, color: "var(--crasto-text-primary)" }}>{money(propVal)}</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : loading ? <Empty>Carregando…</Empty> : rows.length === 0 ? <Empty><p><strong>{t("Nada por aqui.")}</strong> {t("Ajuste os filtros ou clique em \"Nova empresa\".")}</p></Empty> : (
         <div className="tbl-wrap">
           <table className="tbl">
             <thead>

@@ -7,6 +7,7 @@
 // + Exportar PDF. CSS escopado em `.fv3` (não conflita com o resto do portal).
 // ============================================================================
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { services } from "../../services";
 import { money, useAsync } from "../../ui/ui";
 
@@ -274,15 +275,15 @@ export default function FinanceiroAPagarV3({ pay, costs }: { pay: any[]; costs: 
       </div>
 
       {/* popover de filtro (Excel) */}
-      {pop && <ExcelPop pop={pop} cf={cf} setCf={setCf} distinct={distinct} setColSet={setColSet} setSortKey={setSortKey} setSortDir={setSortDir} close={() => setPop(null)} popSearch={popSearch} setPopSearch={setPopSearch} catEmoji={CAT_EMOJI} />}
+      {pop && createPortal(<ExcelPop pop={pop} cf={cf} setCf={setCf} distinct={distinct} setColSet={setColSet} setSortKey={setSortKey} setSortDir={setSortDir} close={() => setPop(null)} popSearch={popSearch} setPopSearch={setPopSearch} catEmoji={CAT_EMOJI} />, document.body)}
 
       {/* drill-down da ORIGEM do custo de IA (fonte: finance.ai_costs, custo real auto-sync) */}
-      {iaDrill && <div className="fv3-modal" onClick={() => setIaDrill(null)}><div className="box" onClick={e => e.stopPropagation()}>
+      {iaDrill && createPortal(<div className="fv3-modal" onClick={() => setIaDrill(null)}><div className="box" onClick={e => e.stopPropagation()}>
         <div className="mh"><div><div className="m-t">{iaDrill.title}</div><div className="m-s">{iaDrill.sub}</div></div><button className="x" onClick={() => setIaDrill(null)}>✕</button></div>
         <div className="m-scroll"><table className="mtab"><thead><tr><th>Plataforma</th><th>Cliente / uso</th><th className="r">Tokens</th><th className="r">Custo</th><th>Período</th></tr></thead>
           <tbody>{iaDrill.rows.length ? iaDrill.rows.map((r: any, k: number) => (<tr key={k}><td>{r.platform || r.provider || "—"}</td><td>{r.organization_name || (r.kind === "interno" ? "Interno / plataforma" : "—")}</td><td className="r">{((Number(r.tokens_in || 0) + Number(r.tokens_out || 0)) || 0).toLocaleString("pt-BR")}</td><td className="r">{BRL(Number(r.cost || 0))}</td><td>{ymd(r.period_start)}{r.period_end ? " → " + ymd(r.period_end) : ""}</td></tr>)) : <tr><td colSpan={5} style={{ padding: 14, color: "#6B7280" }}>Sem lançamentos-fonte no período. Clique em <b>Sincronizar</b> para puxar o custo real das APIs de billing.</td></tr>}</tbody></table></div>
         <div className="fv3-note" style={{ margin: "12px 0 0" }}>Fonte: <b>finance.ai_costs</b> — custo REAL puxado das APIs de billing dos provedores (auto-sync). Anthropic/OpenAI via Admin key no cofre; Google/Gemini via Cloud Billing; DeepSeek por uso.</div>
-      </div></div>}
+      </div></div>, document.body)}
     </div>
   );
 }
@@ -383,7 +384,7 @@ const CSS = `
 .fv3 tfoot .totrow td{position:sticky;bottom:0;background:#F7F9FD;border-top:2px solid var(--line2);font-weight:800;font-size:12.5px;padding:12px 14px}
 .fv3-sentinel{padding:14px;text-align:center;color:var(--muted);font-size:12.5px}
 .fv3-tfoot{display:flex;justify-content:space-between;padding:11px 15px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted);background:#FCFCFD}
-.fv3-pop{position:fixed;z-index:70;width:252px;background:#fff;border:1px solid var(--line2);border-radius:12px;box-shadow:0 12px 30px rgba(16,24,40,.16);padding:10px;font-size:12.5px}
+.fv3-pop{position:fixed;z-index:99999;width:252px;background:#fff;border:1px solid var(--line2);border-radius:12px;box-shadow:0 12px 30px rgba(16,24,40,.16);padding:10px;font-size:12.5px}
 .fv3-pop .ttl{font-weight:800;font-size:12px;margin-bottom:8px}
 .fv3-pop .sort{display:flex;gap:6px;margin-bottom:8px}
 .fv3-pop .sort button{flex:1;border:1px solid var(--line2);background:#fff;border-radius:8px;padding:6px;font:inherit;font-size:11.5px;font-weight:600;cursor:pointer}
@@ -399,7 +400,7 @@ const CSS = `
 .fv3-row.clk{cursor:pointer;border-radius:8px;padding-left:6px;padding-right:6px;margin:0 -6px;transition:background .08s}
 .fv3-row.clk:hover{background:#F4F7FC}
 .fv3-row .chev{color:var(--muted2);font-weight:700;margin-left:6px}
-.fv3-modal{position:fixed;inset:0;z-index:80;background:rgba(8,15,30,.42);display:flex;align-items:center;justify-content:center;padding:24px}
+.fv3-modal{position:fixed;inset:0;z-index:99999;background:rgba(8,15,30,.42);display:flex;align-items:center;justify-content:center;padding:24px}
 .fv3-modal .box{background:#fff;border-radius:16px;box-shadow:0 24px 60px rgba(16,24,40,.28);width:min(760px,96vw);max-height:86vh;overflow:auto;padding:20px 22px}
 .fv3-modal .mh{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px}
 .fv3-modal .m-t{font-size:18px;font-weight:800}.fv3-modal .m-s{font-size:12.5px;color:var(--muted);margin-top:2px}

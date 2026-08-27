@@ -1,0 +1,138 @@
+// ============================================================================
+// A RECEBER — layout v3 aprovado (2026-08-27). Reproduz o mockup com DADO REAL de `rec`:
+// 3 KPIs (MRR hero · Recebido no mês/caixa · A receber futuro) + toggle Competência×Caixa +
+// tabela Contratos & recebíveis + explicação do caso Dr. Francisco. CSS escopado `.frv3`.
+// ============================================================================
+import { useMemo, useState } from "react";
+import { money } from "../../ui/ui";
+
+const BRL = (v: number) => money(v);
+const ymd = (v: any) => (v ? String(v).slice(0, 10) : "");
+function fmtDT(v: any): string {
+  if (!v) return "—";
+  const s = String(v); const d = s.slice(0, 10).split("-"); if (d.length !== 3) return s;
+  let out = `${d[2]}/${d[1]}/${d[0]}`;
+  const tm = s.match(/[T ](\d{2}:\d{2}(?::\d{2})?)/);
+  if (tm && tm[1] !== "00:00" && tm[1] !== "00:00:00") out += " " + (tm[1].length === 5 ? tm[1] + ":00" : tm[1]);
+  return out;
+}
+const arr = (x: any) => (Array.isArray(x) ? x : []);
+const mesesContrato = (r: any) => { const cv = Number(r.contract_validity_value || 0), u = r.contract_validity_unit || "months"; return u === "years" ? cv * 12 : u === "days" ? Math.max(1, Math.round(cv / 30)) : cv; };
+const isRecurring = (r: any) => (r.recurrence === "mensal") || arr(r.payment_schedule).length > 0 || Number(r.contract_total || 0) > 0;
+// Mensalidade reconhecida (competência): recorrência mensal = valor; contrato = total ÷ meses; parcelado = total ÷ nº parcelas.
+const mensalDe = (r: any) => {
+  if (r.recurrence === "mensal") return Number(r.amount || 0);
+  const m = mesesContrato(r); if (Number(r.contract_total || 0) > 0 && m > 0) return Number(r.contract_total) / m;
+  const ps = arr(r.payment_schedule); if (ps.length && Number(r.amount || 0) > 0) return Number(r.amount) / ps.length;
+  return Number(r.amount || 0);
+};
+const modeloDe = (r: any) => r.recurrence === "mensal" ? "Mensal" : (arr(r.payment_schedule).length ? "Parcelado" : "Pontual");
+const proxVenc = (r: any) => { const ps = arr(r.payment_schedule); const nxt = ps.filter((p: any) => p.status !== "paid").map((p: any) => ymd(p.date)).filter(Boolean).sort()[0]; return nxt || ymd(r.due_date); };
+
+export default function FinanceiroAReceberV3({ rec }: { rec: any[] }) {
+  const [view, setView] = useState<"comp" | "caixa">("comp");
+  const mes = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }).slice(0, 7);
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+
+  const ativos = useMemo(() => (rec || []).filter((r: any) => r.status !== "cancelled"), [rec]);
+  const recebidoMesDe = (r: any) => {
+    const ps = arr(r.payment_schedule);
+    if (ps.length) return ps.filter((p: any) => p.status === "paid" && (ymd(p.paid_date || p.date)).slice(0, 7) === mes).reduce((a: number, p: any) => a + Number(p.amount || 0), 0);
+    return (ymd(r.payment_date).slice(0, 7) === mes) ? Number(r.amount_paid || 0) : 0;
+  };
+  const rows = ativos.map((r: any) => {
+    const total = Number(r.amount || 0), recebido = Number(r.amount_paid || 0), aReceber = Math.max(0, total - recebido);
+    const venc = proxVenc(r); const ps = arr(r.payment_schedule);
+    const pagas = ps.filter((p: any) => p.status === "paid").length;
+    const status = aReceber <= 0.005 ? "Recebido" : (venc && venc < today ? "Vencido" : (ps.length ? `Parcela ${pagas + 1}/${ps.length}` : "Em dia"));
+    return { id: r.id, cliente: r.contact_name || r.description || "—", detalhe: ps.length ? `contrato ${BRL(total)} · ${ps.length}×` : (r.description || "recorrente"), modelo: modeloDe(r), venc, reconhecido: mensalDe(r), recebidoMes: recebidoMesDe(r), recebido, aReceber, status, stTone: aReceber <= 0.005 ? "pago" : (venc && venc < today ? "venc" : "pend") };
+  });
+
+  const mrr = ativos.filter(isRecurring).reduce((a: number, r: any) => a + mensalDe(r), 0);
+  const recebidoMes = rows.reduce((a, r) => a + r.recebidoMes, 0);
+  const aReceberFut = rows.reduce((a, r) => a + r.aReceber, 0);
+  const francisco = ativos.find((r: any) => /francisco|cs adv/i.test(r.contact_name || r.description || ""));
+
+  return (
+    <div className="frv3">
+      <style>{CSS}</style>
+      <div className="frv3-toolbar">
+        <div className="seg">
+          <button className={view === "comp" ? "on" : ""} onClick={() => setView("comp")}>Competência (MRR)</button>
+          <button className={view === "caixa" ? "on" : ""} onClick={() => setView("caixa")}>Caixa (recebido)</button>
+        </div>
+        <span className="frv3-hint">Visão: <b>{view === "comp" ? "Competência (MRR)" : "Caixa (recebido)"}</b></span>
+      </div>
+
+      <div className="frv3-grid3">
+        <div className="frv3-kpi hero"><div className="lbl">MRR — receita recorrente</div><div className="val">{BRL(mrr)}</div><div className="hint">reconhecida por mês (competência) · ARR {BRL(mrr * 12)}</div></div>
+        <div className="frv3-kpi"><div className="lbl">Recebido no mês (caixa)</div><div className="val green">{BRL(recebidoMes)}</div><div className="hint">entrou de fato na conta</div></div>
+        <div className="frv3-kpi"><div className="lbl">A receber (futuro)</div><div className="val blue">{BRL(aReceberFut)}</div><div className="hint">contratado, ainda não recebido</div></div>
+      </div>
+
+      <div className="frv3-note"><b>Duas verdades, dois números.</b> <b>Competência (MRR)</b> = saúde do negócio (receita recorrente mês a mês). <b>Caixa</b> = dinheiro que entrou (paga as contas). O sistema guarda os dois e nunca os mistura.</div>
+
+      <div className="frv3-sech"><h3>Contratos &amp; recebíveis</h3><span className="rt">{rows.length} recebível(is)</span></div>
+      <div className="frv3-tablewrap"><div className="frv3-tscroll">
+        <table>
+          <thead><tr>
+            <th>Cliente / Contrato</th><th>Modelo</th><th>Próx. vencimento (data/hora)</th>
+            <th className="r">{view === "comp" ? "Reconhecido/mês" : "Recebido/mês"}</th>
+            <th className="r">Recebido</th><th className="r">A receber</th><th>Status</th>
+          </tr></thead>
+          <tbody>
+            {rows.length === 0 ? <tr><td colSpan={7} style={{ padding: 16, color: "#6B7280" }}>Nenhum recebível cadastrado.</td></tr> : rows.map(r => (
+              <tr key={r.id}>
+                <td className="co">{r.cliente}<small>{r.detalhe}</small></td>
+                <td><span className="typ">{r.modelo}</span></td>
+                <td className="dt">{fmtDT(r.venc)}</td>
+                <td className="r">{BRL(view === "comp" ? r.reconhecido : r.recebidoMes)}</td>
+                <td className="r green">{BRL(r.recebido)}</td>
+                <td className="r blue">{BRL(r.aReceber)}</td>
+                <td><span className={"st " + r.stTone}>{r.status}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div></div>
+
+      <div className="frv3-note" style={{ marginTop: 16 }}>
+        <b>Competência × Caixa (ex.: {francisco ? (francisco.contact_name || "Dr. Francisco") : "Dr. Francisco"}):</b> um contrato parcelado (ex.: R$ 10.000 em 5×) entra no <b>caixa</b> só nos meses das parcelas, mas na <b>competência</b> é reconhecido R$ 10.000 ÷ 12 = ~R$ 833/mês o ano todo — mostrando receita recorrente estável, sem "5 meses cheios e 7 zerados". Fiscalmente, o imposto segue a <b>NF do mês</b> (confirme com o contador).
+      </div>
+    </div>
+  );
+}
+
+const CSS = `
+.frv3{--navy:#010E26;--blue:#6E9CE8;--blue-ink:#2E5BB0;--green:#16A34A;--green-bg:#E9F7EF;--green-ink:#0F7A3D;--amber:#E0801F;--red:#DC2626;--red-bg:#FDECEC;--line:#EDEFF3;--line2:#E4E7EC;--muted:#6B7280;--muted2:#9AA3AF;--shadow:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.06);color:var(--navy)}
+.frv3 .green{color:var(--green)}.frv3 .blue{color:var(--blue-ink)}
+.frv3-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.frv3 .seg{display:inline-flex;background:#F1F3F7;border-radius:10px;padding:4px}
+.frv3 .seg button{border:0;background:transparent;padding:8px 15px;border-radius:7px;font:inherit;font-size:12.5px;font-weight:700;color:#5B6472;cursor:pointer}
+.frv3 .seg button.on{background:#fff;color:var(--navy);box-shadow:var(--shadow)}
+.frv3-hint{font-size:12.5px;color:var(--muted)}
+.frv3-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:14px}
+.frv3-kpi{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow)}
+.frv3-kpi .lbl{font-size:10.5px;letter-spacing:.08em;font-weight:700;color:var(--muted2);text-transform:uppercase}
+.frv3-kpi .val{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:10px 0 6px}
+.frv3-kpi .hint{font-size:12px;color:var(--muted)}
+.frv3-kpi.hero{background:linear-gradient(180deg,#0B1830,#010E26);border-color:transparent;color:#fff}
+.frv3-kpi.hero .lbl{color:#9DB4E0}.frv3-kpi.hero .hint{color:#B7C6E6}
+.frv3-note{background:#F6F8FC;border:1px solid #E4EAF4;border-left:3px solid var(--blue);border-radius:12px;padding:13px 15px;font-size:12.5px;color:#3A4353;line-height:1.5;margin:14px 0}
+.frv3-note b{color:var(--navy)}
+.frv3-sech{display:flex;align-items:center;justify-content:space-between;margin:22px 0 12px}
+.frv3-sech h3{font-size:16px;font-weight:800}.frv3-sech .rt{font-size:13px;color:var(--muted);font-weight:600}
+.frv3-tablewrap{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
+.frv3-tscroll{max-height:520px;overflow:auto}
+.frv3 table{width:100%;border-collapse:collapse}
+.frv3 thead th{position:sticky;top:0;background:#FCFCFD;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted2);font-weight:700;text-align:left;padding:12px 14px;white-space:nowrap}
+.frv3 thead th.r{text-align:right}
+.frv3 tbody td{padding:12px 14px;border-top:1px solid var(--line);font-size:13px;white-space:nowrap}
+.frv3 td.r{text-align:right}
+.frv3 td.co{font-weight:700}.frv3 td.co small{display:block;font-weight:500;color:var(--muted);font-size:11.5px;margin-top:2px}
+.frv3 td.dt{font-variant-numeric:tabular-nums;font-size:12.5px}
+.frv3 .typ{font-size:11.5px;font-weight:600;color:#5B6472;background:#F4F6F9;padding:4px 10px;border-radius:20px}
+.frv3 .st{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:20px}
+.frv3 .st.pend{background:#EEF1F5;color:#5B6472}.frv3 .st.pago{background:var(--green-bg);color:var(--green-ink)}.frv3 .st.venc{background:var(--red-bg);color:var(--red)}
+@media(max-width:1050px){.frv3-grid3{grid-template-columns:1fr}}
+`;

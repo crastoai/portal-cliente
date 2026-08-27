@@ -9,6 +9,7 @@ import DocField from "../../ui/DocField";
 import CustoIA from "./CustoIA";
 import Conciliacao from "./Conciliacao";
 import FinanceiroAPagarV3 from "./FinanceiroAPagarV3";
+import FinanceiroAReceberV3 from "./FinanceiroAReceberV3";
 
 // Data de HOJE no fuso do Brasil (America/Sao_Paulo) em "YYYY-MM-DD". Usar toISOString()
 // (UTC) fazia o dia "virar" 3h antes à noite — e as parcelas são datas de calendário BR.
@@ -750,6 +751,13 @@ export default function Financeiro() {
           <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => { setCf({ ...C_EMPTY }); setCOpen(true); }}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Novo custo")}</span></button>
         </div>
         <FinanceiroAPagarV3 pay={pay} costs={costs} />
+      </>) : tab === "receber" ? (<>
+        {/* A Receber — layout v3 APROVADO (2026-08-27): componente dedicado (competência × caixa) com dado real. */}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginBottom: 12 }}>
+          <button className={"crasto-btn crasto-btn--sm " + (recOnly ? "crasto-btn--primary" : "crasto-btn--ghost")} onClick={toggleRecOnly} title={t("Mostrar só as contas recorrentes — a origem do MRR")}><span className="crasto-btn__icon"><Repeat size={14} /></span><span className="crasto-btn__label">{t("Só recorrentes")}{recOnly ? " ✓" : ""}</span></button>
+          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => newAccount("receivable")}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Novo recebível")}</span></button>
+        </div>
+        <FinanceiroAReceberV3 rec={recOnly ? rec.filter(isRecurring) : rec} />
       </>) : !built ? (
         <div className="card"><Empty><p><strong>{t("Em breve.")}</strong> {t("Esta aba está em construção — em breve você poderá gerenciar isso por aqui.")}</p></Empty></div>
       ) : (<>
