@@ -147,7 +147,7 @@ const T_EMPTY = { id: "", type: "income", category: "", amount: "", description:
 const TABS = [
   { key: "pagar", label: "A Pagar" }, { key: "receber", label: "A Receber" },
   { key: "cobranca", label: "Cobrança" }, { key: "conciliacao", label: "Conciliação" },
-  { key: "custos-ia", label: "Custos de IA" },
+  // "Custos de IA" deixou de ser aba (2026-08-27): consolidado DENTRO de A Pagar (CustoIA embedded).
   // Removidas a pedido do Crasto (não usamos): NFs, Tesouraria, Antecipações, Transações.
 ];
 
@@ -193,6 +193,7 @@ export default function Financeiro() {
     return nv;
   });
   const [query, setQuery] = useState("");
+  const [pdfRef, setPdfRef] = useState(today()); // data de referência p/ o PDF de A Pagar
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   // Edição INLINE de UMA parcela direto na lista (sem abrir o modal). {acc:idConta, inst:nºparcela}
   const [parcEdit, setParcEdit] = useState<{ acc: string; inst: number } | null>(null);
@@ -325,6 +326,27 @@ export default function Financeiro() {
   const passCat = (i: any) => tab !== "pagar" || !catF || i.category === catF;
   const rawItems = tab === "pagar" ? payItems : tab === "receber" ? recSource.map(acctToItem) : [];
   const groups = buildGroups(rawItems.filter((i) => passStatus(i) && passCat(i)));
+
+  // Export PDF — lista COMPLETA do filtro atual (todos os grupos/itens), com a data de referência
+  // escolhida. Abre uma janela self-contained (sem tocar o CSS do app) e chama print → "Salvar como PDF".
+  // Toda data sai no padrão auditável dd/mm/aaaa; o carimbo "Gerado em" traz data + hora + segundos.
+  const exportPagarPDF = () => {
+    const bd = (iso?: string) => (iso ? new Date(String(iso).slice(0, 10) + "T00:00:00").toLocaleDateString("pt-BR") : "—");
+    const rows = groups.flatMap((g: any) => g.list.map((i: any) => ({
+      empresa: g.name, item: i.description || i.contact_name || "", categoria: i.category || "",
+      tipo: i._kind === "cost" ? t("Custo") : t("Conta"), venc: proxVenc(i) || i.due_date || "",
+      total: Number(i.amount || 0), pago: Number(i.amount_paid || 0), restante: rem(i), status: stLabel(i.status),
+    })));
+    let tot = 0, pg = 0, rs = 0; rows.forEach((r) => { tot += r.total; pg += r.pago; rs += r.restante; });
+    const refTxt = pdfRef ? bd(pdfRef) : "—";
+    const gen = new Date().toLocaleString("pt-BR"); // dd/mm/aaaa hh:mm:ss (auditável)
+    const esc = (s: any) => String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" } as any)[c]);
+    const body = rows.map((r) => `<tr><td>${esc(r.empresa)}</td><td>${esc(r.item)}</td><td>${esc(r.categoria)}</td><td>${esc(r.tipo)}</td><td>${bd(r.venc)}</td><td class=r>${money(r.total)}</td><td class=r>${money(r.pago)}</td><td class=r>${money(r.restante)}</td><td>${esc(r.status)}</td></tr>`).join("");
+    const html = `<!doctype html><html lang=pt-BR><head><meta charset=utf-8><title>Contas a Pagar — Crasto.AI</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:24px;color:#111}h2{margin:0 0 2px}.meta{font-size:12px;color:#555;margin-bottom:14px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border-top:1px solid #ddd;padding:6px 8px;text-align:left}th{background:#f2f2f2}.r{text-align:right}tfoot td{font-weight:700;border-top:2px solid #999}@media print{@page{size:A4 landscape;margin:12mm}}</style></head><body><h2>Contas a Pagar — Crasto.AI</h2><div class=meta>Data de referência: <b>${refTxt}</b> · Gerado em ${gen} · ${rows.length} lançamento(s) · filtro atual aplicado</div><table><thead><tr><th>Empresa</th><th>Item</th><th>Categoria</th><th>Tipo</th><th>Vencimento</th><th class=r>Total</th><th class=r>Já pago</th><th class=r>Restante</th><th>Status</th></tr></thead><tbody>${body}</tbody><tfoot><tr><td colspan=5 class=r>TOTAIS</td><td class=r>${money(tot)}</td><td class=r>${money(pg)}</td><td class=r>${money(rs)}</td><td></td></tr></tfoot></table><scr` + `ipt>window.onload=function(){setTimeout(function(){window.print();},120);}</scr` + `ipt></body></html>`;
+    const w = window.open("", "_blank");
+    if (!w) { flash(t("Permita pop-ups para exportar o PDF.")); return; }
+    w.document.write(html); w.document.close();
+  };
 
   // Recebíveis RECORRENTES (contratos) — base dos cards da aba A Receber (Fatia 1).
   // `mensalDe` espelha a Visão geral: parcela = a mensalidade; recorrência mensal = valor;
@@ -604,9 +626,7 @@ export default function Financeiro() {
         {TABS.map((tb) => <button key={tb.key} className={"ptab" + (tab === tb.key ? " is-active" : "")} onClick={() => setTab(tb.key)}>{t(tb.label)}</button>)}
       </div>
 
-      {loading && tab !== "custos-ia" ? <Empty>Carregando…</Empty> : tab === "custos-ia" ? (
-        <CustoIA embedded />
-      ) : tab === "tesouraria" ? (<>
+      {loading ? <Empty>Carregando…</Empty> : tab === "tesouraria" ? (<>
         {/* barra de ação tesouraria */}
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
           <div className="catsearch" style={{ margin: 0, flex: 1, minWidth: 220 }}>
@@ -754,6 +774,8 @@ export default function Financeiro() {
           {tab === "receber" && <button className={"crasto-btn crasto-btn--sm " + (recOnly ? "crasto-btn--primary" : "crasto-btn--ghost")} onClick={toggleRecOnly} title={t("Mostrar só as contas recorrentes — a origem do MRR")} aria-pressed={recOnly}><span className="crasto-btn__icon"><Repeat size={14} /></span><span className="crasto-btn__label">{t("Só recorrentes")}{recOnly ? " ✓" : ""}</span></button>}
           <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => newAccount(tab === "pagar" ? "payable" : "receivable")}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Novo lançamento")}</span></button>
           {tab === "pagar" && <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => { setCf({ ...C_EMPTY }); setCOpen(true); }}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Novo custo")}</span></button>}
+          {tab === "pagar" && <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 600, color: "var(--crasto-text-muted)" }} title={t("Data de referência do PDF")}>{t("PDF em")}<input type="date" value={pdfRef} onChange={(e) => setPdfRef(e.target.value)} style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid var(--crasto-border-soft)", background: "var(--crasto-surface)", color: "var(--crasto-text-primary)", fontSize: 12 }} /></label>}
+          {tab === "pagar" && <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={exportPagarPDF} title={t("Exportar a lista completa do filtro atual em PDF")}><span className="crasto-btn__label">⭳ {t("Exportar PDF")}</span></button>}
         </div>
 
         {/* resumo (só A Pagar tem os cards de custo) */}
@@ -773,7 +795,8 @@ export default function Financeiro() {
         </>)}
 
         {/* análise de gasto de IA por período (só A Pagar) — calendário personalizável + médias + 2025×2026 */}
-        {tab === "pagar" && <AiSpendPanel />}
+        {/* IA consolidada em A Pagar (2026-08-27): painel completo com Crasto (interno) × Cliente (COGS), por plataforma e por cliente. Substitui a antiga aba "Custos de IA" e o resumo AiSpendPanel (que duplicava). */}
+        {tab === "pagar" && <div style={{ marginBottom: 14 }}><CustoIA embedded /></div>}
 
         {/* resumo de recebíveis recorrentes (só A Receber) — quebra o "A Receber" em MRR + contratos */}
         {tab === "receber" && (
