@@ -55,6 +55,7 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[];
   const byClient: any[] = ((aiPanel as any)?.by_client ?? []).filter((r: any) => r.organization_id);
   const iaRows: any[] = (aiPanel as any)?.rows ?? [];
   const [iaDrill, setIaDrill] = useState<{ title: string; sub: string; rows: any[] } | null>(null);
+  const [drill, setDrill] = useState<{ title: string; sub: string; col: "pago" | "restante" | "total"; dcol: "pag" | "venc"; rows: Item[] } | null>(null);
   const [syncing, setSyncing] = useState(false);
   const doSync = async () => { setSyncing(true); try { await services.finance.aiCost.sync(from, to); reloadAi(); } catch (e: any) { alert("Sincronização: " + (e?.message || e)); } finally { setSyncing(false); } };
   const openIaPlatform = (platform: string, label: string) => setIaDrill({ title: label, sub: "Origem do custo por lançamento (custo real · auto-sync)", rows: iaRows.filter(r => (r.platform || r.provider) === platform) });
@@ -98,6 +99,17 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[];
   const bAvencer = items.filter(i => i.status === "Pendente" && ymd(i.venc) !== today).reduce((a, i) => a + i.restante, 0);
   const bPagos = items.reduce((a, i) => a + i.pago, 0);
   const catTotal = (c: string) => items.filter(i => i.categoria === c).reduce((a, i) => a + i.total, 0);
+
+  // ---- fontes clicáveis dos cards/chips (drill-down: de onde vem cada soma) ----
+  const srcPagoAno = items.filter(i => (((i.pag || "").slice(0, 4) === ano) || (i.status === "Pago" && !i.pag)) && i.pago > 0.005);
+  const srcPagoMes = items.filter(i => (i.pag || "").slice(0, 7) === mes && i.pago > 0.005);
+  const srcAPagarAinda = items.filter(i => i.status !== "Pago" && (i.venc || "").slice(0, 7) === mes && i.restante > 0.005);
+  const srcVencidos = items.filter(i => i.status === "Vencido");
+  const srcHoje = items.filter(i => i.status === "Pendente" && ymd(i.venc) === today);
+  const srcAvencer = items.filter(i => i.status === "Pendente" && ymd(i.venc) !== today);
+  const srcPagos = items.filter(i => i.pago > 0.005);
+  const openDrill = (title: string, sub: string, col: "pago" | "restante" | "total", dcol: "pag" | "venc", rows: Item[]) =>
+    setDrill({ title, sub, col, dcol, rows: rows.slice().sort((a, b) => Number((b as any)[col] || 0) - Number((a as any)[col] || 0)) });
 
   // ---- Redução de despesas: custos ATIVOS com "custo mensal anterior" (prev_monthly) → economia real ----
   const monthlyOfCost = (c: any) => c.recurrence === "anual" ? Number(c.amount_brl || 0) / 12 : Number(c.amount_brl || 0);
@@ -207,9 +219,9 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[];
 
       {/* 3 heróis */}
       <div className="fv3-grid3">
-        <div className="fv3-kpi"><div className="lbl">Pago no ano</div><div className="val">{BRL(pagoAno)}</div><div className="hint">jan → hoje · caixa realizado</div></div>
-        <div className="fv3-kpi"><div className="lbl">Pago no mês</div><div className="val">{BRL(pagoMes)}</div><div className="hint">já saiu da conta este mês</div></div>
-        <div className="fv3-kpi"><div className="lbl">A pagar ainda neste mês</div><div className="val amber">{BRL(aPagarAinda)}</div><div className="hint">vence de hoje até fim do mês</div></div>
+        <div className="fv3-kpi clk" onClick={() => openDrill("Pago no ano", `${ano} · ${srcPagoAno.length} lançamento(s) que compõem esta soma`, "pago", "pag", srcPagoAno)}><div className="lbl">Pago no ano</div><div className="val">{BRL(pagoAno)}</div><div className="hint">jan → hoje · caixa realizado <span className="src">ver fontes ›</span></div></div>
+        <div className="fv3-kpi clk" onClick={() => openDrill("Pago no mês", `${period.label} · ${srcPagoMes.length} lançamento(s) pagos este mês`, "pago", "pag", srcPagoMes)}><div className="lbl">Pago no mês</div><div className="val">{BRL(pagoMes)}</div><div className="hint">já saiu da conta este mês <span className="src">ver fontes ›</span></div></div>
+        <div className="fv3-kpi clk" onClick={() => openDrill("A pagar ainda neste mês", `${srcAPagarAinda.length} lançamento(s) que vencem de hoje até o fim do mês`, "restante", "venc", srcAPagarAinda)}><div className="lbl">A pagar ainda neste mês</div><div className="val amber">{BRL(aPagarAinda)}</div><div className="hint">vence de hoje até fim do mês <span className="src">ver fontes ›</span></div></div>
       </div>
 
       {/* chips por categoria */}
@@ -224,10 +236,10 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[];
 
       {/* 4 baldes de status */}
       <div className="fv3-buckets">
-        <div className="fv3-bucket red"><div className="lbl">Vencidos</div><div className="val">{BRL(bVencidos)}</div></div>
-        <div className="fv3-bucket yellow"><div className="lbl">Vencem hoje</div><div className="val">{BRL(bHoje)}</div></div>
-        <div className="fv3-bucket blue"><div className="lbl">A vencer</div><div className="val">{BRL(bAvencer)}</div></div>
-        <div className="fv3-bucket green"><div className="lbl">Pagos</div><div className="val">{BRL(bPagos)}</div></div>
+        <div className="fv3-bucket red clk" onClick={() => openDrill("Vencidos", `${srcVencidos.length} lançamento(s) vencidos e em aberto`, "restante", "venc", srcVencidos)}><div className="lbl">Vencidos</div><div className="val">{BRL(bVencidos)}</div><div className="bsrc">ver fontes ›</div></div>
+        <div className="fv3-bucket yellow clk" onClick={() => openDrill("Vencem hoje", `${srcHoje.length} lançamento(s) que vencem hoje`, "restante", "venc", srcHoje)}><div className="lbl">Vencem hoje</div><div className="val">{BRL(bHoje)}</div><div className="bsrc">ver fontes ›</div></div>
+        <div className="fv3-bucket blue clk" onClick={() => openDrill("A vencer", `${srcAvencer.length} lançamento(s) a vencer (em aberto)`, "restante", "venc", srcAvencer)}><div className="lbl">A vencer</div><div className="val">{BRL(bAvencer)}</div><div className="bsrc">ver fontes ›</div></div>
+        <div className="fv3-bucket green clk" onClick={() => openDrill("Pagos", `${srcPagos.length} lançamento(s) com pagamento registrado`, "pago", "pag", srcPagos)}><div className="lbl">Pagos</div><div className="val">{BRL(bPagos)}</div><div className="bsrc">ver fontes ›</div></div>
       </div>
 
       {/* Redução de despesas — economia real a partir de trocas de plano (ex.: OpenAI anual → ChatGPT Pro mensal) */}
@@ -351,6 +363,21 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[];
         <div className="m-scroll"><table className="mtab"><thead><tr><th>Plataforma</th><th>Cliente / uso</th><th className="r">Tokens</th><th className="r">Custo</th><th>Período</th></tr></thead>
           <tbody>{iaDrill.rows.length ? iaDrill.rows.map((r: any, k: number) => (<tr key={k}><td>{r.platform || r.provider || "—"}</td><td>{r.organization_name || (r.kind === "interno" ? "Interno / plataforma" : "—")}</td><td className="r">{((Number(r.tokens_in || 0) + Number(r.tokens_out || 0)) || 0).toLocaleString("pt-BR")}</td><td className="r">{BRL(Number(r.cost || 0))}</td><td>{ymd(r.period_start)}{r.period_end ? " → " + ymd(r.period_end) : ""}</td></tr>)) : <tr><td colSpan={5} style={{ padding: 14, color: "#6B7280" }}>Sem lançamentos-fonte no período. Clique em <b>Sincronizar</b> para puxar o custo real das APIs de billing.</td></tr>}</tbody></table></div>
         <div className="fv3-note" style={{ margin: "12px 0 0" }}>Fonte: <b>finance.ai_costs</b> — custo REAL puxado das APIs de billing dos provedores (auto-sync). Anthropic/OpenAI via Admin key no cofre; Google/Gemini via Cloud Billing; DeepSeek por uso.</div>
+      </div></div></div>, document.body)}
+
+      {/* drill-down da FONTE de cada card/balde — cada linha é um lançamento real que compõe a soma */}
+      {drill && createPortal(<div className="fv3"><div className="fv3-modal" onClick={() => setDrill(null)}><div className="box" onClick={e => e.stopPropagation()}>
+        <div className="mh"><div><div className="m-t">{drill.title}</div><div className="m-s">{drill.sub}</div></div><button className="x" onClick={() => setDrill(null)}>✕</button></div>
+        <div className="m-scroll"><div className="fv3-drill">
+          {drill.rows.length ? drill.rows.map((r, k) => (
+            <div className="drow" key={k} title={r.rawId ? "Clique para editar na origem" : ""} onClick={() => { if (r.rawId && onEdit) { setDrill(null); onEdit(r.rawId); } }} style={{ cursor: r.rawId ? "pointer" : "default" }}>
+              <div className="dl"><div className="dn">{r.empresa}</div><div className="dm">{r.categoria} · {RECLBL[r.rec] || r.rec}{(r as any)[drill.dcol] ? " · " + fmtDT((r as any)[drill.dcol]) : ""}</div></div>
+              <div className="dr"><span className="dv">{BRL(Number((r as any)[drill.col] || 0))}</span><span className="dchip">{(CAT_EMOJI[r.categoria] || "")} {r.categoria}</span></div>
+            </div>
+          )) : <div className="drow"><div className="dm" style={{ padding: "8px 0" }}>Sem lançamentos nesta fonte.</div></div>}
+          <div className="drow total"><div className="dl"><div className="dn">Total</div></div><div className="dr"><span className="dv green">{BRL(drill.rows.reduce((a, r) => a + Number((r as any)[drill.col] || 0), 0))}</span></div></div>
+        </div></div>
+        <div className="fv3-note" style={{ margin: "12px 0 0" }}>Fonte real: cada linha é um lançamento (conta a pagar · custo operacional · uso de IA por token) que compõe esta soma. Clique numa linha para editar na origem.</div>
       </div></div></div>, document.body)}
     </div>
   );
@@ -510,5 +537,25 @@ const CSS = `
 .fv3-reducao .ritem .rn{font-weight:700}
 .fv3-reducao .ritem .rd{color:#DCF0E4}.fv3-reducao .ritem .rd b{color:#fff}
 .fv3-reducao .ritem .rp{margin-left:auto;font-weight:800;background:var(--card);color:#0B4A29;border-radius:20px;padding:2px 9px}
+/* cards clicaveis — visiveis e com afordancia clara (borda + hover + pilula "ver fontes") */
+.fv3-kpi.clk,.fv3-bucket.clk{cursor:pointer;transition:transform .1s ease,box-shadow .12s ease,border-color .12s ease}
+.fv3-kpi.clk{border-color:var(--line2)}
+.fv3-kpi.clk:hover{transform:translateY(-2px);box-shadow:0 10px 26px -10px rgba(16,24,40,.28);border-color:var(--blue)}
+.fv3-bucket.clk:hover{transform:translateY(-2px);filter:brightness(1.05);box-shadow:0 10px 24px -12px rgba(16,24,40,.3)}
+.fv3-kpi .src{display:inline-block;margin-left:8px;font-size:10px;font-weight:800;color:var(--blue-ink);background:var(--info-bg);border-radius:20px;padding:2px 9px;letter-spacing:.02em}
+.fv3-bucket .bsrc{margin-top:8px;font-size:10px;font-weight:800;opacity:.72;letter-spacing:.02em}
+/* modal drill (fonte): lista nome+categoria a esquerda, valor+chip a direita, Total no fim */
+.fv3-drill{display:flex;flex-direction:column}
+.fv3-drill .drow{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 4px;border-top:1px solid var(--line)}
+.fv3-drill .drow:first-child{border-top:0}
+.fv3-drill .drow:hover{background:var(--hover)}
+.fv3-drill .dl .dn{font-weight:700;font-size:14px}
+.fv3-drill .dl .dm{font-size:12px;color:var(--muted);margin-top:2px}
+.fv3-drill .dr{display:flex;align-items:center;gap:12px;white-space:nowrap}
+.fv3-drill .dr .dv{font-weight:800;font-size:15px;font-variant-numeric:tabular-nums}
+.fv3-drill .dr .dv.green{color:var(--green)}
+.fv3-drill .dchip{font-size:11px;font-weight:700;color:var(--muted);background:var(--hover);border:1px solid var(--line);border-radius:20px;padding:3px 11px}
+.fv3-drill .drow.total{border-top:2px solid var(--line2);margin-top:4px;padding-top:15px}
+.fv3-drill .drow.total .dn{font-size:15px;font-weight:800}
 @media(max-width:1050px){.fv3-grid3,.fv3-buckets,.fv3-panels{grid-template-columns:1fr 1fr}}
 `;
