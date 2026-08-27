@@ -379,24 +379,24 @@ export default function Clientes() {
                           {c.lead_temperature && tempOf(c.lead_temperature) && <span className="chip" style={{ background: tempOf(c.lead_temperature)!.bg, color: tempOf(c.lead_temperature)!.fg }}>{t(tempOf(c.lead_temperature)!.label)}</span>}
                           {(c.papeis || []).filter((p) => p !== "cliente").map((p) => <span key={p} className="chip" style={{ background: "#EEEDFE", color: "#26215C" }}>{t(PAPEL_LABEL[p] || p)}</span>)}
                         </div>
-                        {/* infos completas (mesmas colunas da lista) */}
-                        <div style={{ marginTop: 10, display: "grid", gap: 4, fontSize: 11.5 }}>
+                        {/* infos completas (mesmas colunas da lista) — contraste legível em light e dark */}
+                        <div style={{ marginTop: 10, display: "grid", gap: 5, fontSize: 12 }}>
                           {([
                             [t("Contato"), c.owner_name || "—", "var(--crasto-text-body)"],
                             [t("Telefone"), c.phone || "—", "var(--crasto-text-body)"],
                             [t("Proposta"), propVal != null ? money(propVal) : "—", "var(--crasto-text-primary)"],
-                            [t("Criado em"), fmtDateTime(c.created_at), "var(--crasto-text-muted)"],
-                            [t("Convertido"), fmtDateTime(c.convertido_em), "var(--crasto-text-muted)"],
+                            [t("Criado em"), fmtDateTime(c.created_at), "var(--crasto-text-body)"],
+                            [t("Convertido"), fmtDateTime(c.convertido_em), "var(--crasto-text-body)"],
                             [t("Agentes"), ag != null ? String(ag) : "—", "var(--crasto-text-body)"],
                           ] as [string, string, string][]).map(([k, v, col]) => (
                             <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                              <span style={{ color: "var(--crasto-text-faint)", flex: "none" }}>{k}</span>
-                              <span className="tnum" style={{ color: col, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v}</span>
+                              <span style={{ color: "var(--crasto-text-muted)", fontWeight: 500, flex: "none" }}>{k}</span>
+                              <span className="tnum" style={{ color: col, fontWeight: 600, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v}</span>
                             </div>
                           ))}
                           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, cursor: "pointer" }} onClick={(e) => ver(c, e)}>
-                            <span style={{ color: "var(--crasto-text-faint)", flex: "none" }}>{t("Soluções")}</span>
-                            <span style={{ color: "var(--crasto-blue)" }}>{(c.modules?.length ?? 0) > 0 ? `${c.modules!.length} ${c.modules!.length === 1 ? t("solução") : t("soluções")}` : "—"}</span>
+                            <span style={{ color: "var(--crasto-text-muted)", fontWeight: 500, flex: "none" }}>{t("Soluções")}</span>
+                            <span style={{ color: "var(--crasto-blue)", fontWeight: 600 }}>{(c.modules?.length ?? 0) > 0 ? `${c.modules!.length} ${c.modules!.length === 1 ? t("solução") : t("soluções")}` : "—"}</span>
                           </div>
                         </div>
                         {/* ações (as mesmas da lista) */}
