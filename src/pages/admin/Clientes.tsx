@@ -24,6 +24,7 @@ const FLAGS = [
   { key: "inativos", label: "Inativos", bg: "var(--crasto-bg-2)", fg: "var(--crasto-text-body)" },
   { key: "oculto", label: "Cliente oculto", bg: "var(--crasto-bg-2)", fg: "var(--crasto-text-body)" },
   { key: "doacoes", label: "Doações", bg: "#E7F4F1", fg: "#0F5F54" },
+  { key: "pendente_contrato", label: "Pendente contrato", bg: "#FBEEDD", fg: "#8A5A12" },
 ];
 
 export default function Clientes() {
@@ -94,6 +95,7 @@ export default function Clientes() {
       case "inativos": return !active;
       case "oculto": return !!c.cliente_oculto;
       case "doacoes": return !!c.is_donation;
+      case "pendente_contrato": return c.contract_status === "pendente";
       default: return true;
     }
   }
@@ -327,6 +329,7 @@ export default function Clientes() {
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
                           {c.is_donation && <span className="chip" style={{ background: "#E7F4F1", color: "#0F5F54" }} title={c.donation_note || t("Doação")}>💚 {t("Doação")}</span>}
+                          {c.contract_status === "pendente" && <span className="chip" style={{ background: "#FBEEDD", color: "#8A5A12" }} title={t("Contrato pendente de assinatura")}>⏳ {t("Pendente contrato")}</span>}
                           {isTrial(c) && <span className="chip" style={{ background: "#FAEEDA", color: "#633806" }}>{t("Trial")}</span>}
                           {c.churned_em && <span className="chip" style={{ background: "#FCEBEB", color: "#791F1F" }}>{t("Churned")}</span>}
                           {c.lead_temperature && tempOf(c.lead_temperature) && <span className="chip" style={{ background: tempOf(c.lead_temperature)!.bg, color: tempOf(c.lead_temperature)!.fg }}>{t(tempOf(c.lead_temperature)!.label)}</span>}
@@ -382,6 +385,7 @@ export default function Clientes() {
                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                         <Pill tone={st.tone}>{t(st.label)}</Pill>
                         {c.is_donation && <span className="chip" style={{ background: "#E7F4F1", color: "#0F5F54" }} title={c.donation_note || t("Doação (Ganho pró-bono, lucro R$0)")}>💚 {t("Doação")}{c.donation_value != null ? ` · ${money(c.donation_value)}` : ""}</span>}
+                        {c.contract_status === "pendente" && <span className="chip" style={{ background: "#FBEEDD", color: "#8A5A12" }} title={t("Contrato pendente de assinatura")}>⏳ {t("Pendente contrato")}</span>}
                         {(c.papeis || []).filter((p) => p !== "cliente").map((p) => <span key={p} className="chip" style={{ background: "#EEEDFE", color: "#26215C" }}>{t(PAPEL_LABEL[p] || p)}</span>)}
                         {c.lead_temperature && tempOf(c.lead_temperature) && <span className="chip" style={{ background: tempOf(c.lead_temperature)!.bg, color: tempOf(c.lead_temperature)!.fg }} title={t("Temperatura")}>{t(tempOf(c.lead_temperature)!.label)}</span>}
                       </div>

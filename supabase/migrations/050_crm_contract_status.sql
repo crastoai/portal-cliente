@@ -1,0 +1,44 @@
+-- 050 · CRM — status de assinatura de contrato (cobrança)
+-- Marca, por empresa, se o contrato está 'assinado' / 'pendente' (aguardando assinatura) / 'isento'.
+-- Usado p/ o selo "pendente contrato" na lista/ficha + a rotina de cobrança de assinatura.
+-- Regra do Crasto: cliente sem contrato assinado (fora das exceções) → Oportunidade + pendência + cobrança.
+-- Tudo ADITIVO/REVERSÍVEL. Exceções (El Shadai etc.) NÃO recebem valor por padrão.
+
+alter table public.organizations
+  add column if not exists contract_status text;
+
+alter table public.organizations drop constraint if exists organizations_contract_status_check;
+alter table public.organizations
+  add constraint organizations_contract_status_check
+  check (contract_status is null or contract_status = any (array['assinado'::text, 'pendente'::text, 'isento'::text]));
+
+comment on column public.organizations.contract_status is 'CRM: assinatura do contrato — assinado / pendente (aguardando) / isento (sem contrato por decisão). null = não avaliado.';
+
+-- admin_clients() — expõe contract_status na lista (corpo idêntico à 049 + o campo novo).
+create or replace function public.admin_clients() returns json
+    language plpgsql stable security definer
+    set search_path to 'public', 'delivery', 'catalog', 'finance', 'commerce', 'auth', 'crm'
+    as $$
+begin
+  if not public.is_crasto_admin() then raise exception 'not authorized'; end if;
+  return (select coalesce(json_agg(t order by t.mrr desc, t.name), '[]'::json) from (
+    select o.id, o.name, o.plan, o.stage, o.country, o.tax_id, o.website, o.founded_on, o.owner_name,
+      o.source, o.last_maturity, o.intent_signal, o.created_at,
+      o.lead_temperature, o.deal_value, o.deal_probability, o.deal_expected_close, o.deal_product,
+      o.papeis, o.tipo_empresa, o.emite_nf, o.cliente_oculto, o.convertido_em, o.churned_em,
+      o.trial_inicio, o.trial_fim, o.trial_resultado, o.status as org_status,
+      o.is_donation, o.donation_value, o.donated_at, o.contract_status,
+      (select p.email from public.profiles p where p.organization_id = o.id order by (p.role = 'client_owner') desc limit 1) as email,
+      (select ph.country_code || ' ' || ph.number from crm.phones ph where ph.organization_id = o.id order by ph.is_primary desc, ph.created_at limit 1) as phone,
+      coalesce((select array_agg(v.name) from delivery.client_modules cm join catalog.vdi_modules v on v.id = cm.vdi_module_id where cm.organization_id = o.id), '{}') as modules,
+      (select max(u.last_sign_in_at) from public.profiles p join auth.users u on u.id = p.id where p.organization_id = o.id) as last_access,
+      coalesce((select overall_progress from delivery.implementations i where i.organization_id = o.id), 0) as progress,
+      (select status from delivery.system_health h where h.organization_id = o.id) as health,
+      coalesce((select sum(pr.subtotal) from commerce.proposals pr where pr.organization_id = o.id and pr.status = 'accepted'), 0)
+        * (case when o.is_donation then 0 else 1 end) as mrr,
+      (select max(a.occurred_at) from crm.activities a where a.organization_id = o.id) as last_activity,
+      (select max(ms.created_at) from crm.mapa_submissions ms where ms.organization_id = o.id) as last_diagnostic_at,
+      public.org_health(o.id) as health_v2
+    from public.organizations o
+  ) t);
+end $$;

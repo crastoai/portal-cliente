@@ -20,6 +20,8 @@ export type Client = {
   org_status?: string | null;
   // CRM Doação / pró-bono (migration 049) — Ganho com lucro R$0 + valor-equivalente doado
   is_donation?: boolean | null; donation_value?: number | null; donation_note?: string | null; donated_at?: string | null;
+  // CRM contrato (migration 050) — assinado / pendente (aguardando) / isento
+  contract_status?: string | null;
   // preenchido no front a partir de crmAccess.agentsOverview()
   agentes?: number; farol?: string | null;
 };

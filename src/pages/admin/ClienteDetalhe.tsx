@@ -169,6 +169,11 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
     catch (e) { flash(tr("Erro ao mudar o status:") + " " + errorMessage(e)); }
     finally { setBusy(false); }
   }
+  // Contrato: resolver a pendência de assinatura (B2) direto da ficha do cliente.
+  async function marcarContratoAssinado() {
+    try { await api.identity.organizations.update(id!, { contract_status: "assinado" }); flash(tr("Contrato marcado como assinado ✓")); reload(); }
+    catch (e) { flash(tr("Erro ao atualizar o contrato:") + " " + errorMessage(e)); }
+  }
   async function addPerson() { if (!person.full_name.trim()) return; await api.crm.people.add({ organization_id: id, full_name: person.full_name.trim(), role: person.role || null, funcao: person.funcao || null, email: person.email || null, birthday: person.birthday || null, is_primary: person.is_primary, disc_tipo: person.disc_tipo || null, disc_data: person.disc_data || null, notes: person.notes || null }); setPerson({ full_name: "", role: "", funcao: "", email: "", birthday: "", is_primary: false, disc_tipo: "", disc_data: "", notes: "" }); reload(); }
   async function addPhone() { if (!phone.number.trim()) return; await api.crm.phones.add({ organization_id: id, label: phone.label, country_code: phone.country_code, number: phone.number.trim(), person_id: phone.person_id || null }); setPhone({ label: "mobile", country_code: "+55", number: "", person_id: "" }); reload(); }
   function startEditPerson(p: any) { setEpId(p.id); setEp({ full_name: p.full_name || "", role: p.role || "", funcao: p.funcao || "", email: p.email || "", birthday: p.birthday || "", is_primary: !!p.is_primary, disc_tipo: p.disc_tipo || "", disc_data: p.disc_data || "", notes: p.notes || "" }); }
@@ -335,6 +340,18 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
             <div style={{ fontSize: 12.5, color: "#0F5F54", opacity: 0.9 }}>{org.donation_note || tr("Serviço doado (lucro R$0). Contabilizado no impacto social do ano.")}</div>
           </div>
           {org.donated_at && <span style={{ fontSize: 12, color: "#0F5F54" }}>{fmtDate(org.donated_at)}</span>}
+        </div>
+      )}
+
+      {/* Contrato pendente de assinatura (B2) — cobrança no histórico; resolver ao assinar */}
+      {org.contract_status === "pendente" && (
+        <div className="card" style={{ marginBottom: 18, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", background: "#FBEEDD", border: "1px solid #EAD3A8" }}>
+          <span style={{ fontSize: 18, flex: "none" }}>⏳</span>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontWeight: 700, color: "#8A5A12" }}>{tr("Contrato pendente de assinatura")}</div>
+            <div style={{ fontSize: 12.5, color: "#8A5A12" }}>{tr("Cliente vigente sem contrato assinado. Há cobrança no histórico; marque como assinado quando fechar.")}</div>
+          </div>
+          <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={marcarContratoAssinado}><span className="crasto-btn__label">{tr("Marcar contrato como assinado")}</span></button>
         </div>
       )}
 

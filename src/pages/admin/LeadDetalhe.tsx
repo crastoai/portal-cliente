@@ -108,6 +108,11 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
     if (r.ok) nav("/admin/clientes", { replace: true });
     else toast.err(t("Erro ao apagar:") + " " + (r.error || ""));
   }
+  // Contrato: resolver a pendência de assinatura direto da ficha.
+  async function marcarContratoAssinado() {
+    try { await api.identity.organizations.update(id!, { contract_status: "assinado" }); toast.ok(t("Contrato marcado como assinado ✓")); reload(); }
+    catch { toast.err(t("Erro ao atualizar o contrato.")); }
+  }
   // Abre o modal de doação — pré-soma o valor-equivalente dos serviços já anexados (do Catálogo, editável).
   async function openDonation() {
     try {
@@ -182,6 +187,18 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
         {org.intent_signal && <span className="chip" style={{ marginLeft: 4, background: org.intent_signal === "alto" ? "#FCE9E7" : "var(--crasto-bg-3)", color: org.intent_signal === "alto" ? "#B42318" : "var(--crasto-text-body)" }}>{t("Intenção")}: {t(org.intent_signal)}</span>}
         <span style={{ marginLeft: "auto", alignSelf: "center", fontSize: 12, color: "var(--crasto-text-muted)" }}>{t("Status atual:")} <b style={{ color: "var(--crasto-text-primary)" }}>{t(st.label)}</b></span>
       </div>
+
+      {/* Contrato pendente de assinatura (B2) — cobrança no histórico; resolver aqui ao assinar */}
+      {org.contract_status === "pendente" && (
+        <div className="card" style={{ marginBottom: 18, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", background: "#FBEEDD", border: "1px solid #EAD3A8" }}>
+          <span style={{ fontSize: 18, flex: "none" }}>⏳</span>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontWeight: 700, color: "#8A5A12" }}>{t("Contrato pendente de assinatura")}</div>
+            <div style={{ fontSize: 12.5, color: "#8A5A12" }}>{t("Há uma atividade de cobrança no histórico abaixo. Ao assinar, marque como assinado.")}</div>
+          </div>
+          <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={marcarContratoAssinado}><span className="crasto-btn__label">{t("Marcar contrato como assinado")}</span></button>
+        </div>
+      )}
 
       {/* Temperatura do lead (manual) — progressivo: só no estágio lead */}
       {org.stage === "lead" && (
