@@ -29,9 +29,9 @@ const CATMAP: Record<string, string> = { ferramenta: "Ferramenta", infraestrutur
 const catLabel = (c?: string) => (c ? (CATMAP[c] || c.charAt(0).toUpperCase() + c.slice(1)) : "Serviço");
 const CAT_EMOJI: Record<string, string> = { IA: "🤖", Pessoas: "👤", Ferramenta: "🛠️", Infraestrutura: "☁️", "Serviço": "📦" };
 
-type Item = { id: string; empresa: string; sub: string; categoria: string; venc: string; pag: string; total: number; pago: number; restante: number; status: string };
+type Item = { id: string; rawId: string; empresa: string; sub: string; categoria: string; contratacao: string; venc: string; pag: string; total: number; pago: number; restante: number; status: string };
 
-export default function FinanceiroAPagarV3({ pay, costs }: { pay: any[]; costs: any[] }) {
+export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[]; costs: any[]; onEdit?: (rawId: string) => void }) {
   const today = todayISO();
   const ano = today.slice(0, 4);
   const mes = today.slice(0, 7);
@@ -57,11 +57,11 @@ export default function FinanceiroAPagarV3({ pay, costs }: { pay: any[]; costs: 
   const items: Item[] = useMemo(() => {
     const A: Item[] = (pay || []).map((a: any) => {
       const total = Number(a.amount || 0), pago = Number(a.amount_paid || 0), rest = Math.max(0, total - pago);
-      return { id: "a_" + a.id, empresa: a.contact_name || a.description || "—", sub: a.description && a.contact_name ? a.description : (a.expense_type || "1 lançamento"), categoria: catLabel(a.category), venc: ymd(a.due_date), pag: ymd(a.payment_date), total, pago, restante: rest, status: statusOf(a.due_date, rest, a.status === "paid") };
+      return { id: "a_" + a.id, rawId: a.id, empresa: a.contact_name || a.description || "—", sub: a.description && a.contact_name ? a.description : (a.expense_type || "1 lançamento"), categoria: catLabel(a.category), contratacao: ymd(a.contract_signed_date) || ymd(a.created_at), venc: ymd(a.due_date), pag: ymd(a.payment_date), total, pago, restante: rest, status: statusOf(a.due_date, rest, a.status === "paid") };
     });
     const C: Item[] = (costs || []).filter((c: any) => c.is_active !== false).map((c: any) => {
       const total = Number(c.amount_brl || 0);
-      return { id: "c_" + c.id, empresa: c.vendor_name || "—", sub: (c.recurrence || "") + (c.purpose ? " · " + c.purpose : ""), categoria: catLabel(c.category), venc: ymd(c.next_payment_date), pag: "", total, pago: 0, restante: total, status: statusOf(c.next_payment_date, total, false) };
+      return { id: "c_" + c.id, rawId: c.id, empresa: c.vendor_name || "—", sub: (c.recurrence || "") + (c.purpose ? " · " + c.purpose : ""), categoria: catLabel(c.category), contratacao: ymd(c.reference_date) || ymd(c.created_at), venc: ymd(c.next_payment_date), pag: "", total, pago: 0, restante: total, status: statusOf(c.next_payment_date, total, false) };
     });
     return [...A, ...C];
   }, [pay, costs]);
@@ -100,14 +100,15 @@ export default function FinanceiroAPagarV3({ pay, costs }: { pay: any[]; costs: 
   const COLS = [
     { k: "empresa", label: "Empresa / Item", type: "set", right: false },
     { k: "categoria", label: "Categoria", type: "set", right: false },
+    { k: "contratacao", label: "Contratação (data)", type: "date", right: false },
     { k: "venc", label: "Vencimento (data/hora)", type: "date", right: false },
     { k: "pag", label: "Pagamento (data/hora)", type: "date", right: false },
     { k: "total", label: "Total", type: "num", right: true },
     { k: "pago", label: "Já pago", type: "num", right: true },
-    { k: "restante", label: "Restante", type: "num", right: true },
+    { k: "restante", label: "Restante a pagar", type: "num", right: true },
     { k: "status", label: "Status", type: "set", right: false },
   ] as const;
-  const emptyCF = () => ({ empresa: null as Set<string> | null, categoria: null as Set<string> | null, status: null as Set<string> | null, vencDe: "", vencAte: "", pagDe: "", pagAte: "", totalMin: "", totalMax: "", pagoMin: "", pagoMax: "", restMin: "", restMax: "" });
+  const emptyCF = () => ({ empresa: null as Set<string> | null, categoria: null as Set<string> | null, status: null as Set<string> | null, contratacaoDe: "", contratacaoAte: "", vencDe: "", vencAte: "", pagDe: "", pagAte: "", totalMin: "", totalMax: "", pagoMin: "", pagoMax: "", restMin: "", restMax: "" });
   const [cf, setCf] = useState<any>(emptyCF());
   const [sortKey, setSortKey] = useState("venc");
   const [sortDir, setSortDir] = useState(1);
@@ -121,7 +122,7 @@ export default function FinanceiroAPagarV3({ pay, costs }: { pay: any[]; costs: 
     if (chip !== "Todos") r = r.filter(i => i.categoria === chip);
     (["empresa", "categoria", "status"] as const).forEach(k => { const set = cf[k]; if (set && set.size) r = r.filter(i => set.has(String((i as any)[k]))); });
     const dr = (k: string, de: string, ate: string) => { if (de) r = r.filter(i => (i as any)[k] && ymd((i as any)[k]) >= de); if (ate) r = r.filter(i => (i as any)[k] && ymd((i as any)[k]) <= ate); };
-    dr("venc", cf.vencDe, cf.vencAte); dr("pag", cf.pagDe, cf.pagAte);
+    dr("contratacao", cf.contratacaoDe, cf.contratacaoAte); dr("venc", cf.vencDe, cf.vencAte); dr("pag", cf.pagDe, cf.pagAte);
     const nr = (k: string, mn: string, mx: string) => { if (mn !== "") r = r.filter(i => (i as any)[k] >= parseFloat(mn)); if (mx !== "") r = r.filter(i => (i as any)[k] <= parseFloat(mx)); };
     nr("total", cf.totalMin, cf.totalMax); nr("pago", cf.pagoMin, cf.pagoMax); nr("restante", cf.restMin, cf.restMax);
     const q = search.trim().toLowerCase();
@@ -254,9 +255,12 @@ export default function FinanceiroAPagarV3({ pay, costs }: { pay: any[]; costs: 
       <div className="fv3-sech"><h3>Lançamentos a pagar</h3><span className="rt">{filtered.length} lançamento(s) no filtro</span></div>
       <div className="fv3-toolbar">
         <div className="fv3-search">🔍 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar em qualquer coluna…" /></div>
-        <label className="fv3-lbl">Data de referência (PDF): <input type="date" value={pdfRef} onChange={e => setPdfRef(e.target.value)} /></label>
+        <span className="fv3-tip">Filtre clicando no <b>título de cada coluna ▾</b></span>
         <button className="fv3-btn" onClick={() => { setCf(emptyCF()); setChip("Todos"); setSearch(""); }}>Limpar filtros</button>
-        <button className="fv3-btn dark" onClick={exportPDF}>⭳ Exportar PDF</button>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+          <label className="fv3-lbl">Exportar em <input type="date" value={pdfRef} onChange={e => setPdfRef(e.target.value)} /></label>
+          <button className="fv3-btn dark" onClick={exportPDF}>⭳ Exportar PDF</button>
+        </div>
       </div>
 
       <div className="fv3-subbar">
@@ -264,7 +268,7 @@ export default function FinanceiroAPagarV3({ pay, costs }: { pay: any[]; costs: 
         <div className="stx"><span className="k">Lançamentos</span><span className="v">{filtered.length}</span></div>
         <div className="stx"><span className="k">Total</span><span className="v">{BRL(fTot)}</span></div>
         <div className="stx"><span className="k">Já pago</span><span className="v green">{BRL(fPago)}</span></div>
-        <div className="stx"><span className="k">Restante</span><span className="v amber">{BRL(fRest)}</span></div>
+        <div className="stx"><span className="k">Restante a pagar</span><span className="v amber">{BRL(fRest)}</span></div>
       </div>
 
       <div className="fv3-tablewrap">
@@ -276,10 +280,11 @@ export default function FinanceiroAPagarV3({ pay, costs }: { pay: any[]; costs: 
               ))}
             </tr></thead>
             <tbody>
-              {shown.length === 0 ? <tr><td colSpan={8} style={{ padding: 16, color: "#6B7280" }}>Nenhum lançamento para este filtro.</td></tr> : shown.map(i => (
-                <tr key={i.id}>
-                  <td className="co">{i.empresa}<small>{i.sub}</small></td>
+              {shown.length === 0 ? <tr><td colSpan={9} style={{ padding: 16, color: "#6B7280" }}>Nenhum lançamento para este filtro.</td></tr> : shown.map(i => (
+                <tr key={i.id} className="erow" onClick={() => onEdit?.(i.rawId)} title="Clique para editar este lançamento na origem">
+                  <td className="co">{i.empresa}<small>{i.sub}</small><span className="edit-hint">✎ editar</span></td>
                   <td><span className="typ">{(CAT_EMOJI[i.categoria] || "")} {i.categoria}</span></td>
+                  <td className="dt">{fmtDT(i.contratacao)}</td>
                   <td className="dt">{fmtDT(i.venc)}</td>
                   <td className="dt">{i.pag ? fmtDT(i.pag) : <small>—</small>}</td>
                   <td className="r">{BRL(i.total)}</td>
@@ -289,7 +294,7 @@ export default function FinanceiroAPagarV3({ pay, costs }: { pay: any[]; costs: 
                 </tr>
               ))}
             </tbody>
-            <tfoot><tr className="totrow"><td colSpan={4}>Σ Totais do filtro</td><td className="r">{BRL(fTot)}</td><td className="r green">{BRL(fPago)}</td><td className="r amber">{BRL(fRest)}</td><td /></tr></tfoot>
+            <tfoot><tr className="totrow"><td colSpan={5}>Σ Totais do filtro</td><td className="r">{BRL(fTot)}</td><td className="r green">{BRL(fPago)}</td><td className="r amber">{BRL(fRest)}</td><td /></tr></tfoot>
           </table>
           <div className="fv3-sentinel">{visN >= filtered.length ? (filtered.length ? "✓ fim da lista" : "") : "carregando mais conforme você rola…"}</div>
         </div>
@@ -313,7 +318,7 @@ export default function FinanceiroAPagarV3({ pay, costs }: { pay: any[]; costs: 
 function ExcelPop({ pop, cf, setCf, distinct, setColSet, setSortKey, setSortDir, close, popSearch, setPopSearch, catEmoji }: any) {
   const col = pop.col, type = pop.type;
   const NK: any = { total: ["totalMin", "totalMax"], pago: ["pagoMin", "pagoMax"], restante: ["restMin", "restMax"] };
-  const DK: any = { venc: ["vencDe", "vencAte"], pag: ["pagDe", "pagAte"] };
+  const DK: any = { contratacao: ["contratacaoDe", "contratacaoAte"], venc: ["vencDe", "vencAte"], pag: ["pagDe", "pagAte"] };
   const vals = type === "set" ? distinct(col) : [];
   const sel: Set<string> | null = cf[col];
   const [checked, setChecked] = useState<Set<string>>(new Set(sel ? Array.from(sel) : vals));
@@ -432,6 +437,11 @@ const CSS = `
 .fv3-modal .mtab th{background:#FCFCFD;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted2);font-weight:700;text-align:left;padding:11px 13px;white-space:nowrap}
 .fv3-modal .mtab th.r,.fv3-modal .mtab td.r{text-align:right}
 .fv3-modal .mtab td{padding:11px 13px;border-top:1px solid var(--line);font-size:13px;white-space:nowrap}
+.fv3 tbody tr.erow{cursor:pointer}
+.fv3 tbody tr.erow:hover{background:#F4F7FC}
+.fv3 .edit-hint{display:none;margin-left:8px;font-size:10px;font-weight:700;color:var(--blue-ink);background:#EAF1FC;border-radius:6px;padding:1px 7px}
+.fv3 tbody tr.erow:hover .edit-hint{display:inline-block}
+.fv3-tip{font-size:11.5px;color:var(--muted);background:#F4F6F9;border-radius:20px;padding:6px 12px;white-space:nowrap}
 .fv3-reducao{display:flex;gap:20px;flex-wrap:wrap;align-items:center;justify-content:space-between;background:linear-gradient(180deg,#0E5C33,#0B4A29);color:#fff;border-radius:16px;padding:18px 22px;box-shadow:var(--shadow);margin:14px 0}
 .fv3-reducao .rlbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:#BFE8CE}
 .fv3-reducao .rval{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:6px 0 2px}

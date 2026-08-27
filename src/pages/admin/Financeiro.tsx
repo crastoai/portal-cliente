@@ -750,7 +750,7 @@ export default function Financeiro() {
           <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => newAccount("payable")}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Novo lançamento")}</span></button>
           <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => { setCf({ ...C_EMPTY }); setCOpen(true); }}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Novo custo")}</span></button>
         </div>
-        <FinanceiroAPagarV3 pay={pay} costs={costs} />
+        <FinanceiroAPagarV3 pay={pay} costs={costs} onEdit={(id) => { const it = payItems.find((p) => p.id === id); if (it) editItem(it); }} />
       </>) : tab === "receber" ? (<>
         {/* A Receber — layout v3 APROVADO (2026-08-27): componente dedicado (competência × caixa) com dado real. */}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginBottom: 12 }}>
