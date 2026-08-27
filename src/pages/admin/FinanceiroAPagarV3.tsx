@@ -38,11 +38,18 @@ export default function FinanceiroAPagarV3({ pay, costs }: { pay: any[]; costs: 
   // ---- painel de IA (interno × cliente) ----
   const from = mes + "-01";
   const to = mes + "-31";
-  const { data: aiPanel } = useAsync(async () => services.finance.aiCost.panel(from, to).catch(() => ({})), [from, to]);
+  const { data: aiPanel, reload: reloadAi } = useAsync(async () => services.finance.aiCost.panel(from, to).catch(() => ({})), [from, to]);
   const s = (aiPanel as any)?.summary ?? { total: 0, client_cost: 0 };
   const iaTotal = Number(s.total || 0), iaCliente = Number(s.client_cost || 0), iaInterno = Math.max(0, iaTotal - iaCliente);
   const byPlatform: any[] = (aiPanel as any)?.by_platform ?? [];
-  const byClient: any[] = (aiPanel as any)?.by_client ?? [];
+  // Exclui o bucket "Interno / plataforma" (sem organization_id) do painel de CLIENTES — ele é custo próprio, não de cliente.
+  const byClient: any[] = ((aiPanel as any)?.by_client ?? []).filter((r: any) => r.organization_id);
+  const iaRows: any[] = (aiPanel as any)?.rows ?? [];
+  const [iaDrill, setIaDrill] = useState<{ title: string; sub: string; rows: any[] } | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const doSync = async () => { setSyncing(true); try { await services.finance.aiCost.sync(from, to); reloadAi(); } catch (e: any) { alert("Sincronização: " + (e?.message || e)); } finally { setSyncing(false); } };
+  const openIaPlatform = (platform: string, label: string) => setIaDrill({ title: label, sub: "Origem do custo por lançamento (custo real · auto-sync)", rows: iaRows.filter(r => (r.platform || r.provider) === platform) });
+  const openIaClient = (orgId: string, name: string) => setIaDrill({ title: name, sub: "Custo de IA deste cliente, por plataforma (custo real · auto-sync)", rows: iaRows.filter(r => r.organization_id === orgId) });
 
   // ---- itens (contas a pagar + custos operacionais) ----
   const statusOf = (venc: string, restante: number, paid: boolean) => paid || restante <= 0.005 ? "Pago" : (venc && ymd(venc) < today ? "Vencido" : "Pendente");
@@ -59,12 +66,15 @@ export default function FinanceiroAPagarV3({ pay, costs }: { pay: any[]; costs: 
   }, [pay, costs]);
 
   // ---- KPIs ----
-  const pagoAno = items.filter(i => (i.pag || "").slice(0, 4) === ano || (i.status === "Pago")).reduce((a, i) => a + i.pago, 0) || items.reduce((a, i) => a + i.pago, 0);
+  // Pago no ano = pagamentos com data neste ano (+ os marcados pagos sem data registrada).
+  const pagoAno = items.filter(i => ((i.pag || "").slice(0, 4) === ano) || (i.status === "Pago" && !i.pag)).reduce((a, i) => a + i.pago, 0);
   const pagoMes = items.filter(i => (i.pag || "").slice(0, 7) === mes).reduce((a, i) => a + i.pago, 0);
   const aPagarAinda = items.filter(i => i.status !== "Pago" && (i.venc || "").slice(0, 7) === mes).reduce((a, i) => a + i.restante, 0);
+  // Baldes por status — desenhados para FECHAR: Vencidos + Vencem hoje + A vencer = Restante total.
+  // (Vencido = tem venc < hoje; Pendente = todo o resto em aberto, inclusive SEM data → cai em "A vencer".)
   const bVencidos = items.filter(i => i.status === "Vencido").reduce((a, i) => a + i.restante, 0);
-  const bHoje = items.filter(i => i.status !== "Pago" && ymd(i.venc) === today).reduce((a, i) => a + i.restante, 0);
-  const bAvencer = items.filter(i => i.status === "Pendente" && ymd(i.venc) > today).reduce((a, i) => a + i.restante, 0);
+  const bHoje = items.filter(i => i.status === "Pendente" && ymd(i.venc) === today).reduce((a, i) => a + i.restante, 0);
+  const bAvencer = items.filter(i => i.status === "Pendente" && ymd(i.venc) !== today).reduce((a, i) => a + i.restante, 0);
   const bPagos = items.reduce((a, i) => a + i.pago, 0);
   const catTotal = (c: string) => items.filter(i => i.categoria === c).reduce((a, i) => a + i.total, 0);
 
@@ -180,23 +190,23 @@ export default function FinanceiroAPagarV3({ pay, costs }: { pay: any[]; costs: 
         <div className="fv3-bucket green"><div className="lbl">Pagos</div><div className="val">{BRL(bPagos)}</div></div>
       </div>
 
-      {/* IA em 2 painéis */}
-      <div className="fv3-sech"><h3>🤖 Despesas de IA</h3><span className="rt">Total no mês · <b>{BRL(iaTotal)}</b></span></div>
+      {/* IA em 2 painéis — linhas CLICÁVEIS (drill-down da origem) + Sincronizar (custo real em tempo real) */}
+      <div className="fv3-sech"><h3>🤖 Despesas de IA</h3><span className="rt">Total no mês · <b>{BRL(iaTotal)}</b> <button className="fv3-btn" style={{ marginLeft: 10, padding: "5px 11px", fontSize: 12 }} onClick={doSync} disabled={syncing}>{syncing ? "Sincronizando…" : "🔄 Sincronizar"}</button></span></div>
       <div className="fv3-panels">
         <div className="fv3-panel">
           <div className="ph"><span className="t">IA da Crasto.AI (custo próprio)</span><span className="s">Overhead · {BRL(iaInterno)}</span></div>
-          {byPlatform.length ? byPlatform.slice(0, 4).map((r, k) => (
-            <div className="fv3-row" key={k}><div><div className="nm">{r.platform || r.provider || "—"}</div><div className="mt">{r.provider || ""}</div></div><div className="amt">{BRL(Number(r.cost || 0))}</div></div>
-          )) : <div className="fv3-row"><div className="mt">Sem custo de IA interno no período.</div></div>}
+          {byPlatform.length ? byPlatform.slice(0, 5).map((r, k) => (
+            <div className="fv3-row clk" key={k} onClick={() => openIaPlatform(r.platform || r.provider, r.platform || r.provider || "—")}><div><div className="nm">{r.platform || r.provider || "—"}</div><div className="mt">{r.provider || ""}</div></div><div className="amt">{BRL(Number(r.cost || 0))} <span className="chev">›</span></div></div>
+          )) : <div className="fv3-row"><div className="mt">Sem custo de IA no período. Clique em Sincronizar.</div></div>}
         </div>
         <div className="fv3-panel">
           <div className="ph"><span className="t">IA repassada a clientes <span className="tag cli">COGS</span></span><span className="s">Custo do serviço · {BRL(iaCliente)}</span></div>
-          {byClient.length ? byClient.slice(0, 4).map((r, k) => (
-            <div className="fv3-row" key={k}><div><div className="nm">{r.organization_name || r.client || "Cliente"}</div><div className="mt">LLM do cliente</div></div><div className="amt">{BRL(Number(r.cost || 0))}</div></div>
+          {byClient.length ? byClient.slice(0, 5).map((r, k) => (
+            <div className="fv3-row clk" key={k} onClick={() => openIaClient(r.organization_id, r.organization_name || "Cliente")}><div><div className="nm">{r.organization_name || "Cliente"}</div><div className="mt">LLM do cliente</div></div><div className="amt">{BRL(Number(r.cost || 0))} <span className="chev">›</span></div></div>
           )) : <div className="fv3-row"><div className="mt">Sem IA repassada a clientes no período.</div></div>}
         </div>
       </div>
-      <div className="fv3-note"><b>Por que separar:</b> a IA da Crasto é <b>despesa fixa</b> (overhead). A IA dos clientes é <b>custo do serviço vendido (COGS)</b> — casada com a receita do cliente, revela a <b>margem bruta</b>.</div>
+      <div className="fv3-note"><b>Por que separar:</b> a IA da Crasto é <b>despesa fixa</b> (overhead). A IA dos clientes é <b>custo do serviço vendido (COGS)</b> — casada com a receita do cliente, revela a <b>margem bruta</b>. Os valores são o <b>custo REAL</b> das APIs de billing (Anthropic · OpenAI · Google/Gemini · DeepSeek), atualizado em <b>Sincronizar</b>. <b>Clique em qualquer linha</b> para ver a origem do custo.</div>
 
       {/* Pessoas & prestadores */}
       <div className="fv3-sech"><h3>👤 Pessoas &amp; prestadores</h3><span className="rt">Total no mês · <b>{BRL(pessoasTotal)}</b></span></div>
@@ -265,6 +275,14 @@ export default function FinanceiroAPagarV3({ pay, costs }: { pay: any[]; costs: 
 
       {/* popover de filtro (Excel) */}
       {pop && <ExcelPop pop={pop} cf={cf} setCf={setCf} distinct={distinct} setColSet={setColSet} setSortKey={setSortKey} setSortDir={setSortDir} close={() => setPop(null)} popSearch={popSearch} setPopSearch={setPopSearch} catEmoji={CAT_EMOJI} />}
+
+      {/* drill-down da ORIGEM do custo de IA (fonte: finance.ai_costs, custo real auto-sync) */}
+      {iaDrill && <div className="fv3-modal" onClick={() => setIaDrill(null)}><div className="box" onClick={e => e.stopPropagation()}>
+        <div className="mh"><div><div className="m-t">{iaDrill.title}</div><div className="m-s">{iaDrill.sub}</div></div><button className="x" onClick={() => setIaDrill(null)}>✕</button></div>
+        <div className="m-scroll"><table className="mtab"><thead><tr><th>Plataforma</th><th>Cliente / uso</th><th className="r">Tokens</th><th className="r">Custo</th><th>Período</th></tr></thead>
+          <tbody>{iaDrill.rows.length ? iaDrill.rows.map((r: any, k: number) => (<tr key={k}><td>{r.platform || r.provider || "—"}</td><td>{r.organization_name || (r.kind === "interno" ? "Interno / plataforma" : "—")}</td><td className="r">{((Number(r.tokens_in || 0) + Number(r.tokens_out || 0)) || 0).toLocaleString("pt-BR")}</td><td className="r">{BRL(Number(r.cost || 0))}</td><td>{ymd(r.period_start)}{r.period_end ? " → " + ymd(r.period_end) : ""}</td></tr>)) : <tr><td colSpan={5} style={{ padding: 14, color: "#6B7280" }}>Sem lançamentos-fonte no período. Clique em <b>Sincronizar</b> para puxar o custo real das APIs de billing.</td></tr>}</tbody></table></div>
+        <div className="fv3-note" style={{ margin: "12px 0 0" }}>Fonte: <b>finance.ai_costs</b> — custo REAL puxado das APIs de billing dos provedores (auto-sync). Anthropic/OpenAI via Admin key no cofre; Google/Gemini via Cloud Billing; DeepSeek por uso.</div>
+      </div></div>}
     </div>
   );
 }
@@ -378,5 +396,18 @@ const CSS = `
 .fv3-pop .foot{display:flex;justify-content:space-between;align-items:center;margin-top:9px}
 .fv3-pop .foot button{border:0;background:transparent;font:inherit;font-size:12px;font-weight:700;cursor:pointer;padding:7px 9px;border-radius:8px}
 .fv3-pop .foot .ok{background:var(--navy);color:#fff;padding:7px 16px}.fv3-pop .foot .cl{color:var(--muted)}
+.fv3-row.clk{cursor:pointer;border-radius:8px;padding-left:6px;padding-right:6px;margin:0 -6px;transition:background .08s}
+.fv3-row.clk:hover{background:#F4F7FC}
+.fv3-row .chev{color:var(--muted2);font-weight:700;margin-left:6px}
+.fv3-modal{position:fixed;inset:0;z-index:80;background:rgba(8,15,30,.42);display:flex;align-items:center;justify-content:center;padding:24px}
+.fv3-modal .box{background:#fff;border-radius:16px;box-shadow:0 24px 60px rgba(16,24,40,.28);width:min(760px,96vw);max-height:86vh;overflow:auto;padding:20px 22px}
+.fv3-modal .mh{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px}
+.fv3-modal .m-t{font-size:18px;font-weight:800}.fv3-modal .m-s{font-size:12.5px;color:var(--muted);margin-top:2px}
+.fv3-modal .x{border:0;background:#F1F3F7;border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer;color:#5B6472}
+.fv3-modal .m-scroll{overflow:auto;border:1px solid var(--line);border-radius:12px}
+.fv3-modal .mtab{width:100%;border-collapse:collapse}
+.fv3-modal .mtab th{background:#FCFCFD;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted2);font-weight:700;text-align:left;padding:11px 13px;white-space:nowrap}
+.fv3-modal .mtab th.r,.fv3-modal .mtab td.r{text-align:right}
+.fv3-modal .mtab td{padding:11px 13px;border-top:1px solid var(--line);font-size:13px;white-space:nowrap}
 @media(max-width:1050px){.fv3-grid3,.fv3-buckets,.fv3-panels{grid-template-columns:1fr 1fr}}
 `;

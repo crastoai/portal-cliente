@@ -13,13 +13,15 @@ import FinanceiroAPagarV3 from "./FinanceiroAPagarV3";
 // Data de HOJE no fuso do Brasil (America/Sao_Paulo) em "YYYY-MM-DD". Usar toISOString()
 // (UTC) fazia o dia "virar" 3h antes à noite — e as parcelas são datas de calendário BR.
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+// Carimbo de tempo AUDITÁVEL (data+hora+seg, fuso BR -03:00) — usado ao registrar uma baixa.
+const nowStamp = () => new Date().toLocaleString("sv-SE", { timeZone: "America/Sao_Paulo" }).replace(" ", "T") + "-03:00";
 const A_EMPTY = {
   id: "", account_type: "payable",
   contact_name: "", contact_reference: "", organization_id: "", cnpj: "",
   description: "", services: [] as any[],
   contract_validity_value: "", contract_validity_unit: "months", contract_total: "", contract_signed_date: "",
   payment_installments: "", installment_amount: "", due_date: "", payment_day_of_month: "", payment_method: "PIX", payment_schedule: [] as any[],
-  expense_type: "consumo", category: "", status: "pending", payment_reason: "",
+  expense_type: "consumo", category: "", status: "pending", payment_reason: "", vinculo: "",
   amount: "", amount_paid: "", payment_date: "", recurrence: "", invoice_number: "", notes: "",
 };
 const UNITS = [{ v: "days", l: "Dias" }, { v: "months", l: "Meses" }, { v: "years", l: "Anos" }];
@@ -142,7 +144,7 @@ function vereditoParcela(p: any, todayIso: string): { tone: string; icon: string
   return { tone: "pending", icon: "⏳", text: venc ? `a vencer em ${brDate(venc)}` : "a vencer" };
 }
 const TONE_COLOR: Record<string, string> = { ok: "var(--fin-green)", warn: "var(--fin-orange)", bad: "var(--fin-red)", pending: "#475467", muted: "#98A2B3" };
-const C_EMPTY = { id: "", vendor_name: "", description: "", category: "", currency: "BRL", amount_original: "", exchange_rate: "1", amount_brl: "", recurrence: "mensal", cost_type: "fixo", cost_nature: "recorrente", next_payment_date: "", is_active: true, notes: "" };
+const C_EMPTY = { id: "", vendor_name: "", description: "", category: "", currency: "BRL", amount_original: "", exchange_rate: "1", amount_brl: "", recurrence: "mensal", cost_type: "fixo", cost_nature: "recorrente", next_payment_date: "", is_active: true, notes: "", vinculo: "" };
 const T_EMPTY = { id: "", type: "income", category: "", amount: "", description: "", status: "completed", transaction_date: "", contact_name: "", payment_method: "", notes: "" };
 
 const TABS = [
@@ -469,7 +471,7 @@ export default function Financeiro() {
   // handlers conta
   function newAccount(type: string) { setAf({ ...A_EMPTY, account_type: type, status: "pending" }); setAOpen(true); }
   function editItem(i: any) {
-    if (i._kind === "cost") { const c = costs.find((x) => x.id === i.id); setCf({ id: c.id, vendor_name: c.vendor_name || "", description: c.description || "", category: c.category || "", currency: c.currency || "BRL", amount_original: String(c.amount_original ?? ""), exchange_rate: String(c.exchange_rate ?? "1"), amount_brl: String(c.amount_brl ?? ""), recurrence: c.recurrence || "mensal", cost_type: c.cost_type || "fixo", cost_nature: c.cost_nature || "recorrente", next_payment_date: ymd(c.next_payment_date), is_active: !!c.is_active, notes: c.notes || "" }); setCOpen(true); }
+    if (i._kind === "cost") { const c = costs.find((x) => x.id === i.id); setCf({ id: c.id, vendor_name: c.vendor_name || "", description: c.description || "", category: c.category || "", currency: c.currency || "BRL", amount_original: String(c.amount_original ?? ""), exchange_rate: String(c.exchange_rate ?? "1"), amount_brl: String(c.amount_brl ?? ""), recurrence: c.recurrence || "mensal", cost_type: c.cost_type || "fixo", cost_nature: c.cost_nature || "recorrente", next_payment_date: ymd(c.next_payment_date), is_active: !!c.is_active, notes: c.notes || "", vinculo: c.vinculo || "" }); setCOpen(true); }
     else { setAf({
       id: i.id, account_type: i.account_type,
       contact_name: i.contact_name || "", contact_reference: i.contact_reference || "", organization_id: i.organization_id || "", cnpj: i.cnpj || "",
@@ -479,7 +481,7 @@ export default function Financeiro() {
       payment_schedule: Array.isArray(i.payment_schedule) ? i.payment_schedule.map((p: any) => ({ ...p, date: ymd(p.date), origin_date: p.origin_date ? ymd(p.origin_date) : ymd(p.date), paid_date: p.paid_date ? ymd(p.paid_date) : "", proof_url: p.proof_url || "", proof_note: p.proof_note || "", penalty_amount: Number(p.penalty_amount || 0), penalty_waived: !!p.penalty_waived })) : [],
       due_date: ymd(i.due_date) || (Array.isArray(i.payment_schedule) && i.payment_schedule[0] ? ymd(i.payment_schedule[0].date) : ""), payment_day_of_month: String(i.payment_day_of_month ?? ""), payment_method: i.payment_method || "PIX",
       expense_type: i.expense_type || "consumo", category: i.category || "", status: i.status || "pending", payment_reason: i.payment_reason || "",
-      amount: String(i.amount ?? ""), amount_paid: String(i.amount_paid ?? ""), payment_date: i.payment_date || "", recurrence: i.recurrence || "", invoice_number: i.invoice_number || "", notes: i.notes || "",
+      amount: String(i.amount ?? ""), amount_paid: String(i.amount_paid ?? ""), payment_date: ymd(i.payment_date), recurrence: i.recurrence || "", invoice_number: i.invoice_number || "", notes: i.notes || "", vinculo: i.vinculo || "",
     }); setAOpen(true); }
   }
   // serviços do fornecedor (lista repetível)
@@ -540,7 +542,7 @@ export default function Financeiro() {
     setBusy(true);
     try {
       if (i._kind === "cost") await services.finance.costs.save({ id: i.id, is_active: false });
-      else await services.finance.accounts.save({ id: i.id, account_type: i.account_type, status: "paid", payment_date: today(), amount_paid: i.amount });
+      else await services.finance.accounts.save({ id: i.id, account_type: i.account_type, status: "paid", payment_date: nowStamp(), amount_paid: i.amount });
       reload(); flash(t("Marcada como paga ✓"));
     } catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
   }
@@ -556,7 +558,7 @@ export default function Financeiro() {
     const status = paid >= total && total > 0 ? "paid" : paid > 0 ? "partial" : "pending";
     const lastPaid = sched.filter((p: any) => p.status === "paid").map((p: any) => p.date).sort().slice(-1)[0] || null;
     setBusy(true);
-    try { await services.finance.accounts.save({ id: i.id, payment_schedule: sched, amount_paid: paid, status, payment_date: status === "paid" ? (lastPaid || today()) : "" }); reload(); flash(t("Parcela atualizada ✓")); }
+    try { await services.finance.accounts.save({ id: i.id, payment_schedule: sched, amount_paid: paid, status, payment_date: status === "paid" ? (lastPaid || nowStamp()) : "" }); reload(); flash(t("Parcela atualizada ✓")); }
     catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
   }
   // anexa/remove o comprovante de UMA parcela direto do painel de Cobrança (sem abrir o editor).
@@ -592,7 +594,7 @@ export default function Financeiro() {
     const status = paid >= total && total > 0 ? "paid" : paid > 0 ? "partial" : "pending";
     const lastPaid = sched.filter((p: any) => p.status === "paid").map((p: any) => p.paid_date || p.date).filter(Boolean).sort().slice(-1)[0] || null;
     setBusy(true);
-    try { await services.finance.accounts.save({ id: i.id, payment_schedule: sched, amount_paid: paid, status, payment_date: status === "paid" ? (lastPaid || today()) : "" }); reload(); setParcEdit(null); setParcDraft(null); flash(t("Parcela atualizada ✓")); }
+    try { await services.finance.accounts.save({ id: i.id, payment_schedule: sched, amount_paid: paid, status, payment_date: status === "paid" ? (lastPaid || nowStamp()) : "" }); reload(); setParcEdit(null); setParcDraft(null); flash(t("Parcela atualizada ✓")); }
     catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
   }
 
@@ -1140,6 +1142,7 @@ export default function Financeiro() {
             ? <Field label={t("Tipo de Despesa")}><select value={af.expense_type} onChange={(e) => setAf({ ...af, expense_type: e.target.value })}><option value="consumo">{t("Consumo")}</option><option value="revenda">{t("Revenda")}</option></select></Field>
             : <Field label={t("Nº da nota")}><input value={af.invoice_number} onChange={(e) => setAf({ ...af, invoice_number: e.target.value })} /></Field>}
           <Field label={t("Categoria")}><input value={af.category} onChange={(e) => setAf({ ...af, category: e.target.value })} /></Field>
+          <Field label={t("Vínculo (se pessoa/prestador)")}><select value={af.vinculo || ""} onChange={(e) => setAf({ ...af, vinculo: e.target.value })}><option value="">—</option><option value="PJ">PJ</option><option value="CLT">CLT</option><option value="Terceirizado">Terceirizado</option></select></Field>
           <Field label={t("Status")}><select value={af.status} onChange={(e) => setAf({ ...af, status: e.target.value })}><option value="pending">{t("Pendente")}</option><option value="partial">{t("Parcial")}</option><option value="paid">{t("Pago")}</option><option value="cancelled">{t("Cancelada")}</option></select></Field>
         </div>
         <Field label={t("Motivo do Pagamento")}><input value={af.payment_reason} onChange={(e) => setAf({ ...af, payment_reason: e.target.value })} placeholder={t("Ex: Parcela 1 de 5 — Implantação")} /></Field>
@@ -1152,6 +1155,7 @@ export default function Financeiro() {
         <div className="grid2">
           <Field label="Fornecedor"><input value={cf.vendor_name} onChange={(e) => setCf({ ...cf, vendor_name: e.target.value })} /></Field>
           <Field label="Categoria"><input value={cf.category} onChange={(e) => setCf({ ...cf, category: e.target.value })} /></Field>
+          <Field label={t("Vínculo (se pessoa/prestador)")}><select value={cf.vinculo || ""} onChange={(e) => setCf({ ...cf, vinculo: e.target.value })}><option value="">—</option><option value="PJ">PJ</option><option value="CLT">CLT</option><option value="Terceirizado">Terceirizado</option></select></Field>
         </div>
         <Field label="Descrição *"><input value={cf.description} onChange={(e) => setCf({ ...cf, description: e.target.value })} /></Field>
         <div className="grid3">
