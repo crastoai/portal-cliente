@@ -3,8 +3,9 @@
 // 3 KPIs (MRR hero · Recebido no mês/caixa · A receber futuro) + toggle Competência×Caixa +
 // tabela Contratos & recebíveis + explicação do caso Dr. Francisco. CSS escopado `.frv3`.
 // ============================================================================
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { money } from "../../ui/ui";
+import { services } from "../../services";
 
 const BRL = (v: number) => money(v);
 const ymd = (v: any) => (v ? String(v).slice(0, 10) : "");
@@ -29,10 +30,31 @@ const mensalDe = (r: any) => {
 const modeloDe = (r: any) => r.recurrence === "mensal" ? "Mensal" : (arr(r.payment_schedule).length ? "Parcelado" : "Pontual");
 const proxVenc = (r: any) => { const ps = arr(r.payment_schedule); const nxt = ps.filter((p: any) => p.status !== "paid").map((p: any) => ymd(p.date)).filter(Boolean).sort()[0]; return nxt || ymd(r.due_date); };
 
-export default function FinanceiroAReceberV3({ rec }: { rec: any[] }) {
+export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; reload?: () => void }) {
   const [view, setView] = useState<"comp" | "caixa">("comp");
   const mes = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }).slice(0, 7);
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+
+  // ---- parcelas: expandir + marcar recebida + editar (persistido em payment_schedule) ----
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [busyP, setBusyP] = useState(false);
+  const [parcEdit, setParcEdit] = useState<{ id: string; idx: number; date: string; amount: string } | null>(null);
+  const toggleExp = (id: string) => setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const saveSchedule = async (raw: any, ps: any[]) => {
+    const recebido = ps.filter((p: any) => p.status === "paid").reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
+    const total = ps.reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
+    const status = recebido >= total - 0.005 ? "paid" : (raw.status === "cancelled" ? "cancelled" : "pending");
+    setBusyP(true);
+    try { await services.finance.accounts.save({ ...raw, payment_schedule: ps, amount_paid: recebido, status }); reload?.(); }
+    catch (e: any) { alert("Erro ao salvar parcela: " + (e?.message || e)); } finally { setBusyP(false); }
+  };
+  const markParcela = (raw: any, ps: any[], idx: number, paid: boolean) =>
+    saveSchedule(raw, ps.map((p: any, k: number) => k === idx ? { ...p, status: paid ? "paid" : "pending", paid_date: paid ? today : "", amount_paid: paid ? Number(p.amount || 0) : 0 } : p));
+  const saveParcelaEdit = (raw: any, ps: any[]) => {
+    if (!parcEdit) return; const val = parseFloat(parcEdit.amount);
+    const nps = ps.map((p: any, k: number) => k === parcEdit.idx ? { ...p, date: parcEdit.date || p.date, amount: isNaN(val) ? Number(p.amount || 0) : val, amount_paid: p.status === "paid" ? (isNaN(val) ? Number(p.amount || 0) : val) : 0 } : p);
+    setParcEdit(null); saveSchedule(raw, nps);
+  };
 
   const ativos = useMemo(() => (rec || []).filter((r: any) => r.status !== "cancelled"), [rec]);
   const recebidoMesDe = (r: any) => {
@@ -41,11 +63,14 @@ export default function FinanceiroAReceberV3({ rec }: { rec: any[] }) {
     return (ymd(r.payment_date).slice(0, 7) === mes) ? Number(r.amount_paid || 0) : 0;
   };
   const rows = ativos.map((r: any) => {
-    const total = Number(r.amount || 0), recebido = Number(r.amount_paid || 0), aReceber = Math.max(0, total - recebido);
-    const venc = proxVenc(r); const ps = arr(r.payment_schedule);
+    const ps = arr(r.payment_schedule);
+    const total = ps.length ? ps.reduce((s: number, p: any) => s + Number(p.amount || 0), 0) : Number(r.amount || 0);
+    const recebido = ps.length ? ps.filter((p: any) => p.status === "paid").reduce((s: number, p: any) => s + Number(p.amount || 0), 0) : Number(r.amount_paid || 0);
+    const aReceber = Math.max(0, total - recebido);
+    const venc = proxVenc(r);
     const pagas = ps.filter((p: any) => p.status === "paid").length;
     const status = aReceber <= 0.005 ? "Recebido" : (venc && venc < today ? "Vencido" : (ps.length ? `Parcela ${pagas + 1}/${ps.length}` : "Em dia"));
-    return { id: r.id, cliente: r.contact_name || r.description || "—", detalhe: ps.length ? `contrato ${BRL(total)} · ${ps.length}×` : (r.description || "recorrente"), modelo: modeloDe(r), venc, reconhecido: mensalDe(r), recebidoMes: recebidoMesDe(r), recebido, aReceber, status, stTone: aReceber <= 0.005 ? "pago" : (venc && venc < today ? "venc" : "pend") };
+    return { id: r.id, cliente: r.contact_name || r.description || "—", detalhe: ps.length ? `contrato ${BRL(total)} · ${ps.length}×` : (r.description || "recorrente"), modelo: modeloDe(r), venc, reconhecido: mensalDe(r), recebidoMes: recebidoMesDe(r), recebido, aReceber, status, stTone: aReceber <= 0.005 ? "pago" : (venc && venc < today ? "venc" : "pend"), ps, raw: r };
   });
 
   const mrr = ativos.filter(isRecurring).reduce((a: number, r: any) => a + mensalDe(r), 0);
@@ -82,8 +107,9 @@ export default function FinanceiroAReceberV3({ rec }: { rec: any[] }) {
           </tr></thead>
           <tbody>
             {rows.length === 0 ? <tr><td colSpan={7} style={{ padding: 16, color: "#6B7280" }}>Nenhum recebível cadastrado.</td></tr> : rows.map(r => (
-              <tr key={r.id}>
-                <td className="co">{r.cliente}<small>{r.detalhe}</small></td>
+              <Fragment key={r.id}>
+              <tr>
+                <td className="co">{r.ps && r.ps.length > 0 && <button className={"frv3-exp" + (expanded.has(r.id) ? " on" : "")} title="Ver parcelas" onClick={() => toggleExp(r.id)}>{expanded.has(r.id) ? "▾" : "▸"}</button>}{r.cliente}<small>{r.detalhe}{r.ps && r.ps.length > 0 ? ` · ${r.ps.filter((p: any) => p.status === "paid").length}/${r.ps.length} recebidas` : ""}</small></td>
                 <td><span className="typ">{r.modelo}</span></td>
                 <td className="dt">{fmtDT(r.venc)}</td>
                 <td className="r">{BRL(view === "comp" ? r.reconhecido : r.recebidoMes)}</td>
@@ -91,6 +117,22 @@ export default function FinanceiroAReceberV3({ rec }: { rec: any[] }) {
                 <td className="r blue">{BRL(r.aReceber)}</td>
                 <td><span className={"st " + r.stTone}>{r.status}</span></td>
               </tr>
+              {r.ps && r.ps.length > 0 && expanded.has(r.id) && r.ps.map((p: any, idx: number) => {
+                const isEd = !!parcEdit && parcEdit.id === r.id && parcEdit.idx === idx;
+                const paid = p.status === "paid";
+                return (
+                  <tr key={r.id + "_p" + idx} className="parcrow">
+                    <td className="co pc"><span className="pcn">Parcela {p.installment || idx + 1}/{r.ps!.length}</span></td>
+                    <td><span className="typ">Parcela</span></td>
+                    <td className="dt">{isEd ? <input type="date" value={parcEdit!.date} onChange={e => setParcEdit({ ...parcEdit!, date: e.target.value })} className="pinp" /> : fmtDT(p.date)}</td>
+                    <td className="r">{isEd ? <input type="number" step="0.01" value={parcEdit!.amount} onChange={e => setParcEdit({ ...parcEdit!, amount: e.target.value })} className="pinp num" /> : BRL(Number(p.amount || 0))}</td>
+                    <td className="r green">{paid ? BRL(Number(p.amount || 0)) : "R$ 0,00"}</td>
+                    <td className="r blue">{paid ? "R$ 0,00" : BRL(Number(p.amount || 0))}</td>
+                    <td className="pacts">{isEd ? (<><button className="pbtn ok" disabled={busyP} onClick={() => saveParcelaEdit(r.raw, r.ps!)}>Salvar</button><button className="pbtn" onClick={() => setParcEdit(null)}>Cancelar</button></>) : (<><span className={"st " + (paid ? "pago" : "pend")}>{paid ? "Recebida" : "A receber"}</span>{paid ? <button className="pbtn" disabled={busyP} onClick={() => markParcela(r.raw, r.ps!, idx, false)}>Desmarcar</button> : <button className="pbtn ok" disabled={busyP} onClick={() => markParcela(r.raw, r.ps!, idx, true)}>✓ Marcar recebida</button>}<button className="pbtn" title="Editar parcela" onClick={() => setParcEdit({ id: r.id, idx, date: ymd(p.date), amount: String(p.amount || "") })}>✎</button></>)}</td>
+                  </tr>
+                );
+              })}
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -134,5 +176,18 @@ const CSS = `
 .frv3 .typ{font-size:11.5px;font-weight:600;color:var(--muted);background:var(--hover);padding:4px 10px;border-radius:20px}
 .frv3 .st{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:20px}
 .frv3 .st.pend{background:var(--line);color:var(--muted)}.frv3 .st.pago{background:var(--green-bg);color:var(--green-ink)}.frv3 .st.venc{background:var(--red-bg);color:var(--red)}
+.frv3-exp{border:1px solid var(--line2);background:var(--card);color:var(--muted);border-radius:6px;width:20px;height:20px;line-height:1;font-size:11px;font-weight:800;cursor:pointer;margin-right:8px;padding:0;vertical-align:middle}
+.frv3-exp:hover,.frv3-exp.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.frv3 tr.parcrow td{background:var(--bg2);border-top:1px dashed var(--line2);font-size:12.5px;padding:9px 14px}
+.frv3 tr.parcrow td.pc{padding-left:34px}
+.frv3 tr.parcrow .pcn{font-weight:700;color:var(--muted)}
+.frv3 .pinp{font:inherit;font-size:12px;border:1px solid var(--blue);border-radius:6px;padding:4px 6px;width:120px;background:var(--card);color:var(--txt)}
+.frv3 .pinp.num{width:90px;text-align:right}
+.frv3 td.pacts{white-space:nowrap;text-align:right}
+.frv3 td.pacts>*{margin-left:6px;vertical-align:middle}
+.frv3 .pbtn{border:1px solid var(--line2);background:var(--card);border-radius:7px;padding:4px 9px;font:inherit;font-size:11.5px;font-weight:700;color:var(--muted);cursor:pointer}
+.frv3 .pbtn:hover{background:var(--hover);color:var(--txt)}
+.frv3 .pbtn.ok{background:var(--green);color:#fff;border-color:var(--green)}
+.frv3 .pbtn:disabled{opacity:.5;cursor:default}
 @media(max-width:1050px){.frv3-grid3{grid-template-columns:1fr}}
 `;

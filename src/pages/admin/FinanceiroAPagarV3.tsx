@@ -6,7 +6,7 @@
 // tabela FLAT com filtro estilo Excel no cabeçalho + subtotais AO VIVO + scroll infinito
 // + Exportar PDF. CSS escopado em `.fv3` (não conflita com o resto do portal).
 // ============================================================================
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { services } from "../../services";
 import { money, useAsync } from "../../ui/ui";
@@ -29,10 +29,10 @@ const CATMAP: Record<string, string> = { ferramenta: "Ferramenta", infraestrutur
 const catLabel = (c?: string) => (c ? (CATMAP[c] || c.charAt(0).toUpperCase() + c.slice(1)) : "Serviço");
 const CAT_EMOJI: Record<string, string> = { IA: "🤖", Pessoas: "👤", Ferramenta: "🛠️", Infraestrutura: "☁️", "Serviço": "📦" };
 
-type Item = { id: string; rawId: string; empresa: string; sub: string; categoria: string; rec: string; contratacao: string; venc: string; pag: string; total: number; pago: number; restante: number; status: string };
+type Item = { id: string; rawId: string; empresa: string; sub: string; categoria: string; rec: string; contratacao: string; venc: string; pag: string; total: number; pago: number; restante: number; status: string; ps?: any[]; rawKind?: "cost" | "account" };
 const RECLBL: Record<string, string> = { mensal: "Mensal", anual: "Anual", pontual: "Pontual", parcelado: "Parcelado", uso: "Por uso" };
 
-export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[]; costs: any[]; onEdit?: (rawId: string) => void }) {
+export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay: any[]; costs: any[]; onEdit?: (rawId: string) => void; reload?: () => void }) {
   const today = todayISO();
   const ano = today.slice(0, 4);
   const mes = today.slice(0, 7);
@@ -56,6 +56,34 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[];
   const iaRows: any[] = (aiPanel as any)?.rows ?? [];
   const [iaDrill, setIaDrill] = useState<{ title: string; sub: string; rows: any[] } | null>(null);
   const [drill, setDrill] = useState<{ title: string; sub: string; col: "pago" | "restante" | "total"; dcol: "pag" | "venc"; rows: Item[] } | null>(null);
+  // ---- parcelas: expandir + marcar paga + editar (persistido em payment_schedule) ----
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [busyP, setBusyP] = useState(false);
+  const [parcEdit, setParcEdit] = useState<{ itemId: string; idx: number; date: string; amount: string } | null>(null);
+  const toggleExp = (id: string) => setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const rawOf = (i: Item) => i.rawKind === "cost" ? (costs || []).find((c: any) => c.id === i.rawId) : (pay || []).find((a: any) => a.id === i.rawId);
+  const saveSchedule = async (i: Item, ps: any[]) => {
+    const raw = rawOf(i); if (!raw) return;
+    const paid = ps.filter((p: any) => p.status === "paid").reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
+    const total = ps.reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
+    const status = paid >= total - 0.005 ? "paid" : "pending";
+    setBusyP(true);
+    try {
+      if (i.rawKind === "cost") await services.finance.costs.save({ ...raw, payment_schedule: ps, amount_paid: paid });
+      else await services.finance.accounts.save({ ...raw, payment_schedule: ps, amount_paid: paid, status, payment_date: status === "paid" ? new Date().toISOString() : (raw.payment_date || "") });
+      reload?.();
+    } catch (e: any) { alert("Erro ao salvar parcela: " + (e?.message || e)); } finally { setBusyP(false); }
+  };
+  const markParcela = (i: Item, idx: number, paid: boolean) => {
+    const ps = (i.ps || []).map((p: any, k: number) => k === idx ? { ...p, status: paid ? "paid" : "pending", paid_date: paid ? today : "", amount_paid: paid ? Number(p.amount || 0) : 0 } : p);
+    saveSchedule(i, ps);
+  };
+  const saveParcelaEdit = (i: Item) => {
+    if (!parcEdit) return;
+    const val = parseFloat(parcEdit.amount);
+    const ps = (i.ps || []).map((p: any, k: number) => k === parcEdit.idx ? { ...p, date: parcEdit.date || p.date, amount: isNaN(val) ? Number(p.amount || 0) : val, amount_paid: p.status === "paid" ? (isNaN(val) ? Number(p.amount || 0) : val) : 0 } : p);
+    setParcEdit(null); saveSchedule(i, ps);
+  };
   const [syncing, setSyncing] = useState(false);
   const doSync = async () => { setSyncing(true); try { await services.finance.aiCost.sync(from, to); reloadAi(); } catch (e: any) { alert("Sincronização: " + (e?.message || e)); } finally { setSyncing(false); } };
   const openIaPlatform = (platform: string, label: string) => setIaDrill({ title: label, sub: "Origem do custo por lançamento (custo real · auto-sync)", rows: iaRows.filter(r => (r.platform || r.provider) === platform) });
@@ -64,15 +92,20 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[];
   // ---- itens (contas a pagar + custos operacionais) ----
   const statusOf = (venc: string, restante: number, paid: boolean) => paid || restante <= 0.005 ? "Pago" : (venc && ymd(venc) < today ? "Vencido" : "Pendente");
   const baseItems: Item[] = useMemo(() => {
+    // parcelado: total e "já pago" vêm da SOMA do cronograma (payment_schedule), não do valor da parcela
+    const psSum = (ps: any[]) => ps.reduce((s, p) => s + Number(p.amount || 0), 0);
+    const psPago = (ps: any[]) => ps.filter((p) => p.status === "paid").reduce((s, p) => s + Number(p.amount || 0), 0);
     const A: Item[] = (pay || []).map((a: any) => {
-      const total = Number(a.amount || 0), pago = Number(a.amount_paid || 0), rest = Math.max(0, total - pago);
       const ps = Array.isArray(a.payment_schedule) ? a.payment_schedule : [];
-      const rec = a.recurrence === "mensal" || a.recurrence === "anual" ? a.recurrence : (ps.length ? "parcelado" : "pontual");
-      return { id: "a_" + a.id, rawId: a.id, empresa: a.contact_name || a.description || "—", sub: a.description && a.contact_name ? a.description : (a.expense_type || "1 lançamento"), categoria: catLabel(a.category), rec, contratacao: ymd(a.contract_signed_date) || ymd(a.created_at), venc: ymd(a.due_date), pag: ymd(a.payment_date), total, pago, restante: rest, status: statusOf(a.due_date, rest, a.status === "paid") };
+      const total = ps.length ? psSum(ps) : Number(a.amount || 0), pago = ps.length ? psPago(ps) : Number(a.amount_paid || 0), rest = Math.max(0, total - pago);
+      const rec = ps.length ? "parcelado" : (a.recurrence === "mensal" || a.recurrence === "anual" ? a.recurrence : "pontual");
+      return { id: "a_" + a.id, rawId: a.id, empresa: a.contact_name || a.description || "—", sub: a.description && a.contact_name ? a.description : (a.expense_type || "1 lançamento"), categoria: catLabel(a.category), rec, contratacao: ymd(a.contract_signed_date) || ymd(a.created_at), venc: ymd(a.due_date), pag: ymd(a.payment_date), total, pago, restante: rest, status: statusOf(a.due_date, rest, a.status === "paid" || (ps.length > 0 && rest <= 0.005)), ps, rawKind: "account" };
     });
     const C: Item[] = (costs || []).filter((c: any) => c.is_active !== false).map((c: any) => {
-      const total = Number(c.amount_brl || 0), pago = Number(c.amount_paid || 0), rest = Math.max(0, total - pago);
-      return { id: "c_" + c.id, rawId: c.id, empresa: c.vendor_name || "—", sub: (c.purpose || c.description || "assinatura"), categoria: catLabel(c.category), rec: (c.recurrence === "anual" ? "anual" : "mensal"), contratacao: ymd(c.reference_date) || ymd(c.created_at), venc: ymd(c.next_payment_date), pag: ymd(c.payment_date), total, pago, restante: rest, status: statusOf(c.next_payment_date, rest, pago >= total - 0.005) };
+      const ps = Array.isArray(c.payment_schedule) ? c.payment_schedule : [];
+      const total = ps.length ? psSum(ps) : Number(c.amount_brl || 0), pago = ps.length ? psPago(ps) : Number(c.amount_paid || 0), rest = Math.max(0, total - pago);
+      const rec = ps.length ? "parcelado" : (c.recurrence === "anual" ? "anual" : c.recurrence === "pontual" ? "pontual" : "mensal");
+      return { id: "c_" + c.id, rawId: c.id, empresa: c.vendor_name || "—", sub: (c.purpose || c.description || "assinatura"), categoria: catLabel(c.category), rec, contratacao: ymd(c.reference_date) || ymd(c.created_at), venc: ymd(c.next_payment_date), pag: ymd(c.payment_date), total, pago, restante: rest, status: statusOf(c.next_payment_date, rest, pago >= total - 0.005), ps, rawKind: "cost" };
     });
     return [...A, ...C];
   }, [pay, costs]);
@@ -334,8 +367,9 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[];
             </tr></thead>
             <tbody>
               {shown.length === 0 ? <tr><td colSpan={9} style={{ padding: 16, color: "#6B7280" }}>Nenhum lançamento para este filtro.</td></tr> : shown.map(i => (
-                <tr key={i.id} className="erow" onClick={() => onEdit?.(i.rawId)} title="Clique para editar este lançamento na origem">
-                  <td className="co">{i.empresa}<small>{i.sub}</small><span className="edit-hint">✎ editar</span></td>
+                <Fragment key={i.id}>
+                <tr className="erow" onClick={() => onEdit?.(i.rawId)} title="Clique para editar este lançamento na origem">
+                  <td className="co">{i.ps && i.ps.length > 0 && <button className={"fv3-exp" + (expanded.has(i.id) ? " on" : "")} title="Ver parcelas" onClick={(e) => { e.stopPropagation(); toggleExp(i.id); }}>{expanded.has(i.id) ? "▾" : "▸"}</button>}{i.empresa}<small>{i.sub}{i.ps && i.ps.length > 0 ? ` · ${i.ps.filter((p: any) => p.status === "paid").length}/${i.ps.length} parcelas` : ""}</small><span className="edit-hint">✎ editar</span></td>
                   <td><span className="typ">{(CAT_EMOJI[i.categoria] || "")} {i.categoria}</span> <span className={"recpill r-" + i.rec}>{RECLBL[i.rec] || i.rec}</span></td>
                   <td className="dt">{fmtDT(i.contratacao)}</td>
                   <td className="dt">{fmtDT(i.venc)}</td>
@@ -345,6 +379,24 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[];
                   <td className={"r " + (i.restante > 0 ? (i.status === "Vencido" ? "red" : "amber") : "")}>{BRL(i.restante)}</td>
                   <td><span className={"st " + stCls(i.status)}>{i.status}</span></td>
                 </tr>
+                {i.ps && i.ps.length > 0 && expanded.has(i.id) && i.ps.map((p: any, idx: number) => {
+                  const isEd = !!parcEdit && parcEdit.itemId === i.id && parcEdit.idx === idx;
+                  const paid = p.status === "paid";
+                  return (
+                    <tr key={i.id + "_p" + idx} className="parcrow" onClick={(e) => e.stopPropagation()}>
+                      <td className="co pc"><span className="pcn">Parcela {p.installment || idx + 1}/{i.ps!.length}</span></td>
+                      <td><span className="recpill r-parcelado">Parcela</span></td>
+                      <td className="dt">—</td>
+                      <td className="dt">{isEd ? <input type="date" value={parcEdit!.date} onChange={e => setParcEdit({ ...parcEdit!, date: e.target.value })} className="pinp" /> : fmtDT(p.date)}</td>
+                      <td className="dt">{paid ? fmtDT(p.paid_date || p.date) : <small>—</small>}</td>
+                      <td className="r">{isEd ? <input type="number" step="0.01" value={parcEdit!.amount} onChange={e => setParcEdit({ ...parcEdit!, amount: e.target.value })} className="pinp num" /> : BRL(Number(p.amount || 0))}</td>
+                      <td className="r green">{paid ? BRL(Number(p.amount || 0)) : "R$ 0,00"}</td>
+                      <td className={"r " + (paid ? "" : "amber")}>{paid ? "R$ 0,00" : BRL(Number(p.amount || 0))}</td>
+                      <td className="pacts">{isEd ? (<><button className="pbtn ok" disabled={busyP} onClick={() => saveParcelaEdit(i)}>Salvar</button><button className="pbtn" onClick={() => setParcEdit(null)}>Cancelar</button></>) : (<><span className={"st " + (paid ? "pago" : "pend")}>{paid ? "Paga" : "Em aberto"}</span>{paid ? <button className="pbtn" disabled={busyP} onClick={() => markParcela(i, idx, false)}>Desmarcar</button> : <button className="pbtn ok" disabled={busyP} onClick={() => markParcela(i, idx, true)}>✓ Marcar paga</button>}<button className="pbtn" title="Editar parcela" onClick={() => setParcEdit({ itemId: i.id, idx, date: ymd(p.date), amount: String(p.amount || "") })}>✎</button></>)}</td>
+                    </tr>
+                  );
+                })}
+                </Fragment>
               ))}
             </tbody>
             <tfoot><tr className="totrow"><td colSpan={5}>Σ Totais do filtro</td><td className="r">{BRL(fTot)}</td><td className="r green">{BRL(fPago)}</td><td className="r amber">{BRL(fRest)}</td><td /></tr></tfoot>
@@ -557,5 +609,20 @@ const CSS = `
 .fv3-drill .dchip{font-size:11px;font-weight:700;color:var(--muted);background:var(--hover);border:1px solid var(--line);border-radius:20px;padding:3px 11px}
 .fv3-drill .drow.total{border-top:2px solid var(--line2);margin-top:4px;padding-top:15px}
 .fv3-drill .drow.total .dn{font-size:15px;font-weight:800}
+/* parcelas: botao expandir + linhas do cronograma + acoes (marcar paga/editar) */
+.fv3-exp{border:1px solid var(--line2);background:var(--card);color:var(--muted);border-radius:6px;width:20px;height:20px;line-height:1;font-size:11px;font-weight:800;cursor:pointer;margin-right:8px;padding:0;vertical-align:middle}
+.fv3-exp:hover,.fv3-exp.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.fv3 tr.parcrow td{background:var(--bg2);border-top:1px dashed var(--line2);font-size:12.5px;padding:9px 14px}
+.fv3 tr.parcrow td.pc{padding-left:34px}
+.fv3 tr.parcrow .pcn{font-weight:700;color:var(--muted)}
+.fv3 .pinp{font:inherit;font-size:12px;border:1px solid var(--blue);border-radius:6px;padding:4px 6px;width:120px;background:var(--card);color:var(--txt)}
+.fv3 .pinp.num{width:90px;text-align:right}
+.fv3 td.pacts{white-space:nowrap;text-align:right}
+.fv3 td.pacts>*{margin-left:6px;vertical-align:middle}
+.fv3 .pbtn{border:1px solid var(--line2);background:var(--card);border-radius:7px;padding:4px 9px;font:inherit;font-size:11.5px;font-weight:700;color:var(--muted);cursor:pointer}
+.fv3 .pbtn:hover{background:var(--hover);color:var(--txt)}
+.fv3 .pbtn.ok{background:var(--green);color:#fff;border-color:var(--green)}
+.fv3 .pbtn.ok:hover{filter:brightness(1.06)}
+.fv3 .pbtn:disabled{opacity:.5;cursor:default}
 @media(max-width:1050px){.fv3-grid3,.fv3-buckets,.fv3-panels{grid-template-columns:1fr 1fr}}
 `;
