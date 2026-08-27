@@ -2,14 +2,23 @@ import { Body, Controller, Delete, Get, Param, Post, Req, UseGuards } from '@nes
 import { JwtOrgGuard } from '../common/jwt-org.guard';
 import { AdminGuard } from '../common/admin.guard';
 import { RlsDbService } from '../common/rls-db.service';
+import { AutomationEngineService } from './automation.engine';
 
 // Bounded context AUTOMATION (schema automation) — integrações/chaves. ADMIN-ONLY:
 // AdminGuard barra não-admin (403); as RPCs (security-definer) revalidam is_crasto_admin.
 @Controller('automation')
 @UseGuards(JwtOrgGuard, AdminGuard)
 export class AutomationController {
-  constructor(private readonly db: RlsDbService) {}
+  constructor(private readonly db: RlsDbService, private readonly engine: AutomationEngineService) {}
   private uid(req: any): string { return req.user.id; }
+
+  // ── Motor de automações (B3+B4) ──
+  @Get('rules') rules() { return this.engine.listRules(); }
+  @Post('rules') saveRule(@Body() b: any) { return this.engine.saveRule(b); }
+  @Get('reminders/:org') reminders(@Param('org') org: string) { return this.engine.remindersByOrg(org); }
+  @Post('reminders') createReminder(@Req() req: any, @Body() b: any) { return this.engine.createReminder(b, this.uid(req)); }
+  @Post('reminders/:id/cancel') cancelReminder(@Param('id') id: string) { return this.engine.cancelReminder(id); }
+  @Post('run-now') runNow() { return this.engine.runDispatch(); }
 
   @Get('integrations')
   list(@Req() req: any) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select key,display_name,status from automation.integrations order by display_name')).rows); }

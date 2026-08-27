@@ -8,6 +8,7 @@ import { useT } from "../../lib/i18n";
 import UsoModulos from "../../ui/UsoModulos";
 import Modal from "../../ui/Modal";
 import { COUNTRIES, countryOf, PIPELINE_STAGES, WON_STAGE, stageOf, DIAL_CODES } from "../../lib/countries";
+import Reminders from "./Reminders";
 import { reg as regInfo, regTypeFor, COUNTRIES as REG_COUNTRIES, countryName as regCountryName } from "../../lib/registrations";
 import { CrmAccessSection } from "./CrmAccessSection";
 import SocialIntegracoes from "./SocialIntegracoes";
@@ -354,6 +355,9 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
           <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={marcarContratoAssinado}><span className="crasto-btn__label">{tr("Marcar contrato como assinado")}</span></button>
         </div>
       )}
+
+      {/* Agendamentos & lembretes (B3) */}
+      <Reminders orgId={id!} />
 
       {/* Dados da empresa — edição INLINE (clique e edite; salva sozinho, sem botão) */}
       <div className="card" style={{ marginBottom: 18 }}>

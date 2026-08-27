@@ -20,6 +20,7 @@ import PessoasEditor from "./PessoasEditor";
 import SiteField from "./SiteField";
 import OrgInline from "./OrgInline";
 import ServicosDeal from "./ServicosDeal";
+import Reminders from "./Reminders";
 
 export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: string) => void }) {
   const { id } = useParams();
@@ -278,6 +279,9 @@ export default function LeadDetalhe({ onStageChange }: { onStageChange?: (s: str
           </div>
         </div>
       )}
+
+      {/* Agendamentos & lembretes (B3) */}
+      <Reminders orgId={id!} />
 
       {/* Histórico */}
       <div className="sec-h" style={{ marginTop: 22 }}><h2>{t("Histórico")}</h2><Pill tone="mute">{t("atividades")}</Pill></div>

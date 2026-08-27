@@ -28,4 +28,16 @@ export const whatsapp = {
   remove: async (name: string): Promise<any> => api.del(`/api/automation/whatsapp/instances/${encodeURIComponent(name)}`),
 };
 
-export const automation = { integrations, whatsapp };
+// Motor de automações (B3+B4): regras configuráveis + agendamentos por empresa.
+export const rules = {
+  list: async (): Promise<any> => api.get(`/api/automation/rules`),
+  save: async (p: Record<string, any>): Promise<any> => api.post(`/api/automation/rules`, p),
+  runNow: async (): Promise<any> => api.post(`/api/automation/run-now`, {}),
+};
+export const reminders = {
+  byOrg: async (org: string): Promise<any> => api.get(`/api/automation/reminders/${encodeURIComponent(org)}`),
+  create: async (p: Record<string, any>): Promise<any> => api.post(`/api/automation/reminders`, p),
+  cancel: async (id: string): Promise<any> => api.post(`/api/automation/reminders/${encodeURIComponent(id)}/cancel`, {}),
+};
+
+export const automation = { integrations, whatsapp, rules, reminders };

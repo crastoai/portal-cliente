@@ -6,6 +6,7 @@ import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 import { fieldsFor, HINTS, SERVER_MANAGED, type IntegField } from "../../lib/integrations";
 import WhatsAppInstances from "./WhatsAppInstances";
+import AutomationRules from "./AutomationRules";
 
 type Integ = { key: string; display_name: string; status: string };
 type Status = Record<string, { status: string; has_secret: boolean; from_addr: string | null }>;
@@ -79,6 +80,9 @@ export default function Integracoes() {
 
       {/* WhatsApp (Evolution) — gerenciador de instâncias do Portal (B5) */}
       <WhatsAppInstances />
+
+      {/* Automações configuráveis (B4) */}
+      <AutomationRules />
 
       <div className="assign">
         {items.map((i) => (
