@@ -47,6 +47,8 @@ export default function Clientes() {
   // Visão da aba: lista (padrão — o Crasto prefere) ⇄ cards (kanban por estágio). Persistida por navegador.
   const [view, setView] = useState<"list" | "cards">(() => (localStorage.getItem("crm_empresas_view") === "cards" ? "cards" : "list"));
   useEffect(() => { try { localStorage.setItem("crm_empresas_view", view); } catch { /* storage off */ } }, [view]);
+  const [dragId, setDragId] = useState<string | null>(null);        // card sendo arrastado (kanban)
+  const [dragOverStage, setDragOverStage] = useState<string | null>(null);
   const [sort, setSort] = useState<{ col: string; dir: 1 | -1 }>({ col: "created_at", dir: -1 });
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({ ...EMPTY });
@@ -70,6 +72,14 @@ export default function Clientes() {
     const sum = (arr: Client[]) => arr.reduce((s, d) => s + (d.donation_value || 0), 0);
     const inYear = dons.filter((d) => d.donated_at && new Date(d.donated_at).getFullYear() === year);
     return { count: dons.length, year, totalYear: sum(inYear), totalAll: sum(dons) };
+  }, [all]);
+
+  // D1 — soma das propostas de Oportunidade (KPI mais importante) + quantas estão sem valor.
+  const oppStats = useMemo(() => {
+    const opps = all.filter((c) => c.stage === "oportunidade");
+    const total = opps.reduce((s, c) => s + (c.deal_value || 0), 0);
+    const missing = opps.filter((c) => !c.deal_value).length;
+    return { total, count: opps.length, missing };
   }, [all]);
 
   function agentesOf(c: Client) { return agentsOv[c.id]?.agentes ?? null; }
@@ -159,6 +169,13 @@ export default function Clientes() {
   // ── ações ──
   const stop = (e: React.MouseEvent) => e.stopPropagation();
   function ver(c: Client, e: React.MouseEvent) { stop(e); nav(`/admin/cliente/${c.id}`); }
+  // Drag-and-drop do kanban: solta o card numa coluna → move a empresa para aquela etapa.
+  async function moveStage(id: string, stage: string) {
+    const c = all.find((x) => x.id === id);
+    if (!c || c.stage === stage) return;
+    try { await api.identity.organizations.setStage(id, stage); toast.ok(t("Movido para {s}", { s: t(stageOf(stage).label) })); reload(); }
+    catch { toast.err(t("Erro ao mover.")); }
+  }
   async function ativar(c: Client, e: React.MouseEvent) {
     stop(e); const next = (c.org_status ?? "active") === "active" ? "inactive" : "active";
     try { await api.identity.organizations.update(c.id, { status: next }); toast.ok(next === "active" ? t("Empresa ativada") : t("Empresa inativada")); reload(); }
@@ -305,7 +322,11 @@ export default function Clientes() {
         loading ? <Empty>Carregando…</Empty> : (
           <div style={{ display: "grid", gridAutoFlow: "column", gridAutoColumns: "minmax(248px, 1fr)", gap: 12, overflowX: "auto", paddingBottom: 6, alignItems: "start" }}>
             {STAGES.map((s) => (
-              <div key={s.key} style={{ background: "var(--crasto-bg-2)", border: "1px solid var(--crasto-border-soft)", borderRadius: "var(--crasto-radius-md)", padding: 10, minWidth: 248 }}>
+              <div key={s.key}
+                onDragOver={(e) => { if (dragId) { e.preventDefault(); setDragOverStage(s.key); } }}
+                onDragLeave={() => setDragOverStage((v) => (v === s.key ? null : v))}
+                onDrop={(e) => { e.preventDefault(); const id = e.dataTransfer.getData("text/plain") || dragId; setDragOverStage(null); setDragId(null); if (id) moveStage(id, s.key); }}
+                style={{ background: dragOverStage === s.key ? "var(--crasto-navy-05, #EEF2FB)" : "var(--crasto-bg-2)", border: "1px solid " + (dragOverStage === s.key ? "var(--crasto-blue)" : "var(--crasto-border-soft)"), borderRadius: "var(--crasto-radius-md)", padding: 10, minWidth: 248, transition: "background .15s, border-color .15s" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "2px 4px 10px" }}>
                   <span style={{ width: 8, height: 8, borderRadius: "50%", background: s.dot }} />
                   <b style={{ fontSize: 13, color: "var(--crasto-text-primary)" }}>{t(s.label)}</b>
@@ -317,7 +338,13 @@ export default function Clientes() {
                   ) : (byStage[s.key] ?? []).map((c) => {
                     const cor = farolOf(c); const propVal = c.deal_value ?? (c.mrr > 0 ? c.mrr : null); const ag = agentesOf(c);
                     return (
-                      <div key={c.id} className="card" onClick={() => nav(`/admin/cliente/${c.id}`)} style={{ padding: 12, cursor: "pointer", boxShadow: "var(--crasto-shadow-xs)" }}>
+                      <div key={c.id} className="card"
+                        draggable
+                        onDragStart={(e) => { e.dataTransfer.setData("text/plain", c.id); e.dataTransfer.effectAllowed = "move"; setDragId(c.id); }}
+                        onDragEnd={() => { setDragId(null); setDragOverStage(null); }}
+                        onClick={() => nav(`/admin/cliente/${c.id}`)}
+                        title={t("Arraste para mudar de etapa")}
+                        style={{ padding: 12, cursor: dragId === c.id ? "grabbing" : "grab", boxShadow: "var(--crasto-shadow-xs)", opacity: dragId === c.id ? 0.5 : 1 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <span title={cor ? (cor === FAROL.ok ? t("Saudável") : cor === FAROL.warn ? t("Atenção") : t("Em risco")) : t("Sem ambiente ainda")}
                             style={{ width: 9, height: 9, borderRadius: "50%", background: cor || "transparent", border: cor ? "none" : "1.5px solid var(--crasto-border)", flex: "none" }} />

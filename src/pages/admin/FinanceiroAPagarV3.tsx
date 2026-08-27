@@ -67,8 +67,8 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit }: { pay: any[];
       return { id: "a_" + a.id, rawId: a.id, empresa: a.contact_name || a.description || "—", sub: a.description && a.contact_name ? a.description : (a.expense_type || "1 lançamento"), categoria: catLabel(a.category), contratacao: ymd(a.contract_signed_date) || ymd(a.created_at), venc: ymd(a.due_date), pag: ymd(a.payment_date), total, pago, restante: rest, status: statusOf(a.due_date, rest, a.status === "paid") };
     });
     const C: Item[] = (costs || []).filter((c: any) => c.is_active !== false).map((c: any) => {
-      const total = Number(c.amount_brl || 0);
-      return { id: "c_" + c.id, rawId: c.id, empresa: c.vendor_name || "—", sub: (c.recurrence || "") + (c.purpose ? " · " + c.purpose : ""), categoria: catLabel(c.category), contratacao: ymd(c.reference_date) || ymd(c.created_at), venc: ymd(c.next_payment_date), pag: "", total, pago: 0, restante: total, status: statusOf(c.next_payment_date, total, false) };
+      const total = Number(c.amount_brl || 0), pago = Number(c.amount_paid || 0), rest = Math.max(0, total - pago);
+      return { id: "c_" + c.id, rawId: c.id, empresa: c.vendor_name || "—", sub: (c.recurrence || "") + (c.purpose ? " · " + c.purpose : ""), categoria: catLabel(c.category), contratacao: ymd(c.reference_date) || ymd(c.created_at), venc: ymd(c.next_payment_date), pag: ymd(c.payment_date), total, pago, restante: rest, status: statusOf(c.next_payment_date, rest, pago >= total - 0.005) };
     });
     return [...A, ...C];
   }, [pay, costs]);
