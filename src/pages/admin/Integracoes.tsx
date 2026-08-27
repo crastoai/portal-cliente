@@ -5,6 +5,7 @@ import { PageHead, Pill, useAsync, useToast, Field } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 import { fieldsFor, HINTS, SERVER_MANAGED, type IntegField } from "../../lib/integrations";
+import WhatsAppInstances from "./WhatsAppInstances";
 
 type Integ = { key: string; display_name: string; status: string };
 type Status = Record<string, { status: string; has_secret: boolean; from_addr: string | null }>;
@@ -75,6 +76,10 @@ export default function Integracoes() {
   return (
     <div>
       <PageHead eyebrow="Painel Admin" title="Integrações & pagamentos" sub="Conecte as tecnologias que o portal usa. As chaves ficam no cofre — nunca no navegador." />
+
+      {/* WhatsApp (Evolution) — gerenciador de instâncias do Portal (B5) */}
+      <WhatsAppInstances />
+
       <div className="assign">
         {items.map((i) => (
           <div className="arow" key={i.key}>

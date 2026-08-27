@@ -19,4 +19,13 @@ export const integrations = {
   saveConfig: async (p: Record<string, any>) => api.post(`/api/automation/integrations/save`, p),
 };
 
-export const automation = { integrations };
+// WhatsApp (Evolution API) — gerenciador de instâncias do Portal (admin-only, proxy no servidor).
+export const whatsapp = {
+  instances: async (): Promise<any> => api.get(`/api/automation/whatsapp/instances`),
+  create: async (name: string): Promise<any> => api.post(`/api/automation/whatsapp/instances`, { name }),
+  connect: async (name: string): Promise<any> => api.get(`/api/automation/whatsapp/instances/${encodeURIComponent(name)}/connect`),
+  state: async (name: string): Promise<any> => api.get(`/api/automation/whatsapp/instances/${encodeURIComponent(name)}/state`),
+  remove: async (name: string): Promise<any> => api.del(`/api/automation/whatsapp/instances/${encodeURIComponent(name)}`),
+};
+
+export const automation = { integrations, whatsapp };
