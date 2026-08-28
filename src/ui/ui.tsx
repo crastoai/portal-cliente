@@ -118,15 +118,14 @@ export function PageHead({ eyebrow = "Portal", title, sub, right, titleAside }: 
 }
 
 /**
- * Farol de status em TEMPO REAL — semáforo horizontal (3 luzes lado a lado).
- * A luz do status atual acende (com brilho) e PISCA; as outras ficam cinza (apagadas).
- * verde = tudo em dia · amarelo = alerta/pendência · vermelho = pendência grave.
+ * Farol de status em TEMPO REAL — mostra SÓ a luz vigente (uma bola, na cor do status),
+ * acesa com brilho e PISCANDO, dentro de uma cápsula glass. verde = tudo em dia ·
+ * amarelo = alerta/pendência · vermelho = pendência grave.
  */
 export function Farol({ status, titulo }: { status: "verde" | "amarelo" | "vermelho"; titulo?: string }) {
-  const luzes: ("vermelho" | "amarelo" | "verde")[] = ["vermelho", "amarelo", "verde"];
   return (
     <span className="farol" role="img" aria-label={titulo || status} title={titulo || status}>
-      {luzes.map((c) => <span key={c} className={"farol-luz" + (status === c ? " on " + c : "")} />)}
+      <span className={"farol-luz on " + status} />
     </span>
   );
 }
