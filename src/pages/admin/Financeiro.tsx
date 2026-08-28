@@ -506,6 +506,34 @@ export default function Financeiro() {
   const drillInternas = txGroupAbs(internasList, (r: any) => r.category || "—", "mute");
   const drillFat = fatList.map((r: any) => ({ name: r.description || r.category, detail: fmtD(r.transaction_date), value: Number(r.amount || 0), tone: "info", status: "" })).sort((a: any, b: any) => b.value - a.value);
 
+  // === IMPOSTO DO MÊS — Simples Nacional, ANEXO III (tabela oficial LC 123/2006, vigência desde 2018) ===
+  // Enquadramento: CNAEs de serviço da empresa (8211-3/00 apoio adm., 6209-1/00 suporte TI, 8599-6/04 treinamento) → Anexo III (não sujeitos a fator R). Porte EPP, optante do Simples.
+  // Alíquota EFETIVA = (RBT12 × alíquota nominal − parcela a deduzir) ÷ RBT12. RBT12 = receita bruta dos 12 meses anteriores.
+  // ⚠️ Rever esta tabela apenas se a lei do Simples mudar (não há API oficial em tempo real; os valores são estatutários).
+  const SIMPLES_ANEXO_III = [
+    { ate: 180000, nom: 0.06, pd: 0 },
+    { ate: 360000, nom: 0.112, pd: 9360 },
+    { ate: 720000, nom: 0.135, pd: 17640 },
+    { ate: 1800000, nom: 0.16, pd: 35640 },
+    { ate: 3600000, nom: 0.21, pd: 125640 },
+    { ate: Infinity, nom: 0.33, pd: 648000 },
+  ];
+  const simplesAliq = (rbt12: number) => { const f = SIMPLES_ANEXO_III.find((x) => rbt12 <= x.ate) || SIMPLES_ANEXO_III[SIMPLES_ANEXO_III.length - 1]; return rbt12 > 0 ? Math.max(0, (rbt12 * f.nom - f.pd) / rbt12) : f.nom; };
+  const isOpRev = (r: any) => r.type === "income" && !isInterna(r) && !isFaturamento(r);
+  const receitaBrutaMes = tx.filter((r: any) => isOpRev(r) && inMes(r.transaction_date)).reduce((a: number, r: any) => a + Number(r.amount || 0), 0);
+  const refMonthEnd = (per ? per.to : today()).slice(0, 7); // "YYYY-MM" de referência
+  const rbt12Ini = addMonthsISO(refMonthEnd + "-01", -12).slice(0, 7);
+  const rbt12 = tx.filter((r: any) => { if (!isOpRev(r)) return false; const m = (ymd(r.transaction_date) || "").slice(0, 7); return m >= rbt12Ini && m < refMonthEnd; }).reduce((a: number, r: any) => a + Number(r.amount || 0), 0);
+  const aliqEfetiva = simplesAliq(rbt12);
+  const impostoMes = receitaBrutaMes * aliqEfetiva;
+  const dasPagoMes = tx.filter((r: any) => r.type === "expense" && isImposto(r) && inMes(r.transaction_date)).reduce((a: number, r: any) => a + Number(r.amount || 0), 0);
+  const pctAliq = (aliqEfetiva * 100).toFixed(2).replace(".", ",") + "%";
+  const rowsImposto = [
+    { name: t("Receita bruta") + (per ? "" : " · " + mesAtual), detail: t("clientes — extratos Nubank + Itaú"), value: receitaBrutaMes, tone: "ok", status: t("base") },
+    { name: t("Alíquota efetiva · Simples Anexo III"), detail: t("RBT12 (12m) ") + money(rbt12), value: impostoMes, tone: "warn", status: pctAliq },
+    { name: t("DAS já pago no mês"), detail: t("lançado na tesouraria"), value: -dasPagoMes, tone: dasPagoMes > 0 ? "ok" : "mute", status: dasPagoMes > 0 ? t("pago") : t("nada lançado") },
+  ];
+
   // status cards (do lado ativo)
   const curItems = tab === "pagar" ? payItems : recSource.map(acctToItem);
   const stVencidos = curItems.reduce((a, i) => a + vencidoDe(i), 0);   // só as parcelas realmente vencidas
@@ -672,6 +700,7 @@ export default function Financeiro() {
         <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A pagar no mês"), rows: rowsPagarMes, foot: { label: t("Total/mês"), value: aPagarMes } })} title={t("Ver detalhes")}><div className="lab">{t("Saiu no mês (caixa)")}</div><div className="val tnum" style={{ fontSize: 22, color: "var(--fin-orange)" }}>{money(aPagarMes)}</div><div className="delta">{t("IA + Pessoas + Ferramentas + Infra")}</div></button>
         <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado do mês"), rows: rowsResultado, foot: { label: t("Resultado"), value: resultadoMes } })} title={t("Resultado do mês = a receber − a pagar")} style={{ background: "linear-gradient(180deg,#0B1830,#010E26)", borderColor: "transparent", color: "#fff" }}><div className="lab" style={{ color: "#9DB4E0" }}>{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "#fff" }}>{money(resultadoMes)}</div><div className="delta" style={{ color: "#B7C6E6" }}>{t("recebido − pago (caixa)")}</div></button>
         <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Vencidos"), rows: rowsVencidos, foot: { label: t("Total vencido"), value: inadimplencia } })} title={t("Ver detalhes")}><div className="lab">{t("Vencidos (em aberto)")}</div><div className="val tnum" style={{ fontSize: 22, color: inadimplencia > 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(inadimplencia)}</div><div className="delta">{inadimplencia > 0 ? t("a receber vencido") : t("nada vencido ✓")}</div></button>
+        <button className="kpi kpi-btn" onClick={() => setDrill({ title: "🧾 " + t("Imposto do mês") + " · Simples Anexo III", rows: rowsImposto, foot: { label: t("Imposto estimado do mês (DAS)"), value: -impostoMes } })} title={t("Simples Nacional · Anexo III · alíquota efetiva calculada pelo RBT12 real (LC 123/2006)")}><div className="lab">🧾 {t("Imposto do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "var(--fin-red)" }}>{money(impostoMes)}</div><div className="delta">{t("Simples · Anexo III")} · {pctAliq}</div></button>
       </div>
 
       <div className="ptabs">
