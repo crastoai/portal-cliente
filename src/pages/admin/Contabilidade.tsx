@@ -5,7 +5,7 @@
 // SSOT: o DRE LÊ finance.transactions + operational_costs (não duplica). As demais
 // telas são o front aprovado (mockup 2026-08-28); middle/backend entram nas próximas fases.
 // ============================================================================
-import { useMemo, useState } from "react";
+import { useMemo, useState, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { PageHead, useAsync, money } from "../../ui/ui";
@@ -31,6 +31,36 @@ const custoMensalDe = (c: any) => (c.recurrence === "mensal" ? Number(c.amount_b
 const CAT_ORDER = ["salario", "beneficio", "ferramenta", "infraestrutura", "servico"];
 const N_MESES = 6;
 
+// Plano de contas de RESULTADO (gerencial, Livro Caixa do Simples). Cada lançamento real
+// (finance.transactions operacional) é classificado numa conta pela sua categoria.
+const PLANO = [
+  { code: "3.01", nome: "Receita de serviços", grupo: "RECEITA" },
+  { code: "3.99", nome: "Outras receitas", grupo: "RECEITA" },
+  { code: "4.01", nome: "Impostos sobre a atividade (DAS / guias)", grupo: "DEDUCAO" },
+  { code: "5.01", nome: "Pessoas — prestadores", grupo: "DESPESA" },
+  { code: "5.05", nome: "Fornecedores e serviços de terceiros", grupo: "DESPESA" },
+  { code: "5.06", nome: "Serviços contábeis", grupo: "DESPESA" },
+  { code: "5.07", nome: "Equipamentos e TI", grupo: "DESPESA" },
+  { code: "5.08", nome: "Capacitação e cursos", grupo: "DESPESA" },
+  { code: "5.09", nome: "Cartão de crédito (a detalhar)", grupo: "DESPESA" },
+  { code: "5.10", nome: "Boletos e títulos diversos", grupo: "DESPESA" },
+  { code: "5.99", nome: "Outras despesas", grupo: "DESPESA" },
+];
+const GRUPO_LABEL: Record<string, string> = { RECEITA: "Receitas", DEDUCAO: "Deduções / impostos sobre a receita", DESPESA: "Custos e despesas" };
+const contaDe = (r: any) => {
+  const c = String(r.category || "").toLowerCase();
+  if (r.type === "income") return "3.01";
+  if (/impost|guia|tribut|\bdas\b/.test(c)) return "4.01";
+  if (/contador|lucas|cont[aá]bil|honor/.test(c)) return "5.06";
+  if (/jhon|jonath|jhonata|prestador|terceir/.test(c)) return "5.01";
+  if (/fornecedor/.test(c)) return "5.05";
+  if (/iphone|dell|computador|equipa|notebook/.test(c)) return "5.07";
+  if (/kiwify|curso|capacita|treina|info/.test(c)) return "5.08";
+  if (/fatura cart|cart[aã]o nubank/.test(c)) return "5.09";
+  if (/boleto|t[ií]tulo/.test(c)) return "5.10";
+  return "5.99";
+};
+
 const PORTAIS = [
   { k: "sp", label: "NFS-e · Prefeitura de SP", url: "https://nfe.prefeitura.sp.gov.br", desc: "nota de serviço (município da empresa)" },
   { k: "nac", label: "NFS-e · Nacional", url: "https://www.nfse.gov.br", desc: "emissor nacional (padrão unificado)" },
@@ -52,6 +82,7 @@ const DOC_CATS = [
 const SECOES = [
   { k: "cockpit", ic: "🏛️", label: "Cockpit" },
   { k: "dre", ic: "📊", label: "DRE — resultado" },
+  { k: "plano", ic: "📒", label: "Plano de contas & Razão" },
   { k: "notas", ic: "🧾", label: "Notas fiscais" },
   { k: "guias", ic: "🏦", label: "Impostos & guias" },
   { k: "folha", ic: "👥", label: "Folha & pró-labore" },
@@ -68,6 +99,7 @@ export default function Contabilidade() {
   const sec = SECOES.some((s) => s.k === secao) ? (secao as string) : "cockpit";
   const go = (k: string) => nav(k === "cockpit" ? "/admin/contabilidade" : "/admin/contabilidade/" + k);
   const [nfOpen, setNfOpen] = useState(false);
+  const [contaOpen, setContaOpen] = useState<string | null>(null);
 
   const { data, loading } = useAsync(async () => {
     const [tx, costs] = await Promise.all([services.finance.transactions.list(), services.finance.costs.list()]);
@@ -109,6 +141,19 @@ export default function Contabilidade() {
     const tR = sum((c) => c.receita), tD = sum((c) => c.das), tRes = sum((c) => c.resultado);
     const total = { receita: tR, das: tD, receitaLiq: tR - tD, custoTotalMes: custoTotalMes * N_MESES, resultado: tRes, margem: tR > 0 ? tRes / tR : 0, aliq: tR > 0 ? tD / tR : 0 };
     return { meses, col, total, custoGrupo, custoTotalMes, grupos: [...CAT_ORDER.filter((k) => custoGrupo[k]), ...Object.keys(custoGrupo).filter((k) => !CAT_ORDER.includes(k))] };
+  }, [data]);
+
+  // Plano de contas + Razão (ano corrente, regime de caixa — lançamentos reais do banco)
+  const plano = useMemo(() => {
+    const tx = (data?.tx || []).filter((r: any) => (r.type === "income" || r.type === "expense") && !isInterna(r) && !isFaturamento(r));
+    const year = spNow().slice(0, 4);
+    const rows = tx.filter((r: any) => ym(r.transaction_date).slice(0, 4) === year).sort((a: any, b: any) => (ymd(a.transaction_date) < ymd(b.transaction_date) ? 1 : -1));
+    const byConta: Record<string, any[]> = {};
+    rows.forEach((r: any) => { const code = contaDe(r); (byConta[code] = byConta[code] || []).push(r); });
+    const contas = PLANO.map((p) => { const items = byConta[p.code] || []; return { ...p, items, total: items.reduce((a, r) => a + Number(r.amount || 0), 0), n: items.length }; }).filter((c) => c.n > 0);
+    const soma = (g: string) => contas.filter((c) => c.grupo === g).reduce((a, c) => a + c.total, 0);
+    const rec = soma("RECEITA"), ded = soma("DEDUCAO"), desp = soma("DESPESA");
+    return { contas, rec, ded, desp, resultado: rec - ded - desp, year, nLanc: rows.length };
   }, [data]);
 
   const pct = (v: number) => (v * 100).toFixed(1).replace(".", ",") + "%";
@@ -219,6 +264,65 @@ export default function Contabilidade() {
               <div className="card" key={k}><b>{k}</b><div className="sub" style={{ marginTop: 5 }}>{v}</div></div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ===================== PLANO DE CONTAS & RAZÃO ===================== */}
+      {sec === "plano" && (
+        <div className="cbody">
+          <div className="eyebrow">Fase 2 · escrituração</div>
+          <h2 className="h-lg">Plano de contas & Razão — {plano.year}</h2>
+          <p className="lead">Cada lançamento real do banco (regime de caixa = Livro Caixa do Simples) classificado numa <b>conta contábil</b>. Clique numa conta para ver o <b>Razão</b> — os lançamentos que a compõem. É a espinha da escrituração, alimentada automaticamente pelo Financeiro.</p>
+
+          {loading ? <div className="loadbox">Carregando…</div> : (
+            <>
+              <div className="grid g4" style={{ margin: "20px 0 6px" }}>
+                <div className="kpi"><div className="k-l">Receitas</div><div className="k-v mono" style={{ color: "var(--g)" }}>{BRL(plano.rec)}</div><div className="k-h">{plano.year} · regime de caixa</div></div>
+                <div className="kpi warn"><div className="k-l">Impostos (deduções)</div><div className="k-v mono">{BRL(plano.ded)}</div><div className="k-h">DAS e guias</div></div>
+                <div className="kpi warn"><div className="k-l">Custos e despesas</div><div className="k-v mono">{BRL(plano.desp)}</div><div className="k-h">{plano.nLanc} lançamentos</div></div>
+                <div className="kpi hero"><div className="k-l">Resultado (caixa)</div><div className="k-v mono">{BRL(plano.resultado)}</div><div className="k-h">receitas − impostos − despesas</div></div>
+              </div>
+
+              <div className="sech"><h3>Balancete de resultado</h3><span className="rt">clique numa conta para abrir o Razão</span></div>
+              <div className="tblw"><div className="tscroll"><table>
+                <thead><tr><th>Conta</th><th className="r">Lançamentos</th><th className="r">Total</th></tr></thead>
+                <tbody>
+                  {["RECEITA", "DEDUCAO", "DESPESA"].map((g) => {
+                    const contasG = plano.contas.filter((c) => c.grupo === g);
+                    if (!contasG.length) return null;
+                    const subtotal = contasG.reduce((a, c) => a + c.total, 0);
+                    return (
+                      <Fragment key={g}>
+                        <tr className="plgrp"><td colSpan={3}>{GRUPO_LABEL[g]}</td></tr>
+                        {contasG.map((c) => (
+                          <Fragment key={c.code}>
+                            <tr className="plconta" onClick={() => setContaOpen(contaOpen === c.code ? null : c.code)} title="Ver o Razão desta conta">
+                              <td><span className="plexp">{contaOpen === c.code ? "▾" : "▸"}</span> <span className="mono sub">{c.code}</span> {c.nome}</td>
+                              <td className="r mono sub">{c.n}</td>
+                              <td className="r mono">{BRL(c.total)}</td>
+                            </tr>
+                            {contaOpen === c.code && c.items.map((r: any, i: number) => (
+                              <tr key={c.code + "_" + i} className="plrazao">
+                                <td className="mono">{ymd(r.transaction_date).split("-").reverse().join("/")} · <span className="sub">{r.description || r.contact_name || r.category || "—"}</span></td>
+                                <td></td>
+                                <td className="r mono">{BRL(Number(r.amount || 0))}</td>
+                              </tr>
+                            ))}
+                          </Fragment>
+                        ))}
+                        <tr className="plsub"><td>Subtotal · {GRUPO_LABEL[g]}</td><td></td><td className="r mono">{BRL(subtotal)}</td></tr>
+                      </Fragment>
+                    );
+                  })}
+                  <tr className="plres"><td>= Resultado do exercício ({plano.year})</td><td></td><td className={"r mono " + (plano.resultado < 0 ? "vneg" : "vpos")}>{BRL(plano.resultado)}</td></tr>
+                </tbody>
+              </table></div></div>
+
+              <div className="cnote" style={{ marginTop: 14 }}>
+                <b>Como as contas são preenchidas.</b> A classificação é automática, pela categoria de cada lançamento do banco. A conta <b>5.09 Cartão de crédito</b> é a fatura fechada do Nubank — um valor só; para o Razão ficar 100% detalhado, o próximo passo é <b>quebrar a fatura</b> nos itens reais (ferramentas, equipamentos…). Isto é escrituração <b>gerencial</b>; a oficial (ECD) o contador assina.
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -618,6 +722,15 @@ const CSS = `
 .olink:hover{border-color:var(--b2);background:var(--card)}
 .olink b{font-size:13px}.olink span{font-size:11.5px;color:var(--muted)}.olink i{font-size:10.5px;color:var(--b);font-style:normal;margin-top:4px;font-weight:600}
 .seg.wrap{flex-wrap:wrap}
+.plgrp td{background:var(--card2);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);font-weight:700;padding-top:13px}
+.plconta{cursor:pointer}
+.plconta:hover{background:var(--hover)}
+.plconta td{font-weight:600}
+.plexp{color:var(--muted);font-size:11px;margin-right:2px}
+.plrazao td{background:var(--card2);border-top:1px dashed var(--line);font-size:12px;color:var(--muted);padding-top:8px;padding-bottom:8px}
+.plrazao td:first-child{padding-left:34px}
+.plsub td{font-weight:800;border-top:1px solid var(--line2);background:var(--card)}
+.plres td{font-weight:800;font-size:14px;border-top:2px solid var(--navy);background:var(--card)}
 .doccat{text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px 17px;box-shadow:var(--shadow);cursor:pointer;font:inherit;color:var(--txt);transition:.12s}
 .doccat:hover{border-color:var(--b2);transform:translateY(-1px)}
 .doccat.on{border-color:var(--navy);box-shadow:0 0 0 1px var(--navy),var(--shadow)}
