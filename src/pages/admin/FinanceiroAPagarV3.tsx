@@ -493,6 +493,7 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
           <div className="drow total"><div className="dl"><div className="dn">Total</div></div><div className="dr"><span className="dv green">{BRL(drill.rows.reduce((a, r) => a + r.valor, 0))}</span></div></div>
         </div></div>
         <div className="fv3-note" style={{ margin: "12px 0 0" }}>Fonte real: cada linha é um lançamento (conta a pagar · custo operacional · uso de IA por token) que compõe esta soma. Clique numa linha para editar na origem.</div>
+      </div></div></div>, document.body)}
       {pdrill && createPortal(<div className="fv3"><div className="fv3-modal" onClick={() => setPdrill(null)}><div className="box" onClick={e => e.stopPropagation()}>
         <div className="mh"><div><div className="m-t">👤 {pdrill.nome}</div><div className="m-s">{pdrill.vinculo} · recorrente/mês {BRL(pdrill.recorrenteMes)}{pdrill.avulsoTotal > 0 ? " · serviço avulso " + BRL(pdrill.avulsoTotal) : ""} · total pago {BRL(pdrill.totalPago)}</div></div><button className="x" onClick={() => setPdrill(null)}>✕</button></div>
         <div className="m-scroll">
@@ -513,7 +514,6 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
           ))}
         </div>
         <div className="fv3-note" style={{ margin: "12px 0 0" }}>Serviço (avulso) = comprovantes reais que somam o valor, fora do recorrente. Mensalidade = a única cobrança mês a mês. Clique numa linha para editar na origem.</div>
-      </div></div></div>, document.body)}
       </div></div></div>, document.body)}
     </div>
   );
