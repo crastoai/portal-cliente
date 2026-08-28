@@ -539,6 +539,21 @@ export default function Financeiro() {
     { name: t("DAS já pago no mês"), detail: t("comparação · lançado na tesouraria"), value: -dasPagoMes, tone: dasPagoMes > 0 ? "info" : "mute", status: dasPagoMes > 0 ? t("pago") : t("nada lançado") },
   ];
 
+  // === CUSTO REAL DA EMPRESA / MÊS (competência) + BREAK-EVEN + farol de saúde ===
+  // VISÃO por competência: NÃO altera nenhum lançamento fiscal/caixa. Anuais são "picotados" (÷12) + mensais + DAS.
+  const receitaMensalMedia = rbt12 > 0 ? rbt12 / 12 : receitaBrutaMes;
+  const dasMensalMedio = receitaMensalMedia * aliqEfetiva; // DAS típico/mês (evita distorção do mês parcial)
+  const custoMensalReal = activeCosts.reduce((a: number, c: any) => a + custoMensalDe(c), 0) + dasMensalMedio;
+  const custoAnuaisMes = activeCosts.filter((c: any) => c.recurrence === "anual").reduce((a: number, c: any) => a + Number(c.amount_brl || 0) / 12, 0);
+  const beMargin = receitaMensalMedia > 0 ? (receitaMensalMedia - custoMensalReal) / receitaMensalMedia : -1;
+  const beFarol = receitaMensalMedia < custoMensalReal ? "red" : receitaMensalMedia < custoMensalReal * 1.10 ? "yellow" : "green";
+  const rowsCustoReal = [
+    ...activeCosts.filter((c: any) => c.recurrence === "mensal").map((c: any) => ({ name: c.vendor_name, detail: catLabel(c.category) + " · " + t("mensal"), value: -Number(c.amount_brl || 0), tone: "warn", status: catLabel(c.category) })),
+    ...activeCosts.filter((c: any) => c.recurrence === "anual").map((c: any) => ({ name: c.vendor_name, detail: catLabel(c.category) + " · " + t("anual") + " " + money(Number(c.amount_brl || 0)) + " ÷ 12", value: -Number(c.amount_brl || 0) / 12, tone: "info", status: t("anual ÷12") })),
+    { name: t("Imposto (DAS) médio/mês"), detail: t("Simples Anexo III") + " · " + pctAliq, value: -dasMensalMedio, tone: "warn", status: t("tributo") },
+  ].sort((a: any, b: any) => a.value - b.value);
+  const FAROL = { green: { emoji: "🟢", bg: "rgba(46,160,67,.10)", bd: "rgba(46,160,67,.45)", lab: t("Empresa saudável") }, yellow: { emoji: "🟡", bg: "rgba(210,153,34,.12)", bd: "rgba(210,153,34,.5)", lab: t("No limite do break-even") }, red: { emoji: "🔴", bg: "rgba(200,60,60,.12)", bd: "rgba(200,60,60,.5)", lab: t("Abaixo do break-even") } }[beFarol];
+
   // status cards (do lado ativo)
   const curItems = tab === "pagar" ? payItems : recSource.map(acctToItem);
   const stVencidos = curItems.reduce((a, i) => a + vencidoDe(i), 0);   // só as parcelas realmente vencidas
@@ -698,6 +713,17 @@ export default function Financeiro() {
   return (
     <div>
       <PageHead eyebrow="Painel Admin · Financeiro 🔒" title="Financeiro" sub="Gestão financeira completa da Crasto.AI." />
+
+      {/* Farol de saúde / BREAK-EVEN — receita média mensal × custo real (competência, anuais picotados ÷12). Não toca lançamentos. */}
+      <button onClick={() => setDrill({ title: "📊 " + t("Custo real da empresa / mês"), sub: t("competência — anuais picotados ÷12 + mensais + DAS"), rows: rowsCustoReal, foot: { label: t("Custo real / mês"), value: -custoMensalReal } })} title={t("Break-even: receita média mensal × custo real. Clique para ver os custos (anuais picotados).")}
+        style={{ width: "100%", textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", padding: "12px 16px", marginBottom: 14, borderRadius: 12, border: "1px solid " + FAROL.bd, background: FAROL.bg }}>
+        <span style={{ fontSize: 24, lineHeight: 1 }}>{FAROL.emoji}</span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 800, fontSize: 14.5 }}>{t("Break-even")} · {FAROL.lab}</div>
+          <div style={{ fontSize: 12.5, color: "var(--crasto-text-muted)" }}>{t("Receita média")} <b>{money(receitaMensalMedia)}</b>/{t("mês")} {receitaMensalMedia >= custoMensalReal ? "＞" : "＜"} {t("Custo real")} <b>{money(custoMensalReal)}</b>/{t("mês")} · {t("margem")} <b style={{ color: beMargin < 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{(beMargin * 100).toFixed(0)}%</b> · {t("inclui")} <b>{money(custoAnuaisMes)}</b>/{t("mês")} {t("de anuais picotados")}</div>
+        </div>
+        <span style={{ marginLeft: "auto", fontSize: 12.5, fontWeight: 700, color: "var(--crasto-blue, #3E6FB8)", whiteSpace: "nowrap" }}>{t("ver custos")} ›</span>
+      </button>
 
       {/* KPIs topo — clicáveis: cada card leva à aba/tela correspondente (dado real). kpis--5 = 5 cards em 1 linha */}
       <div className="kpis kpis--5" style={{ marginBottom: 16 }}>
