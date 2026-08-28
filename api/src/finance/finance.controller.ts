@@ -56,6 +56,14 @@ export class FinanceController {
   @Delete('costs/:id')
   costDelete(@Req() req: any, @Param('id') id: string) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select public.fin_cost_delete($1) as r', [id])).rows[0]?.r); }
 
+  // ── documentos contábeis (arquivo fiscal/trabalhista; arquivo físico no R2, metadados aqui) ──
+  @Get('documents')
+  documents(@Req() req: any, @Query('category') category: string) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select * from public.fin_documents($1)', [category || null])).rows); }
+  @Post('documents')
+  documentSave(@Req() req: any, @Body() b: any) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select public.fin_document_insert($1) as r', [b])).rows[0]?.r); }
+  @Delete('documents/:id')
+  documentDelete(@Req() req: any, @Param('id') id: string) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select public.fin_document_delete($1) as r', [id])).rows[0]?.r); }
+
   // ── tesouraria (income/expense) ──
   @Get('transactions')
   transactions(@Req() req: any, @Query('type') type: string, @Query('status') status: string) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select * from public.fin_transactions($1,$2)', [type || null, status || null])).rows); }

@@ -23,6 +23,14 @@ export const costs = {
   remove: async (id: string) => api.del(`/api/finance/costs/${id}`),
 };
 
+// Documentos contábeis (arquivo). O arquivo físico vai pro R2 via `storage.upload`;
+// aqui guardamos só os metadados (categoria, nome, competência, storage_key).
+export const documents = {
+  list: async (category?: string): Promise<any[]> => api.get<any[]>(`/api/finance/documents${qs({ category })}`),
+  save: async (p: Record<string, any>) => api.post(`/api/finance/documents`, p),
+  remove: async (id: string) => api.del(`/api/finance/documents/${id}`),
+};
+
 export const transactions = {
   list: async (type?: "income" | "expense", status?: string): Promise<any[]> => api.get<any[]>(`/api/finance/transactions${qs({ type, status })}`),
   save: async (p: Record<string, any>) => api.post(`/api/finance/transactions`, p),
@@ -54,4 +62,4 @@ export const proofs = {
     api.post(`/api/finance/proofs/extract`, { image_base64, mime, filename }),
 };
 
-export const finance = { accounts, costs, transactions, aiCost, proofs };
+export const finance = { accounts, costs, transactions, aiCost, proofs, documents };

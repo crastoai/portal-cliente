@@ -37,6 +37,17 @@ const PORTAIS = [
   { k: "ecac", label: "e-CAC · Receita", url: "https://cav.receita.fazenda.gov.br", desc: "DCTFWeb, certidões, guias federais" },
 ];
 
+const DOC_CATS = [
+  { k: "guias", ic: "🏦", label: "Guias", desc: "DAS, DARF DCTFWeb" },
+  { k: "notas", ic: "🧾", label: "Notas fiscais", desc: "NFS-e emitidas" },
+  { k: "prolabore", ic: "👤", label: "Pró-labore", desc: "recibos mensais do sócio" },
+  { k: "certidoes", ic: "📜", label: "Certidões", desc: "CNDT, FGTS, CND, INSS" },
+  { k: "societario", ic: "📄", label: "Societário", desc: "contrato + alterações" },
+  { k: "prestadores", ic: "🧑‍💻", label: "Prestadores", desc: "comprovantes (MEI)" },
+  { k: "comprovantes", ic: "💳", label: "Comprovantes", desc: "pagamentos e recebimentos" },
+  { k: "outros", ic: "📁", label: "Outros", desc: "diversos" },
+];
+
 const SECOES = [
   { k: "cockpit", ic: "🏛️", label: "Cockpit" },
   { k: "dre", ic: "📊", label: "DRE — resultado" },
@@ -62,6 +73,26 @@ export default function Contabilidade() {
     const [tx, costs] = await Promise.all([services.finance.transactions.list(), services.finance.costs.list()]);
     return { tx: tx || [], costs: costs || [] };
   }, []);
+
+  // Documentos (arquivo real no R2 + metadados na API)
+  const { data: docsData, reload: reloadDocs } = useAsync(async () => services.finance.documents.list(), []);
+  const docs: any[] = docsData || [];
+  const [docCat, setDocCat] = useState<string | null>(null);
+  const [docBusy, setDocBusy] = useState(false);
+  const uploadDocs = async (cat: string, files: FileList | null) => {
+    if (!files || !files.length) return;
+    setDocBusy(true);
+    try {
+      for (const file of Array.from(files)) {
+        const key = await services.storage.upload("contabilidade/" + cat, file);
+        await services.finance.documents.save({ category: cat, name: file.name, storage_key: key, mime: file.type || "", size: String(file.size) });
+      }
+      reloadDocs();
+    } catch (e: any) { alert("Falha no upload: " + (e?.message || e)); } finally { setDocBusy(false); }
+  };
+  const openDoc = async (key: string) => { const url = await services.storage.getUrl(key); if (url) window.open(url, "_blank", "noopener"); else alert("Não consegui gerar o link do arquivo."); };
+  const delDoc = async (d: any) => { if (!confirm("Excluir “" + d.name + "”? O arquivo será removido.")) return; try { await services.finance.documents.remove(d.id); await services.storage.remove(d.storage_key); } catch { /* segue */ } reloadDocs(); };
+  const fmtSize = (n: any) => { const b = Number(n || 0); return b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : b > 1024 ? Math.round(b / 1024) + " KB" : b + " B"; };
 
   const dre = useMemo(() => {
     const tx = data?.tx || []; const costs = (data?.costs || []).filter((c: any) => c.is_active);
@@ -354,18 +385,61 @@ export default function Contabilidade() {
       )}
 
       {/* ===================== DOCUMENTOS ===================== */}
-      {sec === "docs" && (
-        <div className="cbody">
-          <div className="eyebrow">Arquivo</div><h2 className="h-lg">Documentos</h2>
-          <p className="lead">O arquivo fiscal e trabalhista da empresa, organizado e sempre à mão — guias, recibos de pró-labore, notas, contratos, certidões e comprovantes.</p>
-          <div className="drop" style={{ margin: "20px 0" }}>📎 <b>Solte aqui qualquer documento</b> — guia, recibo, nota, contrato · <span className="sub">o módulo classifica por tipo e competência</span></div>
-          <div className="grid g3">
-            {[["🏦 Guias", "12", "DAS, DARF DCTFWeb · 2026"], ["🧾 Notas fiscais", "44", "NFS-e emitidas"], ["👤 Pró-labore", "7", "recibos mensais do sócio"], ["📜 Certidões", "6", "CNDT, FGTS, CND, INSS"], ["📄 Societário", "4", "contrato + alteração 2025"], ["🧑‍💻 Prestadores", "4", "comprovantes Jhon (MEI)"]].map(([a, n, d]) => (
-              <div className="card" key={a}><div className="rowbetween"><b>{a}</b><span className="tag mono">{n}</span></div><div className="sub" style={{ marginTop: 8 }}>{d}</div></div>
-            ))}
+      {sec === "docs" && (() => {
+        const countOf = (k: string) => docs.filter((d) => d.category === k).length;
+        const sel = DOC_CATS.find((c) => c.k === docCat);
+        const lista = docCat ? docs.filter((d) => d.category === docCat) : [];
+        return (
+          <div className="cbody">
+            <div className="eyebrow">Arquivo</div><h2 className="h-lg">Documentos</h2>
+            <p className="lead">O arquivo fiscal e trabalhista da empresa, organizado e sempre à mão — guias, recibos, notas, contratos, certidões e comprovantes. Clique numa categoria para ver, baixar ou anexar arquivos.</p>
+
+            <div className="grid g4" style={{ marginTop: 18 }}>
+              {DOC_CATS.map((c) => (
+                <button key={c.k} className={"doccat" + (docCat === c.k ? " on" : "")} onClick={() => setDocCat(docCat === c.k ? null : c.k)}>
+                  <div className="rowbetween"><b>{c.ic} {c.label}</b><span className="tag mono">{countOf(c.k)}</span></div>
+                  <div className="sub" style={{ marginTop: 6 }}>{c.desc}</div>
+                </button>
+              ))}
+            </div>
+
+            {sel && (
+              <div className="tblw" style={{ marginTop: 18 }}>
+                <div className="dochead">
+                  <div><b>{sel.ic} {sel.label}</b> <span className="sub">· {lista.length} arquivo(s)</span></div>
+                  <label className={"btn pri" + (docBusy ? " off" : "")}>
+                    {docBusy ? "Enviando…" : "＋ Anexar arquivo"}
+                    <input type="file" multiple style={{ display: "none" }} disabled={docBusy} onChange={(e) => { uploadDocs(sel.k, e.target.files); e.target.value = ""; }} />
+                  </label>
+                </div>
+                <label className={"drop docdrop" + (docBusy ? " off" : "")}>
+                  📎 <b>Arraste ou clique para anexar</b> em “{sel.label}” · <span className="sub">PDF, imagem ou qualquer formato</span>
+                  <input type="file" multiple style={{ display: "none" }} disabled={docBusy} onChange={(e) => { uploadDocs(sel.k, e.target.files); e.target.value = ""; }} />
+                </label>
+                {lista.length === 0 ? (
+                  <div className="sub" style={{ padding: "18px 16px" }}>Nenhum documento nesta categoria ainda — anexe o primeiro acima.</div>
+                ) : (
+                  <div className="tscroll"><table>
+                    <thead><tr><th>Arquivo</th><th>Competência</th><th className="r">Tamanho</th><th>Enviado</th><th className="r">Ações</th></tr></thead>
+                    <tbody>
+                      {lista.map((d) => (
+                        <tr key={d.id}>
+                          <td><button className="doclink" onClick={() => openDoc(d.storage_key)} title="Abrir / visualizar">📄 {d.name}</button></td>
+                          <td className="mono sub">{d.competencia || "—"}</td>
+                          <td className="r mono sub">{fmtSize(d.size)}</td>
+                          <td className="mono sub">{ymd(d.uploaded_at).split("-").reverse().join("/")}</td>
+                          <td className="r"><div className="docacts"><button className="btn sm" onClick={() => openDoc(d.storage_key)}>Ver / baixar</button><button className="btn sm danger" onClick={() => delDoc(d)}>Excluir</button></div></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table></div>
+                )}
+              </div>
+            )}
+            {!sel && <div className="note" style={{ marginTop: 16 }}>Os arquivos ficam guardados com segurança (storage privado) e abrem por link temporário assinado. Anexe aqui as guias, recibos e certidões que o contador te manda — o objetivo é ter <b>tudo num lugar só</b>, sem depender do e-mail dele.</div>}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ===================== FECHAMENTO & ASSINATURA ===================== */}
       {sec === "fecha" && (
@@ -524,6 +598,19 @@ const CSS = `
 .olink:hover{border-color:var(--b2);background:var(--card)}
 .olink b{font-size:13px}.olink span{font-size:11.5px;color:var(--muted)}.olink i{font-size:10.5px;color:var(--b);font-style:normal;margin-top:4px;font-weight:600}
 .seg.wrap{flex-wrap:wrap}
+.doccat{text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px 17px;box-shadow:var(--shadow);cursor:pointer;font:inherit;color:var(--txt);transition:.12s}
+.doccat:hover{border-color:var(--b2);transform:translateY(-1px)}
+.doccat.on{border-color:var(--navy);box-shadow:0 0 0 1px var(--navy),var(--shadow)}
+.doccat b{font-size:13.5px}
+.dochead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line2);flex-wrap:wrap}
+.docdrop{display:block;margin:14px 16px;cursor:pointer}
+.docdrop.off,.btn.off{opacity:.6;pointer-events:none}
+.doclink{border:0;background:transparent;color:var(--b);font:inherit;font-size:12.8px;font-weight:600;cursor:pointer;padding:0;text-align:left}
+.doclink:hover{text-decoration:underline}
+.docacts{display:inline-flex;gap:7px;justify-content:flex-end}
+.btn.sm{padding:5px 11px;font-size:11.5px}
+.btn.danger{color:var(--rd);border-color:var(--line2)}
+.btn.danger:hover{border-color:var(--rd);background:var(--rdb)}
 .cmodal.big{padding:14px}
 .cmodal .m.big{max-width:1120px;width:100%;height:92vh;display:flex;flex-direction:column;padding:18px 18px 14px}
 .framewrap{flex:1;display:flex;flex-direction:column;margin-top:12px;min-height:0}
