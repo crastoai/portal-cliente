@@ -106,7 +106,7 @@ export function PageHead({ eyebrow = "Portal", title, sub, right, titleAside }: 
         <div className="ey">{t(eyebrow)}</div>
         {/* titleAside = algo COLADO no título (ex.: farol de status em tempo real) */}
         {titleAside ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 28, flexWrap: "wrap" }}>
             <h1 style={{ margin: 0 }}>{t(title)}</h1>{titleAside}
           </div>
         ) : <h1>{t(title)}</h1>}
