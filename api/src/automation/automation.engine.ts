@@ -139,6 +139,24 @@ export class AutomationEngineService {
           }
         }
       }
+      // 3) Renovações ANUAIS — 30 dias antes do vencimento (sininho + e-mail). Vencimento = next_payment_date OU (payment_date/reference_date + 1 ano).
+      const renov = (await c.query(`
+        select id, vendor_name, amount_brl,
+          coalesce(next_payment_date, (coalesce(payment_date::date, reference_date) + interval '1 year')::date) as venc
+        from finance.operational_costs
+        where is_active = true and recurrence = 'anual'
+          and coalesce(next_payment_date, (coalesce(payment_date::date, reference_date) + interval '1 year')::date)
+              between current_date and current_date + interval '30 days'`)).rows;
+      for (const r of renov) {
+        const ref = `${r.id}@${r.venc}`; // dispara UMA vez por vencimento (não diário)
+        const seen = (await c.query(`select 1 from automation.dispatch_log where kind='cost_renewal' and ref_id=$1 limit 1`, [ref])).rowCount;
+        if (seen) continue;
+        await c.query(`insert into automation.dispatch_log (kind, ref_id, fired_on) values ('cost_renewal',$1,current_date) on conflict do nothing`, [ref]);
+        const dias = Math.max(0, Math.round((new Date(r.venc).getTime() - Date.now()) / 86400000));
+        const msg = `Em ${dias} dias o ${r.vendor_name} vai vencer (${new Date(r.venc).toLocaleDateString('pt-BR')} · R$ ${Number(r.amount_brl || 0).toFixed(2)}). Renove quando possível.`;
+        await this.dispatch(c, ['sininho', 'email'], { orgId: '', title: 'Renovação anual em 30 dias', message: msg });
+        ruc++;
+      }
       this.log.log(`dispatch: ${rc} agendamentos, ${ruc} regras`);
       return { reminders: rc, rules: ruc };
     });

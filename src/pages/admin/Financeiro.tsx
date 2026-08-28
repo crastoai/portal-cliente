@@ -554,6 +554,12 @@ export default function Financeiro() {
   ].sort((a: any, b: any) => a.value - b.value);
   const FAROL = { green: { emoji: "🟢", bg: "rgba(46,160,67,.10)", bd: "rgba(46,160,67,.45)", lab: t("Empresa saudável") }, yellow: { emoji: "🟡", bg: "rgba(210,153,34,.12)", bd: "rgba(210,153,34,.5)", lab: t("No limite do break-even") }, red: { emoji: "🔴", bg: "rgba(200,60,60,.12)", bd: "rgba(200,60,60,.5)", lab: t("Abaixo do break-even") } }[beFarol];
 
+  // === ALERTA DE RENOVAÇÃO ANUAL — 30 dias antes do vencimento (banner vermelho no topo) ===
+  // Vencimento da renovação = next_payment_date OU (payment_date/reference_date + 1 ano).
+  const renewISO = (c: any) => { const np = ymd(c.next_payment_date); if (np) return np; const base = ymd(c.payment_date) || ymd(c.reference_date); if (!base) return ""; const d = new Date(base + "T00:00:00"); d.setFullYear(d.getFullYear() + 1); return d.toISOString().slice(0, 10); };
+  const diasAte = (iso: string) => Math.round((new Date(iso + "T00:00:00").getTime() - new Date(today() + "T00:00:00").getTime()) / 86400000);
+  const renovacoes = activeCosts.filter((c: any) => c.recurrence === "anual").map((c: any) => { const iso = renewISO(c); return { c, iso, dias: iso ? diasAte(iso) : 999 }; }).filter((x: any) => x.iso && x.dias >= 0 && x.dias <= 30).sort((a: any, b: any) => a.dias - b.dias);
+
   // status cards (do lado ativo)
   const curItems = tab === "pagar" ? payItems : recSource.map(acctToItem);
   const stVencidos = curItems.reduce((a, i) => a + vencidoDe(i), 0);   // só as parcelas realmente vencidas
@@ -713,6 +719,17 @@ export default function Financeiro() {
   return (
     <div>
       <PageHead eyebrow="Painel Admin · Financeiro 🔒" title="Financeiro" sub="Gestão financeira completa da Crasto.AI." />
+
+      {/* ALERTA de renovação anual — 30 dias antes do vencimento (sininho + e-mail disparam pela automação de fundo) */}
+      {renovacoes.length > 0 && (
+        <div style={{ marginBottom: 12, padding: "11px 15px", borderRadius: 12, border: "1px solid rgba(200,60,60,.55)", background: "rgba(200,60,60,.12)", display: "flex", flexDirection: "column", gap: 5 }}>
+          {renovacoes.map((x: any) => (
+            <div key={x.c.id} style={{ fontSize: 13.5, fontWeight: 700, color: "#C83C3C", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span>🔔</span><span>{t("Em")} {x.dias} {t("dias o")} <b>{x.c.vendor_name}</b> {t("vai vencer")} ({fmtD(x.iso)} · {money(Number(x.c.amount_brl || 0))}). {t("Renove quando possível.")}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Farol de saúde / BREAK-EVEN — receita média mensal × custo real (competência, anuais picotados ÷12). Não toca lançamentos. */}
       <button onClick={() => setDrill({ title: "📊 " + t("Custo real da empresa / mês"), sub: t("competência — anuais picotados ÷12 + mensais + DAS"), rows: rowsCustoReal, foot: { label: t("Custo real / mês"), value: -custoMensalReal } })} title={t("Break-even: receita média mensal × custo real. Clique para ver os custos (anuais picotados).")}
