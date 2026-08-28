@@ -528,10 +528,15 @@ export default function Financeiro() {
   const impostoMes = receitaBrutaMes * aliqEfetiva;
   const dasPagoMes = tx.filter((r: any) => r.type === "expense" && isImposto(r) && inMes(r.transaction_date)).reduce((a: number, r: any) => a + Number(r.amount || 0), 0);
   const pctAliq = (aliqEfetiva * 100).toFixed(2).replace(".", ",") + "%";
+  // Contabilidade (honorários do contador) — custo mensal recorrente. Entra no card "Tributos e impostos do mês".
+  const isContab = (c: any) => /cont(a|á)bil|contador|honor[aá]ri|s[aã]o lucas|klebson/i.test((c.vendor_name || "") + " " + (c.description || "") + " " + (c.category || ""));
+  const contabMes = activeCosts.filter(isContab).reduce((a: number, c: any) => a + custoMensalDe(c), 0);
+  const tributosMes = impostoMes + contabMes;
   const rowsImposto = [
     { name: t("Receita bruta") + (per ? "" : " · " + mesAtual), detail: t("clientes — extratos Nubank + Itaú"), value: receitaBrutaMes, tone: "ok", status: t("base") },
-    { name: t("Alíquota efetiva · Simples Anexo III"), detail: t("RBT12 (12m) ") + money(rbt12), value: impostoMes, tone: "warn", status: pctAliq },
-    { name: t("DAS já pago no mês"), detail: t("lançado na tesouraria"), value: -dasPagoMes, tone: dasPagoMes > 0 ? "ok" : "mute", status: dasPagoMes > 0 ? t("pago") : t("nada lançado") },
+    { name: t("Imposto (DAS) · Simples Anexo III"), detail: t("RBT12 (12m) ") + money(rbt12), value: -impostoMes, tone: "warn", status: pctAliq },
+    { name: t("Contabilidade (honorários)"), detail: t("honorários contábeis do mês"), value: -contabMes, tone: "warn", status: t("mensal") },
+    { name: t("DAS já pago no mês"), detail: t("comparação · lançado na tesouraria"), value: -dasPagoMes, tone: dasPagoMes > 0 ? "info" : "mute", status: dasPagoMes > 0 ? t("pago") : t("nada lançado") },
   ];
 
   // status cards (do lado ativo)
@@ -700,7 +705,7 @@ export default function Financeiro() {
         <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A pagar no mês"), rows: rowsPagarMes, foot: { label: t("Total/mês"), value: aPagarMes } })} title={t("Ver detalhes")}><div className="lab">{t("Saiu no mês (caixa)")}</div><div className="val tnum" style={{ fontSize: 22, color: "var(--fin-orange)" }}>{money(aPagarMes)}</div><div className="delta">{t("IA + Pessoas + Ferramentas + Infra")}</div></button>
         <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado do mês"), rows: rowsResultado, foot: { label: t("Resultado"), value: resultadoMes } })} title={t("Resultado do mês = a receber − a pagar")} style={{ background: "linear-gradient(180deg,#0B1830,#010E26)", borderColor: "transparent", color: "#fff" }}><div className="lab" style={{ color: "#9DB4E0" }}>{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "#fff" }}>{money(resultadoMes)}</div><div className="delta" style={{ color: "#B7C6E6" }}>{t("recebido − pago (caixa)")}</div></button>
         <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Vencidos"), rows: rowsVencidos, foot: { label: t("Total vencido"), value: inadimplencia } })} title={t("Ver detalhes")}><div className="lab">{t("Vencidos (em aberto)")}</div><div className="val tnum" style={{ fontSize: 22, color: inadimplencia > 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(inadimplencia)}</div><div className="delta">{inadimplencia > 0 ? t("a receber vencido") : t("nada vencido ✓")}</div></button>
-        <button className="kpi kpi-btn" onClick={() => setDrill({ title: "🧾 " + t("Imposto do mês") + " · Simples Anexo III", rows: rowsImposto, foot: { label: t("Imposto estimado do mês (DAS)"), value: -impostoMes } })} title={t("Simples Nacional · Anexo III · alíquota efetiva calculada pelo RBT12 real (LC 123/2006)")}><div className="lab">🧾 {t("Imposto do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "var(--fin-red)" }}>{money(impostoMes)}</div><div className="delta">{t("Simples · Anexo III")} · {pctAliq}</div></button>
+        <button className="kpi kpi-btn" onClick={() => setDrill({ title: "🧾 " + t("Tributos e impostos do mês"), rows: rowsImposto, foot: { label: t("Tributos + contabilidade do mês"), value: -tributosMes } })} title={t("DAS do Simples Nacional (Anexo III, alíquota efetiva pelo RBT12) + honorários contábeis do mês")}><div className="lab">🧾 {t("Tributos e impostos do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "var(--fin-red)" }}>{money(tributosMes)}</div><div className="delta">{t("DAS")} {pctAliq} + {t("contábil")}</div></button>
       </div>
 
       <div className="ptabs">

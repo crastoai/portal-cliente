@@ -46,11 +46,20 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
 
   // ---- FILTRO DE PERÍODO (padrão = ano vigente, 01/jan → 31/dez) — dirige o acumulado de IA/conciliação ----
   const yStart = ano + "-01-01", yEnd = ano + "-12-31";
+  const anoPassado = String(Number(ano) - 1);
+  const _d0 = new Date(today + "T00:00:00");
+  const prevMes = new Date(_d0.getFullYear(), _d0.getMonth() - 1, 1).toISOString().slice(0, 7);
+  const ini12 = new Date(_d0.getFullYear(), _d0.getMonth() - 11, 1).toISOString().slice(0, 7);
   const PERIODS = [
     { key: "ano", label: "Este ano", from: yStart, to: yEnd },
     { key: "mes", label: "Este mês", from: mes + "-01", to: mes + "-31" },
+    { key: "mesant", label: "Mês passado", from: prevMes + "-01", to: prevMes + "-31" },
+    { key: "12m", label: "Últimos 12 meses", from: ini12 + "-01", to: today },
+    { key: "anoant", label: "Ano passado", from: anoPassado + "-01-01", to: anoPassado + "-12-31" },
   ];
+  // padrão = ANO VIGENTE inteiro (01/jan → 31/dez); clicável para trocar
   const [period, setPeriod] = useState<{ from: string; to: string; label: string }>({ from: yStart, to: yEnd, label: "Este ano" });
+  const [perOpen, setPerOpen] = useState(false);
   const from = period.from, to = period.to;
 
   // ---- painel de IA (interno × cliente) — agregado no PERÍODO (finance.ai_usage via admin_ai_cost) ----
@@ -301,7 +310,25 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
       </div>}
 
       {/* IA em 2 painéis — linhas CLICÁVEIS (drill-down da origem) + Sincronizar (custo real em tempo real) */}
-      <div className="fv3-sech"><h3>🤖 Despesas de IA <span className="fv3-permini">{period.label} · {fmtDT(from)} – {fmtDT(to)}</span></h3><span className="rt">
+      <div className="fv3-sech"><h3 style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>🤖 Despesas de IA
+        <span style={{ position: "relative", display: "inline-block" }}>
+          <button className="fv3-permini" style={{ cursor: "pointer", border: "1px solid var(--crasto-border, #d0d5dd)", background: "transparent", font: "inherit", display: "inline-flex", alignItems: "center", gap: 5 }} onClick={() => setPerOpen(o => !o)} title="Clique para escolher o período">{period.label} · {fmtDT(from)} – {fmtDT(to)} <span style={{ fontSize: 10 }}>▾</span></button>
+          {perOpen && <>
+            <div onClick={() => setPerOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 39 }} />
+            <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 40, background: "var(--card, #fff)", border: "1px solid var(--crasto-border, #d0d5dd)", borderRadius: 10, boxShadow: "0 12px 34px -14px rgba(0,0,0,.45)", padding: 10, minWidth: 260 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                {PERIODS.map(p => <button key={p.key} className="fv3-btn" style={{ padding: "5px 10px", fontSize: 12, fontWeight: period.label === p.label ? 700 : 500 }} onClick={() => { setPeriod(p); setPerOpen(false); }}>{p.label}</button>)}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, flexWrap: "wrap" }}>
+                <span style={{ fontWeight: 700, color: "var(--crasto-text-faint, #98a2b3)" }}>De</span>
+                <input type="date" value={from} max={to} onChange={e => setPeriod({ from: e.target.value, to, label: "Personalizado" })} style={{ padding: "5px 8px", fontSize: 12, borderRadius: 8, border: "1px solid var(--crasto-border, #d0d5dd)", background: "var(--card, #fff)", color: "inherit" }} />
+                <span style={{ fontWeight: 700, color: "var(--crasto-text-faint, #98a2b3)" }}>Até</span>
+                <input type="date" value={to} min={from} onChange={e => setPeriod({ from, to: e.target.value, label: "Personalizado" })} style={{ padding: "5px 8px", fontSize: 12, borderRadius: 8, border: "1px solid var(--crasto-border, #d0d5dd)", background: "var(--card, #fff)", color: "inherit" }} />
+              </div>
+            </div>
+          </>}
+        </span>
+      </h3><span className="rt">
         Total no período · <b>{BRL(iaTotal)}</b>
         <button className="fv3-btn" style={{ marginLeft: 10, padding: "5px 11px", fontSize: 12 }} onClick={doSync} disabled={syncing}>{syncing ? "Sincronizando…" : "🔄 Sincronizar"}</button>
       </span></div>
