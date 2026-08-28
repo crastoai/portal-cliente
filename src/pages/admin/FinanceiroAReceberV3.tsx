@@ -25,12 +25,21 @@ const IcoPencil = ({ size = 15 }: { size?: number }) => (<svg width={size} heigh
 const IcoCheckCircle = ({ size = 18, filled = false }: { size?: number; filled?: boolean }) => filled
   ? (<svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm5.03 7.59-6 6a1 1 0 0 1-1.42 0l-3-3a1 1 0 1 1 1.42-1.42l2.29 2.3 5.29-5.3a1 1 0 0 1 1.42 1.42z" /></svg>)
   : (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="m8.5 12.5 2.5 2.5 4.5-5" /></svg>);
-const mesesContrato = (r: any) => { const cv = Number(r.contract_validity_value || 0), u = r.contract_validity_unit || "months"; return u === "years" ? cv * 12 : u === "days" ? Math.max(1, Math.round(cv / 30)) : cv; };
-const isRecurring = (r: any) => (r.recurrence === "mensal") || arr(r.payment_schedule).length > 0 || Number(r.contract_total || 0) > 0;
-// Mensalidade reconhecida (competência): recorrência mensal = valor; contrato = total ÷ meses; parcelado = total ÷ nº parcelas.
+// Meses de vigência do contrato: usa a vigência declarada; se ausente, cai para o nº de parcelas/installments.
+const mesesContrato = (r: any) => {
+  const cv = Number(r.contract_validity_value || 0), u = r.contract_validity_unit || "months";
+  const m = u === "years" ? cv * 12 : u === "days" ? Math.max(1, Math.round(cv / 30)) : cv;
+  if (m > 0) return m;
+  return Number(r.payment_installments || 0) || arr(r.payment_schedule).length || 0;
+};
+// MRR = só recorrência verdadeira (recurrence='mensal'); avulsos/pontuais ficam fora (seguem no caixa/recebido).
+const isRecurring = (r: any) => r.recurrence === "mensal";
+// Mensalidade RECONHECIDA (competência): dentro da vigência, total do contrato ÷ meses de contrato.
+// Ex.: Carneiro R$10.000 ÷ 12 = ~R$833/mês, mesmo que as parcelas (caixa) sejam 5×R$2.000.
 const mensalDe = (r: any) => {
-  if (r.recurrence === "mensal") return Number(r.amount || 0);
-  const m = mesesContrato(r); if (Number(r.contract_total || 0) > 0 && m > 0) return Number(r.contract_total) / m;
+  const m = mesesContrato(r); const total = Number(r.contract_total || 0);
+  if (total > 0 && m > 0) return total / m;                     // contrato com prazo → total ÷ meses
+  if (r.recurrence === "mensal") return Number(r.amount || 0);  // mensal puro sem contrato fechado
   const ps = arr(r.payment_schedule); if (ps.length && Number(r.amount || 0) > 0) return Number(r.amount) / ps.length;
   return Number(r.amount || 0);
 };
@@ -97,7 +106,7 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
       </div>
 
       <div className="frv3-grid3">
-        <div className="frv3-kpi hero"><div className="lbl">MRR — receita recorrente</div><div className="val">{BRL(mrr)}</div><div className="hint">reconhecida por mês (competência) · ARR {BRL(mrr * 12)}</div></div>
+        <div className="frv3-kpi hero"><div className="lbl">MRR — receita recorrente</div><div className="val">{BRL(mrr)}</div><div className="hint">reconhecida por mês (competência) · ARR {BRL(mrr * 12)} <span style={{ opacity: .85 }}>(Receita Recorrente Anual = MRR × 12)</span></div></div>
         <div className="frv3-kpi"><div className="lbl">Recebido no mês (caixa)</div><div className="val green">{BRL(recebidoMes)}</div><div className="hint">entrou de fato na conta</div></div>
         <div className="frv3-kpi"><div className="lbl">A receber (futuro)</div><div className="val blue">{BRL(aReceberFut)}</div><div className="hint">contratado, ainda não recebido</div></div>
       </div>
