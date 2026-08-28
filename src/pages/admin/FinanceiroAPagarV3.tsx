@@ -25,9 +25,9 @@ function fmtDT(v: any): string {
   return out;
 }
 const ymd = (v: any) => (v ? String(v).slice(0, 10) : "");
-const CATMAP: Record<string, string> = { ferramenta: "Ferramenta", infraestrutura: "Infraestrutura", servico: "Serviço", salario: "Pessoas", ia: "IA", pessoas: "Pessoas" };
+const CATMAP: Record<string, string> = { ferramenta: "Ferramenta", infraestrutura: "Infraestrutura", servico: "Serviço", salario: "Pessoas", ia: "IA", pessoas: "Pessoas", beneficio: "Benefícios" };
 const catLabel = (c?: string) => (c ? (CATMAP[c] || c.charAt(0).toUpperCase() + c.slice(1)) : "Serviço");
-const CAT_EMOJI: Record<string, string> = { IA: "🤖", Pessoas: "👤", Ferramenta: "🛠️", Infraestrutura: "☁️", "Serviço": "📦" };
+const CAT_EMOJI: Record<string, string> = { IA: "🤖", Pessoas: "👤", Ferramenta: "🛠️", Infraestrutura: "☁️", "Serviço": "📦", "Benefícios": "🎁" };
 // ícones (SVG inline, sem dependência) — usados nas ações de parcela
 const IcoCheck = ({ size = 16 }: { size?: number }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>);
 const IcoX = ({ size = 15 }: { size?: number }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>);
@@ -279,7 +279,7 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
 
       {/* chips por categoria */}
       <div className="fv3-chips">
-        {["Todos", "IA", "Pessoas", "Ferramenta", "Infraestrutura", "Serviço"].map(c => (
+        {["Todos", "IA", "Pessoas", "Benefícios", "Ferramenta", "Infraestrutura", "Serviço"].map(c => (
           <span key={c} className={"fv3-chip" + (chip === c ? " active" : "")} onClick={() => setChip(c)}>
             {c === "Todos" ? "Todos" : (CAT_EMOJI[c] || "") + " " + (c === "Ferramenta" ? "Ferramentas" : c)}
             {c !== "Todos" && <small> {BRL(catTotal(c))}</small>}

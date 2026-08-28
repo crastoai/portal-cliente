@@ -469,7 +469,7 @@ export default function Financeiro() {
   const semContrato = rec.filter((r) => r.status !== "cancelled" && !isRecurring(r)).reduce((a, r) => a + rem(r), 0);
 
   // ── Drill-down: linhas de detalhe por card (o Crasto quer todo card clicável com suas infos) ──
-  const catLabel = (c: string) => (({ ferramenta: t("Ferramenta"), infraestrutura: t("Infraestrutura"), servico: t("Serviço"), salario: t("Salário") } as any)[c] || c || t("Outro"));
+  const catLabel = (c: string) => (({ ferramenta: t("Ferramenta"), infraestrutura: t("Infraestrutura"), servico: t("Serviço"), salario: t("Salário"), beneficio: t("Benefícios") } as any)[c] || c || t("Outro"));
   const fmtD = (d: any) => (ymd(d) ? new Date(ymd(d) + "T00:00:00").toLocaleDateString("pt-BR") : "—");
   const custoMensalDe = (c: any) => (c.recurrence === "mensal" ? Number(c.amount_brl || 0) : c.recurrence === "anual" ? Number(c.amount_brl || 0) / 12 : 0);
   // A receber
