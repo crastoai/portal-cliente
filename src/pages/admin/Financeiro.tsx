@@ -275,7 +275,8 @@ export default function Financeiro() {
   const txYears = Array.from(new Set(tx.map((r: any) => (ymd(r.transaction_date) || "").slice(0, 4)).filter(Boolean))).sort().reverse();
   const [txYear, setTxYear] = useState("todos");
   const txInYear = (r: any) => txYear === "todos" || (ymd(r.transaction_date) || "").slice(0, 4) === txYear;
-  const isImposto = (r: any) => r.type === "expense" && /imposto|simples|\bdarf\b|\bdas\b|\binss\b|\biss\b|tribut|guia/i.test(`${r.category || ""} ${r.description || ""}`);
+  // Tributos = classificados pela CATEGORIA auditada ("Despesa - Impostos/Guias"); regex amplo dava falso-positivo (ex.: "iss" casava "comISSao").
+  const isImposto = (r: any) => r.type === "expense" && /impost|tribut/i.test(r.category || "");
   const txPer = tx.filter(txInYear);
   const pEntradas = txPer.filter((r: any) => r.type === "income").reduce((a: number, r: any) => a + Number(r.amount || 0), 0);
   const pSaidas = txPer.filter((r: any) => r.type === "expense").reduce((a: number, r: any) => a + Number(r.amount || 0), 0);
@@ -663,13 +664,13 @@ export default function Financeiro() {
           <div className="kpi g"><div className="lab">{t("Entradas")}{txYear !== "todos" ? " · " + txYear : ""}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-green)" }}>{money(pEntradas)}</div></div>
           <div className="kpi"><div className="lab">{t("Saídas")}{txYear !== "todos" ? " · " + txYear : ""}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-orange)" }}>{money(pSaidas)}</div></div>
           <div className="kpi"><div className="lab">{t("Resultado")}</div><div className="val tnum" style={{ fontSize: 20, color: (pEntradas - pSaidas) < 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(pEntradas - pSaidas)}</div><div className="delta">{t("entradas − saídas")}</div></div>
-          <div className="kpi"><div className="lab">🧾 {t("Impostos pagos")}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-red)" }}>{money(pImpostos)}</div><div className="delta">{impostosList.length} {t("guia(s)")}</div></div>
+          <div className="kpi"><div className="lab">🧾 {t("Tributos")}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-red)" }}>{money(pImpostos)}</div><div className="delta">{pEntradas > 0 ? "≈" + (Math.round((pImpostos / pEntradas) * 1000) / 10) + "% da receita · " : ""}{impostosList.length} {t("guia(s)")}</div></div>
         </div>
 
         {/* Impostos pagos — detalhe (DARF, Simples/DAS, guias) */}
         {impostosList.length > 0 && (
           <details className="tbl-wrap" style={{ marginBottom: 12, padding: "10px 14px" }}>
-            <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 13 }}>🧾 {t("Impostos pagos")}{txYear !== "todos" ? " · " + txYear : ""} — <span style={{ color: "var(--fin-red)" }}>{money(pImpostos)}</span> <span style={{ color: "var(--crasto-text-muted)", fontWeight: 500 }}>({impostosList.length})</span></summary>
+            <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 13 }}>🧾 {t("Tributos")}{txYear !== "todos" ? " · " + txYear : ""} — <span style={{ color: "var(--fin-red)" }}>{money(pImpostos)}</span> <span style={{ color: "var(--crasto-text-muted)", fontWeight: 500 }}>({impostosList.length})</span></summary>
             <div style={{ marginTop: 8 }}>
               {impostosList.map((r: any) => (
                 <div key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12.5, padding: "6px 0", borderTop: "1px solid var(--crasto-border-soft)" }}>
