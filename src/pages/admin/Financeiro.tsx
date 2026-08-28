@@ -57,6 +57,21 @@ function aiPeriods() {
     { key: "2026", label: "2026", from: "2026-01-01", to: "2026-12-31" },
   ];
 }
+// Atalhos de período (fluxo): últimos 30 dias (padrão) / 1m / 3m / 6m / 1 ano.
+function finQuickPeriods() {
+  const now = new Date();
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const backDays = (n: number) => { const d = new Date(now); d.setDate(d.getDate() - n + 1); return iso(d); };
+  const backMonths = (n: number) => { const d = new Date(now); d.setMonth(d.getMonth() - n); return iso(d); };
+  const to = iso(now);
+  return [
+    { key: "30d", label: "30 dias", from: backDays(30), to },
+    { key: "1m", label: "1 mês", from: backMonths(1), to },
+    { key: "3m", label: "3 meses", from: backMonths(3), to },
+    { key: "6m", label: "6 meses", from: backMonths(6), to },
+    { key: "1a", label: "1 ano", from: backMonths(12), to },
+  ];
+}
 // Total gasto em IA no período + média por mês/semana (toggle) + comparativo 2025×2026.
 // Calendário sempre visível (personalizável) e atalhos de período. Usa services.finance.aiCost.panel.
 function AiSpendPanel() {
@@ -294,10 +309,10 @@ export default function Financeiro() {
   const txYears = Array.from(new Set(tx.map((r: any) => (ymd(r.transaction_date) || "").slice(0, 4)).filter(Boolean))).sort().reverse();
   // Padrão = ANO VIGENTE (fuso SP), não "Todos" — o dono quer ver o ano corrente ao abrir.
   // Dinâmico: vira 2027 sozinho na virada. (Trocar por "todos" só se o usuário clicar.)
-  const [txYear, setTxYear] = useState(() => today().slice(0, 4));
+  const [txYear, setTxYear] = useState("todos");
   const [txBank, setTxBank] = useState("todos");
-  const [txFrom, setTxFrom] = useState(""); // intervalo De (YYYY-MM-DD)
-  const [txTo, setTxTo] = useState("");     // intervalo Até (YYYY-MM-DD)
+  const [txFrom, setTxFrom] = useState(() => finQuickPeriods()[0].from); // default: últimos 30 dias
+  const [txTo, setTxTo] = useState(() => finQuickPeriods()[0].to);
   const txInYear = (r: any) => txYear === "todos" || (ymd(r.transaction_date) || "").slice(0, 4) === txYear;
   const txInRange = (r: any) => { const d = ymd(r.transaction_date) || ""; if (!d) return !txFrom && !txTo; if (txFrom && d < txFrom) return false; if (txTo && d > txTo) return false; return true; };
   const pillYear = (y: string) => { setTxYear(y); setTxFrom(""); setTxTo(""); }; // atalho de ano limpa o intervalo
@@ -898,6 +913,8 @@ export default function Financeiro() {
         {/* filtro por ANO (histórico 2015 → hoje) + intervalo De/Até */}
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: "var(--crasto-text-faint)", textTransform: "uppercase", letterSpacing: ".05em", marginRight: 4 }}>{t("Período")}</span>
+          {finQuickPeriods().map((pp) => <button key={pp.key} className={"ptab" + (txFrom === pp.from && txTo === pp.to ? " is-active" : "")} style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => { setTxFrom(pp.from); setTxTo(pp.to); setTxYear("todos"); }}>{t(pp.label)}</button>)}
+          <span style={{ width: 1, height: 20, background: "var(--crasto-border)", margin: "0 4px" }} />
           <button className={"ptab" + (txYear === "todos" && !txFrom && !txTo ? " is-active" : "")} style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => pillYear("todos")}>{t("Todos")}</button>
           {txYears.map((y) => <button key={y} className={"ptab" + (txYear === y && !txFrom && !txTo ? " is-active" : "")} style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => pillYear(y)}>{y}</button>)}
           <span style={{ width: 1, height: 20, background: "var(--crasto-border)", margin: "0 4px" }} />
