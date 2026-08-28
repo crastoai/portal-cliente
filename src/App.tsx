@@ -42,6 +42,7 @@ import ContasReceber from "./pages/admin/ContasReceber";
 import CustosOperacionais from "./pages/admin/CustosOperacionais";
 import CustoIA from "./pages/admin/CustoIA";
 import FinanceiroAdmin from "./pages/admin/Financeiro";
+import Contabilidade from "./pages/admin/Contabilidade";
 import ConsoleHealthCheck from "./pages/admin/ConsoleHealthCheck";
 import ConsoleAuditoria from "./pages/admin/ConsoleAuditoria";
 import ConsoleModelos from "./pages/admin/ConsoleModelos";
@@ -161,6 +162,9 @@ export default function App() {
             <Route path="financeiro" element={<FinanceiroAdmin />} />
             {/* Financeiro em telas individuais (menu-árvore): cada seção é uma rota; a raiz é o Cockpit. */}
             <Route path="financeiro/:secao" element={<FinanceiroAdmin />} />
+            {/* Contabilidade: módulo com sub-páginas (Cockpit/DRE/Notas/…); a raiz é o Cockpit. */}
+            <Route path="contabilidade" element={<Contabilidade />} />
+            <Route path="contabilidade/:secao" element={<Contabilidade />} />
             <Route path="custo-ia" element={<CustoIA />} />
             {/* Console · IA (admin) — camada operacional dos agentes */}
             <Route path="console/health" element={<ConsoleHealthCheck />} />
