@@ -98,17 +98,36 @@ export function Avatar({ name, url, size = 34, style }: { name?: string | null; 
   );
 }
 
-export function PageHead({ eyebrow = "Portal", title, sub, right }: { eyebrow?: string; title: string; sub?: string; right?: ReactNode }) {
+export function PageHead({ eyebrow = "Portal", title, sub, right, titleAside }: { eyebrow?: string; title: string; sub?: string; right?: ReactNode; titleAside?: ReactNode }) {
   const t = useT();
   return (
     <div className={right ? "phead-row" : ""}>
       <div className="phead">
         <div className="ey">{t(eyebrow)}</div>
-        <h1>{t(title)}</h1>
+        {/* titleAside = algo COLADO no título (ex.: farol de status em tempo real) */}
+        {titleAside ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+            <h1 style={{ margin: 0 }}>{t(title)}</h1>{titleAside}
+          </div>
+        ) : <h1>{t(title)}</h1>}
         {sub && <div className="sub">{t(sub)}</div>}
       </div>
       {right && <div className="hactions">{right}</div>}
     </div>
+  );
+}
+
+/**
+ * Farol de status em TEMPO REAL — semáforo horizontal (3 luzes lado a lado).
+ * A luz do status atual acende (com brilho) e PISCA; as outras ficam cinza (apagadas).
+ * verde = tudo em dia · amarelo = alerta/pendência · vermelho = pendência grave.
+ */
+export function Farol({ status, titulo }: { status: "verde" | "amarelo" | "vermelho"; titulo?: string }) {
+  const luzes: ("vermelho" | "amarelo" | "verde")[] = ["vermelho", "amarelo", "verde"];
+  return (
+    <span className="farol" role="img" aria-label={titulo || status} title={titulo || status}>
+      {luzes.map((c) => <span key={c} className={"farol-luz" + (status === c ? " on " + c : "")} />)}
+    </span>
   );
 }
 
