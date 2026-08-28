@@ -765,7 +765,31 @@ export default function Financeiro() {
   const fTodos = [fPagar, fReceber, fCobranca, fConciliacao, fTesouraria];
   const fCockpit: FarolS = fTodos.includes("vermelho") ? "vermelho" : fTodos.includes("amarelo") ? "amarelo" : "verde";
   const farolStatus: FarolS = ({ cockpit: fCockpit, pagar: fPagar, receber: fReceber, cobranca: fCobranca, conciliacao: fConciliacao, tesouraria: fTesouraria } as Record<string, FarolS>)[tab] || fCockpit;
-  const farolTitulo = ({ verde: "Tudo em dia", amarelo: "Atenção — há pendências financeiras", vermelho: "Pendências financeiras graves" } as Record<FarolS, string>)[farolStatus];
+  const farolTag = ({ verde: "Tudo em dia", amarelo: "Atenção", vermelho: "Pendência grave" } as Record<FarolS, string>)[farolStatus];
+
+  // NOTA do farol: por que está nessa cor + a pendência da tela + o que fazer (verde = só o porquê).
+  const notaPagar = fPagar === "vermelho" ? `${money(payVencido)} em contas vencidas — pague ou renegocie o quanto antes.`
+    : fPagar === "amarelo" ? `${money(payHoje)} vence hoje — programe o pagamento ainda hoje.`
+    : "Nada vencido e nada vence hoje — contas a pagar em dia.";
+  const notaReceber = fReceber === "vermelho" ? `${money(inadimplencia)} a receber vencido — acione a cobrança do cliente.`
+    : fReceber === "amarelo" ? `${money(recHojeVal)} a receber vence hoje — acompanhe a entrada.`
+    : "Nada vencido a receber — recebimentos em dia.";
+  const notaCobranca = fCobranca === "vermelho" ? `${cobCount("vencidas")} parcela(s) vencida(s) — cobre os clientes.`
+    : fCobranca === "amarelo" ? `${cobCount("hoje")} parcela(s) vence(m) hoje — envie o lembrete de cobrança.`
+    : "Nenhuma parcela vencida ou vencendo hoje — cobrança em dia.";
+  const notaConc = fConciliacao === "vermelho" ? `${nConc} pagamentos sem comprovante (acúmulo alto) — concilie com urgência: anexe os comprovantes ou use a Conciliação por IA.`
+    : fConciliacao === "amarelo" ? `${nConc} pagamento(s) sem comprovante — anexe os comprovantes ou concilie por IA.`
+    : "Todos os pagamentos conciliados — nada pendente.";
+  const notaTes = fTesouraria === "vermelho" ? `Caixa negativo no período (${money(resultTes)}) — revise despesas e recebimentos.`
+    : fTesouraria === "amarelo" ? `Margem de caixa apertada (${money(resultTes)}) — atenção ao fluxo.`
+    : `Caixa positivo (${money(resultTes)}) — tesouraria saudável.`;
+  // Cockpit: reflete o PIOR; a nota resume as áreas fora do verde.
+  const areasFarol: [string, FarolS, string][] = [["A Pagar", fPagar, notaPagar], ["A Receber", fReceber, notaReceber], ["Cobrança", fCobranca, notaCobranca], ["Conciliação", fConciliacao, notaConc], ["Tesouraria", fTesouraria, notaTes]];
+  const problemasFarol = areasFarol.filter((a) => a[1] !== "verde");
+  const notaCockpit = problemasFarol.length === 0 ? "Todas as áreas financeiras em dia — nada pendente."
+    : problemasFarol.length === 1 ? `${problemasFarol[0][0]} — ${problemasFarol[0][2]}`
+    : `${problemasFarol.map((a) => a[0]).join(" · ")} com pendências — abra cada tela para os detalhes.`;
+  const farolNota = ({ cockpit: notaCockpit, pagar: notaPagar, receber: notaReceber, cobranca: notaCobranca, conciliacao: notaConc, tesouraria: notaTes } as Record<string, string>)[tab] || notaCockpit;
 
   // TEMPO REAL: com a tela aberta e visível, reavalia os dados a cada 90s (o farol reflete o
   // estado atual). Pula se há modal aberto — não atrapalha edição. O piscar é só visual (CSS).
@@ -778,7 +802,15 @@ export default function Financeiro() {
 
   return (
     <div>
-      <PageHead eyebrow="Painel Admin · Financeiro 🔒" title={isCockpit ? "Financeiro" : "Financeiro · " + t(TITULO_SECAO[tab] || "")} sub={isCockpit ? "Visão geral de todas as áreas — Cockpit." : "Gestão financeira completa da Crasto.AI."} titleAside={<Farol status={farolStatus} titulo={t(farolTitulo)} />} />
+      <PageHead eyebrow="Painel Admin · Financeiro 🔒" title={isCockpit ? "Financeiro" : "Financeiro · " + t(TITULO_SECAO[tab] || "")} sub={isCockpit ? "Visão geral de todas as áreas — Cockpit." : "Gestão financeira completa da Crasto.AI."} titleAside={
+        <div className="farol-wrap">
+          <Farol status={farolStatus} titulo={t(farolTag)} />
+          <div className="farol-nota">
+            <span className={"farol-nota-tag " + farolStatus}>{t(farolTag)}</span>
+            <span className="farol-nota-txt">{farolNota}</span>
+          </div>
+        </div>
+      } />
 
       {/* ═══ COCKPIT (visão geral de todas as áreas) — só na raiz /admin/financeiro ═══ */}
       {isCockpit && (<>
