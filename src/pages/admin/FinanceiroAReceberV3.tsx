@@ -105,8 +105,17 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
         <span className="frv3-hint">Visão: <b>{view === "comp" ? "Competência (MRR)" : "Caixa (recebido)"}</b></span>
       </div>
 
-      <div className="frv3-grid3">
-        <div className="frv3-kpi hero"><div className="lbl">MRR — receita recorrente</div><div className="val">{BRL(mrr)}</div><div className="hint">reconhecida por mês (competência) · ARR {BRL(mrr * 12)} <span style={{ opacity: .85 }}>(Receita Recorrente Anual = MRR × 12)</span></div></div>
+      <div className="frv3-grid4">
+        <div className="frv3-kpi hero">
+          <div className="lbl">MRR — receita recorrente do mês</div>
+          <div className="val">{BRL(mrr)}</div>
+          <div className="hint"><span className="acr"><b>M</b>onthly <b>R</b>ecurring <b>R</b>evenue &middot; Receita Recorrente Mensal</span>reconhecida por mês (competência)</div>
+        </div>
+        <div className="frv3-kpi hero">
+          <div className="lbl">ARR — receita recorrente do ano</div>
+          <div className="val">{BRL(mrr * 12)}</div>
+          <div className="hint"><span className="acr"><b>A</b>nnual <b>R</b>ecurring <b>R</b>evenue &middot; Receita Recorrente Anual</span>MRR × 12 &middot; a recorrência anualizada</div>
+        </div>
         <div className="frv3-kpi"><div className="lbl">Recebido no mês (caixa)</div><div className="val green">{BRL(recebidoMes)}</div><div className="hint">entrou de fato na conta</div></div>
         <div className="frv3-kpi"><div className="lbl">A receber (futuro)</div><div className="val blue">{BRL(aReceberFut)}</div><div className="hint">contratado, ainda não recebido</div></div>
       </div>
@@ -169,13 +178,15 @@ const CSS = `
 .frv3 .seg button{border:0;background:transparent;padding:8px 15px;border-radius:7px;font:inherit;font-size:12.5px;font-weight:700;color:var(--muted);cursor:pointer}
 .frv3 .seg button.on{background:var(--card);color:var(--navy);box-shadow:var(--shadow)}
 .frv3-hint{font-size:12.5px;color:var(--muted)}
-.frv3-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:14px}
+.frv3-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:14px}
 .frv3-kpi{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow)}
 .frv3-kpi .lbl{font-size:10.5px;letter-spacing:.08em;font-weight:700;color:var(--muted2);text-transform:uppercase}
 .frv3-kpi .val{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:10px 0 6px}
 .frv3-kpi .hint{font-size:12px;color:var(--muted)}
+.frv3-kpi .hint .acr{display:block;font-weight:600;margin-bottom:3px;font-size:11.5px}
 .frv3-kpi.hero{background:linear-gradient(180deg,#0B1830,#010E26);border-color:transparent;color:#fff}
 .frv3-kpi.hero .lbl{color:#9DB4E0}.frv3-kpi.hero .hint{color:#B7C6E6}
+.frv3-kpi.hero .hint .acr{color:#DCE7FB}.frv3-kpi.hero .hint b{color:#fff}
 .frv3-note{background:var(--info-bg);border:1px solid var(--line2);border-left:3px solid var(--blue);border-radius:12px;padding:13px 15px;font-size:12.5px;color:var(--txt);line-height:1.5;margin:14px 0}
 .frv3-note b{color:var(--txt)}
 .frv3-sech{display:flex;align-items:center;justify-content:space-between;margin:22px 0 12px}
@@ -210,5 +221,6 @@ const CSS = `
 .frv3 .picon.ok{color:var(--green);border-color:var(--green)}
 .frv3 .picon.ok:hover{background:var(--green);color:#fff}
 .frv3 .picon:disabled{opacity:.45;cursor:default}
-@media(max-width:1050px){.frv3-grid3{grid-template-columns:1fr}}
+@media(max-width:1050px){.frv3-grid4{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.frv3-grid4{grid-template-columns:1fr}}
 `;
