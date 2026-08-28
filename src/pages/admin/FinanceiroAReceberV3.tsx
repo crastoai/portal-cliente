@@ -48,6 +48,7 @@ const proxVenc = (r: any) => { const ps = arr(r.payment_schedule); const nxt = p
 
 export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; reload?: () => void }) {
   const [view, setView] = useState<"comp" | "caixa">("comp");
+  const [drill, setDrill] = useState<null | "mrr" | "arr" | "caixa" | "futuro">(null);
   const mes = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }).slice(0, 7);
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
 
@@ -94,6 +95,35 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
   const aReceberFut = rows.reduce((a, r) => a + r.aReceber, 0);
   const francisco = ativos.find((r: any) => /francisco|cs adv/i.test(r.contact_name || r.description || ""));
 
+  // ---- detalhamento dos cards (drill-down): cada lista SOMA o total do card ----
+  const nomeDe = (r: any) => r.contact_name || r.description || "—";
+  const recorrentes = ativos.filter(isRecurring);
+  const drillCfg: any =
+    drill === "mrr" ? {
+      title: `MRR — composição de ${BRL(mrr)}/mês`,
+      sub: "Receita recorrente mensal (competência): a mensalidade reconhecida de cada contrato ativo = total do contrato ÷ meses de vigência.",
+      total: mrr,
+      rows: recorrentes.map((r: any) => ({ nome: nomeDe(r), valor: mensalDe(r), det: `${BRL(Number(r.contract_total || 0))} ÷ ${mesesContrato(r)} meses de contrato` })),
+    } : drill === "arr" ? {
+      title: `ARR — composição de ${BRL(mrr * 12)}/ano`,
+      sub: "Receita recorrente anual = MRR × 12. Cada contrato entra pela sua mensalidade × 12 (a recorrência anualizada — não a soma dos contratos, nem o saldo a receber).",
+      total: mrr * 12,
+      rows: recorrentes.map((r: any) => ({ nome: nomeDe(r), valor: mensalDe(r) * 12, det: `${BRL(mensalDe(r))}/mês × 12` })),
+      foot: `${BRL(mrr)} (MRR) × 12 = ${BRL(mrr * 12)}`,
+    } : drill === "caixa" ? {
+      title: `Recebido no mês — composição de ${BRL(recebidoMes)}`,
+      sub: `Parcelas efetivamente recebidas em ${mes} — o dinheiro que entrou na conta neste mês.`,
+      total: recebidoMes,
+      rows: rows.filter(r => r.recebidoMes > 0).map(r => ({ nome: r.cliente, valor: r.recebidoMes, det: "recebido neste mês" })),
+      empty: "Nenhuma parcela recebida neste mês (ainda).",
+    } : drill === "futuro" ? {
+      title: `A receber (futuro) — composição de ${BRL(aReceberFut)}`,
+      sub: "Saldo em aberto = contratado − já recebido, somando TODAS as parcelas ainda não recebidas de todos os contratos (sem recorte de data; cada parcela tem seu vencimento na lista).",
+      total: aReceberFut,
+      rows: rows.filter(r => r.aReceber > 0).map(r => ({ nome: r.cliente, valor: r.aReceber, det: `${BRL(r.recebido)} recebido de ${BRL(r.recebido + r.aReceber)}` })),
+      empty: "Nada em aberto — tudo recebido.",
+    } : null;
+
   return (
     <div className="frv3">
       <style>{CSS}</style>
@@ -106,18 +136,18 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
       </div>
 
       <div className="frv3-grid4">
-        <div className="frv3-kpi hero">
+        <div className="frv3-kpi hero clk" onClick={() => setDrill("mrr")} title="Clique para ver a composição do MRR">
           <div className="lbl">MRR — receita recorrente do mês</div>
           <div className="val">{BRL(mrr)}</div>
           <div className="hint"><span className="acr"><b>M</b>onthly <b>R</b>ecurring <b>R</b>evenue &middot; Receita Recorrente Mensal</span>reconhecida por mês (competência)</div>
         </div>
-        <div className="frv3-kpi hero">
+        <div className="frv3-kpi hero clk" onClick={() => setDrill("arr")} title="Clique para ver a composição do ARR">
           <div className="lbl">ARR — receita recorrente do ano</div>
           <div className="val">{BRL(mrr * 12)}</div>
           <div className="hint"><span className="acr"><b>A</b>nnual <b>R</b>ecurring <b>R</b>evenue &middot; Receita Recorrente Anual</span>MRR × 12 &middot; a recorrência anualizada</div>
         </div>
-        <div className="frv3-kpi"><div className="lbl">Recebido no mês (caixa)</div><div className="val green">{BRL(recebidoMes)}</div><div className="hint">entrou de fato na conta</div></div>
-        <div className="frv3-kpi"><div className="lbl">A receber (futuro)</div><div className="val blue">{BRL(aReceberFut)}</div><div className="hint">contratado, ainda não recebido</div></div>
+        <div className="frv3-kpi clk" onClick={() => setDrill("caixa")} title="Clique para ver o que foi recebido no mês"><div className="lbl">Recebido no mês (caixa)</div><div className="val green">{BRL(recebidoMes)}</div><div className="hint">entrou de fato na conta</div></div>
+        <div className="frv3-kpi clk" onClick={() => setDrill("futuro")} title="Clique para ver o saldo a receber"><div className="lbl">A receber (futuro)</div><div className="val blue">{BRL(aReceberFut)}</div><div className="hint">contratado, ainda não recebido</div></div>
       </div>
 
       <div className="frv3-note"><b>Duas verdades, dois números.</b> <b>Competência (MRR)</b> = saúde do negócio (receita recorrente mês a mês). <b>Caixa</b> = dinheiro que entrou (paga as contas). O sistema guarda os dois e nunca os mistura.</div>
@@ -166,6 +196,30 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
       <div className="frv3-note" style={{ marginTop: 16 }}>
         <b>Competência × Caixa (ex.: {francisco ? (francisco.contact_name || "Dr. Francisco") : "Dr. Francisco"}):</b> um contrato parcelado (ex.: R$ 10.000 em 5×) entra no <b>caixa</b> só nos meses das parcelas, mas na <b>competência</b> é reconhecido R$ 10.000 ÷ 12 = ~R$ 833/mês o ano todo — mostrando receita recorrente estável, sem "5 meses cheios e 7 zerados". Fiscalmente, o imposto segue a <b>NF do mês</b> (confirme com o contador).
       </div>
+
+      {drill && drillCfg && (
+        <div className="frv3-modal" onClick={() => setDrill(null)}>
+          <div className="frv3-modal-card" onClick={e => e.stopPropagation()}>
+            <div className="frv3-modal-head">
+              <h3>{drillCfg.title}</h3>
+              <button className="frv3-mx" title="Fechar" onClick={() => setDrill(null)}><IcoX size={18} /></button>
+            </div>
+            <div className="frv3-modal-sub">{drillCfg.sub}</div>
+            {drillCfg.rows.length === 0 ? (
+              <div className="frv3-modal-empty">{drillCfg.empty || "Sem itens."}</div>
+            ) : (
+              <table className="frv3-modal-tbl">
+                <tbody>
+                  {drillCfg.rows.map((it: any, i: number) => (
+                    <tr key={i}><td className="mc-nome">{it.nome}<small>{it.det}</small></td><td className="mc-val">{BRL(it.valor)}</td></tr>
+                  ))}
+                </tbody>
+                <tfoot><tr><td className="mc-nome"><b>Total</b>{drillCfg.foot ? <small>{drillCfg.foot}</small> : null}</td><td className="mc-val"><b>{BRL(drillCfg.total)}</b></td></tr></tfoot>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -223,4 +277,23 @@ const CSS = `
 .frv3 .picon:disabled{opacity:.45;cursor:default}
 @media(max-width:1050px){.frv3-grid4{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:560px){.frv3-grid4{grid-template-columns:1fr}}
+.frv3-kpi.clk{position:relative;cursor:pointer;transition:transform .09s ease,box-shadow .14s ease}
+.frv3-kpi.clk:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(16,24,40,.14)}
+.frv3-kpi.clk::after{content:"›";position:absolute;top:12px;right:15px;font-size:17px;font-weight:800;opacity:0;transition:opacity .12s}
+.frv3-kpi.clk:hover::after{opacity:.5}
+.frv3-modal{position:fixed;inset:0;background:rgba(6,12,26,.55);display:flex;align-items:center;justify-content:center;z-index:60;padding:20px;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+.frv3-modal-card{background:var(--card);border-radius:18px;box-shadow:0 24px 64px rgba(0,0,0,.35);max-width:560px;width:100%;max-height:82vh;overflow:auto;padding:22px 24px}
+.frv3-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:2px}
+.frv3-modal-head h3{font-size:16.5px;font-weight:800;color:var(--txt);line-height:1.32}
+.frv3-mx{border:1px solid var(--line2);background:var(--card);color:var(--muted);border-radius:9px;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 auto}
+.frv3-mx:hover{background:var(--hover);color:var(--txt)}
+.frv3-modal-sub{font-size:12.5px;color:var(--muted);line-height:1.5;margin:8px 0 16px}
+.frv3-modal-empty{padding:26px;text-align:center;color:var(--muted);background:var(--hover);border-radius:12px;font-size:13px}
+.frv3-modal-tbl{width:100%;border-collapse:collapse}
+.frv3-modal-tbl td{padding:11px 4px;border-top:1px solid var(--line);font-size:13.5px;vertical-align:top}
+.frv3-modal-tbl .mc-nome{font-weight:700;color:var(--txt)}
+.frv3-modal-tbl .mc-nome small{display:block;font-weight:500;color:var(--muted);font-size:11.5px;margin-top:2px}
+.frv3-modal-tbl .mc-val{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--txt)}
+.frv3-modal-tbl tfoot td{border-top:2px solid var(--line2);font-size:15px;padding-top:13px}
+.frv3-modal-tbl tfoot .mc-val b{color:var(--blue-ink)}
 `;
