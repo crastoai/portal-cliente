@@ -513,6 +513,7 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
             </div>
           ))}
         </div>
+        <div className="fv3-gtot"><div className="gl">Total geral<span className="gs">serviço (avulso) + mensalidade (notebook)</span></div><div className="gr"><span className="gv">{BRL(pdrill.blocos.reduce((a: number, b: any) => a + Number(b.total || 0), 0))}</span><span className="gp">pago {BRL(pdrill.totalPago)}</span></div></div>
         <div className="fv3-note" style={{ margin: "12px 0 0" }}>Serviço (avulso) = comprovantes reais que somam o valor, fora do recorrente. Mensalidade = a única cobrança mês a mês. Clique numa linha para editar na origem.</div>
       </div></div></div>, document.body)}
     </div>
@@ -694,6 +695,12 @@ const CSS = `
 .fv3-bloco .bchip.men{background:#E6F4EA;color:#166534}
 .fv3-bloco .bchip.avu{background:#EEF1F5;color:#3B4A66}
 .fv3-bloco .bsub{font-size:11.5px;color:var(--muted);margin:0 0 6px}
+.fv3-gtot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding:14px 16px;border-radius:12px;background:var(--hover);border:1px solid var(--line2)}
+.fv3-gtot .gl{font-weight:800;font-size:14px;display:flex;flex-direction:column;line-height:1.25}
+.fv3-gtot .gs{font-weight:500;font-size:11px;color:var(--muted)}
+.fv3-gtot .gr{text-align:right;display:flex;flex-direction:column;line-height:1.25}
+.fv3-gtot .gv{font-weight:800;font-size:17px}
+.fv3-gtot .gp{font-size:11px;color:#166534;font-weight:600}
 .fv3-drill{display:flex;flex-direction:column}
 .fv3-drill .drow{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 4px;border-top:1px solid var(--line)}
 .fv3-drill .drow:first-child{border-top:0}
