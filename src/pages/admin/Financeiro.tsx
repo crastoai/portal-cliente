@@ -273,7 +273,9 @@ export default function Financeiro() {
   const entradasPrev = txSum("income", "pending"), saidasPrev = txSum("expense", "pending");
   // Tesouraria — filtro por ANO (histórico 2015 → hoje) + impostos pagos
   const txYears = Array.from(new Set(tx.map((r: any) => (ymd(r.transaction_date) || "").slice(0, 4)).filter(Boolean))).sort().reverse();
-  const [txYear, setTxYear] = useState("todos");
+  // Padrão = ANO VIGENTE (fuso SP), não "Todos" — o dono quer ver o ano corrente ao abrir.
+  // Dinâmico: vira 2027 sozinho na virada. (Trocar por "todos" só se o usuário clicar.)
+  const [txYear, setTxYear] = useState(() => today().slice(0, 4));
   const [txBank, setTxBank] = useState("todos");
   const [txFrom, setTxFrom] = useState(""); // intervalo De (YYYY-MM-DD)
   const [txTo, setTxTo] = useState("");     // intervalo Até (YYYY-MM-DD)
