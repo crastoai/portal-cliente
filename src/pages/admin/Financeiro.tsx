@@ -275,7 +275,13 @@ export default function Financeiro() {
   const txYears = Array.from(new Set(tx.map((r: any) => (ymd(r.transaction_date) || "").slice(0, 4)).filter(Boolean))).sort().reverse();
   const [txYear, setTxYear] = useState("todos");
   const [txBank, setTxBank] = useState("todos");
+  const [txFrom, setTxFrom] = useState(""); // intervalo De (YYYY-MM-DD)
+  const [txTo, setTxTo] = useState("");     // intervalo Até (YYYY-MM-DD)
   const txInYear = (r: any) => txYear === "todos" || (ymd(r.transaction_date) || "").slice(0, 4) === txYear;
+  const txInRange = (r: any) => { const d = ymd(r.transaction_date) || ""; if (!d) return !txFrom && !txTo; if (txFrom && d < txFrom) return false; if (txTo && d > txTo) return false; return true; };
+  const pillYear = (y: string) => { setTxYear(y); setTxFrom(""); setTxTo(""); }; // atalho de ano limpa o intervalo
+  const mmdd = (d: string) => (d ? d.slice(8, 10) + "/" + d.slice(5, 7) + "/" + d.slice(0, 4) : "…");
+  const perTag = (txFrom || txTo) ? " · " + mmdd(txFrom) + " → " + mmdd(txTo) : (txYear !== "todos" ? " · " + txYear : "");
   // Banco de origem do lançamento — separa Nubank × Itaú (extratos oficiais) e Faturamento (resumo anual não-caixa).
   const bankOf = (r: any) => { const b = String(r.bank_account || ""); if (/nubank|nu empresas/i.test(b)) return "Nubank"; if (/ita[uú]/i.test(b)) return "Itaú"; if (/resumo anual/i.test(b)) return "Faturamento"; return "Outro"; };
   const txInBank = (r: any) => txBank === "todos" || bankOf(r) === txBank;
@@ -285,7 +291,7 @@ export default function Financeiro() {
   const isFaturamento = (r: any) => bankOf(r) === "Faturamento";
   // Tributos = classificados pela CATEGORIA auditada ("Despesa - Impostos/Guias"); regex amplo dava falso-positivo (ex.: "iss" casava "comISSao").
   const isImposto = (r: any) => r.type === "expense" && /impost|tribut/i.test(r.category || "");
-  const txPer = tx.filter((r: any) => txInYear(r) && txInBank(r));
+  const txPer = tx.filter((r: any) => txInYear(r) && txInBank(r) && txInRange(r));
   const txOp = txPer.filter((r: any) => !isInterna(r) && !isFaturamento(r)); // operacional (regime de caixa)
   const pEntradas = txOp.filter((r: any) => r.type === "income").reduce((a: number, r: any) => a + Number(r.amount || 0), 0);
   const pSaidas = txOp.filter((r: any) => r.type === "expense").reduce((a: number, r: any) => a + Number(r.amount || 0), 0);
@@ -482,6 +488,24 @@ export default function Financeiro() {
     { name: t("A pagar no mês"), detail: t("ferramenta + infra + serviço"), value: -aPagarMes, tone: "warn", status: "−" },
   ];
 
+  // === Drill-downs dos cards da TESOURARIA (clicar no card abre o detalhamento organizado) ===
+  const txGroupAbs = (rows: any[], keyOf: (r: any) => string, tone: string) => {
+    const m = new Map<string, { value: number; n: number }>();
+    rows.forEach((r: any) => { const k = keyOf(r) || "—"; const g = m.get(k) || { value: 0, n: 0 }; g.value += Math.abs(Number(r.amount || 0)); g.n += 1; m.set(k, g); });
+    return Array.from(m.entries()).map(([name, g]) => ({ name, detail: g.n + "×", value: g.value, tone, status: "" })).sort((a, b) => b.value - a.value);
+  };
+  const txOpIn = txOp.filter((r: any) => r.type === "income");
+  const txOpOut = txOp.filter((r: any) => r.type === "expense");
+  const drillEntradas = txGroupAbs(txOpIn, (r: any) => r.contact_name || r.description || "—", "ok");
+  const drillSaidas = txGroupAbs(txOpOut, (r: any) => r.category || "—", "warn").map((x) => ({ ...x, value: -x.value }));
+  const drillResultado = [
+    { name: t("Entradas (clientes)"), detail: t("operacional"), value: pEntradas, tone: "ok", status: "+" },
+    { name: t("Saídas (custos)"), detail: t("operacional"), value: -pSaidas, tone: "warn", status: "−" },
+  ];
+  const drillTributos = impostosList.map((r: any) => ({ name: r.description || t("Guia"), detail: fmtD(r.transaction_date) + " · " + bankOf(r), value: -Number(r.amount || 0), tone: "warn", status: r.category || "" }));
+  const drillInternas = txGroupAbs(internasList, (r: any) => r.category || "—", "mute");
+  const drillFat = fatList.map((r: any) => ({ name: r.description || r.category, detail: fmtD(r.transaction_date), value: Number(r.amount || 0), tone: "info", status: "" })).sort((a: any, b: any) => b.value - a.value);
+
   // status cards (do lado ativo)
   const curItems = tab === "pagar" ? payItems : recSource.map(acctToItem);
   const stVencidos = curItems.reduce((a, i) => a + vencidoDe(i), 0);   // só as parcelas realmente vencidas
@@ -634,7 +658,7 @@ export default function Financeiro() {
   }
   async function markTxDone(r: any) { setBusy(true); try { await services.finance.transactions.save({ ...r, status: "completed" }); reload(); flash(t("Marcado como realizado ✓")); } catch (e) { flash(errorMessage(e)); } finally { setBusy(false); } }
   async function delTx(r: any) { if (!confirm(t("Excluir este lançamento?"))) return; await services.finance.transactions.remove(r.id); reload(); }
-  const txFiltered = tx.filter((r) => { if (!txInYear(r) || !txInBank(r)) return false; const q = query.trim().toLowerCase(); return !q || `${r.description || ""} ${r.category || ""} ${r.contact_name || ""}`.toLowerCase().includes(q); });
+  const txFiltered = tx.filter((r) => { if (!txInYear(r) || !txInBank(r) || !txInRange(r)) return false; const q = query.trim().toLowerCase(); return !q || `${r.description || ""} ${r.category || ""} ${r.contact_name || ""}`.toLowerCase().includes(q); });
 
   const built = tab === "pagar" || tab === "receber";
 
@@ -665,11 +689,17 @@ export default function Financeiro() {
           <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => newTx("expense")}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Nova saída")}</span></button>
         </div>
 
-        {/* filtro por ANO (histórico 2015 → hoje) */}
+        {/* filtro por ANO (histórico 2015 → hoje) + intervalo De/Até */}
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: "var(--crasto-text-faint)", textTransform: "uppercase", letterSpacing: ".05em", marginRight: 4 }}>{t("Período")}</span>
-          <button className={"ptab" + (txYear === "todos" ? " is-active" : "")} style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => setTxYear("todos")}>{t("Todos")}</button>
-          {txYears.map((y) => <button key={y} className={"ptab" + (txYear === y ? " is-active" : "")} style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => setTxYear(y)}>{y}</button>)}
+          <button className={"ptab" + (txYear === "todos" && !txFrom && !txTo ? " is-active" : "")} style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => pillYear("todos")}>{t("Todos")}</button>
+          {txYears.map((y) => <button key={y} className={"ptab" + (txYear === y && !txFrom && !txTo ? " is-active" : "")} style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => pillYear(y)}>{y}</button>)}
+          <span style={{ width: 1, height: 20, background: "var(--crasto-border)", margin: "0 4px" }} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--crasto-text-faint)" }}>{t("De")}</span>
+          <input type="date" value={txFrom} max={txTo || undefined} onChange={(e) => { setTxFrom(e.target.value); setTxYear("todos"); }} style={{ padding: "5px 8px", fontSize: 12, borderRadius: 8, border: "1px solid var(--crasto-border)", background: "var(--card)", color: "var(--crasto-text)" }} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--crasto-text-faint)" }}>{t("Até")}</span>
+          <input type="date" value={txTo} min={txFrom || undefined} onChange={(e) => { setTxTo(e.target.value); setTxYear("todos"); }} style={{ padding: "5px 8px", fontSize: 12, borderRadius: 8, border: "1px solid var(--crasto-border)", background: "var(--card)", color: "var(--crasto-text)" }} />
+          {(txFrom || txTo) && <button className="ptab" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => { setTxFrom(""); setTxTo(""); }}>✕ {t("limpar")}</button>}
         </div>
 
         {/* filtro por BANCO (Nubank × Itaú — extratos oficiais) */}
@@ -681,30 +711,30 @@ export default function Financeiro() {
           </div>
         )}
 
-        {/* resumo tesouraria — RESULTADO OPERACIONAL (caixa), sem transferências internas nem faturamento não-caixa */}
+        {/* resumo tesouraria — RESULTADO OPERACIONAL (caixa), sem transferências internas nem faturamento não-caixa. Cards clicáveis → detalhamento */}
         <div className="kpis" style={{ marginBottom: 10 }}>
-          <div className="kpi g"><div className="lab">{t("Entradas")}{txYear !== "todos" ? " · " + txYear : ""}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-green)" }}>{money(pEntradas)}</div><div className="delta">{t("operacional (clientes)")}</div></div>
-          <div className="kpi"><div className="lab">{t("Saídas")}{txYear !== "todos" ? " · " + txYear : ""}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-orange)" }}>{money(pSaidas)}</div><div className="delta">{t("operacional (custos)")}</div></div>
-          <div className="kpi"><div className="lab">{t("Resultado")}</div><div className="val tnum" style={{ fontSize: 20, color: (pEntradas - pSaidas) < 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(pEntradas - pSaidas)}</div><div className="delta">{t("entradas − saídas · caixa")}</div></div>
-          <div className="kpi"><div className="lab">🧾 {t("Tributos")}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-red)" }}>{money(pImpostos)}</div><div className="delta">{pEntradas > 0 ? "≈" + (Math.round((pImpostos / pEntradas) * 1000) / 10) + "% da receita · " : ""}{impostosList.length} {t("guia(s)")}</div></div>
+          <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Entradas") + perTag, sub: t("por cliente/origem"), rows: drillEntradas, foot: { label: t("Entradas (operacional)"), value: pEntradas } })} title={t("Ver detalhes")}><div className="lab">{t("Entradas")}{perTag}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-green)" }}>{money(pEntradas)}</div><div className="delta">{t("operacional (clientes)")}</div></button>
+          <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Saídas") + perTag, sub: t("por categoria"), rows: drillSaidas, foot: { label: t("Saídas (operacional)"), value: -pSaidas } })} title={t("Ver detalhes")}><div className="lab">{t("Saídas")}{perTag}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-orange)" }}>{money(pSaidas)}</div><div className="delta">{t("operacional (custos)")}</div></button>
+          <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado") + perTag, rows: drillResultado, foot: { label: t("Resultado"), value: pEntradas - pSaidas } })} title={t("Ver detalhes")}><div className="lab">{t("Resultado")}</div><div className="val tnum" style={{ fontSize: 20, color: (pEntradas - pSaidas) < 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(pEntradas - pSaidas)}</div><div className="delta">{t("entradas − saídas · caixa")}</div></button>
+          <button className="kpi kpi-btn" onClick={() => setDrill({ title: "🧾 " + t("Tributos") + perTag, sub: t("cada guia"), rows: drillTributos, foot: { label: t("Tributos"), value: -pImpostos } })} title={t("Ver detalhes")}><div className="lab">🧾 {t("Tributos")}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-red)" }}>{money(pImpostos)}</div><div className="delta">{pEntradas > 0 ? "≈" + (Math.round((pImpostos / pEntradas) * 1000) / 10) + "% da receita · " : ""}{impostosList.length} {t("guia(s)")}</div></button>
         </div>
 
         {/* faixa não-operacional: transferências internas (não entram no resultado) + faturamento histórico não-caixa */}
         {(internasList.length > 0 || fatList.length > 0) && (
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
             {internasList.length > 0 && (
-              <div style={{ flex: 1, minWidth: 240, background: "var(--card)", border: "1px dashed var(--crasto-border)", borderRadius: 10, padding: "9px 13px" }}>
+              <button onClick={() => setDrill({ title: "🔄 " + t("Movimentações internas") + perTag, sub: t("por tipo"), rows: drillInternas, foot: { label: t("Volume interno"), value: pInternas } })} title={t("Ver detalhes")} style={{ flex: 1, minWidth: 240, textAlign: "left", cursor: "pointer", background: "var(--card)", border: "1px dashed var(--crasto-border)", borderRadius: 10, padding: "9px 13px" }}>
                 <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--crasto-text-muted)" }}>🔄 {t("Movimentações internas")} <span style={{ fontWeight: 500 }}>({internasList.length})</span></div>
                 <div className="tnum" style={{ fontSize: 15, fontWeight: 700 }}>{money(pInternas)}</div>
                 <div style={{ fontSize: 11, color: "var(--crasto-text-faint)" }}>{t("transf. entre contas próprias · aplicações · sócio — fora do resultado")}</div>
-              </div>
+              </button>
             )}
             {fatList.length > 0 && (
-              <div style={{ flex: 1, minWidth: 240, background: "var(--card)", border: "1px dashed var(--crasto-border)", borderRadius: 10, padding: "9px 13px" }}>
+              <button onClick={() => setDrill({ title: "🧾 " + t("Faturamento (não-caixa)") + perTag, sub: t("por ano"), rows: drillFat, foot: { label: t("Faturamento"), value: pFaturamento } })} title={t("Ver detalhes")} style={{ flex: 1, minWidth: 240, textAlign: "left", cursor: "pointer", background: "var(--card)", border: "1px dashed var(--crasto-border)", borderRadius: 10, padding: "9px 13px" }}>
                 <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--crasto-text-muted)" }}>🧾 {t("Faturamento (não-caixa)")} <span style={{ fontWeight: 500 }}>({fatList.length})</span></div>
                 <div className="tnum" style={{ fontSize: 15, fontWeight: 700 }}>{money(pFaturamento)}</div>
                 <div style={{ fontSize: 11, color: "var(--crasto-text-faint)" }}>{t("receita faturada oficial (RBA/Simples) — anos sem extrato de caixa")}</div>
-              </div>
+              </button>
             )}
           </div>
         )}
