@@ -242,6 +242,19 @@ export default function Contabilidade() {
             <div className="sub" style={{ marginTop: 10 }}>Portais do governo — abrem em nova aba. A emissão automática por API (a partir daqui) entra na Fase 2.</div>
           </div>
 
+          <div className="card bl-a" style={{ marginTop: 14 }}>
+            <div className="rowbetween"><b>🛠️ Pendência técnica — emitir NF por API dentro do app (para o John + Claude Code)</b><span className="pill p-pend">roadmap · Fase 2</span></div>
+            <div className="sub" style={{ marginTop: 8, lineHeight: 1.6 }}>
+              Objetivo: emitir a própria NFS-e <b>de dentro do sistema</b>, como fazem os emissores de mercado — sem abrir o portal. O caminho padrão do mercado:
+              <ol style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+                <li><b>Certificado digital A1</b> (e-CNPJ) da CRASTO.COM — armazenado com segurança (nunca no front).</li>
+                <li>Um <b>gateway emissor</b> que abstrai as ~5.500 prefeituras: <b>Focus NFe, PlugNotas, eNotas, NFe.io ou Nuvem Fiscal</b> — é o que praticamente todo sistema usa. (Alternativa mais dura: integrar direto no webservice <b>ABRASF</b> da Prefeitura de SP.)</li>
+                <li>Fluxo: cadastrar certificado + credenciais municipais → chamar a API do gateway → recebe XML + PDF + protocolo → <b>salvar em Documentos</b> + lançar a receita no A Receber + gerar a guia (DAS).</li>
+              </ol>
+              <span style={{ display: "block", marginTop: 8 }}>Passo 1 do John: escolher o gateway (comparar preço/cobertura de SP) e conseguir o certificado A1. Aí o Claude Code monta a integração.</span>
+            </div>
+          </div>
+
           <div className="grid g3" style={{ margin: "20px 0 6px" }}>
             <div className="kpi"><div className="k-l">Emitidas no mês</div><div className="k-v mono">3</div><div className="k-h">R$ 17.376,00</div></div>
             <div className="kpi"><div className="k-l">Emissão</div><div className="k-v sm">API · Nota do Milhão</div><div className="k-h">fallback manual disponível</div></div>
@@ -333,7 +346,7 @@ export default function Contabilidade() {
               <tr><td className="mono">4742-3/00</td><td><b>Comércio de material elétrico</b></td><td><span className="pill p-pend">Anexo I</span></td><td className="sub">comércio · início 4%</td><td><span className="pill p-pend">revisar</span></td></tr>
             </tbody>
           </table></div></div>
-          <div className="note" style={{ marginTop: 16 }}><b>O que o módulo vigia aqui.</b> Se uma nota sair sob um CNAE de comércio (Anexo I) sendo serviço (Anexo III), o imposto sai errado. E o <b>Fator R</b> (folha ≥ 28% da receita) pode manter seus serviços de TI no Anexo III em vez do V — o módulo calcula todo mês e avisa. <i>Sinaliza a oportunidade; o contador confirma.</i></div>
+          <div className="cnote" style={{ marginTop: 16 }}><b>O que o módulo vigia aqui.</b> Se uma nota sair sob um CNAE de comércio (Anexo I) sendo serviço (Anexo III), o imposto sai errado. E o <b>Fator R</b> (folha ≥ 28% da receita) pode manter seus serviços de TI no Anexo III em vez do V — o módulo calcula todo mês e avisa. <i>Sinaliza a oportunidade; o contador confirma.</i></div>
         </div>
       )}
 
@@ -361,7 +374,7 @@ export default function Contabilidade() {
               <tr><td><b>Funcionário CLT (futuro)</b></td><td className="sub">INSS + FGTS 8% + 13º + férias + 1/3</td><td className="r mono">~40%+</td><td className="sub">gera eSocial/DCTFWeb — o módulo provisiona tudo</td></tr>
             </tbody>
           </table></div></div>
-          <div className="note" style={{ marginTop: 16 }}><b>Como funciona o “abatimento”.</b> No Simples o imposto é sobre a <b>receita</b>, então não se “deduz despesa” como no Lucro Real — a economia vem de <b>escolher o anexo certo, usar o Fator R e transformar pró-labore tributado em lucro isento</b>. O módulo calcula essas alavancas todo mês. <i>É sinal de oportunidade, não conselho fechado — o contador com CRC valida antes de aplicar.</i></div>
+          <div className="cnote" style={{ marginTop: 16 }}><b>Como funciona o “abatimento”.</b> No Simples o imposto é sobre a <b>receita</b>, então não se “deduz despesa” como no Lucro Real — a economia vem de <b>escolher o anexo certo, usar o Fator R e transformar pró-labore tributado em lucro isento</b>. O módulo calcula essas alavancas todo mês. <i>É sinal de oportunidade, não conselho fechado — o contador com CRC valida antes de aplicar.</i></div>
         </div>
       )}
 
@@ -380,7 +393,7 @@ export default function Contabilidade() {
               <tr><td><b>Escrituração / ECD</b><div className="sub">livros — se exigível</div></td><td>Anual</td><td>SPED</td><td><span className="pill p-info">módulo gera · contador assina (CRC)</span></td><td><span className="pill p-pend">Fase 3</span></td></tr>
             </tbody>
           </table></div></div>
-          <div className="note" style={{ marginTop: 16 }}><b>A regra que não muda.</b> A escrituração e as declarações oficiais têm responsabilidade legal de um contador com <b>CRC</b>. O módulo prepara 100% e entrega pronto; o contador <b>revisa e assina</b> — é a “contabilidade assistida”. O ganho não é só os R$ 197/mês: é <b>autonomia, visibilidade e velocidade</b>.</div>
+          <div className="cnote" style={{ marginTop: 16 }}><b>A regra que não muda.</b> A escrituração e as declarações oficiais têm responsabilidade legal de um contador com <b>CRC</b>. O módulo prepara 100% e entrega pronto; o contador <b>revisa e assina</b> — é a “contabilidade assistida”. O ganho não é só os R$ 197/mês: é <b>autonomia, visibilidade e velocidade</b>.</div>
         </div>
       )}
 
@@ -436,7 +449,7 @@ export default function Contabilidade() {
                 )}
               </div>
             )}
-            {!sel && <div className="note" style={{ marginTop: 16 }}>Os arquivos ficam guardados com segurança (storage privado) e abrem por link temporário assinado. Anexe aqui as guias, recibos e certidões que o contador te manda — o objetivo é ter <b>tudo num lugar só</b>, sem depender do e-mail dele.</div>}
+            {!sel && <div className="cnote" style={{ marginTop: 16 }}>Os arquivos ficam guardados com segurança (storage privado) e abrem por link temporário assinado. Anexe aqui as guias, recibos e certidões que o contador te manda — o objetivo é ter <b>tudo num lugar só</b>, sem depender do e-mail dele.</div>}
           </div>
         );
       })()}
@@ -478,7 +491,7 @@ export default function Contabilidade() {
         <div className="cmodal" onClick={() => setNfOpen(false)}>
           <div className="m launch" onClick={(e) => e.stopPropagation()}>
             <div className="mh"><div><div className="eyebrow">Emissão de nota fiscal</div><h3>Emitir NF-e — portais oficiais</h3></div><button className="x" onClick={() => setNfOpen(false)}>✕</button></div>
-            <div className="note" style={{ marginTop: 12 }}>Os portais do governo <b>não permitem abrir embutidos aqui</b> — é a política de segurança deles (X-Frame-Options), não dá para contornar. Cada um abre em <b>nova aba</b>: você loga, emite a nota e depois é só <b>anexar o PDF em Documentos</b>. A emissão automática sem sair daqui (via API) entra na Fase 2.</div>
+            <div className="cnote" style={{ marginTop: 12 }}>Os portais do governo <b>não permitem abrir embutidos aqui</b> — é a política de segurança deles (X-Frame-Options), não dá para contornar. Cada um abre em <b>nova aba</b>: você loga, emite a nota e depois é só <b>anexar o PDF em Documentos</b>. A emissão automática sem sair daqui (via API) entra na Fase 2.</div>
             <div className="linkgrid" style={{ marginTop: 14 }}>
               {PORTAIS.map((p) => (
                 <a key={p.k} className="olink" href={p.url} target="_blank" rel="noopener noreferrer" onClick={() => setNfOpen(false)}>
@@ -545,8 +558,8 @@ const CSS = `
 .contab tr:first-child td{border-top:0}
 .contab td.r,.contab th.r{text-align:right;font-variant-numeric:tabular-nums}
 .contab td .sub{margin-top:2px}
-.note{background:var(--info);border:1px solid var(--line2);border-left:3px solid var(--b2);border-radius:12px;padding:13px 15px;font-size:12.3px;line-height:1.55;color:var(--txt)}
-.note b{color:var(--txt)}
+.cnote{background:var(--info);border:1px solid var(--line2);border-left:3px solid var(--b2);border-radius:12px;padding:13px 15px;font-size:12.3px;line-height:1.55;color:var(--txt)}
+.cnote b{color:var(--txt)}
 .split{display:grid;grid-template-columns:1fr 1fr}
 .split>div{padding:18px 20px}.split>div:first-child{border-right:1px solid var(--line)}
 .ul{margin:0;padding-left:18px;font-size:13px;color:var(--muted);line-height:1.85}.ul b{color:var(--txt)}
@@ -584,7 +597,15 @@ const CSS = `
 .center{text-align:center}
 .cmodal{position:fixed;inset:0;background:rgba(6,12,26,.55);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px}
 .cmodal .m{background:var(--card);border-radius:18px;box-shadow:0 24px 64px rgba(0,0,0,.35);max-width:560px;width:100%;max-height:88vh;overflow:auto;padding:24px}
-.cmodal .m.launch{max-width:580px}
+.cmodal .m.launch{max-width:840px;padding:28px 32px}
+.cmodal .m.launch .mh h3{font-size:20px}
+.cmodal .m.launch .cnote{font-size:13.5px;line-height:1.7;padding:16px 20px;margin-top:16px}
+.cmodal .m.launch .linkgrid{gap:14px;margin-top:18px}
+.cmodal .m.launch .olink{padding:16px 18px;gap:3px}
+.cmodal .m.launch .olink b{font-size:14px}
+.cmodal .m.launch .olink span{font-size:12.5px;line-height:1.45}
+.cmodal .m.launch .olink i{font-size:11.5px;margin-top:6px}
+@media(min-width:760px){.cmodal .m.launch .linkgrid{grid-template-columns:repeat(2,1fr)}}
 .mh{display:flex;justify-content:space-between;align-items:flex-start}
 .mh h3{font-size:17px}
 .x{border:1px solid var(--line2);background:var(--card);border-radius:9px;width:32px;height:32px;color:var(--muted);cursor:pointer}
