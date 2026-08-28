@@ -30,6 +30,13 @@ const custoMensalDe = (c: any) => (c.recurrence === "mensal" ? Number(c.amount_b
 const CAT_ORDER = ["salario", "beneficio", "ferramenta", "infraestrutura", "servico"];
 const N_MESES = 6;
 
+const PORTAIS = [
+  { k: "sp", label: "NFS-e · Prefeitura de SP", url: "https://nfe.prefeitura.sp.gov.br", desc: "nota de serviço (município da empresa)" },
+  { k: "nac", label: "NFS-e · Nacional", url: "https://www.nfse.gov.br", desc: "emissor nacional (padrão unificado)" },
+  { k: "das", label: "PGDAS-D · DAS", url: "https://www8.receita.fazenda.gov.br/SimplesNacional/Aplicacoes/ATSPO/pgdasd2018.app/", desc: "apurar e gerar o DAS do Simples" },
+  { k: "ecac", label: "e-CAC · Receita", url: "https://cav.receita.fazenda.gov.br", desc: "DCTFWeb, certidões, guias federais" },
+];
+
 const SECOES = [
   { k: "cockpit", ic: "🏛️", label: "Cockpit" },
   { k: "dre", ic: "📊", label: "DRE — resultado" },
@@ -49,6 +56,7 @@ export default function Contabilidade() {
   const sec = SECOES.some((s) => s.k === secao) ? (secao as string) : "cockpit";
   const go = (k: string) => nav(k === "cockpit" ? "/admin/contabilidade" : "/admin/contabilidade/" + k);
   const [nfOpen, setNfOpen] = useState(false);
+  const [nfPortal, setNfPortal] = useState(PORTAIS[0].url);
 
   const { data, loading } = useAsync(async () => {
     const [tx, costs] = await Promise.all([services.finance.transactions.list(), services.finance.costs.list()]);
@@ -190,7 +198,19 @@ export default function Contabilidade() {
             <div><div className="eyebrow">Emissão</div><h2 className="h-lg">Notas fiscais de serviço</h2></div>
             <button className="btn pri" onClick={() => setNfOpen(true)}>🧾 Emitir NF-e</button>
           </div>
-          <p className="lead">Emita a nota daqui — por API (integração com a prefeitura / Nota do Milhão) ou manual. Ao emitir, o módulo provisiona o imposto e pode gerar a guia sozinho.</p>
+          <p className="lead">Emita a nota daqui — por API (integração com a prefeitura / Nota do Milhão) ou manual. Ao emitir, o módulo provisiona o imposto e pode gerar a guia sozinho. Enquanto a API não está ligada, use os <b>portais oficiais</b> abaixo.</p>
+
+          <div className="card" style={{ margin: "18px 0 6px" }}>
+            <div className="rowbetween"><b>🔗 Portais oficiais de emissão</b><span className="tag">CRASTO.COM · São Paulo/SP</span></div>
+            <div className="linkgrid">
+              <a className="olink" href="https://nfe.prefeitura.sp.gov.br" target="_blank" rel="noopener noreferrer"><b>NFS-e Prefeitura de São Paulo</b><span>emitir nota de serviço (município da empresa)</span><i>nfe.prefeitura.sp.gov.br ↗</i></a>
+              <a className="olink" href="https://www.nfse.gov.br" target="_blank" rel="noopener noreferrer"><b>Portal Nacional NFS-e</b><span>emissor nacional (padrão unificado)</span><i>nfse.gov.br ↗</i></a>
+              <a className="olink" href="https://www8.receita.fazenda.gov.br/SimplesNacional/Aplicacoes/ATSPO/pgdasd2018.app/" target="_blank" rel="noopener noreferrer"><b>PGDAS-D — apurar/gerar o DAS</b><span>Simples Nacional (Receita Federal)</span><i>receita.fazenda.gov.br ↗</i></a>
+              <a className="olink" href="https://cav.receita.fazenda.gov.br" target="_blank" rel="noopener noreferrer"><b>e-CAC — Receita Federal</b><span>DCTFWeb, certidões, guias federais</span><i>cav.receita.fazenda.gov.br ↗</i></a>
+            </div>
+            <div className="sub" style={{ marginTop: 10 }}>Portais do governo — abrem em nova aba. A emissão automática por API (a partir daqui) entra na Fase 2.</div>
+          </div>
+
           <div className="grid g3" style={{ margin: "20px 0 6px" }}>
             <div className="kpi"><div className="k-l">Emitidas no mês</div><div className="k-v mono">3</div><div className="k-h">R$ 17.376,00</div></div>
             <div className="kpi"><div className="k-l">Emissão</div><div className="k-v sm">API · Nota do Milhão</div><div className="k-h">fallback manual disponível</div></div>
@@ -377,19 +397,24 @@ export default function Contabilidade() {
         </div>
       )}
 
-      {/* MODAL NF */}
+      {/* MODAL NF — pop-up com iframe do portal oficial */}
       {nfOpen && (
-        <div className="cmodal" onClick={() => setNfOpen(false)}>
-          <div className="m" onClick={(e) => e.stopPropagation()}>
-            <div className="mh"><div><div className="eyebrow">Nova nota</div><h3>Emitir NF-e de serviço</h3></div><button className="x" onClick={() => setNfOpen(false)}>✕</button></div>
-            <div className="seg" style={{ marginTop: 14 }}><button className="on">API · Nota do Milhão</button><button>Prefeitura</button><button>Manual</button></div>
-            <div className="field"><label>Tomador</label><input className="inp" defaultValue="Grupo El Shadai" readOnly /></div>
-            <div className="field"><label>Serviço prestado</label><input className="inp" defaultValue="Agentes de IA + WhatsApp CRM (mensalidade)" readOnly /></div>
-            <div className="grid g2" style={{ gap: 12 }}><div className="field"><label>Valor</label><input className="inp mono" defaultValue="R$ 2.500,00" readOnly /></div><div className="field"><label>Competência</label><input className="inp mono" defaultValue="ago/2026" readOnly /></div></div>
-            <div className="rowf"><Switch defaultOn /> Gerar a guia do imposto automaticamente após autorizar</div>
-            <div className="rowf"><Switch defaultOn /> Lançar a receita no Financeiro (A Receber)</div>
-            <button className="btn pri full" style={{ marginTop: 18 }} onClick={() => setNfOpen(false)}>Emitir e autorizar</button>
-            <div className="sub center" style={{ marginTop: 10 }}>Mockup — sem emissão real. Na produção, integra com a API da prefeitura / Nota do Milhão.</div>
+        <div className="cmodal big" onClick={() => setNfOpen(false)}>
+          <div className="m big" onClick={(e) => e.stopPropagation()}>
+            <div className="mh">
+              <div><div className="eyebrow">Emissão de nota fiscal</div><h3>Emitir NF-e — portal oficial</h3></div>
+              <div className="flex" style={{ gap: 8 }}>
+                <a className="btn" href={nfPortal} target="_blank" rel="noopener noreferrer">Abrir em nova aba ↗</a>
+                <button className="x" onClick={() => setNfOpen(false)}>✕</button>
+              </div>
+            </div>
+            <div className="seg wrap" style={{ marginTop: 12 }}>
+              {PORTAIS.map((p) => <button key={p.k} className={nfPortal === p.url ? "on" : ""} onClick={() => setNfPortal(p.url)} title={p.desc}>{p.label}</button>)}
+            </div>
+            <div className="framewrap">
+              <iframe key={nfPortal} src={nfPortal} title="Emissor oficial de nota fiscal" className="nfframe" referrerPolicy="no-referrer" />
+              <div className="framehint">Faça login no portal e emita a nota aqui dentro. Se a área ficar em branco, o portal do governo bloqueou a exibição embutida (segurança) — use <b>“Abrir em nova aba”</b> acima. A emissão automática a partir daqui (API) entra na Fase 2.</div>
+            </div>
           </div>
         </div>
       )}
@@ -494,6 +519,17 @@ const CSS = `
 .field label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);display:block;margin-bottom:5px}
 .inp{width:100%;border:1px solid var(--line2);background:var(--card2);border-radius:9px;padding:9px 12px;font:inherit;font-size:13px;color:var(--txt)}
 .rowf{display:flex;gap:9px;align-items:center;margin-top:10px;font-size:12.5px;color:var(--muted)}
+.linkgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:14px}
+.olink{display:flex;flex-direction:column;gap:1px;padding:12px 14px;border:1px solid var(--line);border-radius:11px;background:var(--card2);text-decoration:none;color:var(--txt);transition:.12s}
+.olink:hover{border-color:var(--b2);background:var(--card)}
+.olink b{font-size:13px}.olink span{font-size:11.5px;color:var(--muted)}.olink i{font-size:10.5px;color:var(--b);font-style:normal;margin-top:4px;font-weight:600}
+.seg.wrap{flex-wrap:wrap}
+.cmodal.big{padding:14px}
+.cmodal .m.big{max-width:1120px;width:100%;height:92vh;display:flex;flex-direction:column;padding:18px 18px 14px}
+.framewrap{flex:1;display:flex;flex-direction:column;margin-top:12px;min-height:0}
+.nfframe{flex:1;width:100%;border:1px solid var(--line2);border-radius:12px;background:#fff;min-height:0}
+.framehint{font-size:11.3px;color:var(--muted);margin-top:8px;text-align:center;line-height:1.5}
+@media(max-width:700px){.linkgrid{grid-template-columns:1fr}}
 @media(max-width:1050px){.contab .g4{grid-template-columns:repeat(2,1fr)}.contab .g3,.contab .g2,.split{grid-template-columns:1fr}.split>div:first-child{border-right:0;border-bottom:1px solid var(--line)}}
 @media(max-width:560px){.contab .g4{grid-template-columns:1fr}}
 `;
