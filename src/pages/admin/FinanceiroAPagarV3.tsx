@@ -72,6 +72,7 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
   const iaRows: any[] = (aiPanel as any)?.rows ?? [];
   const [iaDrill, setIaDrill] = useState<{ title: string; sub: string; rows: any[] } | null>(null);
   const [drill, setDrill] = useState<{ title: string; sub: string; rows: { empresa: string; sub: string; categoria: string; rec: string; dateStr: string; valor: number; rawId: string }[] } | null>(null);
+  const [pdrill, setPdrill] = useState<any>(null);
   // ---- parcelas: expandir + marcar paga + editar (persistido em payment_schedule) ----
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [busyP, setBusyP] = useState(false);
@@ -172,23 +173,33 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
   const reducaoMensal = reducoes.reduce((a: number, r: any) => a + r.mensal, 0);
   const reducaoAnual = reducaoMensal * 12;
 
-  // ---- pessoas por vínculo ----
+  // ---- pessoas & prestadores (1 linha por PESSOA; clique -> blocos: servico avulso x mensalidade) ----
   const pessoas = useMemo(() => {
-    // filtra is_active (custo desativado não conta) e agrupa por PESSOA (chave `person`, fallback ao nome).
     const src = [
       ...(costs || []).filter((c: any) => c.is_active !== false && catLabel(c.category) === "Pessoas"),
       ...(pay || []).filter((a: any) => catLabel(a.category) === "Pessoas"),
     ];
-    const map = new Map<string, { nome: string; vinculo: string; valor: number; comps: any[] }>();
+    const map = new Map<string, any>();
     for (const p of src) {
       const nome = p.person || p.vendor_name || p.contact_name || "—";
-      const valor = Number(p.amount_brl || p.amount || 0);
-      const hasPs = Array.isArray(p.payment_schedule) && p.payment_schedule.length > 0;
-      const comp = { empresa: p.vendor_name || p.contact_name || nome, sub: p.purpose || p.description || "", categoria: catLabel(p.category), rec: hasPs ? "parcelado" : (p.recurrence || "mensal"), dateStr: ymd(p.next_payment_date) || ymd(p.reference_date) || "", valor, rawId: p.id || p.rawId || "" };
-      const g = map.get(nome) || { nome, vinculo: (p.vinculo || "PJ").toUpperCase(), valor: 0, comps: [] };
-      g.valor += valor; g.comps.push(comp); map.set(nome, g);
+      const rec = String(p.recurrence || "mensal");
+      const mensal = rec === "mensal";
+      const amount = Number(p.amount_brl || p.amount || 0);
+      const ps = Array.isArray(p.payment_schedule) ? p.payment_schedule : [];
+      const itens = ps.length
+        ? ps.map((x: any, i: number) => ({ label: "Parcela " + (x.installment || i + 1) + "/" + ps.length, date: ymd(x.date), valor: Number(x.amount || 0), status: x.status === "paid" ? "paid" : "pending" }))
+        : [{ label: p.purpose || p.description || "lançamento", date: ymd(p.next_payment_date) || ymd(p.reference_date) || "", valor: amount, status: "—" }];
+      const total = ps.length ? ps.reduce((a: number, x: any) => a + Number(x.amount || 0), 0) : amount;
+      const bloco = { titulo: p.vendor_name || p.contact_name || nome, tipo: mensal ? "mensalidade" : "avulso", rec, parcelado: ps.length > 0, valorMes: mensal ? amount : 0, itens, total, rawId: p.id || p.rawId || "" };
+      const g = map.get(nome) || { nome, vinculo: (p.vinculo || "PJ").toUpperCase(), blocos: [], recorrenteMes: 0, avulsoTotal: 0 };
+      g.blocos.push(bloco); g.recorrenteMes += bloco.valorMes; if (!mensal) g.avulsoTotal += total;
+      map.set(nome, g);
     }
-    return Array.from(map.values()).map(g => ({ nome: g.nome, vinculo: g.vinculo, valor: g.valor, comps: g.comps, detalhe: g.comps.length > 1 ? g.comps.map(c => c.sub).filter(Boolean).join(" · ") : (g.comps[0]?.sub || "") })).sort((a, b) => b.valor - a.valor);
+    return Array.from(map.values()).map((g: any) => {
+      const blocos = g.blocos.slice().sort((a: any, b: any) => (a.tipo === "avulso" ? 0 : 1) - (b.tipo === "avulso" ? 0 : 1));
+      const detalhe = [g.recorrenteMes > 0 ? "Mensal " + BRL(g.recorrenteMes) : "", g.avulsoTotal > 0 ? "Serviço (avulso) " + BRL(g.avulsoTotal) : ""].filter(Boolean).join(" · ");
+      return { nome: g.nome, vinculo: g.vinculo, blocos, recorrenteMes: g.recorrenteMes, avulsoTotal: g.avulsoTotal, valor: g.recorrenteMes, detalhe };
+    }).sort((a: any, b: any) => b.valor - a.valor);
   }, [pay, costs]);
   const pessoasTotal = pessoas.reduce((a, p) => a + p.valor, 0);
   const vinc = (v: string) => pessoas.filter(p => p.vinculo === v).reduce((a, p) => a + p.valor, 0);
@@ -362,12 +373,12 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
       <div className="fv3-note"><b>Por que separar:</b> a IA da Crasto é <b>despesa fixa</b> (overhead). A IA dos clientes é <b>custo do serviço vendido (COGS)</b> — casada com a receita do cliente, revela a <b>margem bruta</b>. Os valores são o <b>custo REAL</b> das APIs de billing (Anthropic · OpenAI · Google/Gemini · DeepSeek), atualizado em <b>Sincronizar</b>. <b>Clique em qualquer linha</b> para ver a origem do custo.</div>
 
       {/* Pessoas & prestadores */}
-      <div className="fv3-sech"><h3>👤 Pessoas &amp; prestadores</h3><span className="rt">Total no mês · <b>{BRL(pessoasTotal)}</b></span></div>
+      <div className="fv3-sech"><h3>👤 Pessoas &amp; prestadores</h3><span className="rt">Recorrente/mês · <b>{BRL(pessoasTotal)}</b></span></div>
       <div className="fv3-panels">
         <div className="fv3-panel">
           <div className="ph"><span className="t">Por vínculo</span><span className="s">CLT · PJ · Terceirizado</span></div>
           {pessoas.length ? pessoas.map((p, k) => (
-            <div className={"fv3-row" + ((p.comps?.length || 0) > 1 ? " clk" : "")} key={k} title={(p.comps?.length || 0) > 1 ? "Ver o que compõe o total desta pessoa" : ""} onClick={(p.comps?.length || 0) > 1 ? () => openDrill("👤 " + p.nome, p.vinculo + " · " + p.comps.length + " lançamentos · total no mês " + BRL(p.valor), p.comps) : undefined}><div className="av">{(p.nome || "?").slice(0, 2).toUpperCase()}</div><div style={{ flex: 1, minWidth: 0 }}><div className="nm">{p.nome} <span className={"tag " + (p.vinculo === "CLT" ? "clt" : p.vinculo === "TERCEIRIZADO" ? "terc" : "pj")}>{p.vinculo === "TERCEIRIZADO" ? "Terceirizado" : p.vinculo}</span></div><div className="mt">{p.detalhe}</div></div><div className="amt">{BRL(p.valor)}{(p.comps?.length || 0) > 1 ? <span className="chev"> ›</span> : null}</div></div>
+            <div className="fv3-row clk" key={k} title="Ver serviço (comprovantes) e a mensalidade" onClick={() => setPdrill(p)}><div className="av">{(p.nome || "?").slice(0, 2).toUpperCase()}</div><div style={{ flex: 1, minWidth: 0 }}><div className="nm">{p.nome} <span className={"tag " + (p.vinculo === "CLT" ? "clt" : p.vinculo === "TERCEIRIZADO" ? "terc" : "pj")}>{p.vinculo === "TERCEIRIZADO" ? "Terceirizado" : p.vinculo}</span></div><div className="mt">{p.detalhe}</div></div><div className="amt">{BRL(p.valor)}<span className="chev"> ›</span></div></div>
           )) : <div className="fv3-row"><div className="mt">Nenhuma pessoa/prestador cadastrado (categoria "Pessoas").</div></div>}
         </div>
         <div className="fv3-panel">
@@ -481,6 +492,27 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
           <div className="drow total"><div className="dl"><div className="dn">Total</div></div><div className="dr"><span className="dv green">{BRL(drill.rows.reduce((a, r) => a + r.valor, 0))}</span></div></div>
         </div></div>
         <div className="fv3-note" style={{ margin: "12px 0 0" }}>Fonte real: cada linha é um lançamento (conta a pagar · custo operacional · uso de IA por token) que compõe esta soma. Clique numa linha para editar na origem.</div>
+      {pdrill && createPortal(<div className="fv3"><div className="fv3-modal" onClick={() => setPdrill(null)}><div className="box" onClick={e => e.stopPropagation()}>
+        <div className="mh"><div><div className="m-t">👤 {pdrill.nome}</div><div className="m-s">{pdrill.vinculo} · recorrente/mês {BRL(pdrill.recorrenteMes)}{pdrill.avulsoTotal > 0 ? " · serviço avulso " + BRL(pdrill.avulsoTotal) : ""}</div></div><button className="x" onClick={() => setPdrill(null)}>✕</button></div>
+        <div className="m-scroll">
+          {pdrill.blocos.map((b: any, bi: number) => (
+            <div className="fv3-bloco" key={bi}>
+              <div className="bh"><span className="bt">{b.titulo}</span><span className={"bchip " + (b.tipo === "mensalidade" ? "men" : "avu")}>{b.tipo === "mensalidade" ? "Mensalidade" : "Serviço (avulso)"}</span><span className="btot">{BRL(b.total)}</span></div>
+              <div className="bsub">{b.tipo === "mensalidade" ? ("Única mensalidade — " + (b.parcelado ? (b.itens.length + "× de " + BRL(b.valorMes)) : (BRL(b.valorMes) + "/mês"))) : ("Comprovantes que somam " + BRL(b.total) + " · não entra no recorrente")}</div>
+              <div className="fv3-drill">
+                {b.itens.map((it: any, ii: number) => (
+                  <div className="drow" key={ii} title={b.rawId ? "Editar na origem" : ""} onClick={() => { if (b.rawId && onEdit) { setPdrill(null); onEdit(b.rawId); } }} style={{ cursor: b.rawId ? "pointer" : "default" }}>
+                    <div className="dl"><div className="dn">{it.label}</div><div className="dm">{it.date ? fmtDT(it.date) : "—"}{it.status === "paid" ? " · pago" : it.status === "pending" ? " · a pagar" : ""}</div></div>
+                    <div className="dr"><span className={"dv" + (it.status === "pending" ? "" : " green")}>{BRL(it.valor)}</span>{it.status === "paid" ? <span className="dchip">✓ pago</span> : it.status === "pending" ? <span className="dchip">a pagar</span> : null}</div>
+                  </div>
+                ))}
+                <div className="drow total"><div className="dl"><div className="dn">Total</div></div><div className="dr"><span className="dv green">{BRL(b.total)}</span></div></div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="fv3-note" style={{ margin: "12px 0 0" }}>Serviço (avulso) = comprovantes reais que somam o valor, fora do recorrente. Mensalidade = a única cobrança mês a mês. Clique numa linha para editar na origem.</div>
+      </div></div></div>, document.body)}
       </div></div></div>, document.body)}
     </div>
   );
@@ -648,6 +680,14 @@ const CSS = `
 .fv3-kpi .src{display:inline-block;margin-left:8px;font-size:10px;font-weight:800;color:var(--blue-ink);background:var(--info-bg);border-radius:20px;padding:2px 9px;letter-spacing:.02em}
 .fv3-bucket .bsrc{margin-top:8px;font-size:10px;font-weight:800;opacity:.72;letter-spacing:.02em}
 /* modal drill (fonte): lista nome+categoria a esquerda, valor+chip a direita, Total no fim */
+.fv3-bloco{margin:0 0 18px}
+.fv3-bloco .bh{display:flex;align-items:center;gap:10px;padding:6px 0}
+.fv3-bloco .bt{font-weight:700;font-size:14px}
+.fv3-bloco .btot{margin-left:auto;font-weight:700}
+.fv3-bloco .bchip{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600}
+.fv3-bloco .bchip.men{background:#E6F4EA;color:#166534}
+.fv3-bloco .bchip.avu{background:#EEF1F5;color:#3B4A66}
+.fv3-bloco .bsub{font-size:11.5px;color:var(--muted);margin:0 0 6px}
 .fv3-drill{display:flex;flex-direction:column}
 .fv3-drill .drow{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 4px;border-top:1px solid var(--line)}
 .fv3-drill .drow:first-child{border-top:0}
