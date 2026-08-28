@@ -190,15 +190,16 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
         ? ps.map((x: any, i: number) => ({ label: "Parcela " + (x.installment || i + 1) + "/" + ps.length, date: ymd(x.date), valor: Number(x.amount || 0), status: x.status === "paid" ? "paid" : "pending" }))
         : [{ label: p.purpose || p.description || "lançamento", date: ymd(p.next_payment_date) || ymd(p.reference_date) || "", valor: amount, status: "—" }];
       const total = ps.length ? ps.reduce((a: number, x: any) => a + Number(x.amount || 0), 0) : amount;
-      const bloco = { titulo: p.vendor_name || p.contact_name || nome, tipo: mensal ? "mensalidade" : "avulso", rec, parcelado: ps.length > 0, valorMes: mensal ? amount : 0, itens, total, rawId: p.id || p.rawId || "" };
-      const g = map.get(nome) || { nome, vinculo: (p.vinculo || "PJ").toUpperCase(), blocos: [], recorrenteMes: 0, avulsoTotal: 0 };
-      g.blocos.push(bloco); g.recorrenteMes += bloco.valorMes; if (!mensal) g.avulsoTotal += total;
+      const pago = ps.length ? ps.filter((x: any) => x.status === "paid").reduce((a: number, x: any) => a + Number(x.amount || 0), 0) : Number(p.amount_paid || 0);
+      const bloco = { titulo: p.vendor_name || p.contact_name || nome, tipo: mensal ? "mensalidade" : "avulso", rec, parcelado: ps.length > 0, valorMes: mensal ? amount : 0, itens, total, pago, rawId: p.id || p.rawId || "" };
+      const g = map.get(nome) || { nome, vinculo: (p.vinculo || "PJ").toUpperCase(), blocos: [], recorrenteMes: 0, avulsoTotal: 0, totalPago: 0 };
+      g.blocos.push(bloco); g.recorrenteMes += bloco.valorMes; g.totalPago += pago; if (!mensal) g.avulsoTotal += total;
       map.set(nome, g);
     }
     return Array.from(map.values()).map((g: any) => {
       const blocos = g.blocos.slice().sort((a: any, b: any) => (a.tipo === "avulso" ? 0 : 1) - (b.tipo === "avulso" ? 0 : 1));
       const detalhe = [g.recorrenteMes > 0 ? "Mensal " + BRL(g.recorrenteMes) : "", g.avulsoTotal > 0 ? "Serviço (avulso) " + BRL(g.avulsoTotal) : ""].filter(Boolean).join(" · ");
-      return { nome: g.nome, vinculo: g.vinculo, blocos, recorrenteMes: g.recorrenteMes, avulsoTotal: g.avulsoTotal, valor: g.recorrenteMes, detalhe };
+      return { nome: g.nome, vinculo: g.vinculo, blocos, recorrenteMes: g.recorrenteMes, avulsoTotal: g.avulsoTotal, totalPago: g.totalPago, valor: g.recorrenteMes, detalhe };
     }).sort((a: any, b: any) => b.valor - a.valor);
   }, [pay, costs]);
   const pessoasTotal = pessoas.reduce((a, p) => a + p.valor, 0);
@@ -378,7 +379,7 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
         <div className="fv3-panel">
           <div className="ph"><span className="t">Por vínculo</span><span className="s">CLT · PJ · Terceirizado</span></div>
           {pessoas.length ? pessoas.map((p, k) => (
-            <div className="fv3-row clk" key={k} title="Ver serviço (comprovantes) e a mensalidade" onClick={() => setPdrill(p)}><div className="av">{(p.nome || "?").slice(0, 2).toUpperCase()}</div><div style={{ flex: 1, minWidth: 0 }}><div className="nm">{p.nome} <span className={"tag " + (p.vinculo === "CLT" ? "clt" : p.vinculo === "TERCEIRIZADO" ? "terc" : "pj")}>{p.vinculo === "TERCEIRIZADO" ? "Terceirizado" : p.vinculo}</span></div><div className="mt">{p.detalhe}</div></div><div className="amt">{BRL(p.valor)}<span className="chev"> ›</span></div></div>
+            <div className="fv3-row clk" key={k} title="Ver serviço (comprovantes) e a mensalidade" onClick={() => setPdrill(p)}><div className="av">{(p.nome || "?").slice(0, 2).toUpperCase()}</div><div style={{ flex: 1, minWidth: 0 }}><div className="nm">{p.nome} <span className={"tag " + (p.vinculo === "CLT" ? "clt" : p.vinculo === "TERCEIRIZADO" ? "terc" : "pj")}>{p.vinculo === "TERCEIRIZADO" ? "Terceirizado" : p.vinculo}</span></div><div className="mt">{p.detalhe}</div></div><div className="fv3-pcols"><div className="pcol"><span className="pl">Mensal</span><span className="amt">{BRL(p.valor)}</span></div><div className="pcol"><span className="pl">Total pago</span><span className="amt tp">{BRL(p.totalPago)}</span></div><span className="chev"> ›</span></div></div>
           )) : <div className="fv3-row"><div className="mt">Nenhuma pessoa/prestador cadastrado (categoria "Pessoas").</div></div>}
         </div>
         <div className="fv3-panel">
@@ -493,12 +494,12 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
         </div></div>
         <div className="fv3-note" style={{ margin: "12px 0 0" }}>Fonte real: cada linha é um lançamento (conta a pagar · custo operacional · uso de IA por token) que compõe esta soma. Clique numa linha para editar na origem.</div>
       {pdrill && createPortal(<div className="fv3"><div className="fv3-modal" onClick={() => setPdrill(null)}><div className="box" onClick={e => e.stopPropagation()}>
-        <div className="mh"><div><div className="m-t">👤 {pdrill.nome}</div><div className="m-s">{pdrill.vinculo} · recorrente/mês {BRL(pdrill.recorrenteMes)}{pdrill.avulsoTotal > 0 ? " · serviço avulso " + BRL(pdrill.avulsoTotal) : ""}</div></div><button className="x" onClick={() => setPdrill(null)}>✕</button></div>
+        <div className="mh"><div><div className="m-t">👤 {pdrill.nome}</div><div className="m-s">{pdrill.vinculo} · recorrente/mês {BRL(pdrill.recorrenteMes)}{pdrill.avulsoTotal > 0 ? " · serviço avulso " + BRL(pdrill.avulsoTotal) : ""} · total pago {BRL(pdrill.totalPago)}</div></div><button className="x" onClick={() => setPdrill(null)}>✕</button></div>
         <div className="m-scroll">
           {pdrill.blocos.map((b: any, bi: number) => (
             <div className="fv3-bloco" key={bi}>
               <div className="bh"><span className="bt">{b.titulo}</span><span className={"bchip " + (b.tipo === "mensalidade" ? "men" : "avu")}>{b.tipo === "mensalidade" ? "Mensalidade" : "Serviço (avulso)"}</span><span className="btot">{BRL(b.total)}</span></div>
-              <div className="bsub">{b.tipo === "mensalidade" ? ("Única mensalidade — " + (b.parcelado ? (b.itens.length + "× de " + BRL(b.valorMes)) : (BRL(b.valorMes) + "/mês"))) : ("Comprovantes que somam " + BRL(b.total) + " · não entra no recorrente")}</div>
+              <div className="bsub">{(b.tipo === "mensalidade" ? ("Única mensalidade — " + (b.parcelado ? (b.itens.length + "× de " + BRL(b.valorMes)) : (BRL(b.valorMes) + "/mês"))) : ("Comprovantes que somam " + BRL(b.total) + " · não entra no recorrente")) + " · pago " + BRL(b.pago)}</div>
               <div className="fv3-drill">
                 {b.itens.map((it: any, ii: number) => (
                   <div className="drow" key={ii} title={b.rawId ? "Editar na origem" : ""} onClick={() => { if (b.rawId && onEdit) { setPdrill(null); onEdit(b.rawId); } }} style={{ cursor: b.rawId ? "pointer" : "default" }}>
@@ -580,6 +581,11 @@ const CSS = `
 .fv3-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
 .fv3-row:first-of-type{border-top:0}
 .fv3-row .nm{font-weight:600;font-size:13.5px}.fv3-row .mt{font-size:11.5px;color:var(--muted)}
+.fv3-pcols{display:flex;align-items:center;gap:18px}
+.fv3-pcols .pcol{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
+.fv3-pcols .pl{font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:600}
+.fv3-pcols .amt{font-weight:700}
+.fv3-pcols .amt.tp{color:#166534}
 .fv3-row .amt{margin-left:auto;font-weight:700;font-size:13.5px}
 .fv3-row .av{width:30px;height:30px;border-radius:9px;background:var(--track);display:grid;place-items:center;font-size:11px;font-weight:800;color:var(--muted)}
 .fv3-bar{height:7px;border-radius:6px;background:var(--track);overflow:hidden;margin-top:6px}.fv3-bar>i{display:block;height:100%;border-radius:6px}
