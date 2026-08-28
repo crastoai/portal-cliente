@@ -6,6 +6,7 @@
 // telas são o front aprovado (mockup 2026-08-28); middle/backend entram nas próximas fases.
 // ============================================================================
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { PageHead, useAsync, money } from "../../ui/ui";
 import { services } from "../../services";
@@ -67,7 +68,6 @@ export default function Contabilidade() {
   const sec = SECOES.some((s) => s.k === secao) ? (secao as string) : "cockpit";
   const go = (k: string) => nav(k === "cockpit" ? "/admin/contabilidade" : "/admin/contabilidade/" + k);
   const [nfOpen, setNfOpen] = useState(false);
-  const [nfPortal, setNfPortal] = useState(PORTAIS[0].url);
 
   const { data, loading } = useAsync(async () => {
     const [tx, costs] = await Promise.all([services.finance.transactions.list(), services.finance.costs.list()]);
@@ -471,26 +471,24 @@ export default function Contabilidade() {
         </div>
       )}
 
-      {/* MODAL NF — pop-up com iframe do portal oficial */}
-      {nfOpen && (
-        <div className="cmodal big" onClick={() => setNfOpen(false)}>
-          <div className="m big" onClick={(e) => e.stopPropagation()}>
-            <div className="mh">
-              <div><div className="eyebrow">Emissão de nota fiscal</div><h3>Emitir NF-e — portal oficial</h3></div>
-              <div className="flex" style={{ gap: 8 }}>
-                <a className="btn" href={nfPortal} target="_blank" rel="noopener noreferrer">Abrir em nova aba ↗</a>
-                <button className="x" onClick={() => setNfOpen(false)}>✕</button>
-              </div>
-            </div>
-            <div className="seg wrap" style={{ marginTop: 12 }}>
-              {PORTAIS.map((p) => <button key={p.k} className={nfPortal === p.url ? "on" : ""} onClick={() => setNfPortal(p.url)} title={p.desc}>{p.label}</button>)}
-            </div>
-            <div className="framewrap">
-              <iframe key={nfPortal} src={nfPortal} title="Emissor oficial de nota fiscal" className="nfframe" referrerPolicy="no-referrer" />
-              <div className="framehint">Faça login no portal e emita a nota aqui dentro. Se a área ficar em branco, o portal do governo bloqueou a exibição embutida (segurança) — use <b>“Abrir em nova aba”</b> acima. A emissão automática a partir daqui (API) entra na Fase 2.</div>
+      {/* MODAL NF — lançador dos portais oficiais (portaled no body p/ não prender no containing-block;
+          embrulhado em .contab p/ herdar os tokens CSS, que são escopados nessa classe) */}
+      {nfOpen && createPortal(
+        <div className="contab"><style>{CSS}</style>
+        <div className="cmodal" onClick={() => setNfOpen(false)}>
+          <div className="m launch" onClick={(e) => e.stopPropagation()}>
+            <div className="mh"><div><div className="eyebrow">Emissão de nota fiscal</div><h3>Emitir NF-e — portais oficiais</h3></div><button className="x" onClick={() => setNfOpen(false)}>✕</button></div>
+            <div className="note" style={{ marginTop: 12 }}>Os portais do governo <b>não permitem abrir embutidos aqui</b> — é a política de segurança deles (X-Frame-Options), não dá para contornar. Cada um abre em <b>nova aba</b>: você loga, emite a nota e depois é só <b>anexar o PDF em Documentos</b>. A emissão automática sem sair daqui (via API) entra na Fase 2.</div>
+            <div className="linkgrid" style={{ marginTop: 14 }}>
+              {PORTAIS.map((p) => (
+                <a key={p.k} className="olink" href={p.url} target="_blank" rel="noopener noreferrer" onClick={() => setNfOpen(false)}>
+                  <b>{p.label}</b><span>{p.desc}</span><i>Abrir portal ↗</i>
+                </a>
+              ))}
             </div>
           </div>
         </div>
+        </div>, document.body
       )}
     </div>
   );
@@ -584,8 +582,9 @@ const CSS = `
 .btn.pri{background:linear-gradient(180deg,var(--b2),var(--b));color:#fff;border-color:transparent}
 .btn.pri.full{width:100%;justify-content:center}
 .center{text-align:center}
-.cmodal{position:fixed;inset:0;background:rgba(6,12,26,.55);display:flex;align-items:center;justify-content:center;z-index:80;padding:20px}
+.cmodal{position:fixed;inset:0;background:rgba(6,12,26,.55);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px}
 .cmodal .m{background:var(--card);border-radius:18px;box-shadow:0 24px 64px rgba(0,0,0,.35);max-width:560px;width:100%;max-height:88vh;overflow:auto;padding:24px}
+.cmodal .m.launch{max-width:580px}
 .mh{display:flex;justify-content:space-between;align-items:flex-start}
 .mh h3{font-size:17px}
 .x{border:1px solid var(--line2);background:var(--card);border-radius:9px;width:32px;height:32px;color:var(--muted);cursor:pointer}
