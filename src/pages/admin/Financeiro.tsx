@@ -1,5 +1,5 @@
 import { Fragment, useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useParams, useNavigate } from "react-router-dom";
 import { Plus, Pencil, Trash2, Search, ChevronRight, ChevronDown, CheckCircle2, Repeat, ArrowRight, Filter, X } from "lucide-react";
 import { services, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, money, Field, useSort, SortTh } from "../../ui/ui";
@@ -154,6 +154,17 @@ const TABS = [
   { key: "tesouraria", label: "Tesouraria" },
   // "Custos de IA" deixou de ser aba (2026-08-27): consolidado DENTRO de A Pagar (CustoIA embedded).
 ];
+// As áreas viraram TELAS INDIVIDUAIS no menu-árvore do sidebar (2026-08-28, rumo ao white-label):
+// cada seção é uma rota /admin/financeiro/<slug>; a raiz /admin/financeiro é o COCKPIT (visão geral).
+const SEG_TO_TAB: Record<string, string> = {
+  "a-pagar": "pagar", "a-receber": "receber", "cobranca": "cobranca",
+  "conciliacao": "conciliacao", "tesouraria": "tesouraria",
+};
+const TAB_TO_SEG: Record<string, string> = { pagar: "a-pagar", receber: "a-receber", cobranca: "cobranca", conciliacao: "conciliacao", tesouraria: "tesouraria" };
+const TITULO_SECAO: Record<string, string> = {
+  cockpit: "Cockpit", pagar: "A Pagar", receber: "A Receber",
+  cobranca: "Cobrança", conciliacao: "Conciliação", tesouraria: "Tesouraria",
+};
 
 // Filtros da aba Cobrança (painel de recebimentos por parcela) — "pagas sem comprovante" é o gap real.
 const COB_FILTROS = [
@@ -178,7 +189,14 @@ export default function Financeiro() {
   // sugestões de empresa: clientes cadastrados + nomes já usados em lançamentos
   const companySuggestions = Array.from(new Set([...orgs.map((o: any) => o.name), ...[...pay, ...rec].map((r: any) => r.contact_name).filter(Boolean)])).sort();
   const [sp, setSp] = useSearchParams();
-  const [tab, setTab] = useState(sp.get("tab") || "pagar"); // permite abrir direto numa aba (ex.: ?tab=receber)
+  const { secao } = useParams();
+  const navigate = useNavigate();
+  // A aba ATIVA vem da ROTA (tela individual), não mais de estado interno. Raiz = Cockpit.
+  // `?tab=` antigo (deep-links da Visão Geral) segue funcionando como fallback.
+  const tab = SEG_TO_TAB[secao || ""] || sp.get("tab") || "cockpit";
+  const isCockpit = tab === "cockpit";
+  // setTab agora NAVEGA para a tela da seção (mantém todos os cliques de card do cockpit).
+  const setTab = (k: string) => navigate("/admin/financeiro" + (TAB_TO_SEG[k] ? "/" + TAB_TO_SEG[k] : ""));
   // A Receber "visão de recorrentes": só as contas que formam o MRR (parceladas ou recorrência mensal/anual).
   // É pra onde o card MRR da Visão geral aponta (?tab=receber&rec=1) — traça o número até a origem.
   const [recOnly, setRecOnly] = useState(sp.get("rec") === "1");
@@ -733,8 +751,10 @@ export default function Financeiro() {
 
   return (
     <div>
-      <PageHead eyebrow="Painel Admin · Financeiro 🔒" title="Financeiro" sub="Gestão financeira completa da Crasto.AI." />
+      <PageHead eyebrow="Painel Admin · Financeiro 🔒" title={isCockpit ? "Financeiro" : "Financeiro · " + t(TITULO_SECAO[tab] || "")} sub={isCockpit ? "Visão geral de todas as áreas — Cockpit." : "Gestão financeira completa da Crasto.AI."} />
 
+      {/* ═══ COCKPIT (visão geral de todas as áreas) — só na raiz /admin/financeiro ═══ */}
+      {isCockpit && (<>
       {/* ALERTA de renovação anual — 30 dias antes do vencimento (sininho + e-mail disparam pela automação de fundo) */}
       {renovacoes.length > 0 && (
         <div style={{ marginBottom: 12, padding: "11px 15px", borderRadius: 12, border: "1px solid rgba(200,60,60,.55)", background: "rgba(200,60,60,.12)", display: "flex", flexDirection: "column", gap: 5 }}>
@@ -804,12 +824,12 @@ export default function Financeiro() {
           </div>
         </div>
       </>)}
+      {loading && <Empty>Carregando…</Empty>}
+      </>)}
 
-      <div className="ptabs">
-        {TABS.map((tb) => <button key={tb.key} className={"ptab" + (tab === tb.key ? " is-active" : "")} onClick={() => setTab(tb.key)}>{t(tb.label)}</button>)}
-      </div>
-
-      {loading ? <Empty>Carregando…</Empty> : tab === "tesouraria" ? (<>
+      {/* ═══ TELA DA SEÇÃO (A Pagar / A Receber / Cobrança / Conciliação / Tesouraria) ═══
+          A navegação entre seções é o menu-árvore do sidebar; a barra de abas antiga saiu. */}
+      {!isCockpit && (loading ? <Empty>Carregando…</Empty> : tab === "tesouraria" ? (<>
         {/* barra de ação tesouraria */}
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
           <div className="catsearch" style={{ margin: 0, flex: 1, minWidth: 220 }}>
@@ -1192,7 +1212,7 @@ export default function Financeiro() {
             </tbody>
           </table>
         </div>
-      </>)}
+      </>))}
 
       {/* Pop-up de detalhes de um card (drill-down) */}
       <Modal title={drill?.title || ""} open={!!drill} onClose={() => setDrill(null)}>

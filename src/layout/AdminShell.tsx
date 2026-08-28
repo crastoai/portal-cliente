@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Grid3x3, FileText, Tag, Share2, Coins, TrendingUp, Plug, LifeBuoy, Rocket, DollarSign, Cpu, Activity, BookOpen, ScrollText, ClipboardList, KeyRound, Blocks } from "lucide-react";
+import { LayoutDashboard, Users, Grid3x3, FileText, Tag, Share2, Coins, TrendingUp, Plug, LifeBuoy, Rocket, DollarSign, Cpu, Activity, BookOpen, ScrollText, ClipboardList, KeyRound, Blocks, Calculator } from "lucide-react";
 import Shell, { type NavItem } from "./Shell";
 import JulieWidget from "../ui/JulieWidget";
 
@@ -21,7 +21,21 @@ const NAV: NavItem[] = [
   { to: "/admin/integracoes", icon: KeyRound, label: "APIs & Chaves", section: CONSOLE },
   { to: "/admin/console/modelos", icon: Cpu, label: "Modelos LLM", section: CONSOLE },
   { to: "/admin/console/skills", icon: Blocks, label: "Catálogo de Skills", section: CONSOLE },
-  { to: "/admin/financeiro", icon: DollarSign, label: "Financeiro", tag: "🔒", section: "Financeiro & Parceiros" },
+  // Financeiro = menu-árvore: clicar expande as áreas como TELAS individuais (rumo ao white-label).
+  // O pai não abre tela própria; o 1º filho (Cockpit) é a visão geral de todas as áreas.
+  {
+    icon: DollarSign, label: "Financeiro", tag: "🔒", section: "Financeiro & Parceiros",
+    to: "/admin/financeiro",
+    children: [
+      { to: "/admin/financeiro", end: true, label: "Cockpit" },
+      { to: "/admin/financeiro/a-pagar", label: "A Pagar" },
+      { to: "/admin/financeiro/a-receber", label: "A Receber" },
+      { to: "/admin/financeiro/cobranca", label: "Cobrança" },
+      { to: "/admin/financeiro/conciliacao", label: "Conciliação" },
+      { to: "/admin/financeiro/tesouraria", label: "Tesouraria" },
+    ],
+  },
+  { to: "/admin/contabilidade", icon: Calculator, label: "Contabilidade", tag: "🔒", section: "Financeiro & Parceiros" },
   { to: "/admin/conectores", icon: Share2, label: "Agentes indicadores", section: "Financeiro & Parceiros" },
   { to: "/admin/custos", icon: Coins, label: "Custos & Despesas", tag: "🔒", section: "Financeiro & Parceiros" },
   { to: "/admin/receita", icon: TrendingUp, label: "Receita & churn", section: "Financeiro & Parceiros" },

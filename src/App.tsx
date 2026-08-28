@@ -159,6 +159,8 @@ export default function App() {
             <Route path="contas-receber" element={<ContasReceber />} />
             <Route path="custos-operacionais" element={<CustosOperacionais />} />
             <Route path="financeiro" element={<FinanceiroAdmin />} />
+            {/* Financeiro em telas individuais (menu-árvore): cada seção é uma rota; a raiz é o Cockpit. */}
+            <Route path="financeiro/:secao" element={<FinanceiroAdmin />} />
             <Route path="custo-ia" element={<CustoIA />} />
             {/* Console · IA (admin) — camada operacional dos agentes */}
             <Route path="console/health" element={<ConsoleHealthCheck />} />
