@@ -751,6 +751,45 @@ export default function Financeiro() {
         <button className="kpi kpi-btn" onClick={() => setDrill({ title: "🧾 " + t("Tributos e impostos do mês"), rows: rowsImposto, foot: { label: t("Tributos + contabilidade do mês"), value: -tributosMes } })} title={t("DAS do Simples Nacional (Anexo III, alíquota efetiva pelo RBT12) + honorários contábeis do mês")}><div className="lab">🧾 {t("Tributos e impostos do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "var(--fin-red)" }}>{money(tributosMes)}</div><div className="delta">{t("DAS")} {pctAliq} + {t("contábil")}</div></button>
       </div>
 
+      {/* COCKPIT — visão de todas as áreas SEM entrar nas abas. Clique no card → abre a aba p/ detalhar. */}
+      {!loading && (<>
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--crasto-text-faint)", marginBottom: 6 }}>💰 {t("A Receber")}</div>
+          <div className="kpis">
+            <button className="kpi navy kpi-btn" onClick={() => setTab("receber")}><div className="lab">{t("Recorrente / mês (MRR)")}</div><div className="val tnum" style={{ fontSize: 18 }}>{money(mrrMensal)}</div><div className="delta">{t("ARR")} {money(mrrMensal * 12)}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setTab("receber")}><div className="lab">{t("A receber no mês")}</div><div className="val tnum" style={{ fontSize: 18 }}>{money(totalReceberMes)}</div><div className="delta">{money(aReceberMes)} {t("falta")}</div></button>
+            <button className="kpi g kpi-btn" onClick={() => setTab("receber")}><div className="lab">{t("Recebido no mês")}</div><div className="val tnum" style={{ fontSize: 18, color: "var(--fin-green)" }}>{money(recebidoMes)}</div><div className="delta">{t("já entrou")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setTab("receber")}><div className="lab">{t("Vencidos")}</div><div className="val tnum" style={{ fontSize: 18, color: inadimplencia > 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(inadimplencia)}</div><div className="delta">{t("em aberto")}</div></button>
+          </div>
+        </div>
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--crasto-text-faint)", marginBottom: 6 }}>📥 {t("Cobrança")}</div>
+          <div className="kpis">
+            <button className="kpi kpi-btn" onClick={() => { setCobFiltro("vencidas"); setTab("cobranca"); }}><div className="lab">{t("Vencidas")}</div><div className="val tnum" style={{ fontSize: 18, color: cobCount("vencidas") > 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{cobCount("vencidas")}</div><div className="delta">{t("parcela(s)")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => { setCobFiltro("hoje"); setTab("cobranca"); }}><div className="lab">{t("Vencem hoje")}</div><div className="val tnum" style={{ fontSize: 18 }}>{cobCount("hoje")}</div><div className="delta">{t("parcela(s)")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => { setCobFiltro("avencer"); setTab("cobranca"); }}><div className="lab">{t("A vencer")}</div><div className="val tnum" style={{ fontSize: 18 }}>{cobCount("avencer")}</div><div className="delta">{t("parcela(s)")}</div></button>
+            <button className="kpi g kpi-btn" onClick={() => { setCobFiltro("pagas"); setTab("cobranca"); }}><div className="lab">{t("Pagas")}</div><div className="val tnum" style={{ fontSize: 18, color: "var(--fin-green)" }}>{cobCount("pagas")}</div><div className="delta">{t("recebidas")}</div></button>
+          </div>
+        </div>
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--crasto-text-faint)", marginBottom: 6 }}>🔎 {t("Conciliação")}</div>
+          <div className="kpis">
+            <button className="kpi kpi-btn" onClick={() => { setCobFiltro("sem_comprovante"); setTab("cobranca"); }}><div className="lab">{t("A conciliar")}</div><div className="val tnum" style={{ fontSize: 18, color: cobCount("sem_comprovante") > 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{cobCount("sem_comprovante")}</div><div className="delta">{t("pagas s/ comprovante")}</div></button>
+            <button className="kpi g kpi-btn" onClick={() => setTab("conciliacao")}><div className="lab">{t("Comprovantes OK")}</div><div className="val tnum" style={{ fontSize: 18, color: "var(--fin-green)" }}>{Math.max(0, cobCount("pagas") - cobCount("sem_comprovante"))}</div><div className="delta">{t("conciliadas")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setTab("conciliacao")}><div className="lab">🤖 {t("Conciliação por IA")}</div><div className="val tnum" style={{ fontSize: 15 }}>{t("Abrir")}</div><div className="delta">{t("ler comprovante → baixa")}</div></button>
+          </div>
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--crasto-text-faint)", marginBottom: 6 }}>🏦 {t("Tesouraria")}</div>
+          <div className="kpis">
+            <button className="kpi g kpi-btn" onClick={() => setTab("tesouraria")}><div className="lab">{t("Entradas")}</div><div className="val tnum" style={{ fontSize: 18, color: "var(--fin-green)" }}>{money(pEntradas)}</div><div className="delta">{t("operacional")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setTab("tesouraria")}><div className="lab">{t("Saídas")}</div><div className="val tnum" style={{ fontSize: 18, color: "var(--fin-orange)" }}>{money(pSaidas)}</div><div className="delta">{t("operacional")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setTab("tesouraria")}><div className="lab">{t("Resultado")}</div><div className="val tnum" style={{ fontSize: 18, color: (pEntradas - pSaidas) < 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(pEntradas - pSaidas)}</div><div className="delta">{t("caixa")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setTab("tesouraria")}><div className="lab">🧾 {t("Tributos")}</div><div className="val tnum" style={{ fontSize: 18, color: "var(--fin-red)" }}>{money(pImpostos)}</div><div className="delta">{impostosList.length} {t("guia(s)")}</div></button>
+          </div>
+        </div>
+      </>)}
+
       <div className="ptabs">
         {TABS.map((tb) => <button key={tb.key} className={"ptab" + (tab === tb.key ? " is-active" : "")} onClick={() => setTab(tb.key)}>{t(tb.label)}</button>)}
       </div>
