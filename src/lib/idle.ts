@@ -45,12 +45,13 @@ export function useIdleGuard(ativo: boolean, sair: (motivo: "inatividade" | "esc
   const [avisando, setAvisando] = useState(false);
   const [restante, setRestante] = useState(Math.ceil(WARN_MS / 1000));
   const avisandoRef = useRef(false);
+  const avisoDesdeRef = useRef(0); // quando o aviso APARECEU (base dos 30s, não o relógio absoluto)
   const saindoRef = useRef(false);
   const sairRef = useRef(sair);
   sairRef.current = sair;
 
   useEffect(() => {
-    if (!ativo) { setAvisando(false); avisandoRef.current = false; saindoRef.current = false; return; }
+    if (!ativo) { setAvisando(false); avisandoRef.current = false; avisoDesdeRef.current = 0; saindoRef.current = false; return; }
     // NÃO marcamos atividade aqui: montar não é interagir. Se marcássemos, um F5
     // (ou o navegador recarregando a aba sozinho) zeraria o contador e a sessão
     // voltaria a durar para sempre. Quem marca é o login e a interação de verdade.
@@ -80,23 +81,45 @@ export function useIdleGuard(ativo: boolean, sair: (motivo: "inatividade" | "esc
       const ultima = ultimaAtividade();
       if (ultima === null) return;
       const parado = agora() - ultima;
-      if (parado >= IDLE_MS + WARN_MS) {
-        if (saindoRef.current) return;
-        saindoRef.current = true;
-        sairRef.current("inatividade");
-      } else if (parado >= IDLE_MS) {
-        avisandoRef.current = true;
-        setAvisando(true);
-        setRestante(Math.max(0, Math.ceil((IDLE_MS + WARN_MS - parado) / 1000)));
+      if (parado >= IDLE_MS) {
+        // Cruzou o limite de inatividade: MOSTRA o aviso e só ENTÃO começa a contar os
+        // 30s — a partir de quando o aviso apareceu, não do relógio absoluto. Por que:
+        // um navegador estrangula o setInterval de uma aba em SEGUNDO PLANO para ~1x/min.
+        // Com a conta absoluta antiga, o tick pulava de "29:50 (sem aviso)" direto para
+        // "30:55 (logout)" e o usuário caía SEM NUNCA ver o aviso. Agora o aviso é
+        // "pegajoso": na 1ª vez que o tick vê o limite, ele aparece e garante os 30s
+        // inteiros — inclusive quando o usuário VOLTA para a aba (o visibilitychange
+        // dispara um tick na hora). É a garantia de "sempre avisa antes de fechar".
+        if (!avisandoRef.current) {
+          avisandoRef.current = true;
+          avisoDesdeRef.current = agora();
+          setAvisando(true);
+        }
+        const faltamMs = WARN_MS - (agora() - avisoDesdeRef.current);
+        if (faltamMs <= 0) {
+          if (saindoRef.current) return;
+          saindoRef.current = true;
+          sairRef.current("inatividade");
+        } else {
+          setRestante(Math.max(0, Math.ceil(faltamMs / 1000)));
+        }
       } else if (avisandoRef.current) {
         // outra aba respondeu "Sim" (ou houve atividade lá): o aviso some aqui também
         avisandoRef.current = false;
+        avisoDesdeRef.current = 0;
         setAvisando(false);
       }
     };
     const id = setInterval(tick, 1000);
-    // Voltar de outra aba/do sono: confere na hora, sem esperar o próximo tick.
-    const aoVoltar = () => tick();
+    // Voltar de outra aba/do sono: confere na hora, sem esperar o próximo tick. E se o aviso
+    // já tinha aparecido enquanto a aba estava em segundo plano, REINICIA os 30s a partir de
+    // agora — a pessoa só está VENDO o aviso neste momento, tem de ter a chance justa de
+    // responder (não cair no logout no primeiro tick de volta). Não enfraquece a segurança:
+    // uma aba de fato abandonada nunca dispara este evento e sai no tick estrangulado.
+    const aoVoltar = () => {
+      if (document.visibilityState === "visible" && avisandoRef.current) avisoDesdeRef.current = agora();
+      tick();
+    };
     document.addEventListener("visibilitychange", aoVoltar);
 
     return () => {
@@ -110,6 +133,7 @@ export function useIdleGuard(ativo: boolean, sair: (motivo: "inatividade" | "esc
   const continuar = useCallback(() => {
     marcarAtividade();
     avisandoRef.current = false;
+    avisoDesdeRef.current = 0;
     setAvisando(false);
   }, []);
 
