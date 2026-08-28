@@ -508,7 +508,6 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
                     <div className="dr"><span className={"dv" + (it.status === "pending" ? "" : " green")}>{BRL(it.valor)}</span>{it.status === "paid" ? <span className="dchip">✓ pago</span> : it.status === "pending" ? <span className="dchip">a pagar</span> : null}</div>
                   </div>
                 ))}
-                <div className="drow total"><div className="dl"><div className="dn">Total</div></div><div className="dr"><span className="dv green">{BRL(b.total)}</span></div></div>
               </div>
             </div>
           ))}
