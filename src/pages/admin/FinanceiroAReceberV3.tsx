@@ -18,6 +18,13 @@ function fmtDT(v: any): string {
   return out;
 }
 const arr = (x: any) => (Array.isArray(x) ? x : []);
+// ícones (SVG inline, sem dependência) — ações de parcela
+const IcoCheck = ({ size = 16 }: { size?: number }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>);
+const IcoX = ({ size = 15 }: { size?: number }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>);
+const IcoPencil = ({ size = 15 }: { size?: number }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m16.5 3.5 4 4L7 21l-4 1 1-4z" /><path d="M14.5 5.5l4 4" /></svg>);
+const IcoCheckCircle = ({ size = 18, filled = false }: { size?: number; filled?: boolean }) => filled
+  ? (<svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm5.03 7.59-6 6a1 1 0 0 1-1.42 0l-3-3a1 1 0 1 1 1.42-1.42l2.29 2.3 5.29-5.3a1 1 0 0 1 1.42 1.42z" /></svg>)
+  : (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="m8.5 12.5 2.5 2.5 4.5-5" /></svg>);
 const mesesContrato = (r: any) => { const cv = Number(r.contract_validity_value || 0), u = r.contract_validity_unit || "months"; return u === "years" ? cv * 12 : u === "days" ? Math.max(1, Math.round(cv / 30)) : cv; };
 const isRecurring = (r: any) => (r.recurrence === "mensal") || arr(r.payment_schedule).length > 0 || Number(r.contract_total || 0) > 0;
 // Mensalidade reconhecida (competência): recorrência mensal = valor; contrato = total ÷ meses; parcelado = total ÷ nº parcelas.
@@ -128,7 +135,7 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
                     <td className="r">{isEd ? <input type="number" step="0.01" value={parcEdit!.amount} onChange={e => setParcEdit({ ...parcEdit!, amount: e.target.value })} className="pinp num" /> : BRL(Number(p.amount || 0))}</td>
                     <td className="r green">{paid ? BRL(Number(p.amount || 0)) : "R$ 0,00"}</td>
                     <td className="r blue">{paid ? "R$ 0,00" : BRL(Number(p.amount || 0))}</td>
-                    <td className="pacts">{isEd ? (<><button className="pbtn ok" disabled={busyP} onClick={() => saveParcelaEdit(r.raw, r.ps!)}>Salvar</button><button className="pbtn" onClick={() => setParcEdit(null)}>Cancelar</button></>) : (<><span className={"st " + (paid ? "pago" : "pend")}>{paid ? "Recebida" : "A receber"}</span>{paid ? <button className="pbtn" disabled={busyP} onClick={() => markParcela(r.raw, r.ps!, idx, false)}>Desmarcar</button> : <button className="pbtn ok" disabled={busyP} onClick={() => markParcela(r.raw, r.ps!, idx, true)}>✓ Marcar recebida</button>}<button className="pbtn" title="Editar parcela" onClick={() => setParcEdit({ id: r.id, idx, date: ymd(p.date), amount: String(p.amount || "") })}>✎</button></>)}</td>
+                    <td className="pacts">{isEd ? (<><button className="picon ok" title="Salvar" disabled={busyP} onClick={() => saveParcelaEdit(r.raw, r.ps!)}><IcoCheck /></button><button className="picon" title="Cancelar" onClick={() => setParcEdit(null)}><IcoX /></button></>) : (<><span className={"st " + (paid ? "pago" : "pend")}>{paid ? "Recebida" : "A receber"}</span><button className={"picon toggle" + (paid ? " on" : "")} title={paid ? "Marcar como NÃO recebida" : "Marcar como recebida"} disabled={busyP} onClick={() => markParcela(r.raw, r.ps!, idx, !paid)}><IcoCheckCircle filled={paid} /></button><button className="picon" title="Editar parcela" onClick={() => setParcEdit({ id: r.id, idx, date: ymd(p.date), amount: String(p.amount || "") })}><IcoPencil /></button></>)}</td>
                   </tr>
                 );
               })}
@@ -186,10 +193,13 @@ const CSS = `
 .frv3 .pinp{font:inherit;font-size:12px;border:1px solid var(--blue);border-radius:6px;padding:4px 6px;width:120px;background:var(--card);color:var(--txt)}
 .frv3 .pinp.num{width:90px;text-align:right}
 .frv3 td.pacts{white-space:nowrap;text-align:right}
-.frv3 td.pacts>*{margin-left:6px;vertical-align:middle}
-.frv3 .pbtn{border:1px solid var(--line2);background:var(--card);border-radius:7px;padding:4px 9px;font:inherit;font-size:11.5px;font-weight:700;color:var(--muted);cursor:pointer}
-.frv3 .pbtn:hover{background:var(--hover);color:var(--txt)}
-.frv3 .pbtn.ok{background:var(--green);color:#fff;border-color:var(--green)}
-.frv3 .pbtn:disabled{opacity:.5;cursor:default}
+.frv3 td.pacts>*{margin-left:7px;vertical-align:middle}
+.frv3 .picon{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:1px solid var(--line2);background:var(--card);color:var(--muted);border-radius:8px;cursor:pointer;padding:0}
+.frv3 .picon:hover{background:var(--hover);color:var(--txt);border-color:var(--muted2)}
+.frv3 .picon.toggle.on{color:var(--green);border-color:var(--green);background:var(--green-bg)}
+.frv3 .picon.toggle:not(.on):hover{color:var(--green);border-color:var(--green)}
+.frv3 .picon.ok{color:var(--green);border-color:var(--green)}
+.frv3 .picon.ok:hover{background:var(--green);color:#fff}
+.frv3 .picon:disabled{opacity:.45;cursor:default}
 @media(max-width:1050px){.frv3-grid3{grid-template-columns:1fr}}
 `;
