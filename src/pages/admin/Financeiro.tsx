@@ -151,8 +151,8 @@ const T_EMPTY = { id: "", type: "income", category: "", amount: "", description:
 const TABS = [
   { key: "pagar", label: "A Pagar" }, { key: "receber", label: "A Receber" },
   { key: "cobranca", label: "Cobrança" }, { key: "conciliacao", label: "Conciliação" },
+  { key: "tesouraria", label: "Tesouraria" },
   // "Custos de IA" deixou de ser aba (2026-08-27): consolidado DENTRO de A Pagar (CustoIA embedded).
-  // Removidas a pedido do Crasto (não usamos): NFs, Tesouraria, Antecipações, Transações.
 ];
 
 // Filtros da aba Cobrança (painel de recebimentos por parcela) — "pagas sem comprovante" é o gap real.
@@ -271,6 +271,16 @@ export default function Financeiro() {
   const entradasReal = txSum("income", "completed"), saidasReal = txSum("expense", "completed");
   const saldoCaixa = entradasReal - saidasReal;
   const entradasPrev = txSum("income", "pending"), saidasPrev = txSum("expense", "pending");
+  // Tesouraria — filtro por ANO (histórico 2015 → hoje) + impostos pagos
+  const txYears = Array.from(new Set(tx.map((r: any) => (ymd(r.transaction_date) || "").slice(0, 4)).filter(Boolean))).sort().reverse();
+  const [txYear, setTxYear] = useState("todos");
+  const txInYear = (r: any) => txYear === "todos" || (ymd(r.transaction_date) || "").slice(0, 4) === txYear;
+  const isImposto = (r: any) => r.type === "expense" && /imposto|simples|\bdarf\b|\bdas\b|\binss\b|\biss\b|tribut|guia/i.test(`${r.category || ""} ${r.description || ""}`);
+  const txPer = tx.filter(txInYear);
+  const pEntradas = txPer.filter((r: any) => r.type === "income").reduce((a: number, r: any) => a + Number(r.amount || 0), 0);
+  const pSaidas = txPer.filter((r: any) => r.type === "expense").reduce((a: number, r: any) => a + Number(r.amount || 0), 0);
+  const impostosList = txPer.filter(isImposto).sort((a: any, b: any) => (ymd(b.transaction_date) > ymd(a.transaction_date) ? 1 : -1));
+  const pImpostos = impostosList.reduce((a: number, r: any) => a + Number(r.amount || 0), 0);
 
   // Parcelamento REAL de um custo (ex.: Viver de IA 12x no cartão). Só mensal com "Nx" (N>1) no texto.
   // Assinatura recorrente de valor fixo NÃO é parcelada → sem parcelas (linha recorrente, igual avulso de A Receber).
@@ -610,7 +620,7 @@ export default function Financeiro() {
   }
   async function markTxDone(r: any) { setBusy(true); try { await services.finance.transactions.save({ ...r, status: "completed" }); reload(); flash(t("Marcado como realizado ✓")); } catch (e) { flash(errorMessage(e)); } finally { setBusy(false); } }
   async function delTx(r: any) { if (!confirm(t("Excluir este lançamento?"))) return; await services.finance.transactions.remove(r.id); reload(); }
-  const txFiltered = tx.filter((r) => { const q = query.trim().toLowerCase(); return !q || `${r.description || ""} ${r.category || ""} ${r.contact_name || ""}`.toLowerCase().includes(q); });
+  const txFiltered = tx.filter((r) => { if (!txInYear(r)) return false; const q = query.trim().toLowerCase(); return !q || `${r.description || ""} ${r.category || ""} ${r.contact_name || ""}`.toLowerCase().includes(q); });
 
   const built = tab === "pagar" || tab === "receber";
 
@@ -641,13 +651,36 @@ export default function Financeiro() {
           <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => newTx("expense")}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Nova saída")}</span></button>
         </div>
 
-        {/* resumo tesouraria */}
-        <div className="kpis" style={{ marginBottom: 14 }}>
-          <div className="kpi g"><div className="lab">{t("Entradas realizadas")}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-green)" }}>{money(entradasReal)}</div></div>
-          <div className="kpi"><div className="lab">{t("Saídas realizadas")}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-orange)" }}>{money(saidasReal)}</div></div>
-          <div className="kpi"><div className="lab">{t("Saldo em Caixa")}</div><div className="val tnum" style={{ fontSize: 20, color: saldoCaixa < 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(saldoCaixa)}</div></div>
-          <div className="kpi"><div className="lab">{t("Previsto (entradas − saídas)")}</div><div className="val tnum" style={{ fontSize: 20 }}>{money(entradasPrev - saidasPrev)}</div><div className="delta">{t("lançamentos pendentes")}</div></div>
+        {/* filtro por ANO (histórico 2015 → hoje) */}
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--crasto-text-faint)", textTransform: "uppercase", letterSpacing: ".05em", marginRight: 4 }}>{t("Período")}</span>
+          <button className={"ptab" + (txYear === "todos" ? " is-active" : "")} style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => setTxYear("todos")}>{t("Todos")}</button>
+          {txYears.map((y) => <button key={y} className={"ptab" + (txYear === y ? " is-active" : "")} style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => setTxYear(y)}>{y}</button>)}
         </div>
+
+        {/* resumo tesouraria (do período selecionado) */}
+        <div className="kpis" style={{ marginBottom: 14 }}>
+          <div className="kpi g"><div className="lab">{t("Entradas")}{txYear !== "todos" ? " · " + txYear : ""}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-green)" }}>{money(pEntradas)}</div></div>
+          <div className="kpi"><div className="lab">{t("Saídas")}{txYear !== "todos" ? " · " + txYear : ""}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-orange)" }}>{money(pSaidas)}</div></div>
+          <div className="kpi"><div className="lab">{t("Resultado")}</div><div className="val tnum" style={{ fontSize: 20, color: (pEntradas - pSaidas) < 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(pEntradas - pSaidas)}</div><div className="delta">{t("entradas − saídas")}</div></div>
+          <div className="kpi"><div className="lab">🧾 {t("Impostos pagos")}</div><div className="val tnum" style={{ fontSize: 20, color: "var(--fin-red)" }}>{money(pImpostos)}</div><div className="delta">{impostosList.length} {t("guia(s)")}</div></div>
+        </div>
+
+        {/* Impostos pagos — detalhe (DARF, Simples/DAS, guias) */}
+        {impostosList.length > 0 && (
+          <details className="tbl-wrap" style={{ marginBottom: 12, padding: "10px 14px" }}>
+            <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 13 }}>🧾 {t("Impostos pagos")}{txYear !== "todos" ? " · " + txYear : ""} — <span style={{ color: "var(--fin-red)" }}>{money(pImpostos)}</span> <span style={{ color: "var(--crasto-text-muted)", fontWeight: 500 }}>({impostosList.length})</span></summary>
+            <div style={{ marginTop: 8 }}>
+              {impostosList.map((r: any) => (
+                <div key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12.5, padding: "6px 0", borderTop: "1px solid var(--crasto-border-soft)" }}>
+                  <span className="tnum" style={{ color: "var(--crasto-text-muted)", whiteSpace: "nowrap" }}>{r.transaction_date ? new Date(ymd(r.transaction_date) + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</span>
+                  <span style={{ flex: 1 }}>{r.description}</span>
+                  <b style={{ color: "var(--fin-red)", whiteSpace: "nowrap" }}>{money(Number(r.amount || 0))}</b>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
 
         {/* movimentos */}
         <div className="tbl-wrap" style={{ marginTop: 6 }}>
