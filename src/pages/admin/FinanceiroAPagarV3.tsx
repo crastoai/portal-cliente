@@ -174,8 +174,21 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
 
   // ---- pessoas por vínculo ----
   const pessoas = useMemo(() => {
-    const src = [...(costs || []).filter((c: any) => catLabel(c.category) === "Pessoas"), ...(pay || []).filter((a: any) => catLabel(a.category) === "Pessoas")];
-    return src.map((p: any) => ({ nome: p.vendor_name || p.contact_name || "—", vinculo: (p.vinculo || "PJ").toUpperCase(), detalhe: p.purpose || p.description || "", valor: Number(p.amount_brl || p.amount || 0) }));
+    // filtra is_active (custo desativado não conta) e agrupa por PESSOA (chave `person`, fallback ao nome).
+    const src = [
+      ...(costs || []).filter((c: any) => c.is_active !== false && catLabel(c.category) === "Pessoas"),
+      ...(pay || []).filter((a: any) => catLabel(a.category) === "Pessoas"),
+    ];
+    const map = new Map<string, { nome: string; vinculo: string; valor: number; comps: any[] }>();
+    for (const p of src) {
+      const nome = p.person || p.vendor_name || p.contact_name || "—";
+      const valor = Number(p.amount_brl || p.amount || 0);
+      const hasPs = Array.isArray(p.payment_schedule) && p.payment_schedule.length > 0;
+      const comp = { empresa: p.vendor_name || p.contact_name || nome, sub: p.purpose || p.description || "", categoria: catLabel(p.category), rec: hasPs ? "parcelado" : (p.recurrence || "mensal"), dateStr: ymd(p.next_payment_date) || ymd(p.reference_date) || "", valor, rawId: p.id || p.rawId || "" };
+      const g = map.get(nome) || { nome, vinculo: (p.vinculo || "PJ").toUpperCase(), valor: 0, comps: [] };
+      g.valor += valor; g.comps.push(comp); map.set(nome, g);
+    }
+    return Array.from(map.values()).map(g => ({ nome: g.nome, vinculo: g.vinculo, valor: g.valor, comps: g.comps, detalhe: g.comps.length > 1 ? g.comps.map(c => c.sub).filter(Boolean).join(" · ") : (g.comps[0]?.sub || "") })).sort((a, b) => b.valor - a.valor);
   }, [pay, costs]);
   const pessoasTotal = pessoas.reduce((a, p) => a + p.valor, 0);
   const vinc = (v: string) => pessoas.filter(p => p.vinculo === v).reduce((a, p) => a + p.valor, 0);
@@ -354,7 +367,7 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
         <div className="fv3-panel">
           <div className="ph"><span className="t">Por vínculo</span><span className="s">CLT · PJ · Terceirizado</span></div>
           {pessoas.length ? pessoas.map((p, k) => (
-            <div className="fv3-row" key={k}><div className="av">{(p.nome || "?").slice(0, 2).toUpperCase()}</div><div><div className="nm">{p.nome} <span className={"tag " + (p.vinculo === "CLT" ? "clt" : p.vinculo === "TERCEIRIZADO" ? "terc" : "pj")}>{p.vinculo === "TERCEIRIZADO" ? "Terceirizado" : p.vinculo}</span></div><div className="mt">{p.detalhe}</div></div><div className="amt">{BRL(p.valor)}</div></div>
+            <div className={"fv3-row" + ((p.comps?.length || 0) > 1 ? " clk" : "")} key={k} title={(p.comps?.length || 0) > 1 ? "Ver o que compõe o total desta pessoa" : ""} onClick={(p.comps?.length || 0) > 1 ? () => openDrill("👤 " + p.nome, p.vinculo + " · " + p.comps.length + " lançamentos · total no mês " + BRL(p.valor), p.comps) : undefined}><div className="av">{(p.nome || "?").slice(0, 2).toUpperCase()}</div><div style={{ flex: 1, minWidth: 0 }}><div className="nm">{p.nome} <span className={"tag " + (p.vinculo === "CLT" ? "clt" : p.vinculo === "TERCEIRIZADO" ? "terc" : "pj")}>{p.vinculo === "TERCEIRIZADO" ? "Terceirizado" : p.vinculo}</span></div><div className="mt">{p.detalhe}</div></div><div className="amt">{BRL(p.valor)}{(p.comps?.length || 0) > 1 ? <span className="chev"> ›</span> : null}</div></div>
           )) : <div className="fv3-row"><div className="mt">Nenhuma pessoa/prestador cadastrado (categoria "Pessoas").</div></div>}
         </div>
         <div className="fv3-panel">
