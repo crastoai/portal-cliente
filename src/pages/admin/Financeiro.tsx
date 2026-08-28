@@ -802,15 +802,11 @@ export default function Financeiro() {
 
   return (
     <div>
-      <PageHead eyebrow="Painel Admin · Financeiro 🔒" title={isCockpit ? "Financeiro" : "Financeiro · " + t(TITULO_SECAO[tab] || "")} sub={isCockpit ? "Visão geral de todas as áreas — Cockpit." : "Gestão financeira completa da Crasto.AI."} titleAside={
-        <div className="farol-wrap">
-          <Farol status={farolStatus} titulo={t(farolTag)} />
-          <div className="farol-nota">
-            <span className={"farol-nota-tag " + farolStatus}>{t(farolTag)}</span>
-            <span className="farol-nota-txt">{farolNota}</span>
-          </div>
-        </div>
-      } />
+      <PageHead eyebrow="Painel Admin · Financeiro 🔒" title={isCockpit ? "Financeiro" : "Financeiro · " + t(TITULO_SECAO[tab] || "")} sub={isCockpit ? "Visão geral de todas as áreas — Cockpit." : "Gestão financeira completa da Crasto.AI."} />
+      <div className={"farol-balao " + farolStatus} role="status">
+        <div className="fb-head"><Farol status={farolStatus} titulo={t(farolTag)} /><span className="fb-tag">{t(farolTag)}</span></div>
+        <ul className="fb-list">{farolNota.split(/\s+—\s+|\s+·\s+/).map((x: string) => x.trim()).filter(Boolean).map((x: string, i: number) => <li key={i}>{x}</li>)}</ul>
+      </div>
 
       {/* ═══ COCKPIT (visão geral de todas as áreas) — só na raiz /admin/financeiro ═══ */}
       {isCockpit && (<>

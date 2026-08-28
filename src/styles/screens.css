@@ -914,6 +914,21 @@
 .farol-luz.on.verde    { background: radial-gradient(circle at 34% 30%, #7ef0a6, #22c55e 72%); box-shadow: 0 0 16px 3px rgba(34,197,94,.72), inset 0 1px 2px rgba(255,255,255,.5); animation-duration: 1.5s; }
 @keyframes farol-pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
 @media (prefers-reduced-motion: reduce) { .farol-luz.on { animation: none; } }
+/* Balao centralizado do farol (todas as telas do Financeiro): farol ao lado do status + info em topicos */
+.farol-balao { max-width: 720px; margin: 8px auto 18px; border: 1px solid var(--crasto-border, #e5e7eb); border-radius: 14px; padding: 14px 20px; background: var(--crasto-surface, #fff); text-align: center; box-shadow: 0 6px 18px rgba(16,24,40,.05); }
+.farol-balao.amarelo { border-color: rgba(245,179,1,.55); background: rgba(245,179,1,.08); }
+.farol-balao.vermelho { border-color: rgba(239,68,68,.55); background: rgba(239,68,68,.08); }
+.farol-balao.verde { border-color: rgba(34,197,94,.45); background: rgba(34,197,94,.07); }
+.farol-balao .fb-head { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.farol-balao .fb-tag { font-weight: 800; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; }
+.farol-balao.amarelo .fb-tag { color: #b45309; }
+.farol-balao.vermelho .fb-tag { color: #b91c1c; }
+.farol-balao.verde .fb-tag { color: #15803d; }
+.farol-balao .fb-list { margin: 9px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.farol-balao .fb-list li { font-size: 13px; color: var(--crasto-text-muted, #475569); }
+.farol-balao .fb-list li::before { content: "\2022"; margin-right: 7px; opacity: .45; }
+.farol-balao .fb-list li:only-child::before { content: none; }
+
 /* NOTA: por que está nessa cor + a pendência + o que fazer */
 .farol-nota { display: flex; flex-direction: column; gap: 2px; max-width: 540px; line-height: 1.32; }
 .farol-nota-tag { font-size: 11px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
