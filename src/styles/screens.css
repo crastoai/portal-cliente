@@ -895,7 +895,10 @@
 /* ── Farol de status — semáforo horizontal GLASS + nota (PageHead titleAside) ──────────
    3 luzes lado a lado; a acesa brilha e PISCA, as apagadas ficam apagadas. Ao lado, a NOTA
    explica por que está nessa cor e o que fazer. */
-.farol-wrap { display: inline-flex; align-items: center; gap: 13px; flex-wrap: wrap; }
+/* top:4px = alinha ao centro ÓPTICO do título (Montserrat 40px tem descendentes que puxam a
+   massa visual pra baixo; o centro geométrico do flex fica um pouco alto). `position:relative`
+   em vez de `transform` para não quebrar o backdrop-filter (glass) do farol. */
+.farol-wrap { display: inline-flex; align-items: center; gap: 13px; flex-wrap: wrap; position: relative; top: 4px; }
 .farol { display: inline-flex; align-items: center; gap: 11px; padding: 11px 17px; border-radius: 999px;
   background: rgba(255,255,255,.16); backdrop-filter: blur(13px) saturate(150%); -webkit-backdrop-filter: blur(13px) saturate(150%);
   border: 1px solid rgba(255,255,255,.42); box-shadow: 0 8px 24px -8px rgba(1,14,38,.32), inset 0 1px 0 rgba(255,255,255,.6);

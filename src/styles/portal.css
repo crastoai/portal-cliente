@@ -963,6 +963,8 @@ body.impersonating .main { margin-top: 96px; }
   .phead h1, .phead-row .phead h1 { font-size: 20px; }
   .phead .sub { font-size: 12px; }
   .phead-row { gap: 10px; }
+  /* título menor no mobile → nudge do farol proporcionalmente menor */
+  .farol-wrap { top: 2px; }
 }
 
 /* CRM row: wrap em telas estreitas */
