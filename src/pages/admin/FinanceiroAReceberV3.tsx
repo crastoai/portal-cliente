@@ -108,8 +108,8 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
           <tbody>
             {rows.length === 0 ? <tr><td colSpan={7} style={{ padding: 16, color: "#6B7280" }}>Nenhum recebível cadastrado.</td></tr> : rows.map(r => (
               <Fragment key={r.id}>
-              <tr>
-                <td className="co">{r.ps && r.ps.length > 0 && <button className={"frv3-exp" + (expanded.has(r.id) ? " on" : "")} title="Ver parcelas" onClick={() => toggleExp(r.id)}>{expanded.has(r.id) ? "▾" : "▸"}</button>}{r.cliente}<small>{r.detalhe}{r.ps && r.ps.length > 0 ? ` · ${r.ps.filter((p: any) => p.status === "paid").length}/${r.ps.length} recebidas` : ""}</small></td>
+              <tr className={r.ps && r.ps.length > 0 ? "hasexp" : ""} onClick={() => { if (r.ps && r.ps.length > 0) toggleExp(r.id); }} title={r.ps && r.ps.length > 0 ? "Clique para ver as parcelas" : ""}>
+                <td className="co">{r.ps && r.ps.length > 0 && <button className={"frv3-exp" + (expanded.has(r.id) ? " on" : "")} title="Ver parcelas" onClick={(e) => { e.stopPropagation(); toggleExp(r.id); }}>{expanded.has(r.id) ? "▾" : "▸"}</button>}{r.cliente}<small>{r.detalhe}{r.ps && r.ps.length > 0 ? ` · ${r.ps.filter((p: any) => p.status === "paid").length}/${r.ps.length} recebidas` : ""}</small></td>
                 <td><span className="typ">{r.modelo}</span></td>
                 <td className="dt">{fmtDT(r.venc)}</td>
                 <td className="r">{BRL(view === "comp" ? r.reconhecido : r.recebidoMes)}</td>
@@ -167,7 +167,9 @@ const CSS = `
 .frv3-tablewrap{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
 .frv3-tscroll{max-height:520px;overflow:auto}
 .frv3 table{width:100%;border-collapse:collapse}
-.frv3 thead th{position:sticky;top:0;background:var(--bg2);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted2);font-weight:700;text-align:left;padding:12px 14px;white-space:nowrap}
+.frv3 thead th{position:sticky;top:0;z-index:3;background:var(--card);box-shadow:inset 0 -1px 0 var(--line2);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted2);font-weight:700;text-align:left;padding:12px 14px;white-space:nowrap}
+.frv3 tbody tr.hasexp{cursor:pointer}
+.frv3 tbody tr.hasexp:hover{background:var(--hover)}
 .frv3 thead th.r{text-align:right}
 .frv3 tbody td{padding:12px 14px;border-top:1px solid var(--line);font-size:13px;white-space:nowrap}
 .frv3 td.r{text-align:right}
@@ -178,7 +180,7 @@ const CSS = `
 .frv3 .st.pend{background:var(--line);color:var(--muted)}.frv3 .st.pago{background:var(--green-bg);color:var(--green-ink)}.frv3 .st.venc{background:var(--red-bg);color:var(--red)}
 .frv3-exp{border:1px solid var(--line2);background:var(--card);color:var(--muted);border-radius:6px;width:20px;height:20px;line-height:1;font-size:11px;font-weight:800;cursor:pointer;margin-right:8px;padding:0;vertical-align:middle}
 .frv3-exp:hover,.frv3-exp.on{background:var(--navy);color:#fff;border-color:var(--navy)}
-.frv3 tr.parcrow td{background:var(--bg2);border-top:1px dashed var(--line2);font-size:12.5px;padding:9px 14px}
+.frv3 tr.parcrow td{background:var(--info-bg);border-top:1px dashed var(--line2);font-size:12.5px;padding:9px 14px}
 .frv3 tr.parcrow td.pc{padding-left:34px}
 .frv3 tr.parcrow .pcn{font-weight:700;color:var(--muted)}
 .frv3 .pinp{font:inherit;font-size:12px;border:1px solid var(--blue);border-radius:6px;padding:4px 6px;width:120px;background:var(--card);color:var(--txt)}

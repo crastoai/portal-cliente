@@ -368,8 +368,8 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
             <tbody>
               {shown.length === 0 ? <tr><td colSpan={9} style={{ padding: 16, color: "#6B7280" }}>Nenhum lançamento para este filtro.</td></tr> : shown.map(i => (
                 <Fragment key={i.id}>
-                <tr className="erow" onClick={() => onEdit?.(i.rawId)} title="Clique para editar este lançamento na origem">
-                  <td className="co">{i.ps && i.ps.length > 0 && <button className={"fv3-exp" + (expanded.has(i.id) ? " on" : "")} title="Ver parcelas" onClick={(e) => { e.stopPropagation(); toggleExp(i.id); }}>{expanded.has(i.id) ? "▾" : "▸"}</button>}{i.empresa}<small>{i.sub}{i.ps && i.ps.length > 0 ? ` · ${i.ps.filter((p: any) => p.status === "paid").length}/${i.ps.length} parcelas` : ""}</small><span className="edit-hint">✎ editar</span></td>
+                <tr className={"erow" + (i.ps && i.ps.length > 0 ? " hasexp" : "")} onClick={() => { if (i.ps && i.ps.length > 0) toggleExp(i.id); }} title={i.ps && i.ps.length > 0 ? "Clique para ver as parcelas" : ""}>
+                  <td className="co">{i.ps && i.ps.length > 0 && <button className={"fv3-exp" + (expanded.has(i.id) ? " on" : "")} title="Ver parcelas" onClick={(e) => { e.stopPropagation(); toggleExp(i.id); }}>{expanded.has(i.id) ? "▾" : "▸"}</button>}{i.empresa}<small>{i.sub}{i.ps && i.ps.length > 0 ? ` · ${i.ps.filter((p: any) => p.status === "paid").length}/${i.ps.length} parcelas` : ""}</small></td>
                   <td><span className="typ">{(CAT_EMOJI[i.categoria] || "")} {i.categoria}</span> <span className={"recpill r-" + i.rec}>{RECLBL[i.rec] || i.rec}</span></td>
                   <td className="dt">{fmtDT(i.contratacao)}</td>
                   <td className="dt">{fmtDT(i.venc)}</td>
@@ -377,7 +377,7 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
                   <td className="r">{BRL(i.total)}</td>
                   <td className="r green">{i.pago ? BRL(i.pago) : "R$ 0,00"}</td>
                   <td className={"r " + (i.restante > 0 ? (i.status === "Vencido" ? "red" : "amber") : "")}>{BRL(i.restante)}</td>
-                  <td><span className={"st " + stCls(i.status)}>{i.status}</span></td>
+                  <td><span className={"st " + stCls(i.status)}>{i.status}</span> <button className="fv3-editbtn" title="Editar na origem" onClick={(e) => { e.stopPropagation(); onEdit?.(i.rawId); }}>✎</button></td>
                 </tr>
                 {i.ps && i.ps.length > 0 && expanded.has(i.id) && i.ps.map((p: any, idx: number) => {
                   const isEd = !!parcEdit && parcEdit.itemId === i.id && parcEdit.idx === idx;
@@ -517,7 +517,7 @@ const CSS = `
 .fv3-tablewrap{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
 .fv3-tscroll{max-height:560px;overflow:auto}
 .fv3 table{width:100%;border-collapse:collapse}
-.fv3 thead th{position:sticky;top:0;z-index:2;background:var(--bg2);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted2);font-weight:700;text-align:left;padding:12px 14px;white-space:nowrap;cursor:pointer}
+.fv3 thead th{position:sticky;top:0;z-index:3;background:var(--card);box-shadow:inset 0 -1px 0 var(--line2);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted2);font-weight:700;text-align:left;padding:12px 14px;white-space:nowrap;cursor:pointer}
 .fv3 thead th:hover{color:var(--blue-ink);background:var(--hover)}
 .fv3 thead th.r{text-align:right}.fv3 thead th.active{color:var(--blue-ink)}
 .fv3 thead th .fic{opacity:.45;font-size:10px}.fv3 thead th.active .fic{opacity:1}
@@ -533,7 +533,7 @@ const CSS = `
 .fv3 .recpill.r-pontual,.fv3 .recpill.r-parcelado{background:var(--hover);color:var(--muted)}
 .fv3 .st{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:20px}
 .fv3 .st.pend{background:var(--track);color:var(--muted)}.fv3 .st.pago{background:var(--green-bg);color:var(--green-ink)}.fv3 .st.venc{background:var(--red-bg);color:var(--red)}
-.fv3 tfoot .totrow td{position:sticky;bottom:0;background:var(--bg2);border-top:2px solid var(--line2);font-weight:800;font-size:12.5px;padding:12px 14px}
+.fv3 tfoot .totrow td{position:sticky;bottom:0;z-index:3;background:var(--card);box-shadow:inset 0 1px 0 var(--line2);border-top:2px solid var(--line2);font-weight:800;font-size:12.5px;padding:12px 14px}
 .fv3-sentinel{padding:14px;text-align:center;color:var(--muted);font-size:12.5px}
 .fv3-tfoot{display:flex;justify-content:space-between;padding:11px 15px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted);background:var(--bg2)}
 .fv3-pop{position:fixed;z-index:99999;width:252px;background:var(--card);border:1px solid var(--line2);border-radius:12px;box-shadow:0 12px 30px rgba(16,24,40,.16);padding:10px;font-size:12.5px}
@@ -562,10 +562,10 @@ const CSS = `
 .fv3-modal .mtab th{background:var(--bg2);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted2);font-weight:700;text-align:left;padding:11px 13px;white-space:nowrap}
 .fv3-modal .mtab th.r,.fv3-modal .mtab td.r{text-align:right}
 .fv3-modal .mtab td{padding:11px 13px;border-top:1px solid var(--line);font-size:13px;white-space:nowrap}
-.fv3 tbody tr.erow{cursor:pointer}
+.fv3 tbody tr.erow.hasexp{cursor:pointer}
 .fv3 tbody tr.erow:hover{background:var(--hover)}
-.fv3 .edit-hint{display:none;margin-left:8px;font-size:10px;font-weight:700;color:var(--blue-ink);background:var(--info-bg);border-radius:6px;padding:1px 7px}
-.fv3 tbody tr.erow:hover .edit-hint{display:inline-block}
+.fv3-editbtn{border:1px solid var(--line2);background:var(--card);color:var(--blue-ink);border-radius:6px;padding:2px 8px;font-size:12px;cursor:pointer;margin-left:8px;vertical-align:middle}
+.fv3-editbtn:hover{background:var(--navy);color:#fff;border-color:var(--navy)}
 .fv3-tip{font-size:11.5px;color:var(--muted);background:var(--hover);border-radius:20px;padding:6px 12px;white-space:nowrap}
 .fv3-period{display:inline-flex;gap:4px;align-items:center;margin-right:10px;vertical-align:middle}
 .fv3-period .pbtn{border:1px solid var(--line2);background:var(--card);border-radius:8px;padding:5px 10px;font:inherit;font-size:11.5px;font-weight:700;color:var(--muted);cursor:pointer}
@@ -612,7 +612,7 @@ const CSS = `
 /* parcelas: botao expandir + linhas do cronograma + acoes (marcar paga/editar) */
 .fv3-exp{border:1px solid var(--line2);background:var(--card);color:var(--muted);border-radius:6px;width:20px;height:20px;line-height:1;font-size:11px;font-weight:800;cursor:pointer;margin-right:8px;padding:0;vertical-align:middle}
 .fv3-exp:hover,.fv3-exp.on{background:var(--navy);color:#fff;border-color:var(--navy)}
-.fv3 tr.parcrow td{background:var(--bg2);border-top:1px dashed var(--line2);font-size:12.5px;padding:9px 14px}
+.fv3 tr.parcrow td{background:var(--info-bg);border-top:1px dashed var(--line2);font-size:12.5px;padding:9px 14px}
 .fv3 tr.parcrow td.pc{padding-left:34px}
 .fv3 tr.parcrow .pcn{font-weight:700;color:var(--muted)}
 .fv3 .pinp{font:inherit;font-size:12px;border:1px solid var(--blue);border-radius:6px;padding:4px 6px;width:120px;background:var(--card);color:var(--txt)}
