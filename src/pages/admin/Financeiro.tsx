@@ -1,8 +1,8 @@
-import { Fragment, useState, useEffect } from "react";
+import { Fragment, useState, useEffect, useRef } from "react";
 import { useSearchParams, useParams, useNavigate } from "react-router-dom";
 import { Plus, Pencil, Trash2, Search, ChevronRight, ChevronDown, CheckCircle2, Repeat, ArrowRight, Filter, X } from "lucide-react";
 import { services, errorMessage } from "../../services";
-import { PageHead, Pill, Empty, useAsync, money, Field, useSort, SortTh } from "../../ui/ui";
+import { PageHead, Pill, Empty, useAsync, money, Field, useSort, SortTh, Farol } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 import DocField from "../../ui/DocField";
@@ -165,6 +165,7 @@ const TITULO_SECAO: Record<string, string> = {
   cockpit: "Cockpit", pagar: "A Pagar", receber: "A Receber",
   cobranca: "Cobrança", conciliacao: "Conciliação", tesouraria: "Tesouraria",
 };
+type FarolS = "verde" | "amarelo" | "vermelho";
 
 // Filtros da aba Cobrança (painel de recebimentos por parcela) — "pagas sem comprovante" é o gap real.
 const COB_FILTROS = [
@@ -749,9 +750,35 @@ export default function Financeiro() {
 
   const built = tab === "pagar" || tab === "receber";
 
+  // ── FAROL de status (tempo real) — um por seção; o Cockpit reflete o PIOR de todas ──
+  // verde = tudo em dia · amarelo = pendência/alerta · vermelho = pendência grave.
+  const payVencido = payItems.reduce((a: number, i: any) => a + vencidoDe(i), 0);   // conta a pagar VENCIDA (grave)
+  const payHoje = payItems.reduce((a: number, i: any) => a + hojeDe(i), 0);         // vence hoje (alerta)
+  const recHojeVal = rec.reduce((a: number, r: any) => a + hojeDe(r), 0);           // a receber vence hoje
+  const nConc = cobCount("sem_comprovante");                                         // pagas sem comprovante
+  const resultTes = pEntradas - pSaidas;                                             // caixa operacional
+  const fPagar: FarolS = payVencido > 0 ? "vermelho" : payHoje > 0 ? "amarelo" : "verde";
+  const fReceber: FarolS = inadimplencia > 0 ? "vermelho" : recHojeVal > 0 ? "amarelo" : "verde";
+  const fCobranca: FarolS = cobCount("vencidas") > 0 ? "vermelho" : cobCount("hoje") > 0 ? "amarelo" : "verde";
+  const fConciliacao: FarolS = nConc >= 20 ? "vermelho" : nConc > 0 ? "amarelo" : "verde"; // backlog grande = grave
+  const fTesouraria: FarolS = resultTes < 0 ? "vermelho" : (pEntradas > 0 && resultTes < pEntradas * 0.1 ? "amarelo" : "verde");
+  const fTodos = [fPagar, fReceber, fCobranca, fConciliacao, fTesouraria];
+  const fCockpit: FarolS = fTodos.includes("vermelho") ? "vermelho" : fTodos.includes("amarelo") ? "amarelo" : "verde";
+  const farolStatus: FarolS = ({ cockpit: fCockpit, pagar: fPagar, receber: fReceber, cobranca: fCobranca, conciliacao: fConciliacao, tesouraria: fTesouraria } as Record<string, FarolS>)[tab] || fCockpit;
+  const farolTitulo = ({ verde: "Tudo em dia", amarelo: "Atenção — há pendências financeiras", vermelho: "Pendências financeiras graves" } as Record<FarolS, string>)[farolStatus];
+
+  // TEMPO REAL: com a tela aberta e visível, reavalia os dados a cada 90s (o farol reflete o
+  // estado atual). Pula se há modal aberto — não atrapalha edição. O piscar é só visual (CSS).
+  const reloadRef = useRef(reload); reloadRef.current = reload;
+  const modalRef = useRef(false); modalRef.current = aOpen || cOpen || tOpen;
+  useEffect(() => {
+    const iv = setInterval(() => { if (document.visibilityState === "visible" && !modalRef.current) reloadRef.current(); }, 90_000);
+    return () => clearInterval(iv);
+  }, []);
+
   return (
     <div>
-      <PageHead eyebrow="Painel Admin · Financeiro 🔒" title={isCockpit ? "Financeiro" : "Financeiro · " + t(TITULO_SECAO[tab] || "")} sub={isCockpit ? "Visão geral de todas as áreas — Cockpit." : "Gestão financeira completa da Crasto.AI."} />
+      <PageHead eyebrow="Painel Admin · Financeiro 🔒" title={isCockpit ? "Financeiro" : "Financeiro · " + t(TITULO_SECAO[tab] || "")} sub={isCockpit ? "Visão geral de todas as áreas — Cockpit." : "Gestão financeira completa da Crasto.AI."} titleAside={<Farol status={farolStatus} titulo={t(farolTitulo)} />} />
 
       {/* ═══ COCKPIT (visão geral de todas as áreas) — só na raiz /admin/financeiro ═══ */}
       {isCockpit && (<>
@@ -791,36 +818,36 @@ export default function Financeiro() {
         <div style={{ marginBottom: 10 }}>
           <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--crasto-text-faint)", marginBottom: 6 }}>💰 {t("A Receber")}</div>
           <div className="kpis">
-            <button className="kpi navy kpi-btn" onClick={() => setDrill({ title: t("Recorrente / mês (MRR)"), rows: rowsMRR, foot: { label: t("MRR"), value: mrrMensal } })}><div className="lab">{t("Recorrente / mês (MRR)")}</div><div className="val tnum" style={{ fontSize: 18 }}>{money(mrrMensal)}</div><div className="delta">{t("ARR")} {money(mrrMensal * 12)}</div></button>
-            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A receber no mês"), rows: rowsRecMes, foot: { label: t("Total do mês"), value: totalReceberMes } })}><div className="lab">{t("A receber no mês")}</div><div className="val tnum" style={{ fontSize: 18 }}>{money(totalReceberMes)}</div><div className="delta">{money(aReceberMes)} {t("falta")}</div></button>
-            <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Recebido no mês"), rows: rowsRecebidoMes, foot: { label: t("Recebido no mês"), value: recebidoMes } })}><div className="lab">{t("Recebido no mês")}</div><div className="val tnum" style={{ fontSize: 18, color: "var(--fin-green)" }}>{money(recebidoMes)}</div><div className="delta">{t("já entrou")}</div></button>
-            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Vencidos"), rows: rowsVencidos, foot: { label: t("Total vencido"), value: inadimplencia } })}><div className="lab">{t("Vencidos")}</div><div className="val tnum" style={{ fontSize: 18, color: inadimplencia > 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(inadimplencia)}</div><div className="delta">{t("em aberto")}</div></button>
+            <button className="kpi navy kpi-btn" onClick={() => setDrill({ title: t("Recorrente / mês (MRR)"), rows: rowsMRR, foot: { label: t("MRR"), value: mrrMensal }, goto: { tab: "receber", label: t("Abrir em A Receber") } })}><div className="lab">{t("Recorrente / mês (MRR)")}</div><div className="val tnum" style={{ fontSize: 18 }}>{money(mrrMensal)}</div><div className="delta">{t("ARR")} {money(mrrMensal * 12)}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A receber no mês"), rows: rowsRecMes, foot: { label: t("Total do mês"), value: totalReceberMes }, goto: { tab: "receber", label: t("Abrir em A Receber") } })}><div className="lab">{t("A receber no mês")}</div><div className="val tnum" style={{ fontSize: 18 }}>{money(totalReceberMes)}</div><div className="delta">{money(aReceberMes)} {t("falta")}</div></button>
+            <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Recebido no mês"), rows: rowsRecebidoMes, foot: { label: t("Recebido no mês"), value: recebidoMes }, goto: { tab: "receber", label: t("Abrir em A Receber") } })}><div className="lab">{t("Recebido no mês")}</div><div className="val tnum" style={{ fontSize: 18, color: "var(--fin-green)" }}>{money(recebidoMes)}</div><div className="delta">{t("já entrou")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Vencidos"), rows: rowsVencidos, foot: { label: t("Total vencido"), value: inadimplencia }, goto: { tab: "receber", label: t("Abrir em A Receber") } })}><div className="lab">{t("Vencidos")}</div><div className="val tnum" style={{ fontSize: 18, color: inadimplencia > 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(inadimplencia)}</div><div className="delta">{t("em aberto")}</div></button>
           </div>
         </div>
         <div style={{ marginBottom: 10 }}>
           <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--crasto-text-faint)", marginBottom: 6 }}>📥 {t("Cobrança")}</div>
           <div className="kpis">
-            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Vencidas"), rows: cobDrill("vencidas"), foot: { label: t("Total vencidas"), value: cobSum("vencidas") } })}><div className="lab">{t("Vencidas")}</div><div className="val tnum" style={{ fontSize: 18, color: cobCount("vencidas") > 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{cobCount("vencidas")}</div><div className="delta">{t("parcela(s)")}</div></button>
-            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Vencem hoje"), rows: cobDrill("hoje"), foot: { label: t("Vencem hoje"), value: cobSum("hoje") } })}><div className="lab">{t("Vencem hoje")}</div><div className="val tnum" style={{ fontSize: 18 }}>{cobCount("hoje")}</div><div className="delta">{t("parcela(s)")}</div></button>
-            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A vencer"), sub: t("próxima parcela de cada contrato"), rows: cobRowMap(cobAvencerUnico), foot: { label: t("A vencer (mês)"), value: cobAvencerUnico.reduce((a: number, r: any) => a + Number(r.valor || 0), 0) } })}><div className="lab">{t("A vencer")}</div><div className="val tnum" style={{ fontSize: 18 }}>{cobAvencerUnico.length}</div><div className="delta">{t("contrato(s)")}</div></button>
-            <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Pagas"), rows: cobDrill("pagas"), foot: { label: t("Total pago"), value: cobSum("pagas") } })}><div className="lab">{t("Pagas")}</div><div className="val tnum" style={{ fontSize: 18, color: "var(--fin-green)" }}>{cobCount("pagas")}</div><div className="delta">{t("recebidas")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Vencidas"), rows: cobDrill("vencidas"), foot: { label: t("Total vencidas"), value: cobSum("vencidas") }, goto: { tab: "cobranca", cobFiltro: "vencidas", label: t("Abrir em Cobrança") } })}><div className="lab">{t("Vencidas")}</div><div className="val tnum" style={{ fontSize: 18, color: cobCount("vencidas") > 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{cobCount("vencidas")}</div><div className="delta">{t("parcela(s)")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Vencem hoje"), rows: cobDrill("hoje"), foot: { label: t("Vencem hoje"), value: cobSum("hoje") }, goto: { tab: "cobranca", cobFiltro: "hoje", label: t("Abrir em Cobrança") } })}><div className="lab">{t("Vencem hoje")}</div><div className="val tnum" style={{ fontSize: 18 }}>{cobCount("hoje")}</div><div className="delta">{t("parcela(s)")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A vencer"), sub: t("próxima parcela de cada contrato"), rows: cobRowMap(cobAvencerUnico), foot: { label: t("A vencer (mês)"), value: cobAvencerUnico.reduce((a: number, r: any) => a + Number(r.valor || 0), 0) }, goto: { tab: "cobranca", cobFiltro: "avencer", label: t("Abrir em Cobrança") } })}><div className="lab">{t("A vencer")}</div><div className="val tnum" style={{ fontSize: 18 }}>{cobAvencerUnico.length}</div><div className="delta">{t("contrato(s)")}</div></button>
+            <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Pagas"), rows: cobDrill("pagas"), foot: { label: t("Total pago"), value: cobSum("pagas") }, goto: { tab: "cobranca", cobFiltro: "pagas", label: t("Abrir em Cobrança") } })}><div className="lab">{t("Pagas")}</div><div className="val tnum" style={{ fontSize: 18, color: "var(--fin-green)" }}>{cobCount("pagas")}</div><div className="delta">{t("recebidas")}</div></button>
           </div>
         </div>
         <div style={{ marginBottom: 10 }}>
           <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--crasto-text-faint)", marginBottom: 6 }}>🔎 {t("Conciliação")}</div>
           <div className="kpis">
-            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A conciliar"), sub: t("pagas sem comprovante"), rows: cobDrill("sem_comprovante"), foot: { label: t("A conciliar"), value: cobSum("sem_comprovante") } })}><div className="lab">{t("A conciliar")}</div><div className="val tnum" style={{ fontSize: 18, color: cobCount("sem_comprovante") > 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{cobCount("sem_comprovante")}</div><div className="delta">{t("pagas s/ comprovante")}</div></button>
-            <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Comprovantes OK"), sub: t("pagas com comprovante"), rows: rowsConciliadas, foot: { label: t("Conciliadas"), value: rowsConciliadas.reduce((a: number, r: any) => a + r.value, 0) } })}><div className="lab">{t("Comprovantes OK")}</div><div className="val tnum" style={{ fontSize: 18, color: "var(--fin-green)" }}>{Math.max(0, cobCount("pagas") - cobCount("sem_comprovante"))}</div><div className="delta">{t("conciliadas")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A conciliar"), sub: t("pagas sem comprovante"), rows: cobDrill("sem_comprovante"), foot: { label: t("A conciliar"), value: cobSum("sem_comprovante") }, goto: { tab: "cobranca", cobFiltro: "sem_comprovante", label: t("Abrir em Cobrança") } })}><div className="lab">{t("A conciliar")}</div><div className="val tnum" style={{ fontSize: 18, color: cobCount("sem_comprovante") > 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{cobCount("sem_comprovante")}</div><div className="delta">{t("pagas s/ comprovante")}</div></button>
+            <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Comprovantes OK"), sub: t("pagas com comprovante"), rows: rowsConciliadas, foot: { label: t("Conciliadas"), value: rowsConciliadas.reduce((a: number, r: any) => a + r.value, 0) }, goto: { tab: "conciliacao", label: t("Abrir em Conciliação") } })}><div className="lab">{t("Comprovantes OK")}</div><div className="val tnum" style={{ fontSize: 18, color: "var(--fin-green)" }}>{Math.max(0, cobCount("pagas") - cobCount("sem_comprovante"))}</div><div className="delta">{t("conciliadas")}</div></button>
             <button className="kpi kpi-btn" onClick={() => setTab("conciliacao")}><div className="lab">🤖 {t("Conciliação por IA")}</div><div className="val tnum" style={{ fontSize: 15 }}>{t("Abrir")}</div><div className="delta">{t("ler comprovante → baixa")}</div></button>
           </div>
         </div>
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--crasto-text-faint)", marginBottom: 6 }}>🏦 {t("Tesouraria")}</div>
           <div className="kpis">
-            <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Entradas"), sub: t("por cliente/origem"), rows: drillEntradas, foot: { label: t("Entradas (operacional)"), value: pEntradas } })}><div className="lab">{t("Entradas")}</div><div className="val tnum" style={{ fontSize: 18, color: "var(--fin-green)" }}>{money(pEntradas)}</div><div className="delta">{t("operacional")}</div></button>
-            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Saídas"), sub: t("por categoria"), rows: drillSaidas, foot: { label: t("Saídas (operacional)"), value: -pSaidas } })}><div className="lab">{t("Saídas")}</div><div className="val tnum" style={{ fontSize: 18, color: "var(--fin-orange)" }}>{money(pSaidas)}</div><div className="delta">{t("operacional")}</div></button>
-            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado"), rows: drillResultado, foot: { label: t("Resultado"), value: pEntradas - pSaidas } })}><div className="lab">{t("Resultado")}</div><div className="val tnum" style={{ fontSize: 18, color: (pEntradas - pSaidas) < 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(pEntradas - pSaidas)}</div><div className="delta">{t("caixa")}</div></button>
-            <button className="kpi kpi-btn" onClick={() => setDrill({ title: "🧾 " + t("Tributos"), sub: t("cada guia"), rows: drillTributos, foot: { label: t("Tributos"), value: -pImpostos } })}><div className="lab">🧾 {t("Tributos")}</div><div className="val tnum" style={{ fontSize: 18, color: "var(--fin-red)" }}>{money(pImpostos)}</div><div className="delta">{impostosList.length} {t("guia(s)")}</div></button>
+            <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Entradas"), sub: t("por cliente/origem"), rows: drillEntradas, foot: { label: t("Entradas (operacional)"), value: pEntradas }, goto: { tab: "tesouraria", label: t("Abrir em Tesouraria") } })}><div className="lab">{t("Entradas")}</div><div className="val tnum" style={{ fontSize: 18, color: "var(--fin-green)" }}>{money(pEntradas)}</div><div className="delta">{t("operacional")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Saídas"), sub: t("por categoria"), rows: drillSaidas, foot: { label: t("Saídas (operacional)"), value: -pSaidas }, goto: { tab: "tesouraria", label: t("Abrir em Tesouraria") } })}><div className="lab">{t("Saídas")}</div><div className="val tnum" style={{ fontSize: 18, color: "var(--fin-orange)" }}>{money(pSaidas)}</div><div className="delta">{t("operacional")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado"), rows: drillResultado, foot: { label: t("Resultado"), value: pEntradas - pSaidas }, goto: { tab: "tesouraria", label: t("Abrir em Tesouraria") } })}><div className="lab">{t("Resultado")}</div><div className="val tnum" style={{ fontSize: 18, color: (pEntradas - pSaidas) < 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(pEntradas - pSaidas)}</div><div className="delta">{t("caixa")}</div></button>
+            <button className="kpi kpi-btn" onClick={() => setDrill({ title: "🧾 " + t("Tributos"), sub: t("cada guia"), rows: drillTributos, foot: { label: t("Tributos"), value: -pImpostos }, goto: { tab: "tesouraria", label: t("Abrir em Tesouraria") } })}><div className="lab">🧾 {t("Tributos")}</div><div className="val tnum" style={{ fontSize: 18, color: "var(--fin-red)" }}>{money(pImpostos)}</div><div className="delta">{impostosList.length} {t("guia(s)")}</div></button>
           </div>
         </div>
       </>)}
@@ -1215,7 +1242,7 @@ export default function Financeiro() {
       </>))}
 
       {/* Pop-up de detalhes de um card (drill-down) */}
-      <Modal title={drill?.title || ""} open={!!drill} onClose={() => setDrill(null)}>
+      <Modal title={drill?.title || ""} open={!!drill} onClose={() => setDrill(null)} footer={drill?.goto ? (<button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => { if (drill.goto.cobFiltro) setCobFiltro(drill.goto.cobFiltro); setTab(drill.goto.tab); setDrill(null); }}><span className="crasto-btn__label">{(drill.goto.label || t("Abrir módulo")) + " →"}</span></button>) : undefined}>
         {drill && (drill.rows.length === 0
           ? <div style={{ padding: 22, color: "var(--crasto-text-muted)", textAlign: "center" }}>{t("Nada aqui neste momento. ✓")}</div>
           : <div>
