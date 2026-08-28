@@ -694,8 +694,8 @@ export default function Financeiro() {
     <div>
       <PageHead eyebrow="Painel Admin · Financeiro 🔒" title="Financeiro" sub="Gestão financeira completa da Crasto.AI." />
 
-      {/* KPIs topo — clicáveis: cada card leva à aba/tela correspondente (dado real) */}
-      <div className="kpis" style={{ marginBottom: 16 }}>
+      {/* KPIs topo — clicáveis: cada card leva à aba/tela correspondente (dado real). kpis--5 = 5 cards em 1 linha */}
+      <div className="kpis kpis--5" style={{ marginBottom: 16 }}>
         <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Recebido no mês"), rows: rowsRecebidoMes, foot: { label: t("Recebido no mês"), value: recebidoMes } })} title={t("Ver detalhes")}><div className="lab">{t("Entrou no mês (caixa)")}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(recebidoMes)}</div><div className="delta">{t("recebido de fato")}</div></button>
         <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A pagar no mês"), rows: rowsPagarMes, foot: { label: t("Total/mês"), value: aPagarMes } })} title={t("Ver detalhes")}><div className="lab">{t("Saiu no mês (caixa)")}</div><div className="val tnum" style={{ fontSize: 22, color: "var(--fin-orange)" }}>{money(aPagarMes)}</div><div className="delta">{t("IA + Pessoas + Ferramentas + Infra")}</div></button>
         <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado do mês"), rows: rowsResultado, foot: { label: t("Resultado"), value: resultadoMes } })} title={t("Resultado do mês = a receber − a pagar")} style={{ background: "linear-gradient(180deg,#0B1830,#010E26)", borderColor: "transparent", color: "#fff" }}><div className="lab" style={{ color: "#9DB4E0" }}>{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "#fff" }}>{money(resultadoMes)}</div><div className="delta" style={{ color: "#B7C6E6" }}>{t("recebido − pago (caixa)")}</div></button>
