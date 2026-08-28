@@ -62,7 +62,7 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
   const byClient: any[] = ((aiPanel as any)?.by_client ?? []).filter((r: any) => r.organization_id);
   const iaRows: any[] = (aiPanel as any)?.rows ?? [];
   const [iaDrill, setIaDrill] = useState<{ title: string; sub: string; rows: any[] } | null>(null);
-  const [drill, setDrill] = useState<{ title: string; sub: string; col: "pago" | "restante" | "total"; dcol: "pag" | "venc"; rows: Item[] } | null>(null);
+  const [drill, setDrill] = useState<{ title: string; sub: string; rows: { empresa: string; sub: string; categoria: string; rec: string; dateStr: string; valor: number; rawId: string }[] } | null>(null);
   // ---- parcelas: expandir + marcar paga + editar (persistido em payment_schedule) ----
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [busyP, setBusyP] = useState(false);
@@ -127,29 +127,33 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
   }, [aiPanel, period.label]);
   const items: Item[] = useMemo(() => [...baseItems, ...iaItems], [baseItems, iaItems]);
 
-  // ---- KPIs ----
-  // Pago no ano = pagamentos com data neste ano (+ os marcados pagos sem data registrada).
-  const pagoAno = items.filter(i => ((i.pag || "").slice(0, 4) === ano) || (i.status === "Pago" && !i.pag)).reduce((a, i) => a + i.pago, 0);
-  const pagoMes = items.filter(i => (i.pag || "").slice(0, 7) === mes).reduce((a, i) => a + i.pago, 0);
-  const aPagarAinda = items.filter(i => i.status !== "Pago" && (i.venc || "").slice(0, 7) === mes).reduce((a, i) => a + i.restante, 0);
-  // Baldes por status — desenhados para FECHAR: Vencidos + Vencem hoje + A vencer = Restante total.
-  // (Vencido = tem venc < hoje; Pendente = todo o resto em aberto, inclusive SEM data → cai em "A vencer".)
-  const bVencidos = items.filter(i => i.status === "Vencido").reduce((a, i) => a + i.restante, 0);
-  const bHoje = items.filter(i => i.status === "Pendente" && ymd(i.venc) === today).reduce((a, i) => a + i.restante, 0);
-  const bAvencer = items.filter(i => i.status === "Pendente" && ymd(i.venc) !== today).reduce((a, i) => a + i.restante, 0);
+  // ---- KPIs — validados por DATA. Parcelado conta POR PARCELA (na data dela), nunca o saldo cheio. ----
+  const monthOf = (d: string) => (d || "").slice(0, 7);
+  // unidades a vencer: parcelado = cada parcela NAO paga (na sua data); senao = restante na data de venc.
+  const dueUnits = items.flatMap(i => {
+    if (i.ps && i.ps.length) return i.ps.filter((p: any) => p.status !== "paid").map((p: any) => ({ i, date: ymd(p.date), amount: Number(p.amount || 0) }));
+    return (i.status !== "Pago" && i.restante > 0.005) ? [{ i, date: ymd(i.venc), amount: i.restante }] : [];
+  });
+  const drow = (i: Item, dateStr: string, valor: number) => ({ empresa: i.empresa, sub: i.sub, categoria: i.categoria, rec: i.rec, dateStr, valor, rawId: i.rawId });
+
+  const pagoAno = items.filter(i => (((i.pag || "").slice(0, 4) === ano) || (i.status === "Pago" && !i.pag))).reduce((a, i) => a + i.pago, 0);
+  const pagoMes = items.filter(i => monthOf(i.pag) === mes).reduce((a, i) => a + i.pago, 0);
+  const aPagarAinda = dueUnits.filter(u => monthOf(u.date) === mes).reduce((a, u) => a + u.amount, 0);
+  const bVencidos = dueUnits.filter(u => u.date && u.date < today).reduce((a, u) => a + u.amount, 0);
+  const bHoje = dueUnits.filter(u => u.date === today).reduce((a, u) => a + u.amount, 0);
+  const bAvencer = dueUnits.filter(u => !u.date || u.date > today).reduce((a, u) => a + u.amount, 0);
   const bPagos = items.reduce((a, i) => a + i.pago, 0);
   const catTotal = (c: string) => items.filter(i => i.categoria === c).reduce((a, i) => a + i.total, 0);
 
-  // ---- fontes clicáveis dos cards/chips (drill-down: de onde vem cada soma) ----
-  const srcPagoAno = items.filter(i => (((i.pag || "").slice(0, 4) === ano) || (i.status === "Pago" && !i.pag)) && i.pago > 0.005);
-  const srcPagoMes = items.filter(i => (i.pag || "").slice(0, 7) === mes && i.pago > 0.005);
-  const srcAPagarAinda = items.filter(i => i.status !== "Pago" && (i.venc || "").slice(0, 7) === mes && i.restante > 0.005);
-  const srcVencidos = items.filter(i => i.status === "Vencido");
-  const srcHoje = items.filter(i => i.status === "Pendente" && ymd(i.venc) === today);
-  const srcAvencer = items.filter(i => i.status === "Pendente" && ymd(i.venc) !== today);
-  const srcPagos = items.filter(i => i.pago > 0.005);
-  const openDrill = (title: string, sub: string, col: "pago" | "restante" | "total", dcol: "pag" | "venc", rows: Item[]) =>
-    setDrill({ title, sub, col, dcol, rows: rows.slice().sort((a, b) => Number((b as any)[col] || 0) - Number((a as any)[col] || 0)) });
+  // ---- fontes clicáveis (linhas uniformes {empresa,sub,categoria,rec,dateStr,valor,rawId}) ----
+  const srcPagoAno = items.filter(i => (((i.pag || "").slice(0, 4) === ano) || (i.status === "Pago" && !i.pag)) && i.pago > 0.005).map(i => drow(i, i.pag || i.venc, i.pago));
+  const srcPagoMes = items.filter(i => monthOf(i.pag) === mes && i.pago > 0.005).map(i => drow(i, i.pag, i.pago));
+  const srcAPagarAinda = dueUnits.filter(u => monthOf(u.date) === mes).map(u => drow(u.i, u.date, u.amount));
+  const srcVencidos = dueUnits.filter(u => u.date && u.date < today).map(u => drow(u.i, u.date, u.amount));
+  const srcHoje = dueUnits.filter(u => u.date === today).map(u => drow(u.i, u.date, u.amount));
+  const srcAvencer = dueUnits.filter(u => !u.date || u.date > today).map(u => drow(u.i, u.date, u.amount));
+  const srcPagos = items.filter(i => i.pago > 0.005).map(i => drow(i, i.pag || i.venc, i.pago));
+  const openDrill = (title: string, sub: string, rows: any[]) => setDrill({ title, sub, rows: rows.slice().sort((a, b) => b.valor - a.valor) });
 
   // ---- Redução de despesas: custos ATIVOS com "custo mensal anterior" (prev_monthly) → economia real ----
   const monthlyOfCost = (c: any) => c.recurrence === "anual" ? Number(c.amount_brl || 0) / 12 : Number(c.amount_brl || 0);
@@ -259,9 +263,9 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
 
       {/* 3 heróis */}
       <div className="fv3-grid3">
-        <div className="fv3-kpi clk" onClick={() => openDrill("Pago no ano", `${ano} · ${srcPagoAno.length} lançamento(s) que compõem esta soma`, "pago", "pag", srcPagoAno)}><div className="lbl">Pago no ano</div><div className="val">{BRL(pagoAno)}</div><div className="hint">jan → hoje · caixa realizado <span className="src">ver fontes ›</span></div></div>
-        <div className="fv3-kpi clk" onClick={() => openDrill("Pago no mês", `${period.label} · ${srcPagoMes.length} lançamento(s) pagos este mês`, "pago", "pag", srcPagoMes)}><div className="lbl">Pago no mês</div><div className="val">{BRL(pagoMes)}</div><div className="hint">já saiu da conta este mês <span className="src">ver fontes ›</span></div></div>
-        <div className="fv3-kpi clk" onClick={() => openDrill("A pagar ainda neste mês", `${srcAPagarAinda.length} lançamento(s) que vencem de hoje até o fim do mês`, "restante", "venc", srcAPagarAinda)}><div className="lbl">A pagar ainda neste mês</div><div className="val amber">{BRL(aPagarAinda)}</div><div className="hint">vence de hoje até fim do mês <span className="src">ver fontes ›</span></div></div>
+        <div className="fv3-kpi clk" onClick={() => openDrill("Pago no ano", `${ano} · ${srcPagoAno.length} lançamento(s) que compõem esta soma`, srcPagoAno)}><div className="lbl">Pago no ano</div><div className="val">{BRL(pagoAno)}</div><div className="hint">jan → hoje · caixa realizado <span className="src">ver fontes ›</span></div></div>
+        <div className="fv3-kpi clk" onClick={() => openDrill("Pago no mês", `${period.label} · ${srcPagoMes.length} lançamento(s) pagos este mês`, srcPagoMes)}><div className="lbl">Pago no mês</div><div className="val">{BRL(pagoMes)}</div><div className="hint">já saiu da conta este mês <span className="src">ver fontes ›</span></div></div>
+        <div className="fv3-kpi clk" onClick={() => openDrill("A pagar ainda neste mês", `${srcAPagarAinda.length} parcela(s)/conta(s) que vencem neste mês`, srcAPagarAinda)}><div className="lbl">A pagar ainda neste mês</div><div className="val amber">{BRL(aPagarAinda)}</div><div className="hint">só o que vence neste mês (parcela do mês) <span className="src">ver fontes ›</span></div></div>
       </div>
 
       {/* chips por categoria */}
@@ -276,10 +280,10 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
 
       {/* 4 baldes de status */}
       <div className="fv3-buckets">
-        <div className="fv3-bucket red clk" onClick={() => openDrill("Vencidos", `${srcVencidos.length} lançamento(s) vencidos e em aberto`, "restante", "venc", srcVencidos)}><div className="lbl">Vencidos</div><div className="val">{BRL(bVencidos)}</div><div className="bsrc">ver fontes ›</div></div>
-        <div className="fv3-bucket yellow clk" onClick={() => openDrill("Vencem hoje", `${srcHoje.length} lançamento(s) que vencem hoje`, "restante", "venc", srcHoje)}><div className="lbl">Vencem hoje</div><div className="val">{BRL(bHoje)}</div><div className="bsrc">ver fontes ›</div></div>
-        <div className="fv3-bucket blue clk" onClick={() => openDrill("A vencer", `${srcAvencer.length} lançamento(s) a vencer (em aberto)`, "restante", "venc", srcAvencer)}><div className="lbl">A vencer</div><div className="val">{BRL(bAvencer)}</div><div className="bsrc">ver fontes ›</div></div>
-        <div className="fv3-bucket green clk" onClick={() => openDrill("Pagos", `${srcPagos.length} lançamento(s) com pagamento registrado`, "pago", "pag", srcPagos)}><div className="lbl">Pagos</div><div className="val">{BRL(bPagos)}</div><div className="bsrc">ver fontes ›</div></div>
+        <div className="fv3-bucket red clk" onClick={() => openDrill("Vencidos", `${srcVencidos.length} parcela(s)/conta(s) vencidas e em aberto`, srcVencidos)}><div className="lbl">Vencidos</div><div className="val">{BRL(bVencidos)}</div><div className="bsrc">ver fontes ›</div></div>
+        <div className="fv3-bucket yellow clk" onClick={() => openDrill("Vencem hoje", `${srcHoje.length} parcela(s)/conta(s) que vencem hoje`, srcHoje)}><div className="lbl">Vencem hoje</div><div className="val">{BRL(bHoje)}</div><div className="bsrc">ver fontes ›</div></div>
+        <div className="fv3-bucket blue clk" onClick={() => openDrill("A vencer", `${srcAvencer.length} parcela(s)/conta(s) futuras (em aberto)`, srcAvencer)}><div className="lbl">A vencer</div><div className="val">{BRL(bAvencer)}</div><div className="bsrc">ver fontes ›</div></div>
+        <div className="fv3-bucket green clk" onClick={() => openDrill("Pagos", `${srcPagos.length} lançamento(s) com pagamento registrado`, srcPagos)}><div className="lbl">Pagos</div><div className="val">{BRL(bPagos)}</div><div className="bsrc">ver fontes ›</div></div>
       </div>
 
       {/* Redução de despesas — economia real a partir de trocas de plano (ex.: OpenAI anual → ChatGPT Pro mensal) */}
@@ -430,11 +434,11 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
         <div className="m-scroll"><div className="fv3-drill">
           {drill.rows.length ? drill.rows.map((r, k) => (
             <div className="drow" key={k} title={r.rawId ? "Clique para editar na origem" : ""} onClick={() => { if (r.rawId && onEdit) { setDrill(null); onEdit(r.rawId); } }} style={{ cursor: r.rawId ? "pointer" : "default" }}>
-              <div className="dl"><div className="dn">{r.empresa}</div><div className="dm">{r.categoria} · {RECLBL[r.rec] || r.rec}{(r as any)[drill.dcol] ? " · " + fmtDT((r as any)[drill.dcol]) : ""}</div></div>
-              <div className="dr"><span className="dv">{BRL(Number((r as any)[drill.col] || 0))}</span><span className="dchip">{(CAT_EMOJI[r.categoria] || "")} {r.categoria}</span></div>
+              <div className="dl"><div className="dn">{r.empresa}</div><div className="dm">{r.categoria} · {RECLBL[r.rec] || r.rec}{r.dateStr ? " · " + fmtDT(r.dateStr) : ""}</div></div>
+              <div className="dr"><span className="dv">{BRL(r.valor)}</span><span className="dchip">{(CAT_EMOJI[r.categoria] || "")} {r.categoria}</span></div>
             </div>
           )) : <div className="drow"><div className="dm" style={{ padding: "8px 0" }}>Sem lançamentos nesta fonte.</div></div>}
-          <div className="drow total"><div className="dl"><div className="dn">Total</div></div><div className="dr"><span className="dv green">{BRL(drill.rows.reduce((a, r) => a + Number((r as any)[drill.col] || 0), 0))}</span></div></div>
+          <div className="drow total"><div className="dl"><div className="dn">Total</div></div><div className="dr"><span className="dv green">{BRL(drill.rows.reduce((a, r) => a + r.valor, 0))}</span></div></div>
         </div></div>
         <div className="fv3-note" style={{ margin: "12px 0 0" }}>Fonte real: cada linha é um lançamento (conta a pagar · custo operacional · uso de IA por token) que compõe esta soma. Clique numa linha para editar na origem.</div>
       </div></div></div>, document.body)}
