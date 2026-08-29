@@ -221,7 +221,7 @@ export default function Financeiro() {
   const [statusF, setStatusF] = useState<"todos" | "vencidos" | "hoje" | "avencer" | "pagos">("todos");
   const [catF, setCatF] = useState<string | null>(null); // A Pagar: filtro por categoria (ferramenta/infraestrutura/servico/salario)
   const [drill, setDrill] = useState<any>(null); // pop-up de detalhes de um card (drill-down)
-  const [per, setPer] = useState<{ from: string; to: string; label: string } | null>(null); // filtro por período (null = mês atual)
+  const [per, setPer] = useState<{ from: string; to: string; label: string } | null>(() => { const q = finQuickPeriods()[0]; return { from: q.from, to: q.to, label: q.label }; }); // default: últimos 30 dias
   const [perOpen, setPerOpen] = useState(false); // popover do filtro personalizado
   useEffect(() => { setStatusF("todos"); setCatF(null); }, [tab]); // trocar de aba zera os filtros dos cards de baixo
   const toggleRecOnly = () => setRecOnly((v) => {
@@ -465,6 +465,7 @@ export default function Financeiro() {
   const mesAtual = today().slice(0, 7); // "YYYY-MM"
   // Filtro por período (o Crasto quer projeções): se `per` setado, usa a faixa; senão, o mês atual.
   const inMes = (d: any) => { const x = ymd(d); if (!x) return false; return per ? (x >= per.from && x <= per.to) : x.slice(0, 7) === mesAtual; };
+  const inCal = (d: any) => { const x = ymd(d); return !!x && x.slice(0, 7) === mesAtual; }; // sempre mes-calendario (DAS/tributos nao seguem o filtro de periodo)
   const noMesLbl = per ? t("no período") : t("no mês");
   const perPresets = () => {
     const [y, mo] = today().split("-").map(Number);
@@ -569,20 +570,20 @@ export default function Financeiro() {
   ];
   const simplesAliq = (rbt12: number) => { const f = SIMPLES_ANEXO_III.find((x) => rbt12 <= x.ate) || SIMPLES_ANEXO_III[SIMPLES_ANEXO_III.length - 1]; return rbt12 > 0 ? Math.max(0, (rbt12 * f.nom - f.pd) / rbt12) : f.nom; };
   const isOpRev = (r: any) => r.type === "income" && !isInterna(r) && !isFaturamento(r);
-  const receitaBrutaMes = tx.filter((r: any) => isOpRev(r) && inMes(r.transaction_date)).reduce((a: number, r: any) => a + Number(r.amount || 0), 0);
-  const refMonthEnd = (per ? per.to : today()).slice(0, 7); // "YYYY-MM" de referência
+  const receitaBrutaMes = tx.filter((r: any) => isOpRev(r) && inCal(r.transaction_date)).reduce((a: number, r: any) => a + Number(r.amount || 0), 0);
+  const refMonthEnd = today().slice(0, 7); // "YYYY-MM" de referência (DAS = mes-calendario, independe do filtro de periodo)
   const rbt12Ini = addMonthsISO(refMonthEnd + "-01", -12).slice(0, 7);
   const rbt12 = tx.filter((r: any) => { if (!isOpRev(r)) return false; const m = (ymd(r.transaction_date) || "").slice(0, 7); return m >= rbt12Ini && m < refMonthEnd; }).reduce((a: number, r: any) => a + Number(r.amount || 0), 0);
   const aliqEfetiva = simplesAliq(rbt12);
   const impostoMes = receitaBrutaMes * aliqEfetiva;
-  const dasPagoMes = tx.filter((r: any) => r.type === "expense" && isImposto(r) && inMes(r.transaction_date)).reduce((a: number, r: any) => a + Number(r.amount || 0), 0);
+  const dasPagoMes = tx.filter((r: any) => r.type === "expense" && isImposto(r) && inCal(r.transaction_date)).reduce((a: number, r: any) => a + Number(r.amount || 0), 0);
   const pctAliq = (aliqEfetiva * 100).toFixed(2).replace(".", ",") + "%";
   // Contabilidade (honorários do contador) — custo mensal recorrente. Entra no card "Tributos e impostos do mês".
   const isContab = (c: any) => /cont(a|á)bil|contador|honor[aá]ri|s[aã]o lucas|klebson/i.test((c.vendor_name || "") + " " + (c.description || "") + " " + (c.category || ""));
   const contabMes = activeCosts.filter(isContab).reduce((a: number, c: any) => a + custoMensalDe(c), 0);
   const tributosMes = impostoMes + contabMes;
   const rowsImposto = [
-    { name: t("Receita bruta") + (per ? "" : " · " + mesAtual), detail: t("clientes — extratos Nubank + Itaú"), value: receitaBrutaMes, tone: "ok", status: t("base") },
+    { name: t("Receita bruta") + " · " + mesAtual, detail: t("clientes — extratos Nubank + Itaú"), value: receitaBrutaMes, tone: "ok", status: t("base") },
     { name: t("Imposto (DAS) · Simples Anexo III"), detail: t("RBT12 (12m) ") + money(rbt12), value: -impostoMes, tone: "warn", status: pctAliq },
     { name: t("Contabilidade (honorários)"), detail: t("honorários contábeis do mês"), value: -contabMes, tone: "warn", status: t("mensal") },
     { name: t("DAS já pago no mês"), detail: t("comparação · lançado na tesouraria"), value: -dasPagoMes, tone: dasPagoMes > 0 ? "info" : "mute", status: dasPagoMes > 0 ? t("pago") : t("nada lançado") },
@@ -825,6 +826,12 @@ export default function Financeiro() {
 
       {/* ═══ COCKPIT (visão geral de todas as áreas) — só na raiz /admin/financeiro ═══ */}
       {isCockpit && (<>
+      {/* Filtro de período (fluxo): 30 dias (padrão) / 1m / 3m / 6m / 1 ano — dirige os cards de fluxo do cockpit. Tributos seguem mensal. */}
+      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--crasto-text-faint)", textTransform: "uppercase", letterSpacing: ".05em", marginRight: 4 }}>{t("Período")}</span>
+        {finQuickPeriods().map((pp) => <button key={pp.key} className={"ptab" + (per && per.from === pp.from && per.to === pp.to ? " is-active" : "")} style={{ padding: "6px 13px", fontSize: 12 }} onClick={() => { setPer({ from: pp.from, to: pp.to, label: pp.label }); setTxFrom(pp.from); setTxTo(pp.to); setTxYear("todos"); }}>{t(pp.label)}</button>)}
+        <span style={{ fontSize: 11, color: "var(--crasto-text-muted)", marginLeft: 6 }}>{per ? mmdd(per.from) + " → " + mmdd(per.to) : ""}</span>
+      </div>
       {/* ALERTA de renovação anual — 30 dias antes do vencimento (sininho + e-mail disparam pela automação de fundo) */}
       {renovacoes.length > 0 && (
         <div style={{ marginBottom: 12, padding: "11px 15px", borderRadius: 12, border: "1px solid rgba(200,60,60,.55)", background: "rgba(200,60,60,.12)", display: "flex", flexDirection: "column", gap: 5 }}>
@@ -849,9 +856,9 @@ export default function Financeiro() {
 
       {/* KPIs topo — clicáveis: cada card leva à aba/tela correspondente (dado real). kpis--5 = 5 cards em 1 linha */}
       <div className="kpis kpis--5" style={{ marginBottom: 16 }}>
-        <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Recebido no mês"), rows: rowsRecebidoMes, foot: { label: t("Recebido no mês"), value: recebidoMes } })} title={t("Ver detalhes")}><div className="lab">{t("Entrou no mês (caixa)")}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(recebidoMes)}</div><div className="delta">{t("recebido de fato")}</div></button>
-        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A pagar no mês"), rows: rowsPagarMes, foot: { label: t("Total/mês"), value: aPagarMes } })} title={t("Ver detalhes")}><div className="lab">{t("Saiu no mês (caixa)")}</div><div className="val tnum" style={{ fontSize: 22, color: "var(--fin-orange)" }}>{money(aPagarMes)}</div><div className="delta">{t("IA + Pessoas + Ferramentas + Infra")}</div></button>
-        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado do mês"), rows: rowsResultado, foot: { label: t("Resultado"), value: resultadoMes } })} title={t("Resultado do mês = a receber − a pagar")} style={{ background: "linear-gradient(180deg,#0B1830,#010E26)", borderColor: "transparent", color: "#fff" }}><div className="lab" style={{ color: "#9DB4E0" }}>{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "#fff" }}>{money(resultadoMes)}</div><div className="delta" style={{ color: "#B7C6E6" }}>{t("recebido − pago (caixa)")}</div></button>
+        <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Entradas") + perTag, sub: t("por cliente/origem"), rows: drillEntradas, foot: { label: t("Entradas (operacional)"), value: pEntradas } })} title={t("Ver detalhes")}><div className="lab">{t("Entrou (caixa)")}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(pEntradas)}</div><div className="delta">{t("recebido no período")}</div></button>
+        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Saídas") + perTag, sub: t("por categoria"), rows: drillSaidas, foot: { label: t("Saídas (operacional)"), value: -pSaidas } })} title={t("Ver detalhes")}><div className="lab">{t("Saiu (caixa)")}</div><div className="val tnum" style={{ fontSize: 22, color: "var(--fin-orange)" }}>{money(pSaidas)}</div><div className="delta">{t("pago no período")}</div></button>
+        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado") + perTag, rows: drillResultado, foot: { label: t("Resultado"), value: pEntradas - pSaidas } })} title={t("Resultado do período = entradas − saídas (caixa)")} style={{ background: "linear-gradient(180deg,#0B1830,#010E26)", borderColor: "transparent", color: "#fff" }}><div className="lab" style={{ color: "#9DB4E0" }}>{t("Resultado (caixa)")}</div><div className="val tnum" style={{ fontSize: 22, color: "#fff" }}>{money(pEntradas - pSaidas)}</div><div className="delta" style={{ color: "#B7C6E6" }}>{t("entradas − saídas · período")}</div></button>
         <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Vencidos"), rows: rowsVencidos, foot: { label: t("Total vencido"), value: inadimplencia } })} title={t("Ver detalhes")}><div className="lab">{t("Vencidos (em aberto)")}</div><div className="val tnum" style={{ fontSize: 22, color: inadimplencia > 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(inadimplencia)}</div><div className="delta">{inadimplencia > 0 ? t("a receber vencido") : t("nada vencido ✓")}</div></button>
         <button className="kpi kpi-btn" onClick={() => setDrill({ title: "🧾 " + t("Tributos e impostos do mês"), rows: rowsImposto, foot: { label: t("Tributos + contabilidade do mês"), value: -tributosMes } })} title={t("DAS do Simples Nacional (Anexo III, alíquota efetiva pelo RBT12) + honorários contábeis do mês")}><div className="lab">🧾 {t("Tributos e impostos do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "var(--fin-red)" }}>{money(tributosMes)}</div><div className="delta">{t("DAS")} {pctAliq} + {t("contábil")}</div></button>
       </div>
