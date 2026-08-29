@@ -97,7 +97,7 @@ function Wordmark() {
 // filho BLOQUEADO (cadeado + upsell) e AÇÃO (onClick sem to) — p/ agrupar módulos como Marketing.
 // `children` = sub-galhos (3º nível+). O motor do sidebar é RECURSIVO: um filho pode ter filhos
 // (ex.: Vendas › WhatsApp › Conversas/Tarefas/…; ou RH › Avaliação comportamental › ferramentas).
-export type NavChild = { to?: string; label: string; end?: boolean; tag?: string; locked?: boolean; onClick?: () => void; children?: NavChild[] };
+export type NavChild = { to?: string; label: string; end?: boolean; tag?: string; locked?: boolean; onClick?: () => void; children?: NavChild[]; icon?: LucideIcon };
 // `mod` = pinta o nome/ícone com a cor de MÓDULO (azul, negrito) — o mesmo sinal visual do cliente.
 // Usado hoje pelos itens do admin (que ainda são links planos, sem árvore); os nós-pai de árvore já
 // recebem `navlink--mod` sozinhos no render.
@@ -213,7 +213,7 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
         </div>
       );
     }
-    const ci = <><span className="navlink-lbl">{t(c.label)}</span>{c.locked ? <Lock size={12} className="navlink-lock" /> : c.tag ? <span className="tag">{c.tag}</span> : null}</>;
+    const ci = <>{c.icon ? <c.icon size={15} style={{ flex: "none", opacity: .85 }} /> : null}<span className="navlink-lbl">{t(c.label)}</span>{c.locked ? <Lock size={12} className="navlink-lock" /> : c.tag ? <span className="tag">{c.tag}</span> : null}</>;
     if (c.to) return (
       <NavLink key={c.label} to={c.to} end={c.end} onClick={() => setOpen(false)} style={{ paddingLeft: padLeft }} className={({ isActive }) => "navlink navlink--child" + (isActive ? " on" : "")}>{ci}</NavLink>
     );

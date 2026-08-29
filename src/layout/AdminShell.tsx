@@ -1,31 +1,52 @@
-import { LayoutDashboard, Users, Grid3x3, FileText, Tag, Share2, Coins, TrendingUp, Plug, LifeBuoy, Rocket, DollarSign, Cpu, Activity, BookOpen, ScrollText, ClipboardList, KeyRound, Blocks, Calculator } from "lucide-react";
+import { LayoutDashboard, Users, Grid3x3, FileText, Tag, Share2, TrendingUp, Plug, LifeBuoy, Rocket, DollarSign, Cpu, Activity, BookOpen, ScrollText, ClipboardList, KeyRound, Blocks, Calculator } from "lucide-react";
 import Shell, { type NavItem } from "./Shell";
 import JulieWidget from "../ui/JulieWidget";
 
-const CONSOLE = "Console · IA 🔒";
+// Sidebar do ADMIN (Crasto) — reestruturado (aprovado pelo Crasto 2026-08-29). Reorg de MENU só;
+// nenhuma rota/dado se move; o Financeiro é INTOCÁVEL. Três blocos:
+//  1) CEO Crasto.ai (árvore) — a empresa como nó pai; 1ª tela = Cockpit (= a home /admin de hoje).
+//  2) Tech Panel (era "Console · IA") — camada técnica dos agentes + Integrações (visíveis por cliente).
+//  3) MÓDULOS — o que a Crasto oferece aos clientes e USA na própria org: Vendas (WaCRM+Julie) ·
+//     Financeiro (intocável) · Contabilidade. Receita & churn e Agentes indicadores entram em Vendas.
+//     Custos & Despesas saiu (já embarcado no Financeiro).
 const NAV: NavItem[] = [
-  { to: "/admin", end: true, icon: LayoutDashboard, label: "CEO Crasto.ai" },
-  { to: "/admin/clientes", icon: Users, label: "Clientes", section: "Operação" },
-  { to: "/admin/servicos", icon: Tag, label: "Catálogo de serviços", section: "Operação" },
-  { to: "/admin/catalogo", icon: Grid3x3, label: "Catálogo de módulos", section: "Operação" },
-  { to: "/admin/propostas", icon: FileText, label: "Gerador de propostas", section: "Operação" },
-  { to: "/admin/implantacoes", icon: Rocket, label: "Solicitações de implantação", section: "Operação" },
-  { to: "/admin/tickets", icon: LifeBuoy, label: "Chamados & Suporte", section: "Operação" },
-  // Console · IA (admin-only) — camada operacional dos agentes (SPEC do Console)
-  { to: "/admin/console/health", icon: Activity, label: "Health Check", section: CONSOLE },
-  { to: "/admin/console/memorias", icon: BookOpen, label: "Memórias & Conhecimento", section: CONSOLE },
-  { to: "/admin/console/regras", icon: ScrollText, label: "Regras Globais", section: CONSOLE },
-  // "Permissões & Acessos" saiu do sidebar (pedido do Crasto): já é acessível pelo ícone de escudo
-  // na lista de Clientes (por cliente). A rota /admin/console/permissoes segue viva.
-  { to: "/admin/console/auditoria", icon: ClipboardList, label: "Auditoria & Logs", section: CONSOLE },
-  { to: "/admin/integracoes", icon: KeyRound, label: "APIs & Chaves", section: CONSOLE },
-  { to: "/admin/console/modelos", icon: Cpu, label: "Modelos LLM", section: CONSOLE },
-  { to: "/admin/console/skills", icon: Blocks, label: "Catálogo de Skills", section: CONSOLE },
-  // Financeiro = menu-árvore: clicar expande as áreas como TELAS individuais (rumo ao white-label).
-  // O pai não abre tela própria; o 1º filho (Cockpit) é a visão geral de todas as áreas.
   {
-    icon: DollarSign, label: "Financeiro", tag: "🔒", section: "Financeiro & Parceiros",
-    to: "/admin/financeiro",
+    icon: LayoutDashboard, label: "CEO Crasto.ai",
+    children: [
+      { to: "/admin", end: true, label: "Cockpit", icon: LayoutDashboard },
+      { to: "/admin/clientes", label: "Clientes", icon: Users },
+      { to: "/admin/servicos", label: "Catálogo de Serviços", icon: Tag },
+      { to: "/admin/catalogo", label: "Catálogo de Módulos", icon: Grid3x3 },
+      { to: "/admin/propostas", label: "Gerador de Propostas", icon: FileText },
+      { to: "/admin/implantacoes", label: "Solicitações de Implantação", icon: Rocket },
+      { to: "/admin/tickets", label: "Chamados & Suporte", icon: LifeBuoy },
+    ],
+  },
+  {
+    icon: Cpu, label: "Tech Panel",
+    children: [
+      { to: "/admin/console/health", label: "Health Check", icon: Activity },
+      { to: "/admin/console/memorias", label: "Memórias & Conhecimento", icon: BookOpen },
+      { to: "/admin/console/regras", label: "Regras Globais", icon: ScrollText },
+      { to: "/admin/console/auditoria", label: "Auditoria & Logs", icon: ClipboardList },
+      { to: "/admin/integracoes", label: "APIs & Chaves", icon: KeyRound },
+      { to: "/admin/console/modelos", label: "Modelos LLM", icon: Cpu },
+      { to: "/admin/console/skills", label: "Catálogo de Skills", icon: Blocks },
+      { to: "/admin/integracoes", label: "Integrações", icon: Plug },
+    ],
+  },
+  // MÓDULOS — Vendas (o WaCRM da Crasto na org dela; a Julie é o agente de IA, não item de menu).
+  {
+    icon: TrendingUp, label: "Vendas", section: "Módulos", to: "/admin/crm",
+    children: [
+      { to: "/admin/crm", end: true, label: "Cockpit", icon: LayoutDashboard },
+      { to: "/admin/conectores", label: "Agentes indicadores", icon: Share2 },
+      { to: "/admin/receita", label: "Receita & churn", icon: TrendingUp },
+    ],
+  },
+  // Financeiro — INTOCÁVEL (mesma árvore de sempre).
+  {
+    icon: DollarSign, label: "Financeiro", section: "Módulos", to: "/admin/financeiro",
     children: [
       { to: "/admin/financeiro", end: true, label: "Cockpit" },
       { to: "/admin/financeiro/a-pagar", label: "A Pagar" },
@@ -35,23 +56,18 @@ const NAV: NavItem[] = [
       { to: "/admin/financeiro/tesouraria", label: "Tesouraria" },
     ],
   },
-  { to: "/admin/contabilidade", icon: Calculator, label: "Contabilidade", tag: "🔒", section: "Financeiro & Parceiros" },
-  { to: "/admin/conectores", icon: Share2, label: "Agentes indicadores", section: "Financeiro & Parceiros" },
-  { to: "/admin/custos", icon: Coins, label: "Custos & Despesas", tag: "🔒", section: "Financeiro & Parceiros" },
-  { to: "/admin/receita", icon: TrendingUp, label: "Receita & churn", section: "Financeiro & Parceiros" },
-  { to: "/admin/integracoes", icon: Plug, label: "Integrações", section: "Financeiro & Parceiros" },
+  { icon: Calculator, label: "Contabilidade", section: "Módulos", to: "/admin/contabilidade" },
 ];
 
-// Os itens de módulo (tudo que tem `section`) ganham a COR de módulo — azul, negrito — igual à
-// visão do cliente (`.navlink--mod`). A home ("CEO Crasto.ai", sem seção) fica neutra, como o
-// "Início" do cliente. (1º passo rumo à estrutura em árvore que o Crasto vai incrementar depois.)
+// Itens de módulo (com `section`) ganham a COR de módulo (azul, negrito). As árvores de topo
+// (CEO Crasto.ai, Tech Panel) já ficam azuis sozinhas (nó-pai de árvore recebe `navlink--mod`).
 const NAV_MOD: NavItem[] = NAV.map((n) => (n.section ? { ...n, mod: true } : n));
 
 export default function AdminShell() {
   return (
     <>
       <Shell nav={NAV_MOD} who="Crasto.AI · Admin" sub="Super-admin (RLS)" logoTone="linear-gradient(145deg,#010E26,#0a2350)" />
-      {/* Julie — CFO de IA, flutuante em todo o admin */}
+      {/* Julie — CFO/recepção de IA, flutuante em todo o admin */}
       <JulieWidget />
     </>
   );
