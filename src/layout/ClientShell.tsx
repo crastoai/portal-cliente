@@ -218,8 +218,32 @@ export default function ClientShell() {
   // Marketing/Social/Tráfego agrupados sob "Marketing". Cada filho preserva seu estado real.
   // O 1º filho (o próprio módulo Marketing) é rotulado "Cockpit" — a 1ª tela NUNCA repete o nome
   // do módulo (regra da spec do sidebar); mata a duplicidade "Marketing › Marketing".
-  const MKT_KEYS = new Set(["marketing", "social", "trafego"]);
-  const mktChildren = MODULES.filter((m) => MKT_KEYS.has(m.key)).map((m) => ({ label: m.key === "marketing" ? "Cockpit" : m.label, ...slotFor(m) }));
+  const byKey = (k: string) => MODULES.find((m) => m.key === k)!;
+  // Árvore do módulo MARKETING — estrutura aprovada no protótipo clicável
+  // (`05 Synapse (Dev)/02 Build/06_AI_Team_Blueprint/_Referencias_Spreed/LER_Prototipo_Telas_Spreed_v1.0.html`):
+  //   Cockpit · Produzir[Brand Kit · Vídeos Virais[Meus Avatares/Clone · Cortes · Gerador de Roteiros]]
+  //          · Distribuir[Calendário · Agendamento & Automação · Mídia Paga (Tráfego Pago)]
+  // Entra só a NAVEGAÇÃO (visual-first, pedido do Crasto): as telas que ainda não existem ficam
+  // "em breve" e mandam pro /app/modulos — mesmo padrão do "Catálogo de serviços" em Vendas.
+  // Os nós que JÁ têm módulo contratado (Social Media → Agendamento; Tráfego Pago → Mídia Paga)
+  // preservam o estado REAL via slotFor (abrir / em breve / cadeado): não podem regredir.
+  const emBreve = (label: string): NavChild => ({ label, tag: t("em breve"), onClick: () => navigate("/app/modulos") });
+  const mktChildren: NavChild[] = [
+    { label: "Cockpit", ...slotFor(byKey("marketing")) },
+    { label: "Produzir", children: [
+      emBreve("Brand Kit"),
+      { label: "Vídeos Virais", children: [
+        emBreve("Meus Avatares/Clone"),
+        emBreve("Cortes"),
+        emBreve("Gerador de Roteiros"),
+      ] },
+    ] },
+    { label: "Distribuir", children: [
+      emBreve("Calendário"),
+      { label: "Agendamento & Automação", ...slotFor(byKey("social")) },
+      { label: "Mídia Paga (Tráfego Pago)", ...slotFor(byKey("trafego")) },
+    ] },
+  ];
 
   // TODO módulo vira uma ÁRVORE (pedido do Crasto): o nome do módulo é o nó PAI (azul, negrito, com
   // "+"); quem tem sub-telas (Vendas, Marketing & Growth) expande as seções, e os de destino único
@@ -235,7 +259,6 @@ export default function ClientShell() {
     const children = (slot.children && slot.children.length) ? slot.children : [galhoUnico(m.label, slot)];
     return { icon: m.icon, label: m.label, section: "Módulos", to: slot.to, children };
   };
-  const byKey = (k: string) => MODULES.find((m) => m.key === k)!;
   // Importação é SUB-MENU de Compras (pedido do Crasto): entra como galho dentro da árvore Compras,
   // preservando seu estado real (aberto / em breve / cadeado). Não aparece mais como módulo de topo.
   const impSlot = slotFor(byKey("importacao"));
