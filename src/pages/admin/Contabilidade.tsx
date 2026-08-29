@@ -164,7 +164,7 @@ export default function Contabilidade() {
   return (
     <div className="contab">
       <style>{CSS}</style>
-      <PageHead eyebrow="Financeiro & Contabilidade" title="Contabilidade" sub="Sua contabilidade por dentro e no seu controle — a empresa prepara, o contador só assina." />
+      <PageHead eyebrow="Financeiro & Contabilidade" title="Visão geral" sub="Sua contabilidade por dentro e no seu controle — a empresa prepara, o contador só assina." />
 
       <nav className="csub">
         {SECOES.map((s) => (
