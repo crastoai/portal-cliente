@@ -11,7 +11,7 @@ export type PresencePoint = {
   clients: string[]; tone?: "active" | "negotiating" | "future";
 };
 
-const TONE: Record<string, string> = { active: "#0B2A6B", negotiating: "#C7962B", future: "#8A94A6" };
+const TONE: Record<string, string> = { active: "#1F8A5B", negotiating: "#C7962B", future: "#8A94A6" };
 
 export default function WorldPresenceMap({ points, total, height = 460 }: { points: PresencePoint[]; total: number; height?: number }) {
   const [view, setView] = useState<{ center: [number, number]; zoom: number }>({ center: [0, 12], zoom: 1 });
@@ -39,17 +39,19 @@ export default function WorldPresenceMap({ points, total, height = 460 }: { poin
               const r = 5.5 / z; const on = sel?.id === p.id; const future = p.tone === "future";
               return (
                 <Marker key={p.id} coordinates={p.coordinates} onClick={() => setSel(on ? null : p)} style={{ default: { cursor: "pointer" }, hover: { cursor: "pointer" }, pressed: {} }}>
+                  {/* elementos VISUAIS não capturam clique (pointerEvents:none) — só o círculo de hit
+                      abaixo capta. Assim o pulso grande de uma cidade não rouba o clique da vizinha. */}
                   {p.tone === "active" && (
-                    <circle r={r * 1.6} fill="none" stroke={tone} strokeWidth={1.2 / z} opacity={0.35}>
+                    <circle r={r * 1.6} fill="none" stroke={tone} strokeWidth={1.2 / z} opacity={0.35} style={{ pointerEvents: "none" }}>
                       <animate attributeName="r" values={`${r * 1.3};${r * 3.2};${r * 1.3}`} dur="2.6s" repeatCount="indefinite" />
                       <animate attributeName="opacity" values="0.4;0;0.4" dur="2.6s" repeatCount="indefinite" />
                     </circle>
                   )}
-                  {on && <circle r={r * 2.1} fill="none" stroke={tone} strokeWidth={1.4 / z} />}
-                  <circle r={r} fill={future ? "none" : tone} stroke={future ? tone : "#fff"}
+                  {on && <circle r={r * 2.1} fill="none" stroke={tone} strokeWidth={1.4 / z} style={{ pointerEvents: "none" }} />}
+                  <circle r={r} fill={future ? "none" : tone} stroke={future ? tone : "#fff"} style={{ pointerEvents: "none" }}
                     strokeWidth={(future ? 1.4 : 1.3) / z} strokeDasharray={future ? `${2 / z} ${2 / z}` : undefined} />
                   {/* área de clique maior + acessível por teclado (Enter/Espaço) + tooltip no hover */}
-                  <circle r={11 / z} fill="transparent" tabIndex={0} role="button"
+                  <circle r={6 / z} fill="transparent" tabIndex={0} role="button"
                     aria-label={`${p.label} — ${p.clients.length} ${p.clients.length === 1 ? "cliente" : "clientes"}`}
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSel(on ? null : p); } }}>
                     <title>{`${p.label} · ${p.clients.length}`}</title>
@@ -63,7 +65,7 @@ export default function WorldPresenceMap({ points, total, height = 460 }: { poin
 
       {/* Total de clientes (badge no mapa) */}
       <div style={{ position: "absolute", left: 12, top: 12, display: "flex", alignItems: "center", gap: 8, background: "var(--crasto-surface)", border: "1px solid var(--crasto-border-soft)", borderRadius: 999, padding: "6px 14px", boxShadow: "0 1px 3px rgba(1,14,38,.12)" }}>
-        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#0B2A6B" }} />
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#1F8A5B" }} />
         <b style={{ fontSize: 14, color: "var(--crasto-text-primary)" }}>{total}</b>
         <span style={{ fontSize: 12.5, color: "var(--crasto-text-muted)" }}>clientes no mapa</span>
       </div>
@@ -77,7 +79,7 @@ export default function WorldPresenceMap({ points, total, height = 460 }: { poin
             <button onClick={() => setSel(null)} aria-label="Fechar" style={{ border: "none", background: "transparent", color: "var(--crasto-text-muted)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
           </div>
           <div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", marginBottom: 8 }}>{sel.clients.length} {sel.clients.length === 1 ? "cliente" : "clientes"}</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 200, overflowY: "auto" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: "min(72vh, 430px)", overflowY: "auto" }}>
             {sel.clients.map((c, i) => (
               <div key={i} style={{ fontSize: 13, color: "var(--crasto-text-body)", display: "flex", alignItems: "center", gap: 7 }}>
                 <span style={{ width: 5, height: 5, borderRadius: "50%", background: TONE[sel.tone || "active"], flex: "none" }} />{c}
