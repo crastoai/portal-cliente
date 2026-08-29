@@ -33,11 +33,31 @@ export const COUNTRY_COORDS: Record<string, [number, number]> = {
 // Matchway (Porto). Aproximados pelo estado/região informado pelo Crasto quando o site não expôs
 // endereço: Silver Cactus (Nevada), Kindness & Love (Washington DC), Sushi (Flórida), Consciência
 // Sistêmica (Portugal). Na Fatia 2 isso vira dado por cliente (cidade exata) e some daqui.
-export const INTL_SEED: { id: string; coordinates: [number, number]; label: string; clients: string[]; tone: "active" | "negotiating" | "future" }[] = [
-  // Portugal agrupa os 2 clientes num pino só (o clique mostra ambos — resolve o encavalamento).
-  { id: "pt", coordinates: [-8.4, 39.8], label: "Portugal", clients: ["Matchway · Porto", "Consciência Sistêmica"], tone: "active" },
-  { id: "jp", coordinates: [139.70, 35.66], label: "Tokyo · Japan", clients: ["Kaikotoba"], tone: "active" },
-  { id: "us-nv", coordinates: [-115.14, 36.17], label: "Nevada · US", clients: ["Silver Cactus Jewelry"], tone: "active" },
-  { id: "us-va", coordinates: [-77.19, 38.78], label: "Springfield, VA · US", clients: ["Kindness & Love Transportation"], tone: "active" },
-  { id: "us-fl", coordinates: [-80.35, 25.82], label: "Doral, FL · US", clients: ["NacionSushi"], tone: "active" },
+// Coordenadas por CIDADE (long, lat) — para plotar cada cliente na cidade REAL, não na capital do estado.
+export const CITY_COORDS: Record<string, [number, number]> = {
+  "São Paulo": [-46.63, -23.55], "Ribeirão Preto": [-47.81, -21.18], "Guarulhos": [-46.53, -23.46],
+  "Recife": [-34.88, -8.05], "Rio de Janeiro": [-43.21, -22.91], "Barueri": [-46.88, -23.51],
+  "Tokyo": [139.70, 35.66], "Porto": [-8.61, 41.15], "Portugal": [-8.4, 39.8],
+  "Nevada": [-115.14, 36.17], "Springfield, VA": [-77.19, 38.78], "Doral, FL": [-80.35, 25.82],
+};
+
+// Clientes REAIS (com contrato/pagamento) e onde estão — fonte: pastas `Clients/` (coleta 2026-08-29
+// lendo contratos/CONTEXTO de cada cliente) + internacionais confirmados pelo Crasto (LOIs EB2-NIW).
+// SEMENTE até a Fatia 2 (campo cidade/CEP por cliente no banco). Só ATIVOS aqui (prospects ficam de fora).
+// `city` casa com CITY_COORDS. El Shadai: cidade exata não consta no contrato → aproximado em SP.
+export const CLIENTS_GEO: { client: string; city: string; uf: string; country: string }[] = [
+  { client: "Carneiro de Souza · Dr Francisco", city: "São Paulo", uf: "SP", country: "BR" },
+  { client: "SR Brasil Corretora", city: "São Paulo", uf: "SP", country: "BR" },
+  { client: "FLSS Advogados", city: "São Paulo", uf: "SP", country: "BR" },
+  { client: "JJ Serviços de Terceirização", city: "São Paulo", uf: "SP", country: "BR" },
+  { client: "Dr Hugo Doria · CDN", city: "São Paulo", uf: "SP", country: "BR" },
+  { client: "Lavve.me", city: "São Paulo", uf: "SP", country: "BR" },
+  { client: "Grupo El Shadai · interior SP", city: "São Paulo", uf: "SP", country: "BR" },
+  { client: "Connect Solar", city: "Ribeirão Preto", uf: "SP", country: "BR" },
+  { client: "Kaikotoba", city: "Tokyo", uf: "", country: "JP" },
+  { client: "Matchway", city: "Porto", uf: "", country: "PT" },
+  { client: "Consciência Sistêmica · Dr Fernando", city: "Portugal", uf: "", country: "PT" },
+  { client: "Silver Cactus Jewelry", city: "Nevada", uf: "NV", country: "US" },
+  { client: "Kindness & Love Transportation", city: "Springfield, VA", uf: "VA", country: "US" },
+  { client: "NacionSushi", city: "Doral, FL", uf: "FL", country: "US" },
 ];

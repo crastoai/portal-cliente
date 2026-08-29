@@ -4,7 +4,7 @@ import { services } from "../../services";
 import { PageHead, useAsync, useSort, SortTh } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import WorldPresenceMap, { type PresencePoint } from "../../ui/WorldPresenceMap";
-import { UF_COORDS, UF_CAPITAL, INTL_SEED } from "../../lib/geoCoords";
+import { CITY_COORDS, CLIENTS_GEO } from "../../lib/geoCoords";
 
 type Agent = { name: string; status: string };
 type Client = {
@@ -54,20 +54,20 @@ export default function ConsoleHealthCheck() {
   // Presença geográfica: os clientes do admin trazem o campo `uf` (o health-check não) → busca à
   // parte e agrega por estado p/ plotar no mapa-múndi. Internacionais entram como semente até a
   // Fatia 2 (país/CEP por cliente + geocoding) — ver lib/geoCoords + ui/WorldPresenceMap.
-  const { data: geoClients } = useAsync(() => services.analytics.admin.clients<{ name?: string; uf?: string | null }[]>(), []);
+  // Presença geográfica: clientes REAIS por CIDADE (fonte: pastas Clients/ — ver lib/geoCoords).
+  // Agrupa por cidade; o clique no ponto mostra a lista com cidade+estado. Semente até a Fatia 2
+  // (campo cidade/CEP por cliente no banco). Connect fica em Ribeirão Preto, não na capital.
   const mapPoints: PresencePoint[] = (() => {
-    const byUf: Record<string, string[]> = {};
-    for (const c of (geoClients ?? [])) {
-      const uf = (c.uf || "").toUpperCase();
-      if (uf && UF_COORDS[uf]) (byUf[uf] || (byUf[uf] = [])).push(c.name || "—");
+    const byCity: Record<string, { uf: string; clients: string[] }> = {};
+    for (const c of CLIENTS_GEO) {
+      if (!CITY_COORDS[c.city]) continue;
+      (byCity[c.city] || (byCity[c.city] = { uf: c.uf, clients: [] })).clients.push(c.client);
     }
-    const pts: PresencePoint[] = Object.entries(byUf).map(([uf, names]) => ({
-      id: uf, coordinates: UF_COORDS[uf], label: `${UF_CAPITAL[uf] || uf} · ${uf}`, clients: names, tone: "active",
+    return Object.entries(byCity).map(([city, v]) => ({
+      id: city, coordinates: CITY_COORDS[city], label: v.uf ? `${city} · ${v.uf}` : city, clients: v.clients, tone: "active",
     }));
-    // Internacionais reais (semente até a Fatia 2). Portugal agrupa 2 clientes num pino.
-    for (const s of INTL_SEED) pts.push({ id: s.id, coordinates: s.coordinates, label: s.label, clients: s.clients, tone: s.tone });
-    return pts;
   })();
+  const mapTotal = CLIENTS_GEO.length;
   // Ordenação: padrão "pior saúde primeiro" (desc). Coluna de saúde usa a severidade bruta (red>yellow>green).
   const { sort, toggle, sorted } = useSort("health", -1);
 
@@ -115,7 +115,7 @@ export default function ConsoleHealthCheck() {
           <div style={{ flex: 1 }}><h3 style={{ margin: 0 }}>{t("Presença global")}</h3><div className="csub" style={{ margin: 0 }}>{t("onde estão os clientes · clique num ponto pra ver quem está ali")}</div></div>
           <span className="pill ok" style={{ marginLeft: "auto" }}><span className="d" />{total} {t("clientes ativos")}</span>
         </div>
-        <WorldPresenceMap points={mapPoints} total={total} height={460} />
+        <WorldPresenceMap points={mapPoints} total={mapTotal} height={460} />
       </div>
 
       {/* Legenda */}
