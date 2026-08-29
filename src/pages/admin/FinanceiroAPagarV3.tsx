@@ -57,8 +57,18 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
     { key: "12m", label: "Últimos 12 meses", from: ini12 + "-01", to: today },
     { key: "anoant", label: "Ano passado", from: anoPassado + "-01-01", to: anoPassado + "-12-31" },
   ];
-  // padrão = ANO VIGENTE inteiro (01/jan → 31/dez); clicável para trocar
-  const [period, setPeriod] = useState<{ from: string; to: string; label: string }>({ from: yStart, to: yEnd, label: "Este ano" });
+  // atalhos de período (fluxo): 30 dias (padrão) / 1m / 3m / 6m / 1 ano.
+  const _bd = (n: number) => { const d = new Date(_d0); d.setDate(d.getDate() - n + 1); return d.toISOString().slice(0, 10); };
+  const _bm = (n: number) => { const d = new Date(_d0); d.setMonth(d.getMonth() - n); return d.toISOString().slice(0, 10); };
+  const QUICK = [
+    { key: "30d", label: "30 dias", from: _bd(30), to: today },
+    { key: "1m", label: "1 mês", from: _bm(1), to: today },
+    { key: "3m", label: "3 meses", from: _bm(3), to: today },
+    { key: "6m", label: "6 meses", from: _bm(6), to: today },
+    { key: "1a", label: "1 ano", from: _bm(12), to: today },
+  ];
+  // padrão = últimos 30 dias; clicável para trocar
+  const [period, setPeriod] = useState<{ from: string; to: string; label: string }>({ from: QUICK[0].from, to: QUICK[0].to, label: QUICK[0].label });
   const [perOpen, setPerOpen] = useState(false);
   const from = period.from, to = period.to;
 
@@ -157,6 +167,8 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
 
   // ---- fontes clicáveis (linhas uniformes {empresa,sub,categoria,rec,dateStr,valor,rawId}) ----
   const srcPagoAno = items.filter(i => (((i.pag || "").slice(0, 4) === ano) || (i.status === "Pago" && !i.pag)) && i.pago > 0.005).map(i => drow(i, i.pag || i.venc, i.pago));
+  const srcPagoPeriodo = items.filter(i => { const d = i.pag || (i.status === "Pago" ? i.venc : ""); return !!d && d >= from && d <= to && i.pago > 0.005; }).map(i => drow(i, i.pag || i.venc, i.pago));
+  const pagoPeriodo = srcPagoPeriodo.reduce((a, r) => a + r.valor, 0);
   const srcPagoMes = items.filter(i => monthOf(i.pag) === mes && i.pago > 0.005).map(i => drow(i, i.pag, i.pago));
   const srcAPagarAinda = dueUnits.filter(u => monthOf(u.date) === mes).map(u => drow(u.i, u.date, u.amount));
   const srcVencidos = dueUnits.filter(u => u.date && u.date < today).map(u => drow(u.i, u.date, u.amount));
@@ -295,9 +307,15 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
     <div className="fv3">
       <style>{CSS}</style>
 
+      {/* Filtro de período (atalhos) — dirige Pago no período + a tabela + o painel de IA */}
+      <div className="fv3-period" style={{ marginBottom: 12, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)", marginRight: 2 }}>Período</span>
+        {QUICK.map(q => <button key={q.key} className={"pbtn" + (period.from === q.from && period.to === q.to ? " on" : "")} onClick={() => setPeriod({ from: q.from, to: q.to, label: q.label })}>{q.label}</button>)}
+        <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 4 }}>{fmtDT(period.from)} – {fmtDT(period.to)}</span>
+      </div>
       {/* 3 heróis */}
       <div className="fv3-grid3">
-        <div className="fv3-kpi clk" onClick={() => openDrill("Pago no ano", `${ano} · ${srcPagoAno.length} lançamento(s) que compõem esta soma`, srcPagoAno)}><div className="lbl">Pago no ano</div><div className="val">{BRL(pagoAno)}</div><div className="hint">jan → hoje · caixa realizado <span className="src">ver fontes ›</span></div></div>
+        <div className="fv3-kpi clk" onClick={() => openDrill("Pago no período", `${period.label} · ${srcPagoPeriodo.length} lançamento(s) que compõem esta soma`, srcPagoPeriodo)}><div className="lbl">Pago no período</div><div className="val">{BRL(pagoPeriodo)}</div><div className="hint">{period.label.toLowerCase()} · caixa realizado <span className="src">ver fontes ›</span></div></div>
         <div className="fv3-kpi clk" onClick={() => openDrill("Pago no mês", `${period.label} · ${srcPagoMes.length} lançamento(s) pagos este mês`, srcPagoMes)}><div className="lbl">Pago no mês</div><div className="val">{BRL(pagoMes)}</div><div className="hint">já saiu da conta este mês <span className="src">ver fontes ›</span></div></div>
         <div className="fv3-kpi clk" onClick={() => openDrill("A pagar ainda neste mês", `${srcAPagarAinda.length} parcela(s)/conta(s) que vencem neste mês`, srcAPagarAinda)}><div className="lbl">A pagar ainda neste mês</div><div className="val amber">{BRL(aPagarAinda)}</div><div className="hint">só o que vence neste mês (parcela do mês) <span className="src">ver fontes ›</span></div></div>
       </div>
