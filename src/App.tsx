@@ -145,6 +145,8 @@ export default function App() {
           <Route path="/admin" element={<AdminShell />}>
             <Route index element={<VisaoGeral />} />
             <Route path="crm" element={<AdminCrm />} />
+            {/* Cockpit do módulo Vendas = o placar comercial (reusa VisaoGeral: MRR, pipeline, clientes). */}
+            <Route path="vendas" element={<VisaoGeral />} />
             <Route path="clientes" element={<Clientes />} />
             <Route path="cliente/:id" element={<CrmDetalhe />} />
             <Route path="propostas" element={<Propostas />} />

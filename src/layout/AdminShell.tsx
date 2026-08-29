@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Grid3x3, FileText, Tag, Share2, TrendingUp, Plug, LifeBuoy, Rocket, DollarSign, Cpu, Activity, ScrollText, KeyRound, Blocks, Calculator } from "lucide-react";
+import { LayoutDashboard, Users, Grid3x3, FileText, Tag, Share2, TrendingUp, Plug, LifeBuoy, Rocket, DollarSign, Cpu, Activity, ScrollText, KeyRound, Blocks, Calculator, MessageSquare } from "lucide-react";
 import Shell, { type NavItem } from "./Shell";
 import JulieWidget from "../ui/JulieWidget";
 
@@ -35,9 +35,10 @@ const NAV: NavItem[] = [
   },
   // MÓDULOS — Vendas (o WaCRM da Crasto na org dela; a Julie é o agente de IA, não item de menu).
   {
-    icon: TrendingUp, label: "Vendas", section: "Módulos", to: "/admin/crm",
+    icon: TrendingUp, label: "Vendas", section: "Módulos", to: "/admin/vendas",
     children: [
-      { to: "/admin/crm", end: true, label: "Cockpit", icon: LayoutDashboard },
+      { to: "/admin/vendas", end: true, label: "Cockpit", icon: LayoutDashboard },   // placar comercial (MRR, pipeline, clientes)
+      { to: "/admin/crm", label: "CRM", icon: MessageSquare },                        // o WhatsApp CRM (wacrm) da Crasto
       { to: "/admin/conectores", label: "Agentes indicadores", icon: Share2 },
       { to: "/admin/receita", label: "Receita & churn", icon: TrendingUp },
     ],
