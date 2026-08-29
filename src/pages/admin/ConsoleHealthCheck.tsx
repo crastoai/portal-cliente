@@ -30,8 +30,9 @@ function Farol({ status }: { status: "green" | "yellow" | "red" }) {
     { key: "amber", color: "#FF9F43", on: status === "yellow" },
     { key: "green", color: "#28C76F", on: status === "green" },
   ];
+  const word = status === "green" ? "Saudável" : status === "yellow" ? "Atenção" : "Problema";
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+    <span role="img" aria-label={word} title={word} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
       {dots.map((d) => (
         <span key={d.key} className={"farol-dot" + (d.on ? " on" : "")}
           style={d.on ? { background: d.color, boxShadow: `0 0 0 3px ${d.color}33` } : undefined} />
@@ -67,7 +68,7 @@ export default function ConsoleHealthCheck() {
       id: city, coordinates: CITY_COORDS[city], label: v.uf ? `${city} · ${v.uf}` : city, clients: v.clients, tone: "active",
     }));
   })();
-  const mapTotal = CLIENTS_GEO.length;
+  const mapTotal = mapPoints.reduce((s, p) => s + p.clients.length, 0); // conta os clientes REALMENTE plotados
   // Ordenação: padrão "pior saúde primeiro" (desc). Coluna de saúde usa a severidade bruta (red>yellow>green).
   const { sort, toggle, sorted } = useSort("health", -1);
 
@@ -122,7 +123,7 @@ export default function ConsoleHealthCheck() {
       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--crasto-text-primary)", margin: "6px 0 6px" }}>{t("Saúde por cliente — clique numa linha para atuar")}</div>
       <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 10, fontSize: 11.5, color: "var(--crasto-text-muted)" }}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: "#28C76F" }} />{t("tudo certo")}</span>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: "#C7962B" }} />{t("atenção")}</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: "#FF9F43" }} />{t("atenção")}</span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: "#EA5455" }} />{t("problema — ação necessária")}</span>
       </div>
 

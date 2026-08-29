@@ -48,7 +48,12 @@ export default function WorldPresenceMap({ points, total, height = 460 }: { poin
                   {on && <circle r={r * 2.1} fill="none" stroke={tone} strokeWidth={1.4 / z} />}
                   <circle r={r} fill={future ? "none" : tone} stroke={future ? tone : "#fff"}
                     strokeWidth={(future ? 1.4 : 1.3) / z} strokeDasharray={future ? `${2 / z} ${2 / z}` : undefined} />
-                  <circle r={11 / z} fill="transparent" />{/* área de clique maior */}
+                  {/* área de clique maior + acessível por teclado (Enter/Espaço) + tooltip no hover */}
+                  <circle r={11 / z} fill="transparent" tabIndex={0} role="button"
+                    aria-label={`${p.label} — ${p.clients.length} ${p.clients.length === 1 ? "cliente" : "clientes"}`}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSel(on ? null : p); } }}>
+                    <title>{`${p.label} · ${p.clients.length}`}</title>
+                  </circle>
                 </Marker>
               );
             })}
@@ -60,12 +65,12 @@ export default function WorldPresenceMap({ points, total, height = 460 }: { poin
       <div style={{ position: "absolute", left: 12, top: 12, display: "flex", alignItems: "center", gap: 8, background: "var(--crasto-surface)", border: "1px solid var(--crasto-border-soft)", borderRadius: 999, padding: "6px 14px", boxShadow: "0 1px 3px rgba(1,14,38,.12)" }}>
         <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#0B2A6B" }} />
         <b style={{ fontSize: 14, color: "var(--crasto-text-primary)" }}>{total}</b>
-        <span style={{ fontSize: 12.5, color: "var(--crasto-text-muted)" }}>clientes</span>
+        <span style={{ fontSize: 12.5, color: "var(--crasto-text-muted)" }}>clientes no mapa</span>
       </div>
 
       {/* Painel de detalhes ao clicar num ponto */}
       {sel && (
-        <div style={{ position: "absolute", right: 12, top: 12, width: 236, background: "var(--crasto-surface)", border: "1px solid var(--crasto-border-soft)", borderRadius: 12, boxShadow: "0 12px 34px -12px rgba(1,14,38,.34)", padding: "12px 14px" }}>
+        <div style={{ position: "absolute", right: 12, top: 12, width: 236, maxWidth: "62%", background: "var(--crasto-surface)", border: "1px solid var(--crasto-border-soft)", borderRadius: 12, boxShadow: "0 12px 34px -12px rgba(1,14,38,.34)", padding: "12px 14px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
             <span style={{ width: 9, height: 9, borderRadius: "50%", background: TONE[sel.tone || "active"], flex: "none" }} />
             <b style={{ fontSize: 13.5, color: "var(--crasto-text-primary)", flex: 1 }}>{sel.label}</b>
