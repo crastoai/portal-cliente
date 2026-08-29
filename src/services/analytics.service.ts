@@ -36,14 +36,13 @@ export const adminAnalytics = {
   setUserRole: (userId: string, role: string) => rpc<void>("admin_set_user_role", { p_user: userId, p_role: role }),
   userAccess: <T = any>(userId: string) => rpc<T>("admin_user_access", { p_user: userId }),
   setUserAccess: (userId: string, role: string, screens: string[]) => rpc<void>("admin_set_user_access", { p_user: userId, p_role: role, p_screens: screens }),
-  auditLog: <T = any[]>(from?: string, to?: string, org?: string) => rpc<T>("admin_audit_log", { p_from: from ?? null, p_to: to ?? null, p_org: org ?? null }),
   // Diagnóstico do /mapa (site) — última submissão do prospecto/lead
   diagnostic: <T = any>(org: string) => rpc<T>("admin_mapa_by_org", { p_org: org }),
+  // auditRecord = GRAVAÇÃO da trilha (usado p/ impersonação em VisaoGeral) — MANTIDO. O viewer
+  // central "Auditoria & Logs" e o "Memórias & Conhecimento" (brain) foram removidos (pedido do
+  // Crasto): a leitura central (admin_audit_log) e as RPCs admin_brain_* saíram; a auditoria passa
+  // a ser vista por área. As funções/tabela no banco ficam dormentes (sem drop).
   auditRecord: (p: Record<string, any>) => rpc<string>("admin_audit_record", { p }),
-  // Governança global (Console · top-down): Cérebro Global · Regras Globais · Catálogo de Skills
-  brainList: <T = any[]>() => rpc<T>("admin_brain_list"),
-  brainUpsert: (p: Record<string, any>) => rpc<string>("admin_brain_upsert", { p }),
-  brainRemove: (id: string) => rpc<void>("admin_brain_delete", { p_id: id }),
   rulesList: <T = any[]>() => rpc<T>("admin_rules_list"),
   ruleUpsert: (p: Record<string, any>) => rpc<string>("admin_rule_upsert", { p }),
   ruleRemove: (id: string) => rpc<void>("admin_rule_delete", { p_id: id }),

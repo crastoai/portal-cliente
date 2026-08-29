@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Grid3x3, FileText, Tag, Share2, TrendingUp, Plug, LifeBuoy, Rocket, DollarSign, Cpu, Activity, BookOpen, ScrollText, ClipboardList, KeyRound, Blocks, Calculator } from "lucide-react";
+import { LayoutDashboard, Users, Grid3x3, FileText, Tag, Share2, TrendingUp, Plug, LifeBuoy, Rocket, DollarSign, Cpu, Activity, ScrollText, KeyRound, Blocks, Calculator } from "lucide-react";
 import Shell, { type NavItem } from "./Shell";
 import JulieWidget from "../ui/JulieWidget";
 
@@ -26,9 +26,7 @@ const NAV: NavItem[] = [
     icon: Cpu, label: "Tech Panel",
     children: [
       { to: "/admin/console/health", label: "Health Check", icon: Activity },
-      { to: "/admin/console/memorias", label: "Memórias & Conhecimento", icon: BookOpen },
       { to: "/admin/console/regras", label: "Regras Globais", icon: ScrollText },
-      { to: "/admin/console/auditoria", label: "Auditoria & Logs", icon: ClipboardList },
       { to: "/admin/integracoes", label: "APIs & Chaves", icon: KeyRound },
       { to: "/admin/console/modelos", label: "Modelos LLM", icon: Cpu },
       { to: "/admin/console/skills", label: "Catálogo de Skills", icon: Blocks },

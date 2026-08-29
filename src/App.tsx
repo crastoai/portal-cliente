@@ -44,10 +44,8 @@ import CustoIA from "./pages/admin/CustoIA";
 import FinanceiroAdmin from "./pages/admin/Financeiro";
 import Contabilidade from "./pages/admin/Contabilidade";
 import ConsoleHealthCheck from "./pages/admin/ConsoleHealthCheck";
-import ConsoleAuditoria from "./pages/admin/ConsoleAuditoria";
 import ConsoleModelos from "./pages/admin/ConsoleModelos";
 import ConsolePermissoes from "./pages/admin/ConsolePermissoes";
-import ConsoleMemorias from "./pages/admin/ConsoleMemorias";
 import ConsoleRegras from "./pages/admin/ConsoleRegras";
 import ConsoleSkills from "./pages/admin/ConsoleSkills";
 import Tickets from "./pages/admin/Tickets";
@@ -168,10 +166,8 @@ export default function App() {
             <Route path="custo-ia" element={<CustoIA />} />
             {/* Console · IA (admin) — camada operacional dos agentes */}
             <Route path="console/health" element={<ConsoleHealthCheck />} />
-            <Route path="console/memorias" element={<ConsoleMemorias />} />
             <Route path="console/regras" element={<ConsoleRegras />} />
             <Route path="console/permissoes" element={<ConsolePermissoes />} />
-            <Route path="console/auditoria" element={<ConsoleAuditoria />} />
             <Route path="console/modelos" element={<ConsoleModelos />} />
             <Route path="console/skills" element={<ConsoleSkills />} />
             <Route path="tickets" element={<Tickets />} />
