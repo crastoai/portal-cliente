@@ -56,6 +56,19 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [busyP, setBusyP] = useState(false);
   const [parcEdit, setParcEdit] = useState<{ id: string; idx: number; date: string; amount: string } | null>(null);
+  // atalhos de período (fluxo): 30 dias (padrão) / 1m / 3m / 6m / 1 ano — dirige "Recebido no período"
+  const _dt = new Date(today + "T00:00:00");
+  const _bd = (n: number) => { const d = new Date(_dt); d.setDate(d.getDate() - n + 1); return d.toISOString().slice(0, 10); };
+  const _bm = (n: number) => { const d = new Date(_dt); d.setMonth(d.getMonth() - n); return d.toISOString().slice(0, 10); };
+  const QUICK = [
+    { key: "30d", label: "30 dias", from: _bd(30), to: today },
+    { key: "1m", label: "1 mês", from: _bm(1), to: today },
+    { key: "3m", label: "3 meses", from: _bm(3), to: today },
+    { key: "6m", label: "6 meses", from: _bm(6), to: today },
+    { key: "1a", label: "1 ano", from: _bm(12), to: today },
+  ];
+  const [per, setPer] = useState<{ from: string; to: string; label: string }>({ from: QUICK[0].from, to: QUICK[0].to, label: QUICK[0].label });
+  const perFrom = per.from, perTo = per.to;
   const toggleExp = (id: string) => setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const saveSchedule = async (raw: any, ps: any[]) => {
     const recebido = ps.filter((p: any) => p.status === "paid").reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
@@ -92,6 +105,10 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
 
   const mrr = ativos.filter(isRecurring).reduce((a: number, r: any) => a + mensalDe(r), 0);
   const recebidoMes = rows.reduce((a, r) => a + r.recebidoMes, 0);
+  const _inPer = (d: any) => { const x = ymd(d); return !!x && x >= perFrom && x <= perTo; };
+  const recebidoPeriodoDe = (r: any) => { const ps = arr(r.payment_schedule); if (ps.length) return ps.filter((p: any) => p.status === "paid" && _inPer(p.paid_date || p.date)).reduce((a: number, p: any) => a + Number(p.amount || 0), 0); return _inPer(r.payment_date) ? Number(r.amount_paid || 0) : 0; };
+  const recebidoPeriodoRows = ativos.map((r: any) => ({ cliente: r.contact_name || r.description || "—", valor: recebidoPeriodoDe(r) })).filter((x: any) => x.valor > 0.005);
+  const recebidoPeriodo = recebidoPeriodoRows.reduce((a: number, x: any) => a + x.valor, 0);
   const aReceberFut = rows.reduce((a, r) => a + r.aReceber, 0);
   const francisco = ativos.find((r: any) => /francisco|cs adv/i.test(r.contact_name || r.description || ""));
 
@@ -111,11 +128,11 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
       rows: recorrentes.map((r: any) => ({ nome: nomeDe(r), valor: mensalDe(r) * 12, det: `${BRL(mensalDe(r))}/mês × 12` })),
       foot: `${BRL(mrr)} (MRR) × 12 = ${BRL(mrr * 12)}`,
     } : drill === "caixa" ? {
-      title: `Recebido no mês — composição de ${BRL(recebidoMes)}`,
-      sub: `Parcelas efetivamente recebidas em ${mes} — o dinheiro que entrou na conta neste mês.`,
-      total: recebidoMes,
-      rows: rows.filter(r => r.recebidoMes > 0).map(r => ({ nome: r.cliente, valor: r.recebidoMes, det: "recebido neste mês" })),
-      empty: "Nenhuma parcela recebida neste mês (ainda).",
+      title: `Recebido no período — composição de ${BRL(recebidoPeriodo)}`,
+      sub: `Parcelas recebidas em ${per.label.toLowerCase()} — o dinheiro que entrou na conta no período.`,
+      total: recebidoPeriodo,
+      rows: recebidoPeriodoRows.map((x: any) => ({ nome: x.cliente, valor: x.valor, det: "recebido no período" })),
+      empty: "Nenhuma parcela recebida no período.",
     } : drill === "futuro" ? {
       title: `A receber (futuro) — composição de ${BRL(aReceberFut)}`,
       sub: "Saldo em aberto = contratado − já recebido, somando TODAS as parcelas ainda não recebidas de todos os contratos (sem recorte de data; cada parcela tem seu vencimento na lista).",
@@ -134,6 +151,11 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
         </div>
         <span className="frv3-hint">Visão: <b>{view === "comp" ? "Competência (MRR)" : "Caixa (recebido)"}</b></span>
       </div>
+      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", margin: "0 0 14px" }}>
+        <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--crasto-text-muted, #667085)", marginRight: 2 }}>Período</span>
+        {QUICK.map(q => { const on = per.from === q.from && per.to === q.to; return <button key={q.key} onClick={() => setPer({ from: q.from, to: q.to, label: q.label })} style={{ padding: "5px 11px", fontSize: 12, fontWeight: 700, borderRadius: 8, cursor: "pointer", border: "1px solid " + (on ? "#010E26" : "var(--crasto-border, #d0d5dd)"), background: on ? "#010E26" : "var(--crasto-surface, #fff)", color: on ? "#fff" : "var(--crasto-text-muted, #475569)" }}>{q.label}</button>; })}
+        <span style={{ fontSize: 11, color: "var(--crasto-text-muted, #667085)", marginLeft: 4 }}>só afeta “Recebido no período” · MRR/ARR = competência</span>
+      </div>
 
       <div className="frv3-grid4">
         <div className="frv3-kpi hero clk" onClick={() => setDrill("mrr")} title="Clique para ver a composição do MRR">
@@ -146,7 +168,7 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
           <div className="val">{BRL(mrr * 12)}</div>
           <div className="hint"><span className="acr"><b>A</b>nnual <b>R</b>ecurring <b>R</b>evenue &middot; Receita Recorrente Anual</span>MRR × 12 &middot; a recorrência anualizada</div>
         </div>
-        <div className="frv3-kpi clk" onClick={() => setDrill("caixa")} title="Clique para ver o que foi recebido no mês"><div className="lbl">Recebido no mês (caixa)</div><div className="val green">{BRL(recebidoMes)}</div><div className="hint">entrou de fato na conta</div></div>
+        <div className="frv3-kpi clk" onClick={() => setDrill("caixa")} title="Clique para ver o que foi recebido no período"><div className="lbl">Recebido no período (caixa)</div><div className="val green">{BRL(recebidoPeriodo)}</div><div className="hint">{per.label.toLowerCase()} · entrou de fato</div></div>
         <div className="frv3-kpi clk" onClick={() => setDrill("futuro")} title="Clique para ver o saldo a receber"><div className="lbl">A receber (futuro)</div><div className="val blue">{BRL(aReceberFut)}</div><div className="hint">contratado, ainda não recebido</div></div>
       </div>
 
