@@ -58,7 +58,7 @@ export default function ConsoleHealthCheck() {
   // clicar em cada um. Semente até a Fatia 2 (campo cidade/CEP por cliente no banco + geocoding).
   // NOTA HONESTA: o banco (public.organizations) hoje NÃO tem cidade/CEP preenchidos — a localização
   // real vem dos contratos/pastas de cada cliente; por isso a lista aqui ≠ a contagem de orgs do banco.
-  const RING = 0.5; // graus (raio do anel de espalhamento na mesma cidade)
+  const RING = 0.65; // graus (raio do anel de espalhamento na mesma cidade — separa cedo no zoom)
   const jitter = (base: [number, number], i: number, n: number): [number, number] => {
     if (n <= 1) return base;
     const ang = (2 * Math.PI * i) / n - Math.PI / 2;
