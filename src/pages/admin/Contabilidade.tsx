@@ -631,7 +631,7 @@ const CSS = `
 .contab .h-xl{font-size:24px;font-weight:800;letter-spacing:-.01em;margin:6px 0 0}
 .contab .h-lg{font-size:21px;font-weight:800;letter-spacing:-.01em;margin:6px 0 0}
 .contab h3{font-size:16px;font-weight:800}
-.contab .lead{color:var(--muted);font-size:13.5px;max-width:66ch;margin:8px 0 0;line-height:1.55}
+.contab .lead{display:block;padding:0;border:0;color:var(--muted);font-size:14px;max-width:none;margin:8px 0 0;line-height:1.6}
 .contab .grid{display:grid;gap:16px}
 .contab .g4{grid-template-columns:repeat(4,1fr)}.contab .g3{grid-template-columns:repeat(3,1fr)}.contab .g2{grid-template-columns:repeat(2,1fr)}
 .contab .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:17px 19px;box-shadow:var(--shadow)}
