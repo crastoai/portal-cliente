@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Home, LayoutGrid, Activity, Sparkles, Wallet, Users, LifeBuoy, Eye, IdCard,
-  Megaphone, Share2, Target, ShoppingCart, PackageOpen, TrendingUp, type LucideIcon } from "lucide-react";
+  Megaphone, Share2, Target, ShoppingCart, PackageOpen, TrendingUp, Factory, Cpu, type LucideIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { useAsync } from "../ui/ui";
 import { services } from "../services";
@@ -31,25 +31,34 @@ const MODULES: { key: string; label: string; icon: LucideIcon; rx: RegExp; crm?:
   { key: "trafego", label: "Tráfego Pago", icon: Target, rx: /tr[aá]feg|ads|paga|paid/i },
   { key: "compras", label: "Compras", icon: ShoppingCart, rx: /compra|purchas|suprim/i },
   { key: "importacao", label: "Importação", icon: PackageOpen, rx: /importa[çc][ãa]o|import\b/i },
+  // Novos módulos (upsell): Produção é só p/ indústria (chão de fábrica); Tecnologia ≠ Console.
+  // Ambos entram bloqueados (cadeado → "Conhecer módulo") até serem contratados/liberados.
+  { key: "producao", label: "Produção", icon: Factory, rx: /produ[çc][ãa]o|manufatur|f[áa]bric|ind[úu]stri|ch[ãa]o de f[áa]bric/i },
+  { key: "tecnologia", label: "Tecnologia", icon: Cpu, rx: /tecnolog|\bti\b|software|sistemas?\b/i },
 ];
 
 // API do wacrm (fonte das permissões de tela do CRM). Mesmo domínio próprio usado pelo CrmEmbed.
 // DEV: VITE_WACRM_API_LOCAL aponta pra uma wacrm api local (validar units/crm_screens sem prod).
 const WACRM_API = (import.meta.env.DEV && (import.meta.env.VITE_WACRM_API_LOCAL as string | undefined)) || "https://api.wacrm.crasto.ai";
-// Sub-itens do módulo "Vendas" na sidebar do Portal. Nova ordem (o CRM é o núcleo; o WhatsApp é
-// um dos canais que alimenta o funil): Dashboard é a home = raiz /app/crm (por isso `end`); as
-// demais entram como /app/crm/<seção>. `screen` casa com `crm_screens` (dono = ['*'] = tudo).
-// NOTA: "Contatos" (contatos do WhatsApp) segue aqui TEMPORARIAMENTE — na Fatia 3 vira um BOTÃO
-// dentro do WhatsApp (Conversas) e sai da sidebar. A seção "chat" foi renomeada de "Conversas"
-// para "WhatsApp" (rótulo); a rota /app/crm/conversas não muda.
-const CRM_SECTIONS: { screen: string; label: string; to: string; end?: boolean }[] = [
+// Árvore de navegação do módulo "Vendas" (o CRM é o núcleo). `screen` casa com `crm_screens`
+// (dono = ['*'] = tudo) e filtra recursivamente. Estrutura aprovada (spec do sidebar):
+//   Dashboard · CRM · WhatsApp[Conversas · Minhas Tarefas · Contatos · Agendamentos · Config] · Catálogo de serviços
+// O "WhatsApp" vira um GRUPO (o canal): as telas que fluem da conversa (tarefas/contatos/agenda/
+// config) aninham sob ele — 3º nível. "Conversas" é a caixa de entrada (antiga tela "chat").
+// NOTA: "Contatos" segue aninhado por ora — na Fatia 3 vira BOTÃO dentro das Conversas.
+// "Catálogo de serviços" é novo: entra "em breve" (visual-first, sem rota ainda).
+type CrmNode = { screen?: string; label: string; to?: string; end?: boolean; tag?: string; children?: CrmNode[] };
+const CRM_TREE: CrmNode[] = [
   { screen: "dashboard", label: "Dashboard", to: "/app/crm", end: true },
   { screen: "crm", label: "CRM", to: "/app/crm/funil" },
-  { screen: "chat", label: "WhatsApp", to: "/app/crm/conversas" },
-  { screen: "mesa", label: "Minhas Tarefas", to: "/app/crm/tarefas" },
-  { screen: "contatos", label: "Contatos", to: "/app/crm/contatos" },
-  { screen: "agenda", label: "Agendamentos", to: "/app/crm/agenda" },
-  { screen: "config", label: "Configurações", to: "/app/crm/config" },
+  { label: "WhatsApp", children: [
+    { screen: "chat", label: "Conversas", to: "/app/crm/conversas" },
+    { screen: "mesa", label: "Minhas Tarefas", to: "/app/crm/tarefas" },
+    { screen: "contatos", label: "Contatos", to: "/app/crm/contatos" },
+    { screen: "agenda", label: "Agendamentos", to: "/app/crm/agenda" },
+    { screen: "config", label: "Configurações", to: "/app/crm/config" },
+  ] },
+  { label: "Catálogo de serviços", tag: "em breve" },
 ];
 
 export default function ClientShell() {
@@ -92,7 +101,17 @@ export default function ClientShell() {
   const crmScreens = crmMe?.crm_screens ?? null;
   const units = crmMe?.units ?? [];
   const crmScreenSet = crmScreens && !crmScreens.includes("*") ? new Set(crmScreens) : null; // null = todas
-  const crmChildren = CRM_SECTIONS.filter((s) => !crmScreenSet || crmScreenSet.has(s.screen)).map((s) => ({ to: s.to, label: s.label, end: s.end }));
+  // Monta os filhos de "Vendas" a partir da árvore, filtrando por permissão de tela e podando
+  // grupos que ficaram vazios (ex.: WhatsApp sem nenhuma sub-tela permitida some inteiro).
+  const buildCrm = (nodes: CrmNode[]): NavChild[] => nodes.flatMap((n): NavChild[] => {
+    if (n.children) {
+      const kids = buildCrm(n.children);
+      return kids.length ? [{ label: n.label, children: kids }] : [];
+    }
+    if (n.screen && crmScreenSet && !crmScreenSet.has(n.screen)) return [];
+    return [{ to: n.to, label: n.label, end: n.end, tag: n.tag }];
+  });
+  const crmChildren = buildCrm(CRM_TREE);
 
   // Unidade (CNPJ) ATIVA — escolhida no seletor da topbar. Persistida por org. Por PADRÃO abre na
   // MATRIZ (a empresa em que o usuário está logado) — NÃO em "Todas as unidades" — para o dono saber
@@ -194,9 +213,11 @@ export default function ClientShell() {
     if (owned) return { tag: t("em breve"), onClick: () => navigate("/app/modulos") };
     return { locked: true, onClick: () => navigate("/app/catalogo") };
   };
-  // Marketing/Social/Tráfego agrupados sob "Marketing & Growth". Cada filho preserva seu estado real.
+  // Marketing/Social/Tráfego agrupados sob "Marketing". Cada filho preserva seu estado real.
+  // O 1º filho (o próprio módulo Marketing) é rotulado "Cockpit" — a 1ª tela NUNCA repete o nome
+  // do módulo (regra da spec do sidebar); mata a duplicidade "Marketing › Marketing".
   const MKT_KEYS = new Set(["marketing", "social", "trafego"]);
-  const mktChildren = MODULES.filter((m) => MKT_KEYS.has(m.key)).map((m) => ({ label: m.label, ...slotFor(m) }));
+  const mktChildren = MODULES.filter((m) => MKT_KEYS.has(m.key)).map((m) => ({ label: m.key === "marketing" ? "Cockpit" : m.label, ...slotFor(m) }));
 
   // TODO módulo vira uma ÁRVORE (pedido do Crasto): o nome do módulo é o nó PAI (azul, negrito, com
   // "+"); quem tem sub-telas (Vendas, Marketing & Growth) expande as seções, e os de destino único
@@ -226,12 +247,16 @@ export default function ClientShell() {
     ? [...comprasSlot.children, impChild]
     : [galhoUnico(comprasM.label, comprasSlot), impChild];
   const comprasTree: NavItem = { icon: comprasM.icon, label: comprasM.label, section: "Módulos", to: comprasSlot.to, children: comprasChildren };
-  // Ordem: Vendas · Marketing · Financeiro · Compras (com Importação dentro).
+  // Ordem: Vendas · Marketing · Financeiro · Compras (com Importação) · Produção · Tecnologia.
+  // Produção e Tecnologia são novos e ainda não contratados → entram como árvore bloqueada
+  // (cadeado + "Conhecer módulo"), mesmo padrão de upsell dos demais módulos não contratados.
   const modItems: NavItem[] = [
     moduloArvore(byKey("crm")),                                                    // Vendas
     { icon: TrendingUp, label: "Marketing", section: "Módulos", children: mktChildren },
     moduloArvore(byKey("financeiro")),
     comprasTree,
+    moduloArvore(byKey("producao")),
+    moduloArvore(byKey("tecnologia")),
   ];
   // Extras: contratados que NÃO são o CRM e NÃO casam com nenhum canônico → também como árvore.
   for (const c of cs) {

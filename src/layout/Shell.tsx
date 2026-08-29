@@ -95,7 +95,9 @@ function Wordmark() {
 // `locked` = módulo não contratado (cadeado + upsell) — o clique chama `onClick`.
 // Filho de um grupo colapsável. Antes só link simples (to obrigatório); agora suporta também
 // filho BLOQUEADO (cadeado + upsell) e AÇÃO (onClick sem to) — p/ agrupar módulos como Marketing.
-export type NavChild = { to?: string; label: string; end?: boolean; tag?: string; locked?: boolean; onClick?: () => void };
+// `children` = sub-galhos (3º nível+). O motor do sidebar é RECURSIVO: um filho pode ter filhos
+// (ex.: Vendas › WhatsApp › Conversas/Tarefas/…; ou RH › Avaliação comportamental › ferramentas).
+export type NavChild = { to?: string; label: string; end?: boolean; tag?: string; locked?: boolean; onClick?: () => void; children?: NavChild[] };
 // `mod` = pinta o nome/ícone com a cor de MÓDULO (azul, negrito) — o mesmo sinal visual do cliente.
 // Usado hoje pelos itens do admin (que ainda são links planos, sem árvore); os nós-pai de árvore já
 // recebem `navlink--mod` sozinhos no render.
@@ -180,6 +182,44 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
   const keepFly = () => window.clearTimeout(flyT.current);
   const hoverProps = (n: NavItem) => ({ onMouseEnter: (e: React.MouseEvent) => openFly(e, n), onMouseLeave: closeFly });
 
+  // Achata os galhos numa lista de FOLHAS (itens navegáveis/ação) — usado no flyout do sidebar
+  // recolhido, onde não faz sentido re-aninhar: mostra direto Conversas/Tarefas/… sob o ícone.
+  const flatLeaves = (kids: NavChild[]): NavChild[] => kids.flatMap((c) => (c.children && c.children.length) ? flatLeaves(c.children) : [c]);
+
+  // Renderiza um FILHO da árvore, recursivamente. Folha = link/ação; filho COM filhos = sub-grupo
+  // colapsável (3º nível: WhatsApp › Conversas/Tarefas/…). `depth` só controla a indentação
+  // (nível 1 = 40px, herdado do CSS de `.navlink--child`; cada nível soma 16px). `keyPath` dá uma
+  // chave única de expansão por caminho, pra sub-grupos com o mesmo rótulo em módulos diferentes.
+  const renderChild = (c: NavChild, depth: number, keyPath: string) => {
+    const padLeft = 40 + (depth - 1) * 16;
+    if (c.children && c.children.length) {
+      const k = keyPath + "/" + c.label;
+      const aberto = treeOpen[k] ?? true;
+      const todosBloq = c.children.every((g) => g.locked);
+      return (
+        <div key={c.label} className={"navtree navtree--sub" + (aberto ? " open" : "")}>
+          <button type="button" className="navlink navlink--child navlink--parent" style={{ paddingLeft: padLeft }} aria-expanded={aberto} onClick={() => toggleTree(k)}>
+            <span className="navlink-lbl">{t(c.label)}</span>
+            {todosBloq && <Lock size={12} className="navlink-lock" style={{ marginLeft: "auto" }} />}
+            {aberto
+              ? <Minus size={14} className="navtree-plus" style={todosBloq ? { marginLeft: 6 } : { marginLeft: "auto" }} />
+              : <Plus size={14} className="navtree-plus" style={todosBloq ? { marginLeft: 6 } : { marginLeft: "auto" }} />}
+          </button>
+          <div className="navtree-kids">
+            {c.children.map((g) => renderChild(g, depth + 1, k))}
+          </div>
+        </div>
+      );
+    }
+    const ci = <><span className="navlink-lbl">{t(c.label)}</span>{c.locked ? <Lock size={12} className="navlink-lock" /> : c.tag ? <span className="tag">{c.tag}</span> : null}</>;
+    if (c.to) return (
+      <NavLink key={c.label} to={c.to} end={c.end} onClick={() => setOpen(false)} style={{ paddingLeft: padLeft }} className={({ isActive }) => "navlink navlink--child" + (isActive ? " on" : "")}>{ci}</NavLink>
+    );
+    return (
+      <button key={c.label} type="button" style={{ paddingLeft: padLeft }} className={"navlink navlink--child" + (c.locked ? " navlink--locked" : "")} title={c.locked ? t("Conteúdo indisponível no momento") : undefined} onClick={() => { setOpen(false); if (c.locked) setLockedMsg(true); else c.onClick?.(); }}>{ci}</button>
+    );
+  };
+
   const renderItem = (n: NavItem) => {
     // Item EXPANSÍVEL (pai + filhos): o WhatsApp CRM e suas seções. Recolhido (só ícones) o pai
     // vira atalho pro módulo e os filhos somem; expandido, mostra a árvore.
@@ -210,15 +250,7 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
               : <Plus size={15} className="navtree-plus" style={todosBloqueados ? { marginLeft: 6 } : { marginLeft: "auto" }} />}
           </button>
           <div className="navtree-kids">
-            {n.children.map((c) => {
-              const ci = <><span className="navlink-lbl">{t(c.label)}</span>{c.locked ? <Lock size={12} className="navlink-lock" /> : c.tag ? <span className="tag">{c.tag}</span> : null}</>;
-              if (c.to) return (
-                <NavLink key={c.label} to={c.to} end={c.end} onClick={() => setOpen(false)} className={({ isActive }) => "navlink navlink--child" + (isActive ? " on" : "")}>{ci}</NavLink>
-              );
-              return (
-                <button key={c.label} type="button" className={"navlink navlink--child" + (c.locked ? " navlink--locked" : "")} title={c.locked ? t("Conteúdo indisponível no momento") : undefined} onClick={() => { setOpen(false); if (c.locked) setLockedMsg(true); else c.onClick?.(); }}>{ci}</button>
-              );
-            })}
+            {n.children.map((c) => renderChild(c, 1, n.label))}
           </div>
         </div>
       );
@@ -409,7 +441,7 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
           {fly.item.children?.length ? (
             <>
               <div className="navfly-h">{t(fly.item.label)}</div>
-              {fly.item.children.map((c) => (
+              {flatLeaves(fly.item.children).map((c) => (
                 c.to ? (
                   <NavLink key={c.label} to={c.to} end={c.end} onClick={() => setFly(null)} className={({ isActive }) => "navfly-item" + (isActive ? " on" : "")}>{t(c.label)}</NavLink>
                 ) : (
