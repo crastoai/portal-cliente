@@ -24,11 +24,18 @@ function clientHealth(c: Client): "green" | "yellow" | "red" {
 }
 
 function Farol({ status }: { status: "green" | "yellow" | "red" }) {
+  // 3 bolinhas SEM contorno/pílula (pedido do Crasto): a acesa pulsa/pisca; as demais ficam opacas.
+  const dots = [
+    { key: "red", color: "#EA5455", on: status === "red" },
+    { key: "amber", color: "#FF9F43", on: status === "yellow" },
+    { key: "green", color: "#28C76F", on: status === "green" },
+  ];
   return (
-    <span className="farol" style={{ display: "inline-flex", gap: 5, padding: "5px 8px", background: "var(--crasto-navy)", borderRadius: 999 }}>
-      <span className={"fl" + (status === "red" ? " red on" : "")} />
-      <span className={"fl" + (status === "yellow" ? " amber on" : "")} />
-      <span className={"fl" + (status === "green" ? " green on" : "")} />
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+      {dots.map((d) => (
+        <span key={d.key} className={"farol-dot" + (d.on ? " on" : "")}
+          style={d.on ? { background: d.color, boxShadow: `0 0 0 3px ${d.color}33` } : undefined} />
+      ))}
     </span>
   );
 }

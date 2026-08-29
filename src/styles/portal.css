@@ -571,6 +571,12 @@ body.impersonating .main { margin-top: 96px; }
 .fl.green.on { background: #28C76F; box-shadow: 0 0 0 3px rgba(40,199,111,.25), 0 0 12px rgba(40,199,111,.7); }
 .fl.amber.on { background: #FF9F43; box-shadow: 0 0 0 3px rgba(255,159,67,.25), 0 0 12px rgba(255,159,67,.7); }
 .fl.red.on { background: #EA5455; box-shadow: 0 0 0 3px rgba(234,84,85,.25), 0 0 12px rgba(234,84,85,.7); }
+/* Farol MINI (tabela de saúde por cliente) — 3 bolinhas SEM pílula/contorno; a ACESA pulsa/pisca,
+   as demais ficam opacas e estáticas (pedido do Crasto). */
+.farol-dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; background: rgba(148,163,184,.45); }
+.farol-dot.on { animation: farol-pulse 1.5s ease-in-out infinite; }
+@keyframes farol-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.25); opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .farol-dot.on { animation: none; } }
 .farol .txt { flex: 1; min-width: 180px; }
 .farol .txt .h { font-size: 16px; font-weight: 700; color: var(--crasto-text-primary); display: flex; align-items: center; gap: 10px; }
 .farol .txt .s { font-size: 12.5px; color: var(--crasto-text-muted); margin-top: 3px; }
