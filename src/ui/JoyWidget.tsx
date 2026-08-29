@@ -14,7 +14,7 @@ type Kb = { id: string; q: string; keywords: string; a: string[]; ir?: { to: str
 
 const KB: Kb[] = [
   { id: "geral", q: "O que dá pra fazer no sistema?", keywords: "o que é sistema portal começar iniciar visão geral menu módulos ajuda tour navegar perdido não sei usar aprender",
-    a: ["A Crasto.AI reúne seus módulos num portal só. No menu à esquerda: Vendas (Dashboard, CRM, WhatsApp, Minhas Tarefas, Contatos, Agendamentos, Configurações) e os Módulos (Financeiro, Marketing, Compras…). Item com cadeado é módulo ainda não contratado.",
+    a: ["A Crasto.AI reúne seus módulos num portal só. No menu à esquerda: Vendas (Cockpit, CRM, WhatsApp, Minhas Tarefas, Contatos, Agendamentos, Configurações) e os Módulos (Financeiro, Marketing, Compras…). Item com cadeado é módulo ainda não contratado.",
         "Me diga o que você QUER FAZER (ex.: “importar meus contatos”, “mandar mensagem”, “adicionar um usuário”) que eu te levo até a tela."],
     ir: { to: "/app", label: "Abrir a tela inicial" } },
   { id: "importar", q: "Como importo meus contatos (planilha/CSV)?", keywords: "importar importação importacao contatos lista planilha csv excel subir carregar base leads em massa cadastrar vários varios inserir migrar trazer arquivo",
@@ -65,10 +65,10 @@ const KB: Kb[] = [
     a: ["Vá em RH → Gestão de Acessos. Adicione a pessoa (nome e e-mail) e, para quem não é dono, libere exatamente quais telas ela enxerga na aba Permissões.",
         "Ela recebe um link pra criar a própria senha. O acesso ao WhatsApp CRM já vem por padrão — o que controla o que cada um vê é a parte de Permissões."],
     ir: { to: "/app/usuarios", label: "Abrir Gestão de Acessos" } },
-  { id: "dashboard", q: "Onde vejo os números das vendas?", keywords: "dashboard painel vendas vendi vendeu vendemos vendido faturei faturamento fechei quanto total mês mes período periodo números numeros métricas metricas resultados gráfico grafico taxa resposta conversão conversao receita indicadores relatório relatorio",
-    a: ["Em Vendas → Dashboard estão os números do funil: leads por etapa, taxa de resposta, conversão e receita, com filtro por período e por vendedor.",
+  { id: "dashboard", q: "Onde vejo os números das vendas?", keywords: "cockpit dashboard painel vendas vendi vendeu vendemos vendido faturei faturamento fechei quanto total mês mes período periodo números numeros métricas metricas resultados gráfico grafico taxa resposta conversão conversao receita indicadores relatório relatorio",
+    a: ["Em Vendas → Cockpit estão os números do funil: leads por etapa, taxa de resposta, conversão e receita, com filtro por período e por vendedor.",
         "A tela inicial (Cockpit) traz o resumo do seu resultado e deixa comparar vendedores."],
-    ir: { to: "/app/crm", label: "Abrir o Dashboard" } },
+    ir: { to: "/app/crm", label: "Abrir o Cockpit" } },
   { id: "config", q: "Como configuro o meu agente de IA?", keywords: "configurações configuracoes configurar agente ia personalidade tom voz mensagem saudação saudacao horário horario atendimento comportamento ajustar treinar prompt regras desligar pausar",
     a: ["Em Vendas → Configurações você ajusta o agente: identidade, saudação, horário de atendimento, quebra de mensagens e outros comportamentos. Vale para as próximas conversas.",
         "Mudança de personalidade ou de estratégia de negociação a gente faz junto — me chame nos botões aqui embaixo."],

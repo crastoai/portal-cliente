@@ -38,7 +38,7 @@ function navFrame(win: Window | null | undefined, path: string) {
 
 // Seções que abrem em COCKPIT MULTI-PAINEL (1 painel = único/consolidado; N = comparar agentes).
 const MULTI_SECTIONS = new Set(["dashboard", "conversas", "funil"]);
-const SECTION_LABEL: Record<string, string> = { dashboard: "Dashboard", conversas: "Conversas", funil: "CRM" };
+const SECTION_LABEL: Record<string, string> = { dashboard: "Cockpit", conversas: "Conversas", funil: "CRM" };
 const MAX_PANELS = 4;
 const PANELS_KEY = "crasto.wa-panels-v2"; // config do multi-painel POR SEÇÃO (dashboard/conversas/funil)
 type Panel = { id: string; agent: string | null }; // agent null = "Todos os Agentes" (empresa inteira)

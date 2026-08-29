@@ -124,7 +124,7 @@ function calcCusto(salarioStr: string, tipo: string, regime: string, admissao: s
 // quando o endpoint responde, o catálogo/seleção reais o sobrescrevem. base = 'dashboard'
 // (o wacrm sempre força dashboard como tela-base).
 const CRM_STATIC: { key: string; label: string }[] = [
-  { key: "dashboard", label: "Dashboard" },
+  { key: "dashboard", label: "Cockpit" },
   { key: "mesa", label: "Minhas Tarefas" },
   { key: "crm", label: "CRM" },
   { key: "chat", label: "Conversas" },

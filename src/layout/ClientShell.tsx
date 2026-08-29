@@ -49,7 +49,9 @@ const WACRM_API = (import.meta.env.DEV && (import.meta.env.VITE_WACRM_API_LOCAL 
 // "Catálogo de serviços" é novo: entra "em breve" (visual-first, sem rota ainda).
 type CrmNode = { screen?: string; label: string; to?: string; end?: boolean; tag?: string; children?: CrmNode[] };
 const CRM_TREE: CrmNode[] = [
-  { screen: "dashboard", label: "Dashboard", to: "/app/crm", end: true },
+  // Regra global: a 1ª tela de todo módulo chama-se "Cockpit" — NUNCA "Dashboard". O `screen`
+  // continua "dashboard" (chave de permissão/rota do wacrm); só o RÓTULO é Cockpit.
+  { screen: "dashboard", label: "Cockpit", to: "/app/crm", end: true },
   { screen: "crm", label: "CRM", to: "/app/crm/funil" },
   { label: "WhatsApp", children: [
     { screen: "chat", label: "Conversas", to: "/app/crm/conversas" },
