@@ -33,11 +33,11 @@ export const COUNTRY_COORDS: Record<string, [number, number]> = {
 // Matchway (Porto). Aproximados pelo estado/região informado pelo Crasto quando o site não expôs
 // endereço: Silver Cactus (Nevada), Kindness & Love (Washington DC), Sushi (Flórida), Consciência
 // Sistêmica (Portugal). Na Fatia 2 isso vira dado por cliente (cidade exata) e some daqui.
-export const INTL_SEED: { id: string; coordinates: [number, number]; label: string; tone: "active" | "negotiating" | "future" }[] = [
-  { id: "matchway", coordinates: [-8.61, 41.15], label: "Matchway · Porto", tone: "active" },
-  { id: "consciencia", coordinates: [-9.14, 38.72], label: "Consciência Sistêmica · Portugal", tone: "active" },
-  { id: "kaikotoba", coordinates: [139.70, 35.66], label: "Kaikotoba · Tokyo", tone: "active" },
-  { id: "silvercactus", coordinates: [-115.14, 36.17], label: "Silver Cactus · Nevada", tone: "active" },
-  { id: "kindnesslove", coordinates: [-77.04, 38.90], label: "Kindness & Love · Washington DC", tone: "active" },
-  { id: "sushi-fl", coordinates: [-80.19, 25.76], label: "Sushi · Flórida", tone: "active" },
+export const INTL_SEED: { id: string; coordinates: [number, number]; label: string; clients: string[]; tone: "active" | "negotiating" | "future" }[] = [
+  // Portugal agrupa os 2 clientes num pino só (o clique mostra ambos — resolve o encavalamento).
+  { id: "pt", coordinates: [-8.4, 39.8], label: "Portugal", clients: ["Matchway · Porto", "Consciência Sistêmica"], tone: "active" },
+  { id: "jp", coordinates: [139.70, 35.66], label: "Tokyo · Japan", clients: ["Kaikotoba"], tone: "active" },
+  { id: "us-nv", coordinates: [-115.14, 36.17], label: "Nevada · US", clients: ["Silver Cactus Jewelry"], tone: "active" },
+  { id: "us-va", coordinates: [-77.19, 38.78], label: "Springfield, VA · US", clients: ["Kindness & Love Transportation"], tone: "active" },
+  { id: "us-fl", coordinates: [-80.35, 25.82], label: "Doral, FL · US", clients: ["NacionSushi"], tone: "active" },
 ];

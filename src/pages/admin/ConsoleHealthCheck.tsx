@@ -47,18 +47,18 @@ export default function ConsoleHealthCheck() {
   // Presença geográfica: os clientes do admin trazem o campo `uf` (o health-check não) → busca à
   // parte e agrega por estado p/ plotar no mapa-múndi. Internacionais entram como semente até a
   // Fatia 2 (país/CEP por cliente + geocoding) — ver lib/geoCoords + ui/WorldPresenceMap.
-  const { data: geoClients } = useAsync(() => services.analytics.admin.clients<{ uf?: string | null }[]>(), []);
+  const { data: geoClients } = useAsync(() => services.analytics.admin.clients<{ name?: string; uf?: string | null }[]>(), []);
   const mapPoints: PresencePoint[] = (() => {
-    const byUf: Record<string, number> = {};
+    const byUf: Record<string, string[]> = {};
     for (const c of (geoClients ?? [])) {
       const uf = (c.uf || "").toUpperCase();
-      if (uf && UF_COORDS[uf]) byUf[uf] = (byUf[uf] || 0) + 1;
+      if (uf && UF_COORDS[uf]) (byUf[uf] || (byUf[uf] = [])).push(c.name || "—");
     }
-    const pts: PresencePoint[] = Object.entries(byUf).map(([uf, n]) => ({
-      id: uf, coordinates: UF_COORDS[uf], label: `${UF_CAPITAL[uf] || uf} · ${uf}`, count: n, tone: "active",
+    const pts: PresencePoint[] = Object.entries(byUf).map(([uf, names]) => ({
+      id: uf, coordinates: UF_COORDS[uf], label: `${UF_CAPITAL[uf] || uf} · ${uf}`, clients: names, tone: "active",
     }));
-    // Internacionais reais (semente até a Fatia 2). Austrália saiu (não é mais cliente).
-    for (const s of INTL_SEED) pts.push({ id: s.id, coordinates: s.coordinates, label: s.label, tone: s.tone });
+    // Internacionais reais (semente até a Fatia 2). Portugal agrupa 2 clientes num pino.
+    for (const s of INTL_SEED) pts.push({ id: s.id, coordinates: s.coordinates, label: s.label, clients: s.clients, tone: s.tone });
     return pts;
   })();
   // Ordenação: padrão "pior saúde primeiro" (desc). Coluna de saúde usa a severidade bruta (red>yellow>green).
@@ -105,10 +105,10 @@ export default function ConsoleHealthCheck() {
       <div className="card" style={{ marginBottom: 18 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
           <div style={{ width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center", background: "rgba(110,156,232,.12)", color: "var(--crasto-blue, #3E6FB8)", flexShrink: 0 }}><Globe size={17} /></div>
-          <div style={{ flex: 1 }}><h3 style={{ margin: 0 }}>{t("Presença global")}</h3><div className="csub" style={{ margin: 0 }}>{t("onde estão os clientes · dê zoom pra ver o estado e a cidade")}</div></div>
+          <div style={{ flex: 1 }}><h3 style={{ margin: 0 }}>{t("Presença global")}</h3><div className="csub" style={{ margin: 0 }}>{t("onde estão os clientes · clique num ponto pra ver quem está ali")}</div></div>
           <span className="pill ok" style={{ marginLeft: "auto" }}><span className="d" />{total} {t("clientes ativos")}</span>
         </div>
-        <WorldPresenceMap points={mapPoints} height={460} />
+        <WorldPresenceMap points={mapPoints} total={total} height={460} />
       </div>
 
       {/* Legenda */}
