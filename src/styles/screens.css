@@ -915,8 +915,11 @@
 @keyframes farol-pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
 @media (prefers-reduced-motion: reduce) { .farol-luz.on { animation: none; } }
 /* Farol MINI — chip discreto no canto sup. direito, na mesma linha do titulo (pontinho + status) */
-.farol-mini { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--crasto-border, #e5e7eb); background: var(--crasto-surface, #fff); white-space: nowrap; cursor: default; line-height: 1; }
-.farol-mini .fm-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.farol-mini { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 700; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--crasto-border, #e5e7eb); background: var(--crasto-surface, #fff); white-space: nowrap; cursor: default; line-height: 1; }
+.farol-mini .fm-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+.farol-mini-note { font-size: 12px; font-weight: 500; text-align: right; line-height: 1.35; max-width: 360px; }
+.farol-mini-note.amarelo { color: #b45309; }
+.farol-mini-note.vermelho { color: #b91c1c; }
 .farol-mini.verde { color: #15803d; } .farol-mini.amarelo { color: #b45309; } .farol-mini.vermelho { color: #b91c1c; }
 .farol-mini.verde .fm-dot { background: radial-gradient(circle at 34% 30%, #7ef0a6, #22c55e 72%); box-shadow: 0 0 6px 1px rgba(34,197,94,.55); animation: farol-pulse 1.6s ease-in-out infinite; }
 .farol-mini.amarelo .fm-dot { background: radial-gradient(circle at 34% 30%, #ffd873, #f5b301 72%); box-shadow: 0 0 6px 1px rgba(245,179,1,.6); animation: farol-pulse 1.2s ease-in-out infinite; }

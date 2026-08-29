@@ -825,7 +825,10 @@ export default function Financeiro() {
   return (
     <div>
       <PageHead eyebrow="Painel Admin · Financeiro 🔒" title={isCockpit ? "Financeiro" : "Financeiro · " + t(TITULO_SECAO[tab] || "")} sub={isCockpit ? "Visão geral de todas as áreas — Cockpit." : "Gestão financeira completa da Crasto.AI."} titleAside={
-        <span className={"farol-mini " + farolStatus} style={{ marginLeft: "auto" }} title={t(farolTag) + " — " + farolNota}><span className="fm-dot" />{t(farolTag)}</span>
+        <span style={{ marginLeft: "auto", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5, maxWidth: 360 }}>
+          <span className={"farol-mini " + farolStatus} title={t(farolTag) + " — " + farolNota}><span className="fm-dot" />{t(farolTag)}</span>
+          {farolStatus !== "verde" && <span className={"farol-mini-note " + farolStatus}>{farolNota}</span>}
+        </span>
       } />
 
       {/* ═══ COCKPIT (visão geral de todas as áreas) — só na raiz /admin/financeiro ═══ */}
