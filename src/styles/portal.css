@@ -29,7 +29,7 @@
 .mobilebar, .side-close, .side-overlay { display: none; }
 
 .side {
-  position: fixed; top: 56px; left: 0; width: 248px; height: calc(100vh - 56px); height: calc(100dvh - 56px); z-index: 30;
+  position: fixed; top: 56px; left: 0; width: 280px; height: calc(100vh - 56px); height: calc(100dvh - 56px); z-index: 30;
   display: flex; flex-direction: column; gap: 2px; padding: 14px 14px;
   border-right: 1px solid var(--crasto-border-soft);
   background: var(--crasto-surface);
@@ -54,7 +54,10 @@
 .side-brand-txt .sub { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--crasto-text-faint); margin-top: 3px; }
 
 /* navegação por seções */
-.side-nav { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; flex: 1; padding: 4px 0; }
+/* Sem BARRA de rolagem visível (pedido do Crasto): o menu ainda rola pra alcançar os módulos de
+   baixo, mas a barra some (Firefox: scrollbar-width; WebKit: ::-webkit-scrollbar). */
+.side-nav { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; flex: 1; padding: 4px 0; scrollbar-width: none; -ms-overflow-style: none; }
+.side-nav::-webkit-scrollbar { width: 0; height: 0; display: none; }
 .navgroup { display: flex; flex-direction: column; gap: 2px; }
 .navsec { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--crasto-text-faint); padding: 2px 12px 6px; }
 
@@ -332,7 +335,7 @@
 .su-out:hover { background: var(--crasto-bg-3); color: var(--crasto-text-primary); }
 
 /* área principal + canvas arredondado (assinatura de sistema do DS) */
-.main { margin-left: 248px; margin-top: 56px; padding: 18px; min-width: 0; min-height: calc(100vh - 56px); min-height: calc(100dvh - 56px); display: flex; flex-direction: column; transition: margin-left .28s cubic-bezier(.22,1,.36,1); }
+.main { margin-left: 280px; margin-top: 56px; padding: 18px; min-width: 0; min-height: calc(100vh - 56px); min-height: calc(100dvh - 56px); display: flex; flex-direction: column; transition: margin-left .28s cubic-bezier(.22,1,.36,1); }
 
 /* ENTRADA SUAVE DE TELA — o conteúdo surge (fade + leve subida) a cada troca de rota. */
 @keyframes page-enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
@@ -348,7 +351,7 @@
 /* Recolher/expandir: handle circular FLUTUANTE, centrado na linha que separa a topbar do
    conteúdo (y=56) e cravado na borda direita da sidebar (x = largura da sidebar). Fica FORA do
    fluxo (position:fixed) → não empurra os itens do menu; z acima da topbar p/ não ser cortado. */
-.side-toggle { position: fixed; top: 56px; left: 248px; transform: translate(-50%, -50%); z-index: 46; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--crasto-border-soft); background: var(--crasto-surface); color: var(--crasto-text-muted); cursor: pointer; transition: background .15s, color .15s, left .28s cubic-bezier(.22,1,.36,1); box-shadow: 0 1px 3px rgba(1,14,38,.10); }
+.side-toggle { position: fixed; top: 56px; left: 280px; transform: translate(-50%, -50%); z-index: 46; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--crasto-border-soft); background: var(--crasto-surface); color: var(--crasto-text-muted); cursor: pointer; transition: background .15s, color .15s, left .28s cubic-bezier(.22,1,.36,1); box-shadow: 0 2px 6px rgba(1,14,38,.14); }
 .side-toggle:hover { background: var(--crasto-navy-05); color: var(--crasto-text-primary); }
 
 /* IMPERSONAÇÃO ("Acessar como"): a faixa de auditoria (40px, ImpersonationBanner) fica ACIMA de

@@ -191,7 +191,9 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
   // (nível 1 = 40px, herdado do CSS de `.navlink--child`; cada nível soma 16px). `keyPath` dá uma
   // chave única de expansão por caminho, pra sub-grupos com o mesmo rótulo em módulos diferentes.
   const renderChild = (c: NavChild, depth: number, keyPath: string) => {
-    const padLeft = 40 + (depth - 1) * 16;
+    // Indentação enxuta (base 28px, +14 por nível) pra caber TODO o texto na sidebar sem cortar
+    // (pedido do Crasto: nada de "Gerador de Rot..." nem "em bre" cortado).
+    const padLeft = 28 + (depth - 1) * 14;
     if (c.children && c.children.length) {
       const k = keyPath + "/" + c.label;
       const aberto = treeOpen[k] ?? true;
@@ -409,7 +411,7 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
       {/* Recolher/expandir: handle circular FLUTUANTE, cravado na borda direita da sidebar e
           centrado na linha que separa a topbar do conteúdo. Fora da .side de propósito — assim
           não é cortado pela topbar (empilhamento) e NÃO empurra os itens do menu pra baixo. */}
-      <button className="side-toggle" onClick={() => setCollapsed((c) => !c)} title={collapsed ? t("Expandir menu") : t("Recolher menu")} aria-label={collapsed ? t("Expandir menu") : t("Recolher menu")}>{collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}</button>
+      <button className="side-toggle" onClick={() => setCollapsed((c) => !c)} title={collapsed ? t("Expandir menu") : t("Recolher menu")} aria-label={collapsed ? t("Expandir menu") : t("Recolher menu")}>{collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}</button>
 
       <aside className={"side" + (open ? " open" : "")}>
         <button className="side-close" onClick={() => setOpen(false)} aria-label={t("Fechar menu")}><X size={18} /></button>
