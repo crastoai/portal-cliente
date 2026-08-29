@@ -218,14 +218,19 @@ export class DeliveryController {
     // GATING (decisão do Crasto): só o DONO vê o TOTAL da equipe. Membro comum vê só as PRÓPRIAS
     // horas (mesma regra do drill-down). Papel resolvido no banco (profiles.role), nunca do cliente.
     const donoHoras = (db as any)?.me?.role === 'client_owner' || (db as any)?.me?.role === 'crasto_admin';
-    const ponto = db?.orgId ? await this.pontoRows(db.orgId, null, null, donoHoras ? null : ((db as any)?.me?.id ?? null)).catch(() => null) : null;
-    const horasMes = ponto ? Math.round(ponto.reduce((s: number, x: any) => s + (x.min_mes || 0), 0) / 60) : null;
+    // Rótulo do período segue o FILTRO (pedido do Crasto): "/ dia" · "/ 7 dias" · "/ mês" · "/ período".
+    // Sem filtro (from/to null) = visão padrão de 30 dias → "/ mês". Assim os cards não mentem.
+    const perDays = (from && to) ? Math.max(1, Math.round((new Date(to as any).getTime() - new Date(from as any).getTime()) / 86400000) + 1) : 30;
+    const perUnit = perDays <= 1 ? 'dia' : perDays <= 8 ? '7 dias' : perDays <= 31 ? 'mês' : 'período';
+    // Horas TRABALHADAS reais da equipe NO PERÍODO FILTRADO (relógio de ponto, public.user_sessions).
+    const ponto = db?.orgId ? await this.pontoRows(db.orgId, from ?? null, to ?? null, donoHoras ? null : ((db as any)?.me?.id ?? null)).catch(() => null) : null;
+    const horasMes = ponto ? Math.round(ponto.reduce((s: number, x: any) => s + (x.min_periodo || 0), 0) / 60) : null;
     const metrics: any[] = [
       metric('tempo_resposta', '1ª resposta · WhatsApp', 's', 'menor', r?.tempo_resposta ?? null, null),
       metric('automacao', 'Atendimentos feitos pela IA', '%', 'maior', r?.automacao ?? null, null),
-      metric('novos_leads', 'Leads / mês', '', 'maior', r?.novos_leads ?? null, r?.trend?.novos_leads ?? null),
+      metric('novos_leads', `Leads / ${perUnit}`, '', 'maior', r?.novos_leads ?? null, r?.trend?.novos_leads ?? null),
       metric('atendimentos', 'Conversas atendidas', '', 'maior', r?.atendimentos ?? null, r?.trend?.atendimentos ?? null),
-      metric('horas', donoHoras ? 'Horas da equipe / mês' : 'Minhas horas / mês', 'h', 'maior', horasMes && horasMes > 0 ? horasMes : null, null),
+      metric('horas', donoHoras ? `Horas da equipe / ${perUnit}` : `Minhas horas / ${perUnit}`, 'h', 'maior', horasMes && horasMes > 0 ? horasMes : null, null),
       { key: 'cobertura', label: 'Cobertura de atendimento', unidade: '', melhor: 'maior', antes: null, fonte_antes: null, depois: crmOk ? '24/7' : null, trend: null, texto: true },
     ];
 
