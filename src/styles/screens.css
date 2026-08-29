@@ -914,6 +914,15 @@
 .farol-luz.on.verde    { background: radial-gradient(circle at 34% 30%, #7ef0a6, #22c55e 72%); box-shadow: 0 0 16px 3px rgba(34,197,94,.72), inset 0 1px 2px rgba(255,255,255,.5); animation-duration: 1.5s; }
 @keyframes farol-pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
 @media (prefers-reduced-motion: reduce) { .farol-luz.on { animation: none; } }
+/* Farol MINI — chip discreto no canto sup. direito, na mesma linha do titulo (pontinho + status) */
+.farol-mini { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--crasto-border, #e5e7eb); background: var(--crasto-surface, #fff); white-space: nowrap; cursor: default; line-height: 1; }
+.farol-mini .fm-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.farol-mini.verde { color: #15803d; } .farol-mini.amarelo { color: #b45309; } .farol-mini.vermelho { color: #b91c1c; }
+.farol-mini.verde .fm-dot { background: radial-gradient(circle at 34% 30%, #7ef0a6, #22c55e 72%); box-shadow: 0 0 6px 1px rgba(34,197,94,.55); animation: farol-pulse 1.6s ease-in-out infinite; }
+.farol-mini.amarelo .fm-dot { background: radial-gradient(circle at 34% 30%, #ffd873, #f5b301 72%); box-shadow: 0 0 6px 1px rgba(245,179,1,.6); animation: farol-pulse 1.2s ease-in-out infinite; }
+.farol-mini.vermelho .fm-dot { background: radial-gradient(circle at 34% 30%, #ff8a8a, #ef4444 72%); box-shadow: 0 0 6px 1px rgba(239,68,68,.65); animation: farol-pulse 1.1s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .farol-mini .fm-dot { animation: none; } }
+
 /* Balao centralizado do farol (todas as telas do Financeiro): farol ao lado do status + info em topicos */
 .farol-balao { max-width: 720px; margin: 8px auto 18px; border: 1px solid var(--crasto-border, #e5e7eb); border-radius: 14px; padding: 14px 20px; background: var(--crasto-surface, #fff); text-align: center; box-shadow: 0 6px 18px rgba(16,24,40,.05); }
 .farol-balao.amarelo { border-color: rgba(245,179,1,.55); background: rgba(245,179,1,.08); }
