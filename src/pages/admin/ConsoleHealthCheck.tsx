@@ -52,23 +52,35 @@ export default function ConsoleHealthCheck() {
   const navigate = useNavigate();
   const { data, loading } = useAsync(() => services.analytics.admin.healthCheck<HCData>(), []);
   const clients = data?.clients ?? [];
-  // Presença geográfica: os clientes do admin trazem o campo `uf` (o health-check não) → busca à
-  // parte e agrega por estado p/ plotar no mapa-múndi. Internacionais entram como semente até a
-  // Fatia 2 (país/CEP por cliente + geocoding) — ver lib/geoCoords + ui/WorldPresenceMap.
   // Presença geográfica: clientes REAIS por CIDADE (fonte: pastas Clients/ — ver lib/geoCoords).
-  // Agrupa por cidade; o clique no ponto mostra a lista com cidade+estado. Semente até a Fatia 2
-  // (campo cidade/CEP por cliente no banco). Connect fica em Ribeirão Preto, não na capital.
+  // v3: UMA bolinha POR CLIENTE. Clientes da mesma cidade recebem um leve deslocamento em ANEL
+  // (jitter fixo em graus) → no mundo/Brasil parecem um cluster, e ao dar zoom se separam pra
+  // clicar em cada um. Semente até a Fatia 2 (campo cidade/CEP por cliente no banco + geocoding).
+  // NOTA HONESTA: o banco (public.organizations) hoje NÃO tem cidade/CEP preenchidos — a localização
+  // real vem dos contratos/pastas de cada cliente; por isso a lista aqui ≠ a contagem de orgs do banco.
+  const RING = 0.5; // graus (raio do anel de espalhamento na mesma cidade)
+  const jitter = (base: [number, number], i: number, n: number): [number, number] => {
+    if (n <= 1) return base;
+    const ang = (2 * Math.PI * i) / n - Math.PI / 2;
+    const lat = base[1];
+    const dLat = RING * Math.sin(ang);
+    const dLon = (RING * Math.cos(ang)) / Math.max(0.3, Math.cos((lat * Math.PI) / 180));
+    return [base[0] + dLon, base[1] + dLat];
+  };
   const mapPoints: PresencePoint[] = (() => {
-    const byCity: Record<string, { uf: string; clients: { name: string; niche: string }[] }> = {};
-    for (const c of CLIENTS_GEO) {
-      if (!CITY_COORDS[c.city]) continue;
-      (byCity[c.city] || (byCity[c.city] = { uf: c.uf, clients: [] })).clients.push({ name: c.client, niche: c.niche });
+    const byCity: Record<string, typeof CLIENTS_GEO> = {};
+    for (const c of CLIENTS_GEO) { if (!CITY_COORDS[c.city]) continue; (byCity[c.city] || (byCity[c.city] = [])).push(c); }
+    const pts: PresencePoint[] = [];
+    for (const [city, list] of Object.entries(byCity)) {
+      const base = CITY_COORDS[city];
+      list.forEach((c, i) => pts.push({
+        id: c.client, coordinates: jitter(base, i, list.length), name: c.client,
+        city: c.uf ? `${city} · ${c.uf}` : city, niche: c.niche, tone: "active",
+      }));
     }
-    return Object.entries(byCity).map(([city, v]) => ({
-      id: city, coordinates: CITY_COORDS[city], label: v.uf ? `${city} · ${v.uf}` : city, clients: v.clients, tone: "active",
-    }));
+    return pts;
   })();
-  const mapTotal = mapPoints.reduce((s, p) => s + p.clients.length, 0); // conta os clientes REALMENTE plotados
+  const mapTotal = mapPoints.length; // um por cliente plotado
   // Ordenação: padrão "pior saúde primeiro" (desc). Coluna de saúde usa a severidade bruta (red>yellow>green).
   const { sort, toggle, sorted } = useSort("health", -1);
 
@@ -114,7 +126,7 @@ export default function ConsoleHealthCheck() {
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
           <div style={{ width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center", background: "rgba(110,156,232,.12)", color: "var(--crasto-blue, #3E6FB8)", flexShrink: 0 }}><Globe size={17} /></div>
           <div style={{ flex: 1 }}><h3 style={{ margin: 0 }}>{t("Presença global")}</h3><div className="csub" style={{ margin: 0 }}>{t("onde estão os clientes · clique num ponto pra ver quem está ali")}</div></div>
-          <span className="pill ok" style={{ marginLeft: "auto" }}><span className="d" />{total} {t("clientes ativos")}</span>
+          <span className="pill ok" style={{ marginLeft: "auto" }}><span className="d" />{mapTotal} {t("clientes ativos")}</span>
         </div>
         <WorldPresenceMap points={mapPoints} total={mapTotal} height={460} />
       </div>
