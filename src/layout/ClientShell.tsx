@@ -219,29 +219,28 @@ export default function ClientShell() {
   // O 1º filho (o próprio módulo Marketing) é rotulado "Cockpit" — a 1ª tela NUNCA repete o nome
   // do módulo (regra da spec do sidebar); mata a duplicidade "Marketing › Marketing".
   const byKey = (k: string) => MODULES.find((m) => m.key === k)!;
-  // Árvore do módulo MARKETING — estrutura aprovada no protótipo clicável
-  // (`05 Synapse (Dev)/02 Build/06_AI_Team_Blueprint/_Referencias_Spreed/LER_Prototipo_Telas_Spreed_v1.0.html`):
-  //   Cockpit · Produzir[Brand Kit · Vídeos Virais[Meus Avatares/Clone · Cortes · Gerador de Roteiros]]
-  //          · Distribuir[Calendário · Agendamento & Automação · Mídia Paga (Tráfego Pago)]
-  // Entra só a NAVEGAÇÃO (visual-first, pedido do Crasto): as telas que ainda não existem ficam
-  // "em breve" e mandam pro /app/modulos — mesmo padrão do "Catálogo de serviços" em Vendas.
-  // Os nós que JÁ têm módulo contratado (Social Media → Agendamento; Tráfego Pago → Mídia Paga)
-  // preservam o estado REAL via slotFor (abrir / em breve / cadeado): não podem regredir.
+  // Árvore do módulo MARKETING — estrutura APROVADA pelo Crasto (2026-08-29), SEM "Produzir/
+  // Distribuir" (eram verbos artificiais): funil real Marca → Orgânico → Pago. 1ª tela = "Cockpit"
+  // (regra global). As telas ainda não existem (o FRONT está sendo construído em OUTRA sessão) →
+  // entram "em breve" (skeleton navegável, manda pro /app/modulos). Social Media e Tráfego Pago são
+  // só grupos que EXPANDEM — a visão consolidada é o Cockpit; só há sub-item onde haverá tela de
+  // verdade. Quando as telas existirem, troca-se o "em breve" pela rota real.
+  // Ver memória project-marketing-modulo-sidebar. ⚠️ ESTA sessão é dona do sidebar (não editar de fora).
   const emBreve = (label: string): NavChild => ({ label, tag: t("em breve"), onClick: () => navigate("/app/modulos") });
   const mktChildren: NavChild[] = [
-    { label: "Cockpit", ...slotFor(byKey("marketing")) },
-    { label: "Produzir", children: [
-      emBreve("Brand Kit"),
-      { label: "Vídeos Virais", children: [
-        emBreve("Meus Avatares/Clone"),
-        emBreve("Cortes"),
-        emBreve("Gerador de Roteiros"),
-      ] },
-    ] },
-    { label: "Distribuir", children: [
+    emBreve("Cockpit"),
+    emBreve("Brand Kit"),
+    { label: "Social Media", children: [
+      emBreve("Vídeos Virais"),
+      emBreve("Cortes"),
+      emBreve("Meu Avatar"),
+      emBreve("Gerador de Roteiros"),
       emBreve("Calendário"),
-      { label: "Agendamento & Automação", ...slotFor(byKey("social")) },
-      { label: "Mídia Paga (Tráfego Pago)", ...slotFor(byKey("trafego")) },
+    ] },
+    { label: "Tráfego Pago", children: [
+      emBreve("Campanhas"),
+      emBreve("Criativos"),
+      emBreve("Contas de Ads"),
     ] },
   ];
 
@@ -277,7 +276,7 @@ export default function ClientShell() {
   // (cadeado + "Conhecer módulo"), mesmo padrão de upsell dos demais módulos não contratados.
   const modItems: NavItem[] = [
     moduloArvore(byKey("crm")),                                                    // Vendas
-    { icon: TrendingUp, label: "Marketing", section: "Módulos", children: mktChildren },
+    { icon: Megaphone, label: "Marketing", section: "Módulos", children: mktChildren },
     moduloArvore(byKey("financeiro")),
     comprasTree,
     moduloArvore(byKey("producao")),
