@@ -4,7 +4,7 @@ import { services } from "../../services";
 import { PageHead, useAsync, useSort, SortTh } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
 import WorldPresenceMap, { type PresencePoint } from "../../ui/WorldPresenceMap";
-import { UF_COORDS, UF_CAPITAL, COUNTRY_COORDS } from "../../lib/geoCoords";
+import { UF_COORDS, UF_CAPITAL, INTL_SEED } from "../../lib/geoCoords";
 
 type Agent = { name: string; status: string };
 type Client = {
@@ -57,10 +57,8 @@ export default function ConsoleHealthCheck() {
     const pts: PresencePoint[] = Object.entries(byUf).map(([uf, n]) => ({
       id: uf, coordinates: UF_COORDS[uf], label: `${UF_CAPITAL[uf] || uf} · ${uf}`, count: n, tone: "active",
     }));
-    pts.push({ id: "PT", coordinates: COUNTRY_COORDS.PT, label: t("Portugal"), tone: "active" });
-    pts.push({ id: "JP", coordinates: COUNTRY_COORDS.JP, label: t("Japão"), tone: "active" });
-    pts.push({ id: "AU", coordinates: COUNTRY_COORDS.AU, label: t("Austrália · negociando"), tone: "negotiating" });
-    pts.push({ id: "US", coordinates: COUNTRY_COORDS.US, label: `EUA · ${t("mercado futuro")}`, tone: "future" });
+    // Internacionais reais (semente até a Fatia 2). Austrália saiu (não é mais cliente).
+    for (const s of INTL_SEED) pts.push({ id: s.id, coordinates: s.coordinates, label: s.label, tone: s.tone });
     return pts;
   })();
   // Ordenação: padrão "pior saúde primeiro" (desc). Coluna de saúde usa a severidade bruta (red>yellow>green).

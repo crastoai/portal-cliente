@@ -22,9 +22,22 @@ export const UF_CAPITAL: Record<string, string> = {
   SC: "Florianópolis", SP: "São Paulo", SE: "Aracaju", TO: "Palmas",
 };
 
-// Países onde já há presença/negociação (capital/centro aproximado) — usado até a Fatia 2
-// preencher país/CEP por cliente. long, lat.
+// Países (capital/centro aproximado) — long, lat.
 export const COUNTRY_COORDS: Record<string, [number, number]> = {
   BR: [-51.93, -14.24], US: [-98.58, 39.83], PT: [-8.61, 39.5], JP: [138.25, 36.2],
   AU: [134.49, -25.73], ES: [-3.7, 40.42], GB: [-1.5, 52.5], CA: [-106.35, 56.13],
 };
+
+// Clientes INTERNACIONAIS reais — SEMENTE até a Fatia 2 (país/CEP por cliente + geocoding).
+// Coordenadas por CIDADE. Verificados no site quando havia endereço: Kaikotoba (Tokyo/Roppongi),
+// Matchway (Porto). Aproximados pelo estado/região informado pelo Crasto quando o site não expôs
+// endereço: Silver Cactus (Nevada), Kindness & Love (Washington DC), Sushi (Flórida), Consciência
+// Sistêmica (Portugal). Na Fatia 2 isso vira dado por cliente (cidade exata) e some daqui.
+export const INTL_SEED: { id: string; coordinates: [number, number]; label: string; tone: "active" | "negotiating" | "future" }[] = [
+  { id: "matchway", coordinates: [-8.61, 41.15], label: "Matchway · Porto", tone: "active" },
+  { id: "consciencia", coordinates: [-9.14, 38.72], label: "Consciência Sistêmica · Portugal", tone: "active" },
+  { id: "kaikotoba", coordinates: [139.70, 35.66], label: "Kaikotoba · Tokyo", tone: "active" },
+  { id: "silvercactus", coordinates: [-115.14, 36.17], label: "Silver Cactus · Nevada", tone: "active" },
+  { id: "kindnesslove", coordinates: [-77.04, 38.90], label: "Kindness & Love · Washington DC", tone: "active" },
+  { id: "sushi-fl", coordinates: [-80.19, 25.76], label: "Sushi · Flórida", tone: "active" },
+];

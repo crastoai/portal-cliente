@@ -23,17 +23,17 @@ export default function WorldPresenceMap({ points, height = 460 }: { points: Pre
     <div style={{ position: "relative", width: "100%" }}>
       <div style={{ borderRadius: 16, overflow: "hidden", border: "1px solid var(--crasto-border-soft)", background: "var(--crasto-bg-2)" }}>
         <ComposableMap projection="geoMercator" projectionConfig={{ scale: 125 }} width={980} height={height} style={{ width: "100%", height: "auto", display: "block" }}>
-          <rect x={0} y={0} width={980} height={height} fill="var(--crasto-bg-2, #eef2f8)" />
+          <rect x={0} y={0} width={980} height={height} fill="#EAEFF6" />
           <ZoomableGroup center={view.center} zoom={z} minZoom={1} maxZoom={16}
             onMoveEnd={(p: any) => setView({ center: p.coordinates, zoom: p.zoom })}
             translateExtent={[[-120, -60], [1100, height + 60]]}>
             <Geographies geography={worldTopo as any}>
               {({ geographies }: any) => geographies.map((geo: any) => (
                 <Geography key={geo.rsmKey} geography={geo}
-                  fill="var(--crasto-bg-3, #c9d3e2)"
-                  stroke="var(--crasto-border-strong, #9aa8bd)"
-                  strokeWidth={0.6 / z}
-                  style={{ default: { outline: "none" }, hover: { fill: "var(--crasto-navy-05, #eef1f7)", outline: "none" }, pressed: { outline: "none" } }} />
+                  fill="#BFCCDE"
+                  stroke="#7F92AC"
+                  strokeWidth={0.7 / z}
+                  style={{ default: { outline: "none" }, hover: { fill: "#A9B9D2", outline: "none" }, pressed: { outline: "none" } }} />
               ))}
             </Geographies>
             {points.map((p) => {
@@ -53,7 +53,7 @@ export default function WorldPresenceMap({ points, height = 460 }: { points: Pre
                   <circle r={r} fill={future ? "none" : tone} stroke={future ? tone : "#fff"}
                     strokeWidth={(future ? 1.4 : 1.3) / z} strokeDasharray={future ? `${2 / z} ${2 / z}` : undefined} />
                   <text textAnchor="middle" y={-r - 5 / z}
-                    style={{ fontSize: `${(on ? 12 : 10.5) / z}px`, fontWeight: 600, fill: "var(--crasto-text-primary)", paintOrder: "stroke", stroke: "var(--crasto-bg-2, #eef2f8)", strokeWidth: `${3.5 / z}px` }}>
+                    style={{ fontSize: `${(on ? 12 : 10.5) / z}px`, fontWeight: 600, fill: "#0C1322", paintOrder: "stroke", stroke: "#EAEFF6", strokeWidth: `${3.5 / z}px` }}>
                     {p.label}{p.count != null ? ` · ${p.count}` : ""}
                   </text>
                 </Marker>
