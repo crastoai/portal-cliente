@@ -59,10 +59,10 @@ export default function ConsoleHealthCheck() {
   // Agrupa por cidade; o clique no ponto mostra a lista com cidade+estado. Semente até a Fatia 2
   // (campo cidade/CEP por cliente no banco). Connect fica em Ribeirão Preto, não na capital.
   const mapPoints: PresencePoint[] = (() => {
-    const byCity: Record<string, { uf: string; clients: string[] }> = {};
+    const byCity: Record<string, { uf: string; clients: { name: string; niche: string }[] }> = {};
     for (const c of CLIENTS_GEO) {
       if (!CITY_COORDS[c.city]) continue;
-      (byCity[c.city] || (byCity[c.city] = { uf: c.uf, clients: [] })).clients.push(c.client);
+      (byCity[c.city] || (byCity[c.city] = { uf: c.uf, clients: [] })).clients.push({ name: c.client, niche: c.niche });
     }
     return Object.entries(byCity).map(([city, v]) => ({
       id: city, coordinates: CITY_COORDS[city], label: v.uf ? `${city} · ${v.uf}` : city, clients: v.clients, tone: "active",

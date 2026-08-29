@@ -8,7 +8,7 @@ import worldTopo from "../assets/world-countries-110m.json";
 
 export type PresencePoint = {
   id: string; coordinates: [number, number]; label: string;
-  clients: string[]; tone?: "active" | "negotiating" | "future";
+  clients: { name: string; niche: string }[]; tone?: "active" | "negotiating" | "future";
 };
 
 const TONE: Record<string, string> = { active: "#1F8A5B", negotiating: "#C7962B", future: "#8A94A6" };
@@ -18,6 +18,14 @@ export default function WorldPresenceMap({ points, total, height = 460 }: { poin
   const [sel, setSel] = useState<PresencePoint | null>(null);
   const clamp = (z: number) => Math.max(1, Math.min(16, z));
   const z = view.zoom;
+  // Agrupa clientes por NICHO de mercado (pedido do Crasto). Usado no card global "Nichos"
+  // (todos os pontos) e dentro do painel de uma cidade (só os clientes daquele local).
+  const groupNiche = (cs: { name: string; niche: string }[]) => {
+    const m: Record<string, string[]> = {};
+    for (const c of cs) (m[c.niche] || (m[c.niche] = [])).push(c.name);
+    return Object.entries(m).sort((a, b) => b[1].length - a[1].length);
+  };
+  const nicheTotals = groupNiche(points.flatMap((p) => p.clients));
 
   return (
     <div style={{ position: "relative", width: "100%" }}>
@@ -63,11 +71,25 @@ export default function WorldPresenceMap({ points, total, height = 460 }: { poin
         </ComposableMap>
       </div>
 
-      {/* Total de clientes (badge no mapa) */}
-      <div style={{ position: "absolute", left: 12, top: 12, display: "flex", alignItems: "center", gap: 8, background: "var(--crasto-surface)", border: "1px solid var(--crasto-border-soft)", borderRadius: 999, padding: "6px 14px", boxShadow: "0 1px 3px rgba(1,14,38,.12)" }}>
-        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#1F8A5B" }} />
-        <b style={{ fontSize: 14, color: "var(--crasto-text-primary)" }}>{total}</b>
-        <span style={{ fontSize: 12.5, color: "var(--crasto-text-muted)" }}>clientes no mapa</span>
+      {/* Total + resumo de NICHOS de mercado (top-left) */}
+      <div style={{ position: "absolute", left: 12, top: 12, display: "flex", flexDirection: "column", gap: 8, width: 210, maxWidth: "58%" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--crasto-surface)", border: "1px solid var(--crasto-border-soft)", borderRadius: 999, padding: "6px 14px", boxShadow: "0 1px 3px rgba(1,14,38,.12)" }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#1F8A5B" }} />
+          <b style={{ fontSize: 14, color: "var(--crasto-text-primary)" }}>{total}</b>
+          <span style={{ fontSize: 12.5, color: "var(--crasto-text-muted)" }}>clientes no mapa</span>
+        </div>
+        {nicheTotals.length > 0 && (
+          <div style={{ background: "var(--crasto-surface)", border: "1px solid var(--crasto-border-soft)", borderRadius: 12, padding: "10px 12px", boxShadow: "0 1px 3px rgba(1,14,38,.12)", maxHeight: "min(58vh, 320px)", overflowY: "auto" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--crasto-text-muted)", marginBottom: 7 }}>Nichos de mercado</div>
+            {nicheTotals.map(([niche, names]) => (
+              <div key={niche} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0" }}>
+                <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#1F8A5B", flex: "none" }} />
+                <span style={{ flex: 1, fontSize: 12, color: "var(--crasto-text-body)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={niche}>{niche}</span>
+                <b style={{ fontSize: 12.5, color: "var(--crasto-text-primary)" }}>{names.length}</b>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Painel de detalhes ao clicar num ponto */}
@@ -79,10 +101,17 @@ export default function WorldPresenceMap({ points, total, height = 460 }: { poin
             <button onClick={() => setSel(null)} aria-label="Fechar" style={{ border: "none", background: "transparent", color: "var(--crasto-text-muted)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
           </div>
           <div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", marginBottom: 8 }}>{sel.clients.length} {sel.clients.length === 1 ? "cliente" : "clientes"}</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: "min(72vh, 430px)", overflowY: "auto" }}>
-            {sel.clients.map((c, i) => (
-              <div key={i} style={{ fontSize: 13, color: "var(--crasto-text-body)", display: "flex", alignItems: "center", gap: 7 }}>
-                <span style={{ width: 5, height: 5, borderRadius: "50%", background: TONE[sel.tone || "active"], flex: "none" }} />{c}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: "min(72vh, 430px)", overflowY: "auto" }}>
+            {groupNiche(sel.clients).map(([niche, names]) => (
+              <div key={niche}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "#1F8A5B", marginBottom: 4 }}>{niche} · {names.length}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                  {names.map((n, i) => (
+                    <div key={i} style={{ fontSize: 13, color: "var(--crasto-text-body)", display: "flex", alignItems: "center", gap: 7 }}>
+                      <span style={{ width: 5, height: 5, borderRadius: "50%", background: TONE[sel.tone || "active"], flex: "none" }} />{n}
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
