@@ -228,7 +228,8 @@ export default function ClientShell() {
   // Ver memória project-marketing-modulo-sidebar. ⚠️ ESTA sessão é dona do sidebar (não editar de fora).
   const emBreve = (label: string): NavChild => ({ label, tag: t("em breve"), onClick: () => navigate("/app/modulos") });
   const mktChildren: NavChild[] = [
-    emBreve("Cockpit"),
+    // Cockpit LIGADA ao módulo nativo (marketing-api). As demais entram tela a tela.
+    { label: "Cockpit", to: "/app/marketing", end: true },
     emBreve("Brand Kit"),
     { label: "Social Media", children: [
       emBreve("Vídeos Virais"),

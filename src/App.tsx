@@ -20,6 +20,7 @@ import Modulos from "./pages/client/Modulos";
 import Implementacao from "./pages/client/Implementacao";
 import Catalogo from "./pages/client/Catalogo";
 import Financeiro from "./pages/client/Financeiro";
+import Marketing from "./pages/client/marketing/Marketing";
 import Usuarios from "./pages/client/Usuarios";
 import Suporte from "./pages/client/Suporte";
 import Notificacoes from "./pages/client/Notificacoes";
@@ -136,6 +137,10 @@ export default function App() {
             <Route path="implementacao" element={<Implementacao />} />
             <Route path="solucoes" element={<Catalogo />} />
             <Route path="financeiro" element={<Financeiro />} />
+            {/* Módulo MARKETING — NATIVO no portal (sem iframe). Shell + :secao, raiz = Cockpit.
+                Chama a marketing-api (banco `marketing` separado) via /mkt-api (mesma origem). */}
+            <Route path="marketing" element={<Marketing />} />
+            <Route path="marketing/:secao" element={<Marketing />} />
             <Route path="usuarios" element={<Usuarios />} />
             <Route path="suporte" element={<Suporte />} />
             <Route path="perfil" element={<Perfil />} />
