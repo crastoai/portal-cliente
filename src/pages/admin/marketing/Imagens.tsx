@@ -122,6 +122,7 @@ export default function Imagens() {
     try {
       const r = await mktApi.post<any>("/marketing/images/generate", { format: fmt, prompt: prompt.trim() || null, unitId, onBrand });
       setResults(r);
+      loadLib(); // a arte recém-gerada entra na Biblioteca na hora
     } catch (e: any) {
       flash(String(e?.message || "").includes("conecte") ? "Conecte o ChatGPT para gerar." : "Não foi possível gerar agora. Tente novamente em instantes.");
     } finally { setGenLoading(false); }
