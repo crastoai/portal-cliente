@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { mktApi } from "../../../lib/mktApi";
+import { MktModal } from "./_ui";
 
 // Cockpit de Marketing — NATIVO no portal, ligado à marketing-api (banco `marketing`).
 // Paridade com o protótipo aprovado (classes .mkt-root em styles/marketing.css).
@@ -49,6 +50,26 @@ export default function MarketingCockpit() {
   const subtotal = cc.reduce((s, t) => s + (Number(t.cost_month) || 0), 0);
   const nsClass = ns.status === "green" ? "green" : ns.status === "red" ? "red" : "yellow";
 
+  // Funil — larguras AUTOMÁTICAS a partir dos números reais. Zerado ⇒ barra vazia
+  // (0 à esquerda). Nada de largura fixa/fictícia. Leads/Conversas/Vendas vêm do CRM.
+  const crm = k.from_crm || {};
+  const asNum = (x: any) => (x == null || isNaN(Number(x)) ? null : Number(x));
+  const fpub = asNum(k.published) || 0, freach = asNum(k.reach) || 0;
+  const fleads = asNum(crm.leads), fconv = asNum(crm.conversations ?? crm.conversas), fsales = asNum(crm.sales ?? crm.vendas);
+  const fmax = Math.max(fpub, freach, fleads || 0, fconv || 0, fsales || 0, 1);
+  const fpct = (v: number | null) => (v && v > 0 ? Math.min(100, Math.max(8, Math.round((v / fmax) * 100))) : 0);
+  const FnRow = ({ lbl, v, sub, crmSrc, win }: any) => (
+    <div className={"fn-row" + (win ? " win" : "")}>
+      <div className="fn-lbl">{lbl}</div>
+      <div className="fn-track">
+        {v && v > 0
+          ? <div className="fn-bar" style={{ width: fpct(v) + "%" }}><b>{v >= 1000 ? kfmt(v).v + kfmt(v).u : num(v)}</b></div>
+          : <span className="fn-zero">{crmSrc ? "—" : "0"}</span>}
+      </div>
+      <div className={"fn-sub" + (crmSrc ? " mono" : "")}>{sub}</div>
+    </div>
+  );
+
   return (
     <div className="mkt-root">
       <div className="eyebrow">Marketing</div>
@@ -81,11 +102,11 @@ export default function MarketingCockpit() {
       {/* Funil do post à venda */}
       <div className="cock-group">💵 <span>Do post à venda</span></div>
       <div className="funnel">
-        <div className="fn-row"><div className="fn-lbl">📣 Publicados</div><div className="fn-track"><div className="fn-bar" style={{ width: "100%" }}><b>{num(k.published)}</b></div></div><div className="fn-sub">posts/mês</div></div>
-        <div className="fn-row"><div className="fn-lbl">👁 Alcance</div><div className="fn-track"><div className="fn-bar" style={{ width: "88%" }}><b>{reach.v}{reach.u}</b></div></div><div className="fn-sub">pessoas</div></div>
-        <div className="fn-row"><div className="fn-lbl">💬 Leads</div><div className="fn-track"><div className="fn-bar" style={{ width: "40%" }}><b>—</b></div></div><div className="fn-sub mono">via CRM (Portal)</div></div>
-        <div className="fn-row"><div className="fn-lbl">🗣 Conversas</div><div className="fn-track"><div className="fn-bar" style={{ width: "28%" }}><b>—</b></div></div><div className="fn-sub mono">via CRM (Portal)</div></div>
-        <div className="fn-row win"><div className="fn-lbl">🏆 Vendas</div><div className="fn-track"><div className="fn-bar" style={{ width: "16%" }}><b>—</b></div></div><div className="fn-sub mono">via CRM (Portal)</div></div>
+        <FnRow lbl="📣 Publicados" v={fpub} sub="posts/mês" />
+        <FnRow lbl="👁 Alcance" v={freach} sub="pessoas" />
+        <FnRow lbl="💬 Leads" v={fleads} sub="via CRM (Portal)" crmSrc />
+        <FnRow lbl="🗣 Conversas" v={fconv} sub="via CRM (Portal)" crmSrc />
+        <FnRow lbl="🏆 Vendas" v={fsales} sub="via CRM (Portal)" crmSrc win />
       </div>
       <div className="funnel-foot">
         <div className="ff-kpi"><span>Receita atribuída</span><b className="mono">— <span style={{ fontSize: 12, color: "var(--muted)" }}>(CRM)</span></b></div>
@@ -146,19 +167,15 @@ export default function MarketingCockpit() {
 
       <div className="cock-note">📊 Consolida Vídeos Virais, Agendamento & Automação e Mídia Paga. Dados reais do banco `marketing`; o funil leads→vendas vem do CRM (Portal).</div>
 
-      {/* Drill-down real */}
+      {/* Drill-down real — via MktModal (createPortal no body: sempre centralizado + backdrop opaco) */}
       {drill && (
-        <div onClick={() => setDrill(null)} style={{ position: "fixed", inset: 0, background: "rgba(3,10,26,.5)", display: "grid", placeItems: "center", zIndex: 9999 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: 14, width: "min(560px,92vw)", maxHeight: "76vh", overflow: "auto", padding: 18 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-              <b style={{ color: "var(--heading)" }}>{drill.title} · {drill.rows.length} item(ns) — do back real</b>
-              <button onClick={() => setDrill(null)} style={{ background: "none", border: 0, fontSize: 20, cursor: "pointer", color: "var(--muted)" }}>×</button>
-            </div>
-            {drill.rows.length ? drill.rows.map((r, i) => (
-              <div key={i} style={{ padding: "8px 4px", borderBottom: "1px solid var(--border)", fontSize: 13, fontFamily: "var(--font-mono)" }}>{JSON.stringify(r)}</div>
-            )) : <div style={{ color: "var(--muted)", padding: 12 }}>sem itens ainda (dados reais).</div>}
-          </div>
-        </div>
+        <MktModal title={`${drill.title} · ${drill.rows.length} item(ns) — do back real`} onClose={() => setDrill(null)}>
+          {drill.rows.length
+            ? drill.rows.map((r, i) => (
+                <div key={i} style={{ padding: "8px 4px", borderBottom: "1px solid var(--border)", fontSize: 13, fontFamily: "var(--font-mono)" }}>{JSON.stringify(r)}</div>
+              ))
+            : <div style={{ color: "var(--muted)", padding: 12 }}>sem itens ainda (dados reais).</div>}
+        </MktModal>
       )}
     </div>
   );
