@@ -11,6 +11,7 @@
 @import './styles/marketing-brandkit.css';
 @import './styles/marketing-videos.css';
 @import './styles/marketing-imagens.css';
+@import './styles/marketing-calendario.css';
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body, #root { margin: 0; padding: 0; height: 100%; }

@@ -43,7 +43,9 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
   try { body = text ? JSON.parse(text) : null; } catch { body = text; }
   if (!res.ok) {
     const msg = (body && (body.message || body.error)) || `Erro ${res.status}`;
-    throw new Error(Array.isArray(msg) ? msg.join("; ") : String(msg));
+    const err = new Error(Array.isArray(msg) ? msg.join("; ") : String(msg)) as Error & { status?: number; body?: any };
+    err.status = res.status; err.body = body; // deixa o chamador ler o payload (ex.: 422 do compliance-gate)
+    throw err;
   }
   return body as T;
 }
