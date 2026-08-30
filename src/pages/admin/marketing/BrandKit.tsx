@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { mktApi } from "../../../lib/mktApi";
 import { MktModal } from "./_ui";
 
@@ -184,7 +185,7 @@ export default function BrandKit() {
         <span className="st-lbl"><b style={{ color: "var(--heading)" }}>{pct}</b>% completo</span>
         <button className="bk-ver" onClick={() => setModal({ kind: "versions" })}><span>{kit.status === "approved" ? "✓" : "◷"}</span><span className="v-n">v{kit.version || 1}</span>{kit.status === "approved" ? "aprovado" : "rascunho"}</button>
         <button className="bk-mini" onClick={exportTokens}>Exportar ▾</button>
-        <button className="bk-mini pri" onClick={approve} disabled={saving}>Salvar e aprovar</button>
+        <button className="bk-mini pri" onClick={approve} disabled={saving}>Aprovar versão</button>
       </div>
 
       {/* hero de ingestão */}
@@ -224,7 +225,7 @@ export default function BrandKit() {
       </div>
 
       <input ref={fileEl} type="file" accept="image/*" style={{ display: "none" }} onChange={onFile} />
-      {toast ? <div style={{ position: "fixed", bottom: 22, left: "50%", transform: "translateX(-50%)", background: "var(--heading)", color: "#fff", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 10001, boxShadow: "0 10px 30px rgba(1,14,38,.35)" }}>{toast}</div> : null}
+      {toast ? createPortal(<div style={{ position: "fixed", bottom: 22, left: "50%", transform: "translateX(-50%)", background: "#0B1A33", color: "#fff", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 10001, boxShadow: "0 10px 30px rgba(1,14,38,.35)" }}>{toast}</div>, document.body) : null}
       {modal ? modalNode() : null}
     </div>
   );
@@ -469,10 +470,11 @@ export default function BrandKit() {
       const up = await mktApi.get<Kit>("/marketing/brand-kit?unit=" + unitId); setKit(up); flash("Fonte removida");
     } catch (e: any) { flash("Erro: " + (e.message || "falha")); }
   }
-  async function delAsset(_id: string) {
-    // remoção de asset: re-envio substitui (logo/símbolo/favicon são únicos por kind);
-    // referências acumulam. Um DELETE dedicado entra numa próxima fatia. Por ora, feedback.
-    flash("Para trocar, envie uma nova imagem no mesmo espaço.");
+  async function delAsset(id: string) {
+    try {
+      await mktApi.del("/marketing/brand-kit/assets/" + id);
+      const up = await mktApi.get<Kit>("/marketing/brand-kit?unit=" + unitId); setKit(up); flash("Imagem removida");
+    } catch (e: any) { flash("Erro: " + (e.message || "falha ao remover")); }
   }
 
   function shell(inner: React.ReactNode) {
@@ -551,7 +553,7 @@ function ListModal({ title, cols, labels, rows, onClose, onSave }: { title: stri
 }
 
 function ColorsModal({ colors, onClose, onSave }: { colors: any[]; onClose: () => void; onSave: (cs: any[]) => void }) {
-  const [list, setList] = useState<any[]>(colors.length ? colors.map((c) => ({ name: c.name, hex: c.hex })) : [{ name: "", hex: "#010E26" }]);
+  const [list, setList] = useState<any[]>(colors.length ? colors.map((c) => ({ name: c.name, hex: c.hex })) : [{ name: "", hex: "#111111" }]);
   const set = (i: number, key: string, val: string) => setList((l) => l.map((r, j) => (j === i ? { ...r, [key]: val } : r)));
   const inputStyle = { background: "var(--surface-2)", border: "1px solid var(--border-2)", borderRadius: 10, padding: "9px 12px", color: "var(--text)", fontFamily: "var(--font-ui)", fontSize: 14, outline: "none", boxSizing: "border-box" as const };
   return (
@@ -565,7 +567,7 @@ function ColorsModal({ colors, onClose, onSave }: { colors: any[]; onClose: () =
           <button className="bk-act" onClick={() => setList((l) => l.filter((_, j) => j !== i))}>×</button>
         </div>
       ))}
-      <button className="bk-add" onClick={() => setList((l) => [...l, { name: "", hex: "#6E9CE8" }])}>+ Adicionar cor</button>
+      <button className="bk-add" onClick={() => setList((l) => [...l, { name: "", hex: "#808080" }])}>+ Adicionar cor</button>
     </MktModal>
   );
 }
