@@ -2,6 +2,7 @@ import { useParams } from "react-router-dom";
 import MarketingCockpit from "./Cockpit";
 import BrandKit from "./BrandKit";
 import Videos from "./Videos";
+import Imagens from "./Imagens";
 
 // Shell do módulo Marketing (NATIVO no portal). Espelha o padrão do Financeiro:
 // um componente + :secao decide a sub-tela. Raiz = Cockpit. As demais telas
@@ -24,6 +25,8 @@ export default function Marketing() {
       return <Videos view="cortes" />;
     case "roteiros":
       return <Videos view="roteiros" />;
+    case "imagens":
+      return <Imagens />;
     default:
       return (
         <div className="mkt-root">

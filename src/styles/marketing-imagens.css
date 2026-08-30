@@ -1,0 +1,57 @@
+/* ============================================================================
+ * Tela 4 — IMAGENS & CARROSSEL (BYO-credits ChatGPT). CSS PORTADO do protótipo,
+ * ESCOPADO sob `.mkt-root` (evita colisão de classe de 1 palavra — lição `.pend`).
+ * Tokens herdam por cascata do `.mkt-root`.
+ * ========================================================================== */
+
+/* barra: conectar a conta (BYO) */
+.mkt-root .img-conn{display:flex;align-items:center;gap:14px;border-radius:14px;padding:15px 18px;margin-bottom:18px;border:1px solid}
+.mkt-root .img-conn.off{background:linear-gradient(90deg,rgba(234,179,8,.10),rgba(234,179,8,.02));border-color:rgba(234,179,8,.35)}
+.mkt-root .img-conn.on{background:linear-gradient(90deg,rgba(31,138,91,.10),rgba(31,138,91,.02));border-color:rgba(31,138,91,.35)}
+.mkt-root .img-conn .c-ic{font-size:24px;flex:0 0 auto}
+.mkt-root .img-conn .c-tx{flex:1;min-width:220px}
+.mkt-root .img-conn .c-t{font-weight:600;font-size:14.5px;color:var(--heading)}
+.mkt-root .img-conn .c-s{font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.5}
+.mkt-root .img-conn .c-s b{color:var(--text)}
+
+/* gerador: painel + aside da marca */
+.mkt-root .img-gen{display:grid;grid-template-columns:1fr 260px;gap:16px;align-items:start;margin-bottom:22px}
+.mkt-root .img-panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px}
+.mkt-root .img-lbl{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.mkt-root .img-panel textarea{width:100%;min-height:84px;resize:vertical;background:var(--surface-2);border:1px solid var(--border-2);border-radius:11px;padding:11px 13px;color:var(--text);font-family:var(--font-ui);font-size:14px;line-height:1.5;outline:none;box-sizing:border-box}
+.mkt-root .img-panel textarea:focus{border-color:var(--blue-2)}
+.mkt-root .img-fmt{display:flex;gap:8px;margin-bottom:15px;flex-wrap:wrap}
+.mkt-root .img-fmt button{border:1px solid var(--border-2);background:var(--surface);color:var(--muted);border-radius:10px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--font-ui)}
+.mkt-root .img-fmt button.on{background:rgba(110,156,232,.13);border-color:var(--blue-2);color:var(--blue-3)}
+[data-theme="dark"] .mkt-root .img-fmt button.on{color:var(--blue)}
+.mkt-root .img-row{display:flex;align-items:center;gap:10px;margin:14px 0}
+.mkt-root .img-toggle{width:38px;height:22px;border-radius:99px;background:var(--surface-3);border:0;cursor:pointer;position:relative;flex:0 0 auto}
+.mkt-root .img-toggle.on{background:var(--blue-2)}
+.mkt-root .img-toggle::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .15s}
+.mkt-root .img-toggle.on::after{transform:translateX(16px)}
+.mkt-root .img-motor{font-size:11.5px;color:var(--muted-2);margin-top:6px}
+
+.mkt-root .img-brand{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:15px;position:sticky;top:0}
+.mkt-root .img-brand .bh{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:11px}
+.mkt-root .img-brand .bnm{font-weight:600;font-size:13.5px;color:var(--heading);margin-bottom:9px}
+.mkt-root .img-brand .bsw{display:flex;gap:0;border-radius:8px;overflow:hidden;border:1px solid var(--border);margin-bottom:10px}
+.mkt-root .img-brand .bsw span{flex:1;height:30px}
+.mkt-root .img-brand .bfont{font-size:12.5px;color:var(--muted)}
+.mkt-root .img-brand .bnote{font-size:11px;color:var(--muted-2);margin-top:10px;line-height:1.45}
+
+/* resultados + biblioteca */
+.mkt-root .img-results{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.mkt-root .img-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.mkt-root .img-card .poster{position:relative}
+.mkt-root .poster{border-radius:0;overflow:hidden}
+.mkt-root .poster > svg,.mkt-root .poster > img{width:100%;height:auto;display:block}
+.mkt-root .poster .slide-no{position:absolute;top:8px;right:9px;background:rgba(0,0,0,.45);color:#fff;font-size:10px;font-weight:700;border-radius:6px;padding:2px 7px}
+.mkt-root .img-acts{display:flex;gap:6px;padding:9px 11px;flex-wrap:wrap}
+.mkt-root .img-acts .bk-mini{padding:6px 9px;font-size:11px}
+.mkt-root .img-sec{font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:24px 0 12px}
+.mkt-root .img-load{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13.5px;padding:26px 0;justify-content:center}
+.mkt-root .img-lib{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:11px}
+.mkt-root .img-lib .poster{border-radius:10px;overflow:hidden;cursor:pointer;border:1px solid var(--border)}
+.mkt-root .img-empty{background:var(--surface-2);border:1px dashed var(--border-2);border-radius:12px;padding:22px 18px;text-align:center;color:var(--muted);font-size:13px;line-height:1.55}
+
+@media(max-width:900px){.mkt-root .img-gen{grid-template-columns:1fr}.mkt-root .img-brand{position:static}.mkt-root .img-conn{flex-wrap:wrap}}
