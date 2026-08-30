@@ -38,12 +38,11 @@ export default function MarketingCockpit() {
     <div className="kpi" onClick={kkey ? () => openDrill(kkey, label) : undefined}>
       <div className="kl">{label}</div>
       <div className="kv">{value}{unit ? <span className="ku">{unit}</span> : null}</div>
-      {kdrill ? <div className="kd">no ar</div> : null}
     </div>
   );
 
-  if (err) return <div className="mkt-root"><div className="eyebrow">Marketing</div><h1 className="page-title">Cockpit de Marketing</h1><div className="mkt-live err"><i />não consegui ligar ao back: {err}</div></div>;
-  if (!data) return <div className="mkt-root"><div className="eyebrow">Marketing</div><h1 className="page-title">Cockpit de Marketing</h1><div className="mkt-live"><i />consultando o back…</div></div>;
+  if (err) return <div className="mkt-root"><div className="eyebrow">Marketing</div><h1 className="page-title">Cockpit de Marketing</h1><div className="cock-note">Não foi possível carregar os dados agora. Tente novamente em instantes.</div></div>;
+  if (!data) return <div className="mkt-root"><div className="eyebrow">Marketing</div><h1 className="page-title">Cockpit de Marketing</h1><div className="cock-note">Carregando…</div></div>;
 
   const k = data.kpis || {}, ns = data.north_star || {}, ads = k.ads || {}, cc = data.cost_center || [];
   const reach = kfmt(k.reach), views = kfmt(k.views);
@@ -74,7 +73,7 @@ export default function MarketingCockpit() {
     <div className="mkt-root">
       <div className="eyebrow">Marketing</div>
       <h1 className="page-title">Cockpit de Marketing</h1>
-      <p className="page-sub">Todos os indicadores de marketing consolidados num só lugar. <span className="mkt-live ok"><i />ligado ao back real</span></p>
+      <p className="page-sub">Todos os indicadores de marketing consolidados num só lugar.</p>
 
       {/* North Star */}
       <div className="ns-hero">
@@ -82,7 +81,7 @@ export default function MarketingCockpit() {
           <div className="ns-lbl">Estrela-guia · {ns.metric || "Leads do mês"}</div>
           <div className="ns-val">{num(ns.value)} <span className="ns-of">/ meta {num(ns.goal)}</span></div>
           <div className={"ns-bar " + nsClass}><i style={{ width: (ns.pct != null ? Math.min(100, ns.pct) : 0) + "%" }} /></div>
-          <div className={"ns-status " + nsClass}>{ns.value == null ? "🔌 leads vêm do CRM (Portal) — meta " + num(ns.goal) : (ns.pct + "% da meta")}</div>
+          <div className={"ns-status " + nsClass}>{ns.value == null ? "Meta de " + num(ns.goal) + " leads no mês" : (ns.pct + "% da meta")}</div>
         </div>
         <div className="ns-side">
           <div className="ns-mini"><span>ROI</span><b>{dec(ads.roi)}×</b></div>
@@ -104,9 +103,9 @@ export default function MarketingCockpit() {
       <div className="funnel">
         <FnRow lbl="📣 Publicados" v={fpub} sub="posts/mês" />
         <FnRow lbl="👁 Alcance" v={freach} sub="pessoas" />
-        <FnRow lbl="💬 Leads" v={fleads} sub="via CRM (Portal)" crmSrc />
-        <FnRow lbl="🗣 Conversas" v={fconv} sub="via CRM (Portal)" crmSrc />
-        <FnRow lbl="🏆 Vendas" v={fsales} sub="via CRM (Portal)" crmSrc win />
+        <FnRow lbl="💬 Leads" v={fleads} sub="via CRM" crmSrc />
+        <FnRow lbl="🗣 Conversas" v={fconv} sub="via CRM" crmSrc />
+        <FnRow lbl="🏆 Vendas" v={fsales} sub="via CRM" crmSrc win />
       </div>
       <div className="funnel-foot">
         <div className="ff-kpi"><span>Receita atribuída</span><b className="mono">— <span style={{ fontSize: 12, color: "var(--muted)" }}>(CRM)</span></b></div>
@@ -165,16 +164,16 @@ export default function MarketingCockpit() {
         </div>
       </div>
 
-      <div className="cock-note">📊 Consolida Vídeos Virais, Agendamento & Automação e Mídia Paga. Dados reais do banco `marketing`; o funil leads→vendas vem do CRM (Portal).</div>
+      <div className="cock-note">📊 Consolida Vídeos Virais, Agendamento & Automação e Mídia Paga num só lugar. O funil de leads a vendas vem do seu CRM.</div>
 
       {/* Drill-down real — via MktModal (createPortal no body: sempre centralizado + backdrop opaco) */}
       {drill && (
-        <MktModal title={`${drill.title} · ${drill.rows.length} item(ns) — do back real`} onClose={() => setDrill(null)}>
+        <MktModal title={`${drill.title} · ${drill.rows.length} ${drill.rows.length === 1 ? "item" : "itens"}`} onClose={() => setDrill(null)}>
           {drill.rows.length
             ? drill.rows.map((r, i) => (
                 <div key={i} style={{ padding: "8px 4px", borderBottom: "1px solid var(--border)", fontSize: 13, fontFamily: "var(--font-mono)" }}>{JSON.stringify(r)}</div>
               ))
-            : <div style={{ color: "var(--muted)", padding: 12 }}>sem itens ainda (dados reais).</div>}
+            : <div style={{ color: "var(--muted)", padding: 12 }}>Sem itens ainda.</div>}
         </MktModal>
       )}
     </div>

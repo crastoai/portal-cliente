@@ -39,6 +39,19 @@ const FONT_OPTIONS: Record<string, string[]> = {
   num: ["JetBrains Mono", "IBM Plex Mono", "Space Mono", "Fira Code", "Roboto Mono"],
 };
 const ROLE_LABEL: Record<string, string> = { title: "Títulos", body: "Corpo de texto", num: "Números / código" };
+
+// Ícones da nav (SVGs do protótipo aprovado). Renderizados via dangerouslySetInnerHTML.
+const SEC_ICON: Record<SecId, string> = {
+  material: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>',
+  logo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>',
+  cores: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>',
+  tipo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></svg>',
+  voz: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>',
+  posic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+  regras: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg>',
+};
+// escala de neutros (fixa) — mostrada no editor de Cores, igual ao protótipo
+const NEUTRALS = ["#101828", "#344054", "#667085", "#98A2B3", "#D0D5DD", "#F0F2F5"];
 const fontStack = (f: string) => `'${f}', system-ui, -apple-system, sans-serif`;
 const onColor = (hex: string) => {
   const h = (hex || "#000").replace("#", "");
@@ -131,7 +144,7 @@ export default function BrandKit() {
   async function analyze() {
     if (!unitId) return;
     try { await mktApi.post("/marketing/brand-kit/analyze?unit=" + unitId, { sourceIds: (kit?.sources || []).map((s: any) => s.id) });
-      flash("Análise enfileirada (motor Gemini a ligar)");
+      flash("Análise iniciada — a IA vai propor sua marca.");
     } catch (e: any) { flash("Erro: " + (e.message || "falha")); }
   }
 
@@ -165,14 +178,14 @@ export default function BrandKit() {
   const pct = kit ? Math.round((CORE.filter((s) => status(s) === "ok").length / CORE.length) * 100) : 0;
 
   // ---------------- render ----------------
-  if (err) return shell(<div className="mkt-live err"><i />não consegui ligar ao back: {err}</div>);
-  if (!kit) return shell(<div className="mkt-live"><i />consultando o back…</div>);
+  if (err) return shell(<div className="cock-note">Não foi possível carregar o Brand Kit agora. Tente novamente em instantes.</div>);
+  if (!kit) return shell(<div className="cock-note">Carregando…</div>);
 
   return (
     <div className="mkt-root">
       <div className="eyebrow">Marketing · Produzir</div>
       <h1 className="page-title">Brand Kit</h1>
-      <p className="page-sub">A identidade da marca que a IA usa em tudo. Suba o que você já tem — ou crie do zero — e veja a marca montada ao lado, ao vivo. <span className="mkt-live ok"><i />ligado ao back real</span></p>
+      <p className="page-sub">A identidade da marca que a IA usa em tudo. Suba o que você já tem — ou crie do zero — e veja a marca montada ao lado, ao vivo.</p>
 
       {/* barra: unidade · % · versão · export · aprovar */}
       <div className="bk-bar">
@@ -185,7 +198,7 @@ export default function BrandKit() {
         <span className="st-lbl"><b style={{ color: "var(--heading)" }}>{pct}</b>% completo</span>
         <button className="bk-ver" onClick={() => setModal({ kind: "versions" })}><span>{kit.status === "approved" ? "✓" : "◷"}</span><span className="v-n">v{kit.version || 1}</span>{kit.status === "approved" ? "aprovado" : "rascunho"}</button>
         <button className="bk-mini" onClick={exportTokens}>Exportar ▾</button>
-        <button className="bk-mini pri" onClick={approve} disabled={saving}>Aprovar versão</button>
+        <button className="bk-mini pri" onClick={approve} disabled={saving}>Salvar e aprovar</button>
       </div>
 
       {/* hero de ingestão */}
@@ -211,8 +224,9 @@ export default function BrandKit() {
               <div key={s.id}>
                 {sep ? <div className="n-sep" /> : null}
                 <button className={"bk3-item" + (s.id === active ? " on" : "")} onClick={() => setActive(s.id)}>
+                  <span className="n-ic" dangerouslySetInnerHTML={{ __html: SEC_ICON[s.id] }} />
                   <span className="n-t">{s.label}</span>
-                  <span className={"bk3-dot " + dot} title={dot === "pend" ? "pendente" : dot === "ai" ? "IA" : "ok"} />
+                  <span className={"bk3-dot " + dot} title={dot === "pend" ? "a completar" : dot === "ai" ? "sugestão da IA" : "pronto"} />
                 </button>
               </div>
             );
@@ -260,32 +274,42 @@ export default function BrandKit() {
             <button className="bk-mini pri" onClick={analyze}>✨ Analisar e montar</button>{" "}
             <button className="bk-mini" onClick={() => setModal({ kind: "source" })}>+ Adicionar fonte</button>
           </div>
-          <div className="bk-gap" style={{ marginTop: 11 }}>A IA extrai cores, tipografia, tom e regras do que você conectar — e propõe; você aprova. (motor de ingestão Gemini a ligar)</div>
+          <div className="bk-gap" style={{ marginTop: 11 }}>A IA extrai cores, tipografia, tom e regras do que você conectar — e propõe; você aprova.</div>
         </div>
       </>
     );
   }
 
   function logoEditor() {
+    const LABELS: Record<string, string> = { logo_principal: "Logo principal", logo_clara: "Versão clara (fundo escuro)", simbolo: "Símbolo / ícone", favicon: "Favicon" };
     const slot = (k: string, dark?: boolean) => {
       const a = assetOf(k);
       return (
         <div className={"bk-drop" + (dark ? " dark" : "") + (a ? " has" : "")} onClick={() => pick(k)}>
-          <span className="d-lbl">{k === "logo_principal" ? "Logo principal" : k === "logo_clara" ? "Logo (fundo escuro)" : k === "simbolo" ? "Símbolo" : "Favicon"}</span>
-          {a ? <><span className="d-x" onClick={(e) => { e.stopPropagation(); delAsset(a.id); }}>×</span><img src={a.url} alt="" /></> : <><span className="d-plus">+</span><span className="d-hint">clique para enviar</span></>}
+          <span className="d-lbl">{LABELS[k]}</span>
+          {a ? <><span className="d-x" onClick={(e) => { e.stopPropagation(); delAsset(a.id); }}>×</span><img src={a.url} alt="" /></> : <><span className="d-plus">+</span><span className="d-hint">PNG, SVG ou JPG</span></>}
         </div>
       );
     };
     const refs = assets.filter((a) => a.kind === "reference");
+    const u = unit();
     return (
       <>
         <div className="bk3-h"><span className="e-t">Logo & identidade</span>
           <span className={"bk-org " + (assetOf("logo_principal") ? "you" : "pend")}>{assetOf("logo_principal") ? "você enviou" : "pendente"}</span>
+          <span className="bk-sp" />
+          <button className="bk-act" onClick={() => setModal({ kind: "identity" })}>Editar nome e @</button>
         </div>
-        <p className="bk3-sub">Suba as versões do logo. A IA usa a versão certa conforme o fundo em cada peça.</p>
+        <p className="bk3-sub">Suba o seu logo em algumas versões. Aparece na hora no preview ao lado.</p>
         <div className="bk3-card"><div className="bk-logos">{slot("logo_principal")}{slot("logo_clara", true)}{slot("simbolo")}{slot("favicon")}</div></div>
-        <div className="bk3-card"><div className="bk-h" style={{ marginBottom: 4 }}>Imagens de referência</div>
-          <div className="bk-gap" style={{ marginBottom: 11 }}>Fotos e artes que representam a marca — a IA usa como referência de estilo.</div>
+        <div className="bk3-card"><div className="bk-h" style={{ marginBottom: 10 }}>Nome e endereços</div>
+          <div className="bk-id"><div>
+            <div className="bk-name">{u?.name || "—"}</div>
+            <div className="bk-sub mono">{u?.handle ? "@" + u.handle.replace(/^@/, "") : "sem @"}{u?.cnpj ? " · " + u.cnpj : ""}</div>
+          </div></div>
+        </div>
+        <div className="bk3-card"><div className="bk-h" style={{ marginBottom: 4 }}>Imagens de referência da marca</div>
+          <div className="bk-gap" style={{ marginBottom: 11 }}>Fotos, padrões, mockups — o que ajuda a IA a entender o clima visual da marca.</div>
           <div className="bk-assets">
             {refs.map((a) => <div className="bk-asset" key={a.id} style={{ backgroundImage: `url(${a.url})` }}><span className="a-x" onClick={() => delAsset(a.id)}>×</span></div>)}
             <div className="bk-asset add" onClick={() => pick("reference")}>+</div>
@@ -305,9 +329,15 @@ export default function BrandKit() {
         </div>
         <p className="bk3-sub">A paleta da marca. A IA usa estas cores em posts, imagens e vídeos.</p>
         <div className="bk3-card">
+          <div className="bk-cgroup" style={{ marginTop: 0 }}>Cores da marca</div>
           {colors.length ? <div className="bk-colors">
             {colors.map((c, i) => <span className="bk-sw" key={i} style={{ background: c.hex, color: onColor(c.hex) }}><i>{c.name}</i><b>{c.hex}</b></span>)}
           </div> : <div className="bk-empty"><b>Sem cores ainda</b>Adicione a paleta da marca (ou deixe a IA extrair do site).</div>}
+          <div className="bk-cgroup">Neutros</div>
+          <div className="bk-ramp">
+            {NEUTRALS.map((c, i) => <span className="bk-rc" key={i} style={{ background: c }} />)}
+            <span className="bk-rc lightborder" style={{ background: "#FFFFFF" }} />
+          </div>
         </div>
       </>
     );
@@ -394,7 +424,7 @@ export default function BrandKit() {
           </div>
           {rules.length ? <div className="bk-rules">{rules.map((r, i) => <div className="bk-rule" key={i}><span className="r-x">✕</span><span>{r.text}</span><span className="r-src">{r.source}</span></div>)}</div> : null}
           {blocked.length ? <div className="bk-blocked"><b>Bloqueado:</b> <s>{blocked[0].text}</s><br />Motivo: {blocked[0].reason}.</div> : null}
-          <div className="bk-gap" style={{ marginTop: 11 }}>Estas regras entram no <b>compliance-gate</b>: a IA bloqueia e carimba qualquer conteúdo que as viole antes de publicar.</div>
+          <div className="bk-gap" style={{ marginTop: 11 }}>A IA respeita estas regras automaticamente em todo conteúdo — e avisa antes de publicar algo que as contrarie.</div>
         </div>
       </>
     );
@@ -406,21 +436,33 @@ export default function BrandKit() {
     const logoDark = assetOf("logo_clara") || assetOf("logo_principal");
     const titleF = fonts.find((f) => f.role === "title")?.family;
     const bodyF = fonts.find((f) => f.role === "body")?.family;
+    const c0 = colors[0]?.hex || "#0B1A33";
+    const uname = unit()?.name || "Sua marca";
+    const miniLogo = logoDark ? <img src={logoDark.url} alt="" style={{ maxHeight: 24 }} /> : <span style={{ color: onColor(c0), fontWeight: 700, fontSize: 13 }}>{uname.slice(0, 16)}</span>;
     return (
       <div className="bk-board">
-        <div className="bd-h"><span className="live" />Marca ao vivo</div>
+        <div className="bd-h"><span className="live" />Sua marca</div>
         <div className="bd-logos">
           <div className="bd-logo light">{logoLight ? <img src={logoLight.url} alt="" /> : <span className="ph">logo principal</span>}</div>
           <div className="bd-logo dark">{logoDark ? <img src={logoDark.url} alt="" /> : <span className="ph">logo claro</span>}</div>
         </div>
-        <div className="bd-sec"><div className="bd-lbl">Cores da marca</div>
+        <div className="bd-sec"><div className="bd-lbl">Marca</div>
           {colors.length ? <div className="bd-sw">{colors.map((c, i) => <span key={i} style={{ background: c.hex }} />)}</div> : <span className="ph" style={{ fontSize: 11, color: "var(--muted-2)" }}>sem cores</span>}
         </div>
         <div className="bd-sec" style={{ paddingTop: 0 }}><div className="bd-lbl">Tipografia</div>
-          <div className="bd-type"><div className="t-h" style={{ fontFamily: titleF ? fontStack(titleF) : undefined }}>{unit()?.name || "Sua marca"}</div>
-            <div className="t-b" style={{ fontFamily: bodyF ? fontStack(bodyF) : undefined }}>A identidade que a IA usa em todos os seus posts, imagens e vídeos.</div></div>
+          <div className="bd-type"><div className="t-h" style={{ fontFamily: titleF ? fontStack(titleF) : undefined, color: c0 }}>{uname}</div>
+            <div className="t-b" style={{ fontFamily: bodyF ? fontStack(bodyF) : undefined }}>Texto de corpo na fonte da marca — o parágrafo que a IA usa nas peças.</div></div>
         </div>
-        {kit.voice ? <div className="bd-sec" style={{ paddingTop: 0 }}><div className="bd-lbl">Tom de voz</div><div className="bd-voice">{kit.voice}</div></div> : null}
+        {kit.voice ? <div className="bd-sec" style={{ paddingTop: 0 }}><div className="bd-lbl">Tom de voz</div><div className="bd-voice" style={{ borderColor: colors[2]?.hex || colors[1]?.hex || "var(--blue-2)" }}>{kit.voice}</div></div> : null}
+        <div className="bd-sec" style={{ paddingTop: 0 }}><div className="bd-lbl">Aplicada</div>
+          <div className="bd-card">
+            <div className="c-top" style={{ background: c0 }}>
+              <span style={{ maxHeight: 26, display: "flex", alignItems: "center" }}>{miniLogo}</span>
+              <span className="c-nm" style={{ color: onColor(c0), fontFamily: titleF ? fontStack(titleF) : undefined }}>{uname}</span>
+            </div>
+            <div className="c-bd">Prévia de como a marca aparece aplicada — logo, cor e fonte juntos.</div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -439,6 +481,7 @@ export default function BrandKit() {
       </MktModal>
     );
     if (k === "versions") return <VersionsModal unitId={unitId!} onClose={() => setModal(null)} />;
+    if (k === "identity") return <IdentityModal unit={unit()!} onClose={() => setModal(null)} onSave={saveIdentity} />;
     if (k === "source") return <SourceModal onClose={() => setModal(null)} onAdd={addSource} />;
     if (k === "colors") return <ColorsModal colors={colors} onClose={() => setModal(null)} onSave={(cs) => { patchKit({ colors: cs }, "Cores salvas"); setModal(null); }} />;
     if (k === "fonts") return <FontsModal fonts={fonts} onClose={() => setModal(null)} onSave={(fs) => { patchKit({ fonts: fs }, "Fontes salvas"); setModal(null); }} />;
@@ -464,6 +507,14 @@ export default function BrandKit() {
     try { await mktApi.post("/marketing/brand-kit/sources?unit=" + unitId, { type, url });
       const up = await mktApi.get<Kit>("/marketing/brand-kit?unit=" + unitId); setKit(up); flash("Fonte adicionada"); setModal(null);
     } catch (e: any) { flash("Erro: " + (e.message || "falha")); }
+  }
+  async function saveIdentity(name: string, handle: string) {
+    if (!unitId) return;
+    try {
+      await mktApi.patch("/marketing/business-units/" + unitId, { name, handle: handle.replace(/^@/, "") || null });
+      const us = await mktApi.get<Unit[]>("/marketing/business-units"); setUnits(us || []);
+      flash("Identidade salva"); setModal(null);
+    } catch (e: any) { flash("Erro: " + (e.message || "falha ao salvar")); }
   }
   async function removeSource(id: string) {
     try { await mktApi.del("/marketing/brand-kit/sources/" + id);
@@ -501,6 +552,19 @@ function VersionsModal({ unitId, onClose }: { unitId: string; onClose: () => voi
             <div style={{ fontSize: 13, color: "var(--muted)" }}>{v.note}</div>
           </div>
         )) : <div style={{ color: "var(--muted-2)" }}>Sem versões aprovadas ainda. Clique em “Salvar e aprovar” para gerar a v1.</div>}
+    </MktModal>
+  );
+}
+
+function IdentityModal({ unit, onClose, onSave }: { unit: Unit; onClose: () => void; onSave: (name: string, handle: string) => void }) {
+  const [name, setName] = useState(unit?.name || "");
+  const [handle, setHandle] = useState(unit?.handle ? "@" + unit.handle.replace(/^@/, "") : "");
+  return (
+    <MktModal title="Nome e @" onClose={onClose}
+      footer={<><button className="bk-mini" onClick={onClose}>Cancelar</button><button className="bk-mini pri" onClick={() => onSave(name.trim(), handle.trim())} disabled={!name.trim()}>Salvar</button></>}>
+      <div className="bkf"><label>Nome da marca / unidade</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="ex.: Crasto.AI" /></div>
+      <div className="bkf"><label>@ (Instagram / handle)</label><input type="text" value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="@suamarca" /></div>
+      <div style={{ fontSize: 12, color: "var(--muted-2)", lineHeight: 1.5 }}>O nome e o @ aparecem no preview da marca e são usados pela IA nas peças.</div>
     </MktModal>
   );
 }

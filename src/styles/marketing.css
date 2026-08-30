@@ -145,3 +145,10 @@
 
 /* funil: número zerado aparece à esquerda (barra vazia) — nada de largura fictícia */
 .mkt-root .fn-zero{ display:inline-block; padding:8px 12px; font-family:var(--font-mono); font-size:14px; color:var(--muted-2); }
+
+/* formulários dentro do MktModal (SourceModal, IdentityModal, etc.) */
+.mkt-modal-b .bkf{display:block;margin-bottom:13px}
+.mkt-modal-b .bkf label{display:block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.mkt-modal-b input[type=text],.mkt-modal-b select,.mkt-modal-b textarea{width:100%;background:var(--surface-2);border:1px solid var(--border-2);border-radius:10px;padding:10px 13px;color:var(--text);font-family:var(--font-ui);font-size:14px;outline:none;box-sizing:border-box}
+.mkt-modal-b input[type=text]:focus,.mkt-modal-b select:focus,.mkt-modal-b textarea:focus{border-color:var(--blue-2)}
+.mkt-modal-b select{cursor:pointer}

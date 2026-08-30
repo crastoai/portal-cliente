@@ -20,8 +20,8 @@ export default function Marketing() {
         <div className="mkt-root">
           <div className="eyebrow">Marketing</div>
           <h1 className="page-title">{titulo(secao)}</h1>
-          <p className="page-sub">Esta tela está sendo ligada ao back — em construção.</p>
-          <div className="cock-note">Em breve, ligada ao banco `marketing` (mesma pilha da Cockpit).</div>
+          <p className="page-sub">Em breve.</p>
+          <div className="cock-note">Estamos preparando esta tela. Em breve disponível.</div>
         </div>
       );
   }
