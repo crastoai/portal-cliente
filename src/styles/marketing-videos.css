@@ -1,0 +1,189 @@
+/* ============================================================================
+ * Tela 3 — VÍDEOS VIRAIS (Dashboard/pedido + wizard · Avatares · Cortes · Roteiros).
+ * CSS PORTADO do protótipo aprovado (paridade), porém ESCOPADO sob `.mkt-root`
+ * (página) e `.mkt-modal-backdrop` (wizard dentro do MktModal). Escopar evita a
+ * colisão de classes de 1 palavra com utilitários globais do portal (lição `.pend`).
+ * Tokens herdam por cascata do ancestral (.mkt-root / .mkt-modal-backdrop).
+ * ========================================================================== */
+
+/* top-up de tokens que o .mkt-modal-backdrop não define (usados pelo wizard) */
+.mkt-modal-backdrop{ --green:#1F8A5B; --brand-navy:#010E26; }
+
+/* ---- spinner compartilhado ---- */
+@keyframes mkt-spin{to{transform:rotate(360deg)}}
+.mkt-root .spin,.mkt-modal-backdrop .spin{width:18px;height:18px;border-radius:50%;border:2px solid var(--border-2);border-top-color:var(--blue-2);animation:mkt-spin .7s linear infinite;flex:0 0 auto}
+
+/* ===================== DASHBOARD (pedido) ===================== */
+.mkt-root .vv-top{display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start}
+.mkt-root .vv-lead{color:var(--muted);font-size:14px;line-height:1.55;margin:8px 0 0;max-width:56ch}
+.mkt-root .plan-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px 20px;box-shadow:var(--glow)}
+.mkt-root .plan-card .pc-lbl{color:var(--eyebrow);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.mkt-root .plan-card .pc-val{font-size:16px;font-weight:600;color:var(--heading);margin-top:6px}
+.mkt-root .plan-card .pc-quota{font-family:var(--font-mono);font-size:22px;font-weight:600;color:var(--heading);margin-top:6px}
+.mkt-root .plan-card .pc-quota span{font-size:12px;color:var(--muted-2);font-weight:400}
+.mkt-root .plan-card .pc-bar{height:7px;border-radius:99px;background:var(--surface-3);overflow:hidden;margin:9px 0 6px}
+.mkt-root .plan-card .pc-fill{height:100%;background:linear-gradient(90deg,var(--blue-2),var(--green-2))}
+.mkt-root .plan-card .pc-sub{font-size:11.5px;color:var(--muted-2);line-height:1.5}
+.mkt-root .plan-card .pc-cta{margin-top:11px;font-size:12px;color:var(--blue-3);cursor:pointer;font-weight:600;border-bottom:1px solid rgba(46,111,158,.35);display:inline-block}
+[data-theme="dark"] .mkt-root .plan-card .pc-cta{color:var(--blue)}
+
+.mkt-root .vv-divider{border:0;border-top:1px solid var(--border);margin:24px 0}
+.mkt-root .vv-sect-lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 14px}
+
+.mkt-root .vv-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}
+.mkt-root .vv-step{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center;position:relative}
+.mkt-root .vv-step .ring{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;margin:0 auto 9px;background:var(--surface-3);color:var(--muted);font-size:17px}
+.mkt-root .vv-step.done .ring{background:rgba(31,138,91,.14);color:var(--green-2)}
+.mkt-root .vv-step .cap{font-size:12.5px;color:var(--heading);font-weight:600}
+.mkt-root .vv-step .num2{font-family:var(--font-mono);font-size:20px;font-weight:600;color:var(--heading);margin-top:4px}
+
+.mkt-root .vv-primary-cta{display:flex;justify-content:center;margin:6px 0 22px}
+
+.mkt-root .vv-orders{margin:2px 0 8px}
+.mkt-root .vv-order{display:flex;align-items:center;gap:13px;background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:13px 16px;margin-bottom:10px}
+.mkt-root .vv-order .o-th{width:52px;height:52px;border-radius:9px;background:var(--surface-3);display:grid;place-items:center;font-size:22px;flex:0 0 auto}
+.mkt-root .vv-order .o-t{font-weight:600;font-size:14px;color:var(--heading)}
+.mkt-root .vv-order .o-d{font-size:12px;color:var(--muted);margin-top:2px}
+.mkt-root .vv-status{margin-left:auto;font-size:11.5px;font-weight:700;border-radius:999px;padding:5px 12px;white-space:nowrap}
+.mkt-root .vv-status.prod{background:rgba(234,179,8,.15);color:#B45309}
+.mkt-root .vv-status.rev{background:rgba(110,156,232,.16);color:var(--blue-3)}
+.mkt-root .vv-status.done{background:rgba(31,138,91,.14);color:var(--green-2)}
+.mkt-root .vv-status.adj{background:rgba(184,92,92,.14);color:var(--coral)}
+[data-theme="dark"] .mkt-root .vv-status.prod{color:#FBBF24}
+[data-theme="dark"] .mkt-root .vv-status.rev{color:var(--blue)}
+.mkt-root .vv-empty{background:var(--surface-2);border:1px dashed var(--border-2);border-radius:13px;padding:22px 18px;text-align:center;color:var(--muted);font-size:13px;line-height:1.55}
+
+/* ===================== MEUS AVATARES / CLONE ===================== */
+.mkt-root .av-gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.mkt-root .av-g{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:transform .1s,box-shadow .1s}
+.mkt-root .av-g:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(11,26,51,.14)}
+.mkt-root .av-pic{height:150px;background:linear-gradient(135deg,var(--brand-navy),var(--blue-3));position:relative}
+.mkt-root .av-badge{position:absolute;top:9px;left:9px;font-size:10px;font-weight:700;border-radius:7px;padding:3px 8px;background:rgba(255,255,255,.92);color:#0B1A33}
+.mkt-root .av-badge.ok{background:rgba(31,138,91,.92);color:#fff}
+.mkt-root .av-badge.proc{background:rgba(234,179,8,.92);color:#3a2c00}
+.mkt-root .av-info{padding:12px 14px}
+.mkt-root .av-nm{font-weight:600;font-size:14px;color:var(--heading)}
+.mkt-root .av-meta{font-size:11.5px;color:var(--muted);margin-top:3px}
+.mkt-root .av-acts{margin-top:11px}
+.mkt-root .av-g.add{border-style:dashed;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:22px 16px;min-height:238px;cursor:pointer}
+.mkt-root .av-g.add:hover{border-color:var(--blue-2)}
+.mkt-root .av-plus{font-size:34px;color:var(--muted-2);line-height:1}
+.mkt-root .av-addt{font-weight:600;font-size:14px;color:var(--heading);margin-top:8px}
+.mkt-root .av-addh{font-size:11.5px;color:var(--muted-2);margin-top:5px;line-height:1.4}
+.mkt-root .av-note{margin-top:16px;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:13px 15px;font-size:13px;color:var(--muted);line-height:1.5}
+
+/* ===================== CORTES ===================== */
+.mkt-root .vc-review{display:flex;align-items:center;gap:10px;background:rgba(110,156,232,.10);border:1px solid rgba(110,156,232,.32);border-radius:11px;padding:11px 14px;margin-bottom:14px;flex-wrap:wrap}
+.mkt-root .vc-review .cr-t{font-size:13px;color:var(--text);flex:1;line-height:1.4;min-width:220px}
+.mkt-root .vc-review .cr-b{display:flex;gap:8px}
+.mkt-root .vc-grid{display:grid;grid-template-columns:1fr 300px;gap:18px;align-items:start;margin-bottom:16px}
+.mkt-root .vc-player{background:#0B1A33;border-radius:14px;overflow:hidden;position:relative;aspect-ratio:16/10;display:grid;place-items:center}
+.mkt-root .vc-player video{width:100%;height:100%;object-fit:contain;background:#000}
+.mkt-root .vc-player .vc-ph{color:#8ea4c9;font-size:13px;text-align:center;padding:20px;line-height:1.5}
+.mkt-root .vc-score{position:absolute;top:10px;right:10px;background:rgba(0,0,0,.5);color:#fff;font-size:10.5px;font-weight:700;border-radius:7px;padding:3px 9px;letter-spacing:.04em}
+.mkt-root .vc-meta{display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:10px;flex-wrap:wrap}
+.mkt-root .vc-meta .id{font-family:var(--font-mono);font-weight:600;color:var(--heading);font-size:13px}
+.mkt-root .vc-meta .mini{display:flex;gap:12px;font-size:12px;color:var(--muted)}
+.mkt-root .vc-metrics{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px}
+.mkt-root .vc-metrics h3{font-size:13px;color:var(--heading);margin:0 0 12px;font-weight:700}
+.mkt-root .vc-metrics .refresh{float:right;font-size:11.5px;color:var(--blue-3);cursor:pointer;font-weight:600}
+[data-theme="dark"] .mkt-root .vc-metrics .refresh{color:var(--blue)}
+.mkt-root .net-row{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.mkt-root .net{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;padding:8px 10px;background:var(--surface-2);border-radius:9px}
+.mkt-root .net .n{color:var(--text);font-weight:600}
+.mkt-root .net .s{color:var(--muted-2);font-family:var(--font-mono)}
+.mkt-root .vc-total{display:flex;align-items:center;gap:12px;border-top:1px solid var(--border);padding-top:11px;font-size:12.5px;color:var(--muted)}
+.mkt-root .vc-total b{color:var(--heading)}
+.mkt-root .vc-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
+.mkt-root .vc-empty{background:var(--surface-2);border:1px dashed var(--border-2);border-radius:14px;padding:34px 20px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.6}
+.mkt-root .vc-empty .ei{font-size:30px;display:block;margin-bottom:10px}
+
+/* ===================== GERADOR DE ROTEIROS ===================== */
+.mkt-root .rot-bar{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+.mkt-root .rot-in{flex:1;min-width:240px;background:var(--surface-2);border:1px solid var(--border-2);border-radius:10px;padding:11px 14px;color:var(--text);font-family:var(--font-ui);font-size:14px;outline:none}
+.mkt-root .rot-in:focus{border-color:var(--blue-2)}
+.mkt-root .rot-out{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.mkt-root .rot-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px}
+.mkt-root .rot-h{display:flex;align-items:center;gap:9px;margin-bottom:12px}
+.mkt-root .rot-h b{font-size:14px;color:var(--heading)}
+.mkt-root .rot-score{margin-left:auto;font-size:11px;font-weight:700;border-radius:7px;padding:3px 9px;background:rgba(31,138,91,.14);color:var(--green-2)}
+.mkt-root .rot-seg{margin-bottom:10px}
+.mkt-root .rot-lbl{font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-2);margin-bottom:3px}
+.mkt-root .rot-tx{font-size:13px;color:var(--text);line-height:1.5}
+.mkt-root .rot-acts{display:flex;gap:8px;margin-top:13px;flex-wrap:wrap}
+.mkt-root .rot-load{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13.5px;padding:24px 0;justify-content:center}
+.mkt-root .rot-empty{background:var(--surface-2);border:1px dashed var(--border-2);border-radius:14px;padding:28px 20px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.6}
+
+/* ===================== WIZARD (dentro do MktModal) ===================== */
+.mkt-modal-backdrop .vvw-prog{height:5px;border-radius:99px;background:var(--surface-3);overflow:hidden;margin-bottom:14px}
+.mkt-modal-backdrop .vvw-prog>i{display:block;height:100%;background:var(--btn-grad);transition:width .2s}
+.mkt-modal-backdrop .vvw-steps{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+.mkt-modal-backdrop .vvw-dot{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted-2);font-weight:600}
+.mkt-modal-backdrop .vvw-dot b{width:20px;height:20px;border-radius:50%;background:var(--surface-3);color:var(--muted);display:grid;place-items:center;font-size:11px}
+.mkt-modal-backdrop .vvw-dot.on{color:var(--heading)}
+.mkt-modal-backdrop .vvw-dot.on b{background:var(--blue-2);color:#fff}
+.mkt-modal-backdrop .vvw-dot.reached b{background:rgba(31,138,91,.16);color:var(--green)}
+.mkt-modal-backdrop .vvw-h{font-size:18px;font-weight:600;color:var(--heading);margin:0 0 6px}
+.mkt-modal-backdrop .vvw-d{color:var(--muted);font-size:13px;line-height:1.5;margin:0 0 16px}
+
+.mkt-modal-backdrop .vv-modes{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+.mkt-modal-backdrop .vv-mode{border:1.5px solid var(--border-2);border-radius:13px;padding:15px 16px;cursor:pointer;background:var(--surface);text-align:left}
+.mkt-modal-backdrop .vv-mode:hover{background:var(--surface-2)}
+.mkt-modal-backdrop .vv-mode.on{border-color:var(--blue-2);background:rgba(110,156,232,.09);box-shadow:0 0 0 1px var(--blue-2) inset}
+.mkt-modal-backdrop .vv-mode .m-ic{font-size:22px;line-height:1;margin-bottom:9px}
+.mkt-modal-backdrop .vv-mode .m-t{font-weight:700;font-size:14.5px;color:var(--heading)}
+.mkt-modal-backdrop .vv-mode .m-d{font-size:12px;color:var(--muted);line-height:1.45;margin-top:4px}
+
+.mkt-modal-backdrop .vv-lbl{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.mkt-modal-backdrop .vv-drop{border:1.5px dashed var(--border-2);border-radius:12px;padding:16px;cursor:pointer;background:var(--surface-2);display:flex;align-items:center;gap:12px;transition:border-color .15s,background .15s}
+.mkt-modal-backdrop .vv-drop:hover{border-color:var(--blue-2);background:var(--surface-3)}
+.mkt-modal-backdrop .vv-drop .dz-ic{font-size:20px;flex:0 0 auto}
+.mkt-modal-backdrop .vv-drop .dz-t{font-size:13px;color:var(--text);font-weight:600}
+.mkt-modal-backdrop .vv-drop .dz-s{font-size:11.5px;color:var(--muted-2);margin-top:1px}
+.mkt-modal-backdrop .vv-drop.big{min-height:96px}
+.mkt-modal-backdrop .vv-chip{display:inline-flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:7px 11px;font-size:12.5px;color:var(--text);margin:8px 8px 0 0;max-width:100%}
+.mkt-modal-backdrop .vv-chip .c-ic{font-size:14px;flex:0 0 auto}
+.mkt-modal-backdrop .vv-chip .c-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mkt-modal-backdrop .vv-chip .c-x{color:var(--muted-2);cursor:pointer;font-size:14px}
+.mkt-modal-backdrop .vv-chip .c-x:hover{color:var(--coral)}
+.mkt-modal-backdrop .vv-thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.mkt-modal-backdrop .vv-thumb{width:60px;height:60px;border-radius:9px;background-size:cover;background-position:center;border:1px solid var(--border);position:relative}
+.mkt-modal-backdrop .vv-thumb .t-x{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:grid;place-items:center;font-size:11px;color:var(--coral);cursor:pointer}
+.mkt-modal-backdrop .vv-linkrow{display:flex;gap:8px;margin-top:8px}
+.mkt-modal-backdrop .vv-linkrow input{flex:1;background:var(--surface-2);border:1px solid var(--border-2);border-radius:9px;padding:9px 12px;color:var(--text);font-family:var(--font-ui);font-size:13px;outline:none}
+.mkt-modal-backdrop .vv-linkrow input:focus{border-color:var(--blue-2)}
+.mkt-modal-backdrop .vv-links{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+.mkt-modal-backdrop .vv-link{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--blue-3);background:var(--surface-2);border-radius:8px;padding:7px 11px}
+[data-theme="dark"] .mkt-modal-backdrop .vv-link{color:var(--blue)}
+.mkt-modal-backdrop .vv-link .l-x{margin-left:auto;color:var(--muted-2);cursor:pointer}
+.mkt-modal-backdrop .vv-field{margin-bottom:16px}
+.mkt-modal-backdrop .vv-field textarea{width:100%;min-height:70px;resize:vertical;background:var(--surface-2);border:1px solid var(--border-2);border-radius:11px;padding:11px 13px;color:var(--text);font-family:var(--font-ui);font-size:13.5px;line-height:1.55;outline:none;box-sizing:border-box}
+.mkt-modal-backdrop .vv-field textarea:focus{border-color:var(--blue-2)}
+.mkt-modal-backdrop .vv-field input[type=text]{width:100%;background:var(--surface-2);border:1px solid var(--border-2);border-radius:11px;padding:11px 13px;color:var(--text);font-family:var(--font-ui);font-size:13.5px;outline:none;box-sizing:border-box}
+.mkt-modal-backdrop .vv-field input[type=text]:focus{border-color:var(--blue-2)}
+.mkt-modal-backdrop .vv-hint{font-size:11.5px;color:var(--muted-2);margin-top:8px;line-height:1.5}
+
+.mkt-modal-backdrop .vvw-avatars{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:11px}
+.mkt-modal-backdrop .vvw-av{border:1.5px solid var(--border-2);border-radius:12px;padding:12px;cursor:pointer;background:var(--surface);text-align:center}
+.mkt-modal-backdrop .vvw-av:hover{background:var(--surface-2)}
+.mkt-modal-backdrop .vvw-av.sel{border-color:var(--blue-2);box-shadow:0 0 0 1px var(--blue-2) inset}
+.mkt-modal-backdrop .vvw-av .pic{height:74px;border-radius:9px;background:linear-gradient(135deg,var(--brand-navy),var(--blue-3));margin-bottom:9px}
+.mkt-modal-backdrop .vvw-av .an{font-weight:600;font-size:13px;color:var(--heading)}
+.mkt-modal-backdrop .vvw-av .ad{font-size:11px;color:var(--muted);margin-top:2px}
+
+.mkt-modal-backdrop .vv-rev{border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:16px}
+.mkt-modal-backdrop .vv-rev .rv{display:flex;gap:12px;padding:11px 15px;border-bottom:1px solid var(--border);font-size:13px}
+.mkt-modal-backdrop .vv-rev .rv:last-child{border-bottom:0}
+.mkt-modal-backdrop .vv-rev .rv-k{color:var(--muted);min-width:120px}
+.mkt-modal-backdrop .vv-rev .rv-v{color:var(--heading);font-weight:600;flex:1}
+.mkt-modal-backdrop .vv-done{text-align:center;padding:22px 16px}
+.mkt-modal-backdrop .vv-done .d-ic{width:60px;height:60px;border-radius:50%;background:rgba(31,138,91,.14);color:var(--green);display:grid;place-items:center;font-size:30px;margin:0 auto 14px}
+.mkt-modal-backdrop .vv-done .d-t{font-size:19px;font-weight:600;color:var(--heading);margin-bottom:8px}
+.mkt-modal-backdrop .vv-done .d-s{font-size:14px;color:var(--muted);line-height:1.6;max-width:44ch;margin:0 auto}
+
+@media(max-width:900px){
+  .mkt-root .vv-top{grid-template-columns:1fr}
+  .mkt-root .vv-steps{grid-template-columns:1fr 1fr}
+  .mkt-root .vc-grid{grid-template-columns:1fr}
+}
+@media(max-width:640px){ .mkt-modal-backdrop .vv-modes{grid-template-columns:1fr} }

@@ -9,6 +9,7 @@
 @import './styles/splash.css';
 @import './styles/marketing.css';
 @import './styles/marketing-brandkit.css';
+@import './styles/marketing-videos.css';
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body, #root { margin: 0; padding: 0; height: 100%; }
