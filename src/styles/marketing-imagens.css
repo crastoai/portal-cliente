@@ -48,8 +48,12 @@
 .mkt-root .poster .slide-no{position:absolute;top:8px;right:9px;background:rgba(0,0,0,.45);color:#fff;font-size:10px;font-weight:700;border-radius:6px;padding:2px 7px}
 .mkt-root .poster .img-genning{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:9px;background:rgba(1,14,38,.42);color:#fff;font-size:12px;font-weight:600;backdrop-filter:blur(1px)}
 .mkt-root .poster .img-genning .spin{border-top-color:#fff;border-color:rgba(255,255,255,.4);border-top-color:#fff}
-.mkt-root .img-acts{display:flex;gap:6px;padding:9px 11px;flex-wrap:wrap}
+.mkt-root .img-acts{display:flex;gap:6px;padding:9px 11px 4px;flex-wrap:wrap;align-items:center}
 .mkt-root .img-acts .bk-mini{padding:6px 9px;font-size:11px}
+.mkt-root .img-adjust{display:flex;gap:6px;padding:4px 11px 11px;align-items:center}
+.mkt-root .img-adjust input{flex:1;min-width:0;background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;padding:7px 10px;color:var(--text);font-family:var(--font-ui);font-size:12px;outline:none}
+.mkt-root .img-adjust input:focus{border-color:var(--blue-2)}
+.mkt-root .img-adjust .bk-mini{padding:6px 9px;font-size:11px;white-space:nowrap}
 .mkt-root .img-sec{font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:24px 0 12px}
 .mkt-root .img-load{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13.5px;padding:26px 0;justify-content:center}
 .mkt-root .img-lib{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:11px}
