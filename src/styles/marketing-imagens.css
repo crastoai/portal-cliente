@@ -46,6 +46,8 @@
 .mkt-root .poster{border-radius:0;overflow:hidden}
 .mkt-root .poster > svg,.mkt-root .poster > img{width:100%;height:auto;display:block}
 .mkt-root .poster .slide-no{position:absolute;top:8px;right:9px;background:rgba(0,0,0,.45);color:#fff;font-size:10px;font-weight:700;border-radius:6px;padding:2px 7px}
+.mkt-root .poster .img-genning{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:9px;background:rgba(1,14,38,.42);color:#fff;font-size:12px;font-weight:600;backdrop-filter:blur(1px)}
+.mkt-root .poster .img-genning .spin{border-top-color:#fff;border-color:rgba(255,255,255,.4);border-top-color:#fff}
 .mkt-root .img-acts{display:flex;gap:6px;padding:9px 11px;flex-wrap:wrap}
 .mkt-root .img-acts .bk-mini{padding:6px 9px;font-size:11px}
 .mkt-root .img-sec{font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:24px 0 12px}

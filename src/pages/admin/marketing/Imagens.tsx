@@ -1,15 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { mktApi, activeUnit } from "../../../lib/mktApi";
 
 // ============================================================================
-// Tela 4 — IMAGENS & CARROSSEL (BYO-credits ChatGPT). NATIVO no portal, ligado à
-// marketing-api (banco `marketing`). O cliente conecta a conta OpenAI dele e gera
-// com os créditos DELE; a geração usa a identidade do Brand Kit (real). Enquanto o
-// motor de imagem (DALL·E/gpt-image) não está ligado, cada peça é uma PRÉVIA na
-// marca (composição client-side com as cores/fontes reais do Brand Kit) — nada de
-// foto fabricada; quando o motor gravar os bytes, a imagem real aparece no lugar.
-// Modais/toasts via portal. Sem jargão. Origem: protótipo IMG_*.
+// Tela 4 — IMAGENS & CARROSSEL. NATIVO no portal, ligado à marketing-api.
+// Motor REAL de imagem = Gemini "Nano Banana Pro" (a Crasto provê; sem conexão
+// do cliente). A geração usa a identidade do Brand Kit (cores/fonte/voz + logo)
+// → imagem na marca. Cada peça leva ~20-30s, então a geração é ASSÍNCRONA: o
+// servidor devolve na hora e as artes aparecem progressivamente (polling).
+// Enquanto a arte não chega, mostra uma prévia na marca (SVG). Sem jargão.
 // ============================================================================
 
 const FORMATS = [
@@ -37,8 +36,8 @@ function wrapLines(txt: string, per: number, max: number): string[] {
   return lines.length ? lines : ["sua mensagem aqui"];
 }
 
-// Poster na identidade da marca (SVG client-side). Prévia até o motor gravar a arte.
-function Poster({ prompt, fmt, ci, slideNo, slideTot, colors, font, unitName, handle, imgUrl }: any) {
+// Peça: imagem real (quando pronta) OU prévia na identidade da marca (enquanto gera).
+function Poster({ prompt, fmt, ci, slideNo, slideTot, colors, font, unitName, handle, imgUrl, loading }: any) {
   if (imgUrl) return <div className="poster"><img src={imgUrl} alt="" />{slideTot ? <div className="slide-no">{slideNo}/{slideTot}</div> : null}</div>;
   const cols = colors && colors.length ? colors : FALLBACK;
   const n = cols.length;
@@ -59,6 +58,7 @@ function Poster({ prompt, fmt, ci, slideNo, slideTot, colors, font, unitName, ha
         </text>
         {handle ? <text x="22" y={h - 22} fontFamily={fam} fontSize="11" fill={fg} opacity="0.82">{handle}</text> : null}
       </svg>
+      {loading ? <div className="img-genning"><div className="spin" />gerando…</div> : null}
       {slideTot ? <div className="slide-no">{slideNo}/{slideTot}</div> : null}
     </div>
   );
@@ -69,17 +69,19 @@ export default function Imagens() {
   const [unit, setUnit] = useState<{ name?: string; handle?: string | null } | null>(null);
   const [colors, setColors] = useState<string[]>([]);
   const [font, setFont] = useState<string | null>(null);
-  const [connected, setConnected] = useState<boolean | null>(null);
+  const [engine, setEngine] = useState<{ enabled: boolean; used?: number; cap?: number } | null>(null);
   const [fmt, setFmt] = useState("post");
   const [prompt, setPrompt] = useState("");
   const [onBrand, setOnBrand] = useState(true);
   const [results, setResults] = useState<any | null>(null);
-  const [genLoading, setGenLoading] = useState(false);
+  const [genBusy, setGenBusy] = useState(false);
+  const [processing, setProcessing] = useState(false);
   const [lib, setLib] = useState<any[] | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const flash = (m: string) => { setToast(m); window.setTimeout(() => setToast((t) => (t === m ? null : t)), 2400); };
+  const pollRef = useRef<number | undefined>(undefined);
+  const flash = (m: string) => { setToast(m); window.setTimeout(() => setToast((t) => (t === m ? null : t)), 2600); };
 
-  async function loadStatus() { try { const s = await mktApi.get<any>("/marketing/images/status"); setConnected(!!s.connected); } catch { setConnected(false); } }
+  async function loadStatus() { try { const s = await mktApi.get<any>("/marketing/images/status"); setEngine({ enabled: !!s.enabled, used: s.used_this_month, cap: s.monthly_cap }); } catch { setEngine({ enabled: false }); } }
   async function loadLib() { try { setLib(await mktApi.get<any[]>("/marketing/images/library")); } catch { setLib([]); } }
   async function loadBrand(uid: string | null) {
     if (!uid) return;
@@ -93,13 +95,12 @@ export default function Imagens() {
   useEffect(() => {
     loadStatus(); loadLib();
     activeUnit().then(async (uid) => {
-      setUnitId(uid);
-      loadBrand(uid);
+      setUnitId(uid); loadBrand(uid);
       try { const us = await mktApi.get<any[]>("/marketing/business-units"); const u = (us || []).find((x) => x.id === uid) || (us || [])[0]; if (u) setUnit({ name: u.name, handle: u.handle }); } catch { /* ok */ }
     }).catch(() => {});
+    return () => { if (pollRef.current) window.clearInterval(pollRef.current); };
   }, []);
 
-  // injeta a Google Font do título p/ o poster mostrar a fonte real da marca
   useEffect(() => {
     if (!font) return;
     const href = "https://fonts.googleapis.com/css2?family=" + encodeURIComponent(font).replace(/%20/g, "+") + ":wght@400;700&display=swap";
@@ -108,24 +109,35 @@ export default function Imagens() {
     if (l.href !== href) l.href = href;
   }, [font]);
 
-  async function connectToggle() {
-    try {
-      if (connected) { await mktApi.post("/marketing/images/disconnect"); flash("ChatGPT desconectado"); }
-      else { await mktApi.post("/marketing/images/connect", { scope: "images", connectedBy: "portal" }); flash("ChatGPT conectado — a geração usa os seus créditos"); }
-      loadStatus();
-    } catch { flash("Não foi possível concluir agora. Tente novamente em instantes."); }
+  function startPoll(genId: string) {
+    if (pollRef.current) window.clearInterval(pollRef.current);
+    let tries = 0;
+    setProcessing(true);
+    pollRef.current = window.setInterval(async () => {
+      tries++;
+      try {
+        const r = await mktApi.get<any>("/marketing/images/generations/" + genId);
+        setResults({ generation: r.generation, images: r.images });
+        const done = (r.images || []).every((im: any) => im.url);
+        if ((r.generation && r.generation.status === "done") || done || tries > 45) {
+          window.clearInterval(pollRef.current); pollRef.current = undefined;
+          setProcessing(false); loadLib(); loadStatus();
+        }
+      } catch { /* mantém tentando até o teto de tentativas */ if (tries > 45) { window.clearInterval(pollRef.current); setProcessing(false); } }
+    }, 4000);
   }
 
   async function generate() {
-    if (!connected) { flash("Conecte o ChatGPT para gerar."); return; }
-    setGenLoading(true); setResults(null);
+    if (!engine?.enabled) { flash("Gerador de imagens em configuração."); return; }
+    setGenBusy(true); setResults(null);
     try {
       const r = await mktApi.post<any>("/marketing/images/generate", { format: fmt, prompt: prompt.trim() || null, unitId, onBrand });
-      setResults(r);
-      loadLib(); // a arte recém-gerada entra na Biblioteca na hora
+      setResults({ generation: r.generation, images: r.images });
+      startPoll(r.generation.id);
     } catch (e: any) {
-      flash(String(e?.message || "").includes("conecte") ? "Conecte o ChatGPT para gerar." : "Não foi possível gerar agora. Tente novamente em instantes.");
-    } finally { setGenLoading(false); }
+      const msg = String(e?.message || "");
+      flash(msg.includes("limite mensal") ? "Limite mensal de imagens atingido." : msg.includes("configuração") ? "Gerador de imagens em configuração." : "Não foi possível gerar agora. Tente novamente em instantes.");
+    } finally { setGenBusy(false); }
   }
 
   async function use(id: string) {
@@ -134,7 +146,9 @@ export default function Imagens() {
   }
 
   const brandProps = { colors, font, unitName: unit?.name, handle: unit?.handle ? "@" + String(unit.handle).replace(/^@/, "") : null };
-  const total = results?.images?.length || 0;
+  const imgs: any[] = results?.images || [];
+  const total = imgs.length;
+  const disabled = !engine?.enabled || genBusy;
 
   return (
     <div className="mkt-root">
@@ -142,22 +156,13 @@ export default function Imagens() {
       <h1 className="page-title">Imagens & Carrossel</h1>
       <p className="page-sub">Gere posts, stories e carrosséis na identidade da sua marca — a IA usa o seu Brand Kit automaticamente.</p>
 
-      {/* barra: conectar a conta (BYO-credits) */}
-      {connected === null ? null : connected ? (
-        <div className="img-conn on">
-          <span className="c-ic">✅</span>
-          <div className="c-tx"><div className="c-t">ChatGPT conectado</div><div className="c-s">A geração usa os <b>seus créditos</b> da OpenAI.</div></div>
-          <button className="bk-mini" onClick={connectToggle}>Desconectar</button>
-        </div>
-      ) : (
+      {engine && !engine.enabled ? (
         <div className="img-conn off">
-          <span className="c-ic">🔌</span>
-          <div className="c-tx"><div className="c-t">Conecte o ChatGPT para gerar</div><div className="c-s">As imagens são geradas com os <b>seus créditos</b> da OpenAI — você mantém o controle do custo.</div></div>
-          <button className="bk-mini pri" onClick={connectToggle}>Conectar ChatGPT</button>
+          <span className="c-ic">🛠️</span>
+          <div className="c-tx"><div className="c-t">Gerador de imagens em configuração</div><div className="c-s">Já já você poderá gerar posts e carrosséis na identidade da sua marca.</div></div>
         </div>
-      )}
+      ) : null}
 
-      {/* gerador + aside da marca */}
       <div className="img-gen">
         <div className="img-panel">
           <div className="img-fmt">
@@ -169,10 +174,11 @@ export default function Imagens() {
             <button className={"img-toggle" + (onBrand ? " on" : "")} aria-label="Na identidade do meu Brand Kit" onClick={() => setOnBrand((v) => !v)} />
             <div>
               <div style={{ fontSize: 13, color: "var(--text)", fontWeight: 600 }}>Na identidade do meu Brand Kit</div>
-              <div className="img-motor">{connected ? "Pronto para gerar com os seus créditos." : "Conecte o ChatGPT para gerar (seus créditos)."}</div>
+              <div className="img-motor">{onBrand ? "As artes saem com as suas cores, tipografia e o seu @." : "Geração livre — sem forçar a identidade da marca."}</div>
             </div>
           </div>
-          <button className="bk-mini pri" style={{ width: "100%", padding: "11px 22px", fontSize: 14, opacity: connected ? 1 : 0.5, cursor: connected ? "pointer" : "not-allowed" }} disabled={!connected || genLoading} onClick={generate}>{genLoading ? "Gerando…" : "✨ Gerar imagens"}</button>
+          <button className="bk-mini pri" style={{ width: "100%", padding: "11px 22px", fontSize: 14, opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer" }} disabled={disabled} onClick={generate}>{genBusy ? "Enviando…" : "✨ Gerar imagens"}</button>
+          {engine?.cap ? <div className="img-motor" style={{ textAlign: "right", marginTop: 8 }}>{engine.used ?? 0}/{engine.cap} imagens neste mês</div> : null}
         </div>
 
         <aside className="img-brand">
@@ -184,24 +190,21 @@ export default function Imagens() {
         </aside>
       </div>
 
-      {/* resultados */}
-      {genLoading ? (
-        <><div className="img-sec">Resultados</div><div className="img-load"><div className="spin" />Gerando na identidade da sua marca…</div></>
-      ) : results ? (
+      {results ? (
         <>
-          <div className="img-sec">Resultados</div>
+          <div className="img-sec">Resultados{processing ? " · gerando na identidade da sua marca…" : ""}</div>
           <div className="img-results">
-            {(results.images || []).map((im: any, i: number) => {
+            {imgs.map((im: any, i: number) => {
               const isCarr = im.format === "carrossel";
               const ci = isCarr ? (im.slide_index ?? i) : (im.variation_index ?? i);
               const headline = isCarr && (im.slide_index ?? i) > 0 ? "Slide " + ((im.slide_index ?? i) + 1) : prompt;
               return (
                 <div className="img-card" key={im.id}>
-                  <Poster {...brandProps} prompt={headline} fmt={im.format} ci={ci} slideNo={(im.slide_index ?? i) + 1} slideTot={isCarr ? total : 0} imgUrl={im.url} />
+                  <Poster {...brandProps} prompt={headline} fmt={im.format} ci={ci} slideNo={(im.slide_index ?? i) + 1} slideTot={isCarr ? total : 0} imgUrl={im.url} loading={processing && !im.url} />
                   <div className="img-acts">
-                    <button className="bk-mini" onClick={generate}>Gerar de novo</button>
+                    <button className="bk-mini" onClick={generate} disabled={disabled}>Gerar de novo</button>
                     {im.url ? <a className="bk-mini" href={im.url} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>Baixar</a> : null}
-                    <button className="bk-mini pri" onClick={() => use(im.id)}>Usar → Calendário</button>
+                    <button className="bk-mini pri" onClick={() => use(im.id)} disabled={!im.url}>Usar → Calendário</button>
                   </div>
                 </div>
               );
@@ -210,7 +213,6 @@ export default function Imagens() {
         </>
       ) : null}
 
-      {/* biblioteca */}
       <div className="img-sec">Biblioteca</div>
       {lib == null ? (
         <div className="img-empty">Carregando…</div>
