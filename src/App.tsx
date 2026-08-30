@@ -20,6 +20,7 @@ import Modulos from "./pages/client/Modulos";
 import Implementacao from "./pages/client/Implementacao";
 import Catalogo from "./pages/client/Catalogo";
 import Financeiro from "./pages/client/Financeiro";
+import Marketing from "./pages/admin/marketing/Marketing";
 import Usuarios from "./pages/client/Usuarios";
 import Suporte from "./pages/client/Suporte";
 import Notificacoes from "./pages/client/Notificacoes";
@@ -165,6 +166,11 @@ export default function App() {
             {/* Contabilidade: módulo com sub-páginas (Cockpit/DRE/Notas/…); a raiz é o Cockpit. */}
             <Route path="contabilidade" element={<Contabilidade />} />
             <Route path="contabilidade/:secao" element={<Contabilidade />} />
+            {/* Módulo MARKETING — NATIVO no ADMIN (liberado p/ a Crasto; clientes bloqueados por
+                permissionamento). Shell + :secao, raiz = Cockpit. Chama a marketing-api (banco
+                `marketing` separado) via /mkt-api (mesma origem, sem iframe). */}
+            <Route path="marketing" element={<Marketing />} />
+            <Route path="marketing/:secao" element={<Marketing />} />
             <Route path="custo-ia" element={<CustoIA />} />
             {/* Console · IA (admin) — camada operacional dos agentes */}
             <Route path="console/health" element={<ConsoleHealthCheck />} />
