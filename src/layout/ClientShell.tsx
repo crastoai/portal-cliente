@@ -226,24 +226,21 @@ export default function ClientShell() {
   // só grupos que EXPANDEM — a visão consolidada é o Cockpit; só há sub-item onde haverá tela de
   // verdade. Quando as telas existirem, troca-se o "em breve" pela rota real.
   // Ver memória project-marketing-modulo-sidebar. ⚠️ ESTA sessão é dona do sidebar (não editar de fora).
-  // Estrutura ALINHADA AO PROTÓTIPO APROVADO (Crasto 2026-08-30): Cockpit · Produzir · Distribuir.
-  // Módulo NATIVO (sem iframe): cada folha aponta p/ /app/marketing/<secao>. A Cockpit já está
-  // ligada ao back; as demais renderizam a tela (placeholder até serem ligadas, tela por tela).
+  const emBreve = (label: string): NavChild => ({ label, tag: t("em breve"), onClick: () => navigate("/app/modulos") });
   const mktChildren: NavChild[] = [
-    { label: "Cockpit", to: "/app/marketing", end: true },
-    { label: "Produzir", children: [
-      { label: "Brand Kit", to: "/app/marketing/brand-kit" },
-      { label: "Vídeos Virais", to: "/app/marketing/videos", children: [
-        { label: "Meus Avatares/Clone", to: "/app/marketing/avatar" },
-        { label: "Cortes", to: "/app/marketing/cortes" },
-        { label: "Gerador de Roteiros", to: "/app/marketing/roteiros" },
-      ] },
-      { label: "Imagens & Carrossel", to: "/app/marketing/imagens" },
+    emBreve("Cockpit"),
+    emBreve("Brand Kit"),
+    { label: "Social Media", children: [
+      emBreve("Vídeos Virais"),
+      emBreve("Cortes"),
+      emBreve("Meu Avatar"),
+      emBreve("Gerador de Roteiros"),
+      emBreve("Calendário"),
     ] },
-    { label: "Distribuir", children: [
-      { label: "Calendário", to: "/app/marketing/calendario" },
-      { label: "Agendamento & Automação", to: "/app/marketing/automacao" },
-      { label: "Mídia Paga (Tráfego Pago)", to: "/app/marketing/midia-paga" },
+    { label: "Tráfego Pago", children: [
+      emBreve("Campanhas"),
+      emBreve("Criativos"),
+      emBreve("Contas de Ads"),
     ] },
   ];
 

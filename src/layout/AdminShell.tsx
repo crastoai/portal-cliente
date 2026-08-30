@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Grid3x3, FileText, Tag, Share2, TrendingUp, Plug, LifeBuoy, Rocket, DollarSign, Cpu, Activity, ScrollText, KeyRound, Blocks, Calculator, MessageSquare } from "lucide-react";
+import { LayoutDashboard, Users, Grid3x3, FileText, Tag, Share2, TrendingUp, Plug, LifeBuoy, Rocket, DollarSign, Cpu, Activity, ScrollText, KeyRound, Blocks, Calculator, MessageSquare, Megaphone, Palette, Video, Image, Calendar, Send, Target } from "lucide-react";
 import Shell, { type NavItem } from "./Shell";
 import JulieWidget from "../ui/JulieWidget";
 
@@ -41,6 +41,28 @@ const NAV: NavItem[] = [
       { to: "/admin/crm", label: "CRM", icon: MessageSquare },                        // o WhatsApp CRM (wacrm) da Crasto
       { to: "/admin/conectores", label: "Agentes indicadores", icon: Share2 },
       { to: "/admin/receita", label: "Receita & churn", icon: TrendingUp },
+    ],
+  },
+  // MÓDULOS — Marketing (NATIVO no admin; banco `marketing` separado via /mkt-api). Estrutura do
+  // protótipo aprovado: Cockpit · Produzir · Distribuir. Liberado p/ a Crasto; clientes bloqueados.
+  {
+    icon: Megaphone, label: "Marketing", section: "Módulos", to: "/admin/marketing",
+    children: [
+      { to: "/admin/marketing", end: true, label: "Cockpit", icon: LayoutDashboard },
+      { label: "Produzir", children: [
+        { to: "/admin/marketing/brand-kit", label: "Brand Kit", icon: Palette },
+        { label: "Vídeos Virais", to: "/admin/marketing/videos", icon: Video, children: [
+          { to: "/admin/marketing/avatar", label: "Meus Avatares/Clone" },
+          { to: "/admin/marketing/cortes", label: "Cortes" },
+          { to: "/admin/marketing/roteiros", label: "Gerador de Roteiros" },
+        ] },
+        { to: "/admin/marketing/imagens", label: "Imagens & Carrossel", icon: Image },
+      ] },
+      { label: "Distribuir", children: [
+        { to: "/admin/marketing/calendario", label: "Calendário", icon: Calendar },
+        { to: "/admin/marketing/automacao", label: "Agendamento & Automação", icon: Send },
+        { to: "/admin/marketing/midia-paga", label: "Mídia Paga (Tráfego Pago)", icon: Target },
+      ] },
     ],
   },
   // Financeiro — INTOCÁVEL (mesma árvore de sempre).
