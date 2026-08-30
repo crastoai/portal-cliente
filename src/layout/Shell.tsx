@@ -184,7 +184,12 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
 
   // Achata os galhos numa lista de FOLHAS (itens navegáveis/ação) — usado no flyout do sidebar
   // recolhido, onde não faz sentido re-aninhar: mostra direto Conversas/Tarefas/… sob o ícone.
-  const flatLeaves = (kids: NavChild[]): NavChild[] => kids.flatMap((c) => (c.children && c.children.length) ? flatLeaves(c.children) : [c]);
+  // Um pai NAVEGÁVEL (tem `to` próprio) também vira uma folha no flyout — senão, com a sidebar
+  // recolhida, a tela do próprio pai (ex.: Vídeos Virais → dashboard) ficaria inalcançável.
+  const flatLeaves = (kids: NavChild[]): NavChild[] => kids.flatMap((c) =>
+    (c.children && c.children.length)
+      ? [...(c.to ? [{ to: c.to, label: c.label, end: c.end, icon: c.icon }] : []), ...flatLeaves(c.children)]
+      : [c]);
 
   // Renderiza um FILHO da árvore, recursivamente. Folha = link/ação; filho COM filhos = sub-grupo
   // colapsável (3º nível: WhatsApp › Conversas/Tarefas/…). `depth` só controla a indentação
@@ -198,15 +203,32 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
       const k = keyPath + "/" + c.label;
       const aberto = treeOpen[k] ?? true;
       const todosBloq = c.children.every((g) => g.locked);
+      // Pai NAVEGÁVEL (tem `to` próprio, ex.: Vídeos Virais → seu dashboard): o RÓTULO leva à tela
+      // e o "+/−" só expande a árvore (paridade com o protótipo: clicar abre a tela, a setinha abre
+      // os sub-itens). Sem `to`, mantém o comportamento antigo (clicar só expande/colapsa).
+      const paiAtivo = !!c.to && pathname === c.to;
       return (
         <div key={c.label} className={"navtree navtree--sub" + (aberto ? " open" : "")}>
-          <button type="button" className="navlink navlink--child navlink--parent" style={{ paddingLeft: padLeft }} aria-expanded={aberto} onClick={() => toggleTree(k)}>
-            <span className="navlink-lbl">{t(c.label)}</span>
-            {todosBloq && <Lock size={12} className="navlink-lock" style={{ marginLeft: "auto" }} />}
-            {aberto
-              ? <Minus size={14} className="navtree-plus" style={todosBloq ? { marginLeft: 6 } : { marginLeft: "auto" }} />
-              : <Plus size={14} className="navtree-plus" style={todosBloq ? { marginLeft: 6 } : { marginLeft: "auto" }} />}
-          </button>
+          {c.to ? (
+            <div className={"navlink navlink--child navlink--parent" + (paiAtivo ? " on" : "")} style={{ paddingLeft: padLeft, display: "flex", alignItems: "center" }}>
+              <NavLink to={c.to} end={c.end} onClick={() => setOpen(false)} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, color: "inherit", textDecoration: "none" }}>
+                {c.icon ? <c.icon size={15} style={{ flex: "none", opacity: .85 }} /> : null}
+                <span className="navlink-lbl">{t(c.label)}</span>
+              </NavLink>
+              {todosBloq && <Lock size={12} className="navlink-lock" />}
+              <button type="button" className="navtree-plusbtn" aria-expanded={aberto} aria-label={aberto ? t("Recolher") : t("Expandir")} onClick={() => toggleTree(k)} style={{ marginLeft: 6, background: "none", border: 0, cursor: "pointer", color: "inherit", display: "grid", placeItems: "center", padding: "4px 2px", flex: "none" }}>
+                {aberto ? <Minus size={14} /> : <Plus size={14} />}
+              </button>
+            </div>
+          ) : (
+            <button type="button" className="navlink navlink--child navlink--parent" style={{ paddingLeft: padLeft }} aria-expanded={aberto} onClick={() => toggleTree(k)}>
+              <span className="navlink-lbl">{t(c.label)}</span>
+              {todosBloq && <Lock size={12} className="navlink-lock" style={{ marginLeft: "auto" }} />}
+              {aberto
+                ? <Minus size={14} className="navtree-plus" style={todosBloq ? { marginLeft: 6 } : { marginLeft: "auto" }} />
+                : <Plus size={14} className="navtree-plus" style={todosBloq ? { marginLeft: 6 } : { marginLeft: "auto" }} />}
+            </button>
+          )}
           <div className="navtree-kids">
             {c.children.map((g) => renderChild(g, depth + 1, k))}
           </div>
