@@ -1,0 +1,75 @@
+/* ============================================================================
+ * Tela 6 — AGENDAMENTO & AUTOMAÇÃO. CSS PORTADO do protótipo, ESCOPADO sob
+ * `.mkt-root`. Só as partes REAIS (header, Modo A/B, config, esteira, keywords,
+ * posts a aprovar); os mocks do protótipo (fila 7d, heatmap, tiles fake) ficam de fora.
+ * ========================================================================== */
+.mkt-root .ap-header{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;
+  background:radial-gradient(120% 160% at 0% 0%,rgba(110,156,232,.25),transparent 60%),linear-gradient(120deg,#02123a,#010a1e);
+  border:1px solid var(--border-2);border-radius:16px;padding:20px 24px;margin-bottom:24px;box-shadow:var(--glow)}
+.mkt-root .ap-hl{display:flex;align-items:center;gap:16px}
+.mkt-root .ap-title{font-size:24px;font-weight:600;color:#fff;letter-spacing:-.02em}
+.mkt-root .ap-sub{color:#a9bbd8;font-size:13.5px;margin-top:4px}
+.mkt-root .ap-hr{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.mkt-root .ap-badge{color:#3ddc84;font-weight:700;font-size:12px;letter-spacing:.08em;font-family:var(--font-mono)}
+.mkt-root .ap-badge.off{color:#f0a35e}
+.mkt-root .ap-modes{display:flex;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:12px;padding:4px}
+.mkt-root .ap-mode{border:0;background:transparent;color:#a9bbd8;font-family:var(--font-ui);font-size:13px;font-weight:600;padding:8px 14px;border-radius:9px;cursor:pointer}
+.mkt-root .ap-mode.sel{background:#fff;color:#0b1a33}
+
+.mkt-root .ap-grid{display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start}
+.mkt-root .ap-lbl{color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin:22px 0 12px}
+.mkt-root .ap-main > .ap-lbl:first-child{margin-top:0}
+
+.mkt-root .ap-wa{background:rgba(31,138,91,.10);border:1px solid rgba(31,138,91,.3);color:var(--green-2);border-radius:11px;padding:11px 14px;font-size:13px;margin-bottom:14px}
+.mkt-root .ap-wa b{color:var(--heading)}
+
+/* card de post p/ aprovar */
+.mkt-root .ap-post{display:flex;gap:16px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px}
+.mkt-root .ap-thumb{width:96px;flex:0 0 auto;border-radius:11px;aspect-ratio:1/1.08;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:#cdd9ee;font-size:11px;text-align:center;background:linear-gradient(160deg,#0a1f45,#02102b);border:1px solid var(--border-2)}
+.mkt-root .ap-thumb b{color:#fff;font-size:12px}
+.mkt-root .ap-pb{flex:1;min-width:0}
+.mkt-root .ap-tags{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.mkt-root .ap-tag{background:rgba(110,156,232,.14);color:var(--blue-3);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:700;letter-spacing:.04em}
+[data-theme="dark"] .mkt-root .ap-tag{color:var(--blue)}
+.mkt-root .ap-pt{font-weight:600;font-size:16px;color:var(--heading);margin:9px 0 5px}
+.mkt-root .ap-pl{color:var(--muted);font-size:13px;line-height:1.5}
+.mkt-root .ap-pf{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:12px}
+.mkt-root .ap-nets{display:flex;gap:5px}
+.mkt-root .np{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;color:#fff;font-size:9px;font-weight:700;font-style:normal}
+.mkt-root .np.ig{background:linear-gradient(45deg,#f9ce34,#ee2a7b,#6228d7)}.mkt-root .np.fb{background:#1877F2}.mkt-root .np.tt{background:#010101}.mkt-root .np.li{background:#0A66C2}.mkt-root .np.yt{background:#FF0000}
+.mkt-root .ap-when{color:var(--muted-2);font-size:12px;margin-right:auto}
+.mkt-root .ap-acts{display:flex;gap:8px}
+.mkt-root .ap-b{border:1px solid var(--border-2);background:var(--surface);color:var(--text);border-radius:9px;padding:8px 14px;font-family:var(--font-ui);font-weight:600;font-size:13px;cursor:pointer}
+.mkt-root .ap-b:hover{background:var(--surface-2)}
+.mkt-root .ap-b.pri{background:var(--btn-grad);color:#fff;border:0}
+.mkt-root .ap-b.done{background:var(--green-2);color:#fff;border:0;opacity:.9}
+.mkt-root .ap-empty{background:var(--surface-2);border:1px dashed var(--border-2);border-radius:14px;padding:22px 18px;text-align:center;color:var(--muted);font-size:13px;line-height:1.55}
+
+/* aside: config + comentário→DM + esteira */
+.mkt-root .ap-aside{display:flex;flex-direction:column;gap:16px;position:sticky;top:12px}
+.mkt-root .ap-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px}
+.mkt-root .ap-ch{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.mkt-root .ap-ch .ap-edit{margin-left:auto;font-size:11px;font-weight:600;color:var(--blue-3);cursor:pointer;text-transform:none;letter-spacing:0;border:0;background:transparent}
+[data-theme="dark"] .mkt-root .ap-ch .ap-edit{color:var(--blue)}
+.mkt-root .ap-row{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted)}
+.mkt-root .ap-row:last-child{border-bottom:0}
+.mkt-root .ap-row b{color:var(--heading);text-align:right}
+.mkt-root .ap-mini b{font-size:11px;padding:3px 8px;border-radius:7px;margin-left:4px;color:var(--muted-2);background:var(--surface-2)}
+.mkt-root .ap-mini b.on{background:var(--blue-3);color:#fff}
+.mkt-root .ap-ct{color:var(--muted);font-size:13px;line-height:1.55}
+.mkt-root .ap-ct b{color:var(--heading)}
+.mkt-root .ap-kw{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.mkt-root .ap-kw span{display:inline-flex;align-items:center;gap:6px;background:rgba(245,197,24,.14);color:#9a7d0a;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:600;font-family:var(--font-mono)}
+.mkt-root .ap-kw span .kx{cursor:pointer;color:var(--muted-2)}
+.mkt-root .ap-kw span .kx:hover{color:var(--coral)}
+.mkt-root .ap-kwadd{display:flex;gap:6px;margin-top:6px}
+.mkt-root .ap-kwadd input{flex:1;min-width:0;background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;padding:7px 10px;color:var(--text);font-family:var(--font-ui);font-size:12px;outline:none;text-transform:uppercase}
+.mkt-root .ap-kwadd input:focus{border-color:var(--blue-2)}
+.mkt-root .ap-cn{color:var(--muted-2);font-size:12px;line-height:1.5;margin-top:8px}
+.mkt-root .ap-esteira{list-style:none;margin:0;padding:0;counter-reset:est}
+.mkt-root .ap-esteira li{position:relative;display:flex;gap:8px;align-items:baseline;padding:9px 0 9px 28px;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted)}
+.mkt-root .ap-esteira li:last-child{border-bottom:0}
+.mkt-root .ap-esteira li b{color:var(--heading)}
+.mkt-root .ap-esteira li::before{counter-increment:est;content:counter(est);position:absolute;left:0;top:8px;width:19px;height:19px;border-radius:50%;background:var(--surface-2);border:1px solid var(--border-2);color:var(--muted);font-family:var(--font-mono);font-size:10px;display:grid;place-items:center;font-weight:600}
+
+@media(max-width:900px){.mkt-root .ap-grid{grid-template-columns:1fr}.mkt-root .ap-aside{position:static}.mkt-root .ap-header{flex-direction:column;align-items:stretch}}
