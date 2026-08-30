@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { mktApi, activeUnit } from "../../../lib/mktApi";
 import { MktModal } from "./_ui";
+import { ChannelsModal } from "./_channels";
 
 // ============================================================================
 // Tela 5 — CALENDÁRIO de Marketing. NATIVO no portal, ligado à marketing-api.
@@ -42,6 +43,7 @@ export default function Calendario() {
   const [filSt, setFilSt] = useState<Set<string>>(new Set(["rascunho", "agendado", "aprovar", "publicado"]));
   const [colorBy, setColorBy] = useState<"trilha" | "status">("trilha");
   const [modal, setModal] = useState<null | { editId?: string; d?: string }>(null);
+  const [chOpen, setChOpen] = useState(false);
   const [unitId, setUnitId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const drag = useRef<string | null>(null);
@@ -177,6 +179,7 @@ export default function Calendario() {
           <button className={view === "semana" ? "on" : ""} onClick={() => setView("semana")}>Semana</button>
           <button className={view === "dia" ? "on" : ""} onClick={() => setView("dia")}>Dia</button>
         </div>
+        <button className="calx-btn" onClick={() => setChOpen(true)}>🔗 Redes conectadas</button>
         <button className="calx-btn pri" onClick={() => setModal({ d: todayKey })}>+ Nova publicação</button>
       </div>
 
@@ -213,6 +216,7 @@ export default function Calendario() {
 
       <div className="calx-note">💡 Arraste do "A agendar" para o dia para agendar, e entre os dias para reagendar. Ao publicar, a peça passa pela verificação da sua marca antes de ir para as redes.</div>
 
+      {chOpen && <ChannelsModal onClose={() => setChOpen(false)} flash={flash} />}
       {modal && <PostModal unitId={unitId} editId={modal.editId} initDate={modal.d} post={modal.editId ? [...posts, ...backlog].find((p) => p.id === modal.editId) : null} onClose={() => setModal(null)} onSaved={() => { setModal(null); load(); }} flash={flash} />}
       {toast ? createPortal(<div style={{ position: "fixed", bottom: 22, left: "50%", transform: "translateX(-50%)", background: "#0B1A33", color: "#fff", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 10001, boxShadow: "0 10px 30px rgba(1,14,38,.35)" }}>{toast}</div>, document.body) : null}
     </div>
