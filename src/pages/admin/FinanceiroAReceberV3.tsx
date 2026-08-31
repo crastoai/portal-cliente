@@ -197,15 +197,16 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
               {r.ps && r.ps.length > 0 && expanded.has(r.id) && r.ps.map((p: any, idx: number) => {
                 const isEd = !!parcEdit && parcEdit.id === r.id && parcEdit.idx === idx;
                 const paid = p.status === "paid";
+                const atrasado = paid && !!p.paid_date && ymd(p.paid_date) > ymd(p.date);
                 return (
                   <tr key={r.id + "_p" + idx} className="parcrow">
                     <td className="co pc"><span className="pcn">Parcela {p.installment || idx + 1}/{r.ps!.length}</span></td>
                     <td><span className="typ">Parcela</span></td>
-                    <td className="dt">{isEd ? <input type="date" value={parcEdit!.date} onChange={e => setParcEdit({ ...parcEdit!, date: e.target.value })} className="pinp" /> : fmtDT(p.date)}</td>
+                    <td className="dt">{isEd ? <input type="date" value={parcEdit!.date} onChange={e => setParcEdit({ ...parcEdit!, date: e.target.value })} className="pinp" /> : (<>{fmtDT(p.date)}{atrasado && <span style={{ color: "#b45309", fontSize: 11, marginLeft: 5, whiteSpace: "nowrap" }} title={"Pago em atraso — venceu " + fmtDT(p.date) + ", pago " + fmtDT(p.paid_date)}>· pago {fmtDT(p.paid_date)}</span>}</>)}</td>
                     <td className="r">{isEd ? <input type="number" step="0.01" value={parcEdit!.amount} onChange={e => setParcEdit({ ...parcEdit!, amount: e.target.value })} className="pinp num" /> : BRL(Number(p.amount || 0))}</td>
                     <td className="r green">{paid ? BRL(Number(p.amount || 0)) : "R$ 0,00"}</td>
                     <td className="r blue">{paid ? "R$ 0,00" : BRL(Number(p.amount || 0))}</td>
-                    <td className="pacts">{isEd ? (<><button className="picon ok" title="Salvar" disabled={busyP} onClick={() => saveParcelaEdit(r.raw, r.ps!)}><IcoCheck /></button><button className="picon" title="Cancelar" onClick={() => setParcEdit(null)}><IcoX /></button></>) : (<><span className={"st " + (paid ? "pago" : "pend")}>{paid ? "Recebida" : "A receber"}</span><button className={"picon toggle" + (paid ? " on" : "")} title={paid ? "Marcar como NÃO recebida" : "Marcar como recebida"} disabled={busyP} onClick={() => markParcela(r.raw, r.ps!, idx, !paid)}><IcoCheckCircle filled={paid} /></button><button className="picon" title="Editar parcela" onClick={() => setParcEdit({ id: r.id, idx, date: ymd(p.date), amount: String(p.amount || "") })}><IcoPencil /></button></>)}</td>
+                    <td className="pacts">{isEd ? (<><button className="picon ok" title="Salvar" disabled={busyP} onClick={() => saveParcelaEdit(r.raw, r.ps!)}><IcoCheck /></button><button className="picon" title="Cancelar" onClick={() => setParcEdit(null)}><IcoX /></button></>) : (<><span className={"st " + (paid ? "pago" : "pend")}>{paid ? "Recebida" : "A receber"}</span>{atrasado && <span title="Pago após o vencimento (em atraso)" style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 700, color: "#b45309", background: "rgba(245,179,1,.14)", border: "1px solid rgba(245,179,1,.45)", borderRadius: 999, padding: "1px 7px", whiteSpace: "nowrap" }}>⚠ Atrasado</span>}<button className={"picon toggle" + (paid ? " on" : "")} title={paid ? "Marcar como NÃO recebida" : "Marcar como recebida"} disabled={busyP} onClick={() => markParcela(r.raw, r.ps!, idx, !paid)}><IcoCheckCircle filled={paid} /></button><button className="picon" title="Editar parcela" onClick={() => setParcEdit({ id: r.id, idx, date: ymd(p.date), amount: String(p.amount || "") })}><IcoPencil /></button></>)}</td>
                   </tr>
                 );
               })}
