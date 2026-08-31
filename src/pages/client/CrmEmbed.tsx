@@ -514,6 +514,11 @@ export default function CrmEmbed() {
                   <Clock size={14} /> {t("Histórico")}
                 </button>
               )}
+              {/* 1 painel: acesso compacto ao multi-painel (comparar agentes). A barra do cockpit
+                  fica escondida quando é 1 painel só — abrir outro painel a traz de volta. */}
+              {i === 0 && shown.length === 1 && !isNarrow && panels.length < MAX_PANELS && (
+                <button onClick={addPanel} title={t("Comparar agentes (abrir outro painel)")} style={{ ...outlineBtn, flex: "0 0 auto" }}><Plus size={13} /> {t("Painel")}</button>
+              )}
             </div>
             <iframe title={panel.agent ? (agents.find((a) => a.id === panel.agent)?.name || t("Painel {n}", { n: i + 1 })) : t("Todos os Agentes")} src={panelSrc(gsec, panel.agent)} className="crm-fs-frame" allow="clipboard-write; microphone; camera; autoplay"
               onLoad={(e) => navFrame((e.currentTarget as HTMLIFrameElement).contentWindow, SECTION_TO_PATH[gsec] || "/")} />
@@ -527,8 +532,10 @@ export default function CrmEmbed() {
 
   return (
     <div className="admin-crm-fill">
-      {isMulti ? (isNarrow ? null : (
-        // HEADER do cockpit — no celular ELE SOME (redundante: você já entrou por "Conversas") → sobra tela pras mensagens.
+      {isMulti ? (isNarrow || panels.length <= 1 ? null : (
+        // HEADER do cockpit — só aparece ao COMPARAR (2+ painéis). Com 1 painel ele some (título/abas
+        // redundantes gastavam altura em tela menor); o "+Painel" p/ voltar ao multi vive no cabeçalho
+        // do painel. No celular também some (você já entrou por "Conversas").
         <div style={{ display: "flex", alignItems: "center", gap: compact ? 8 : 12, padding: compact ? "4px 10px" : "8px 16px", background: "var(--crasto-surface, #fff)", borderBottom: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))", flex: "0 0 auto" }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: compact ? 12.5 : 13.5, fontWeight: 700, color: "var(--crasto-text-primary)", lineHeight: 1.15 }}>{t(SECTION_LABEL[sec] || "WhatsApp CRM")}</div>
