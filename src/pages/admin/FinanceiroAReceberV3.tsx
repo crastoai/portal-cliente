@@ -109,6 +109,9 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
   const recebidoPeriodoDe = (r: any) => { const ps = arr(r.payment_schedule); if (ps.length) return ps.filter((p: any) => p.status === "paid" && _inPer(p.paid_date || p.date)).reduce((a: number, p: any) => a + Number(p.amount || 0), 0); return _inPer(r.payment_date) ? Number(r.amount_paid || 0) : 0; };
   const recebidoPeriodoRows = ativos.map((r: any) => ({ cliente: r.contact_name || r.description || "—", valor: recebidoPeriodoDe(r) })).filter((x: any) => x.valor > 0.005);
   const recebidoPeriodo = recebidoPeriodoRows.reduce((a: number, x: any) => a + x.valor, 0);
+  const semNfRows = rows.filter((r: any) => !r.raw?.has_nf);
+  const semNfRecebido = semNfRows.reduce((a: number, r: any) => a + r.recebido, 0);
+  const toggleNf = async (r: any) => { setBusyP(true); try { await services.finance.accounts.save({ id: r.id, account_type: "receivable", has_nf: !r.raw?.has_nf }); reload?.(); } catch (e: any) { alert("Erro: " + (e?.message || e)); } finally { setBusyP(false); } };
   const aReceberFut = rows.reduce((a, r) => a + r.aReceber, 0);
   const francisco = ativos.find((r: any) => /francisco|cs adv/i.test(r.contact_name || r.description || ""));
 
@@ -173,6 +176,7 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
       </div>
 
       <div className="frv3-note"><b>Duas verdades, dois números.</b> <b>Competência (MRR)</b> = saúde do negócio (receita recorrente mês a mês). <b>Caixa</b> = dinheiro que entrou (paga as contas). O sistema guarda os dois e nunca os mistura.</div>
+      {semNfRecebido > 0 && <div className="frv3-note" style={{ borderLeft: "3px solid #f5b301", background: "rgba(245,179,1,.08)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}><span><b>🧾 Recebido sem NF: {BRL(semNfRecebido)}</b> — {semNfRows.length} lançamento(s) a formalizar.</span><span style={{ fontSize: 11.5, color: "var(--crasto-text-muted, #667085)" }}>Selo "sem NF" em cada linha; clique no selo quando emitir a nota.</span></div>}
 
       <div className="frv3-sech"><h3>Contratos &amp; recebíveis</h3><span className="rt">{rows.length} recebível(is)</span></div>
       <div className="frv3-tablewrap"><div className="frv3-tscroll">
@@ -186,7 +190,7 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
             {rows.length === 0 ? <tr><td colSpan={7} style={{ padding: 16, color: "#6B7280" }}>Nenhum recebível cadastrado.</td></tr> : rows.map(r => (
               <Fragment key={r.id}>
               <tr className={r.ps && r.ps.length > 0 ? "hasexp" : ""} onClick={() => { if (r.ps && r.ps.length > 0) toggleExp(r.id); }} title={r.ps && r.ps.length > 0 ? "Clique para ver as parcelas" : ""}>
-                <td className="co">{r.ps && r.ps.length > 0 && <button className={"frv3-exp" + (expanded.has(r.id) ? " on" : "")} title="Ver parcelas" onClick={(e) => { e.stopPropagation(); toggleExp(r.id); }}>{expanded.has(r.id) ? "▾" : "▸"}</button>}{r.cliente}<small>{r.detalhe}{r.ps && r.ps.length > 0 ? ` · ${r.ps.filter((p: any) => p.status === "paid").length}/${r.ps.length} recebidas` : ""}</small></td>
+                <td className="co">{r.ps && r.ps.length > 0 && <button className={"frv3-exp" + (expanded.has(r.id) ? " on" : "")} title="Ver parcelas" onClick={(e) => { e.stopPropagation(); toggleExp(r.id); }}>{expanded.has(r.id) ? "▾" : "▸"}</button>}{r.cliente} <span onClick={(e) => { e.stopPropagation(); toggleNf(r); }} title={r.raw?.has_nf ? "Com Nota Fiscal — clique para marcar SEM NF" : "SEM Nota Fiscal — clique para marcar COM NF quando emitir"} style={{ cursor: "pointer", fontSize: 10, fontWeight: 700, padding: "1px 7px", borderRadius: 999, whiteSpace: "nowrap", verticalAlign: "middle", ...(r.raw?.has_nf ? { color: "#166534", background: "#E6F4EA", border: "1px solid rgba(22,101,52,.35)" } : { color: "#b45309", background: "rgba(245,179,1,.14)", border: "1px solid rgba(245,179,1,.5)" }) }}>{r.raw?.has_nf ? "NF ✓" : "sem NF"}</span><small>{r.detalhe}{r.ps && r.ps.length > 0 ? ` · ${r.ps.filter((p: any) => p.status === "paid").length}/${r.ps.length} recebidas` : ""}</small></td>
                 <td><span className="typ">{r.modelo}</span></td>
                 <td className="dt">{fmtDT(r.venc)}</td>
                 <td className="r">{BRL(view === "comp" ? r.reconhecido : r.recebidoMes)}</td>
