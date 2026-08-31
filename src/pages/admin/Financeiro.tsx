@@ -265,7 +265,7 @@ export default function Financeiro() {
     } finally { setClienteBusy(false); }
   }
   const [cOpen, setCOpen] = useState(false); const [cf, setCf] = useState<any>({ ...C_EMPTY });
-  const qEmpty = () => ({ desc: "", valor: "", data: today(), depto: "Vendas", kind: "refeicao", profs: "", metodo: "pix", pago: true, obs: "" });
+  const qEmpty = () => ({ id: "", desc: "", valor: "", data: today(), depto: "Vendas", kind: "refeicao", profs: "", metodo: "pix", pago: true, obs: "" });
   const [qOpen, setQOpen] = useState(false); const [qf, setQf] = useState<any>(qEmpty());
   const [tOpen, setTOpen] = useState(false); const [tf, setTf] = useState<any>({ ...T_EMPTY });
 
@@ -721,9 +721,17 @@ export default function Financeiro() {
       const notaObs = String(qf.obs || "").trim();
       const purpose = qf.depto + " · " + kindLabel + (profs ? " · " + profs : "");
       const notes = "Departamento: " + qf.depto + ". Categoria: " + kindLabel + (profs ? ". Profissionais: " + profs : "") + (notaObs ? ". Obs: " + notaObs : "") + " [Despesa rápida]";
-      await services.finance.costs.save({ vendor_name: qf.desc.trim(), description: qf.desc.trim(), category: qf.kind, currency: "BRL", amount_original: val, exchange_rate: 1, amount_brl: val, recurrence: "pontual", cost_type: "variavel", cost_nature: "pontual", reference_date: qf.data, is_active: true, amount_paid: qf.pago ? val : 0, payment_date: qf.pago ? qf.data : null, payment_method: qf.metodo, purpose, notes });
-      setQOpen(false); setQf(qEmpty()); reload(); flash(t("Despesa registrada ✓"));
+      await services.finance.costs.save({ ...(qf.id ? { id: qf.id } : {}), vendor_name: qf.desc.trim(), description: qf.desc.trim(), category: qf.kind, currency: "BRL", amount_original: val, exchange_rate: 1, amount_brl: val, recurrence: "pontual", cost_type: "variavel", cost_nature: "pontual", reference_date: qf.data, is_active: true, amount_paid: qf.pago ? val : 0, payment_date: qf.pago ? qf.data : null, payment_method: qf.metodo, purpose, notes });
+      setQOpen(false); setQf(qEmpty()); reload(); flash(t(qf.id ? "Despesa atualizada ✓" : "Despesa registrada ✓"));
     } catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
+  }
+  function openQuickEdit(c: any) {
+    const nt = String(c.notes || "");
+    const mDep = nt.match(/Departamento:\s*([^.]+?)\./);
+    const mProf = nt.match(/Profissionais:\s*(.+?)(?:\.\s*Obs:|\s*\[Despesa|$)/);
+    const mObs = nt.match(/Obs:\s*([\s\S]*?)\s*\[Despesa/);
+    setQf({ id: c.id, desc: c.vendor_name || c.description || "", valor: String(c.amount_brl ?? ""), data: ymd(c.payment_date) || ymd(c.reference_date) || today(), depto: mDep ? mDep[1].trim() : "Vendas", kind: c.category || "outros", profs: mProf ? mProf[1].trim() : "", metodo: c.payment_method || "pix", pago: Number(c.amount_paid || 0) > 0.005, obs: mObs ? mObs[1].trim() : "" });
+    setQOpen(true);
   }
   async function markPaid(i: any) {
     setBusy(true);
@@ -1129,7 +1137,7 @@ export default function Financeiro() {
           <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => newAccount("payable")} title={t("Lançamento detalhado (parcelas, contrato)")}><span className="crasto-btn__label">{t("Novo lançamento")}</span></button>
           <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => { setCf({ ...C_EMPTY }); setCOpen(true); }} title={t("Custo recorrente detalhado (mensal/anual, câmbio…)")}><span className="crasto-btn__label">{t("Custo recorrente")}</span></button>
         </div>
-        <FinanceiroAPagarV3 pay={pay} costs={costs} reload={reload} onEdit={(id) => { const it = payItems.find((p) => p.id === id); if (it) editItem(it); }} />
+        <FinanceiroAPagarV3 pay={pay} costs={costs} reload={reload} onEdit={(id) => { const c = costs.find((x) => x.id === id); if (c && (c.recurrence === "pontual" || String(c.notes || "").includes("[Despesa r"))) { openQuickEdit(c); return; } const it = payItems.find((p) => p.id === id); if (it) editItem(it); }} />
       </>) : tab === "receber" ? (<>
         {/* A Receber — layout v3 APROVADO (2026-08-27): componente dedicado (competência × caixa) com dado real. */}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginBottom: 12 }}>
@@ -1349,7 +1357,7 @@ export default function Financeiro() {
       </Modal>
 
       {/* Modal DESPESA RÁPIDA — cadastro simples e objetivo de despesa pontual */}
-      <Modal title={t("Despesa rápida")} open={qOpen} onClose={() => setQOpen(false)} persistent footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setQOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={saveQuick}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar despesa")}</span></button></>}>
+      <Modal title={qf.id ? t("Editar despesa") : t("Despesa rápida")} open={qOpen} onClose={() => setQOpen(false)} persistent footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setQOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={saveQuick}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar despesa")}</span></button></>}>
         <div style={{ display: "grid", gap: 12 }}>
           <Field label="O que foi a despesa?"><input value={qf.desc} onChange={(e) => setQf({ ...qf, desc: e.target.value })} placeholder={t("Ex.: Almoço da equipe (curso)")} autoFocus /></Field>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
