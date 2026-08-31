@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { MessageCircle, Search, Send, Grid3x3, Pencil, Trash2, UserPlus, Plus, Upload, Download, FileText, Building2, Eye, Power, ShieldCheck, HeartHandshake } from "lucide-react";
-import { preview } from "../../lib/preview";
+import AcessarComoModal from "../../ui/AcessarComo";
 import { services as api, errorMessage } from "../../services";
 import { PageHead, Pill, Empty, useAsync, initials, Field, money, prettyName } from "../../ui/ui";
 import { useT } from "../../lib/i18n";
@@ -64,6 +64,7 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
   }, [id]);
 
   const [edit, setEdit] = useState(false);
+  const [verComo, setVerComo] = useState(false); // atalho "Visualizar cliente" → escolher em quem entrar
   const [openMeeting, setOpenMeeting] = useState<any>(null);
   const [ef, setEf] = useState<Org>(null);
   // Edição de usuário do Portal (nome/e-mail/papel).
@@ -314,11 +315,17 @@ export default function ClienteDetalhe({ onStageChange }: { onStageChange?: (s: 
     <div>
       <PageHead eyebrow={`CRM · ${co.flag} ${co.name}`} title={org.name} sub={`${co.idLabel}: ${org.tax_id || "—"}  ·  ${org.website || "sem site"}`}
         right={<>
-          <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => { preview.set(id!, org.name); nav("/app"); }}><span className="crasto-btn__icon"><Eye size={14} /></span><span className="crasto-btn__label">{tr("Visualizar cliente")}</span></button>
+          {/* ATALHO para o modo ÚNICO de ver como cliente: impersonação real de um dono/admin desta
+              empresa (o mesmo "Acessar como" de Permissões). O preview antigo saiu porque o WhatsApp
+              CRM é outro backend e só entende o JWT — com preview ele continuava mostrando a Crasto.AI. */}
+          <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => setVerComo(true)}><span className="crasto-btn__icon"><Eye size={14} /></span><span className="crasto-btn__label">{tr("Visualizar cliente")}</span></button>
           <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => nav(`/admin/console/permissoes?org=${id}`)}><span className="crasto-btn__icon"><ShieldCheck size={14} /></span><span className="crasto-btn__label">{tr("Permissões & acessos")}</span></button>
           <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={ativarInativar} disabled={busy}><span className="crasto-btn__icon"><Power size={14} color={((org.status ?? org.org_status) ?? "active") === "active" ? "#1D9E75" : "var(--crasto-text-faint)"} /></span><span className="crasto-btn__label">{((org.status ?? org.org_status) ?? "active") === "active" ? tr("Inativar") : tr("Ativar")}</span></button>
           <button className="crasto-btn crasto-btn--destructive crasto-btn--sm" onClick={del} disabled={busy}><span className="crasto-btn__icon"><Trash2 size={14} /></span><span className="crasto-btn__label">{tr("Excluir")}</span></button>
         </>} />
+
+      <AcessarComoModal orgId={id!} orgName={org.name} open={verComo} onClose={() => setVerComo(false)}
+        onIrParaPermissoes={() => { setVerComo(false); nav(`/admin/console/permissoes?org=${id}`); }} />
 
       {/* pipeline (trilha linear — Perdido não entra aqui) */}
       <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>

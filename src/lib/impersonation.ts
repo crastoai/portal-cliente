@@ -51,6 +51,7 @@ export async function startImpersonation(target: { id: string; name?: string | n
     startedAt: Date.now(),
   };
   localStorage.setItem(KEY, JSON.stringify(state));
+  limparEscopoCrm(); // resquício de /admin/crm venceria o JWT novo e prenderia o CRM na org errada
 
   await supabase.auth.setSession({ access_token: r.access_token, refresh_token: r.refresh_token });
   window.location.assign("/app");
@@ -63,12 +64,28 @@ export async function startImpersonation(target: { id: string; name?: string | n
  */
 export function clearImpersonation(): void {
   try { localStorage.removeItem(KEY); } catch { /* storage indisponível */ }
+  limparEscopoCrm();
+}
+
+/**
+ * O WhatsApp CRM mora na MESMA origem do Portal, então divide o localStorage com ele. A tela
+ * /admin/crm grava ali o escopo que o CRM deve abrir (`wacrm.active_org` = interno da Crasto.AI,
+ * `wacrm.impersonate` = ver um cliente). Essas chaves sobreviviam a sair/deslogar e PRENDIAM o CRM
+ * embarcado no escopo antigo — sintoma: entrar como cliente e ainda ver o WhatsApp da Crasto.AI.
+ * Quem troca de identidade tem de zerar o escopo antigo, senão o resquício vence o JWT novo.
+ */
+export function limparEscopoCrm(): void {
+  try {
+    localStorage.removeItem("wacrm.active_org");
+    localStorage.removeItem("wacrm.impersonate");
+  } catch { /* storage indisponível */ }
 }
 
 /** Encerra a impersonação: restaura a sessão do admin e volta ao console de permissões. */
 export async function stopImpersonation(): Promise<void> {
   const st = impersonationState();
   localStorage.removeItem(KEY);
+  limparEscopoCrm();
   if (st?.admin?.refresh_token) {
     // O access_token do admin pode ter expirado durante a auditoria; o refresh_token renova.
     try { await supabase.auth.setSession({ access_token: st.admin.access_token, refresh_token: st.admin.refresh_token }); }
