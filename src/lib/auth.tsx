@@ -5,7 +5,6 @@ import { api } from "./api";
 import { services } from "../services";
 import { marcarAtividade } from "./idle";
 import { clearImpersonation } from "./impersonation";
-import { preview } from "./preview";
 
 export type Profile = {
   id: string;
@@ -123,7 +122,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // (impersonação + preview). Sem isto a faixa laranja de auditoria — que lê o localStorage, não o
     // auth — sobreviveria ao logout e continuaria na tela de login como se ainda estivesse acessando.
     clearImpersonation();
-    preview.clear();
     await supabase.auth.signOut();
   }
   async function refreshProfile() {

@@ -4,7 +4,6 @@ import { services, errorMessage } from "../../services";
 import { PageHead, Empty, useAsync, Pill, Field } from "../../ui/ui";
 import { useSettings } from "../../lib/settings";
 import { useAuth } from "../../lib/auth";
-import { preview } from "../../lib/preview";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
 
@@ -50,7 +49,7 @@ export default function Suporte() {
 
   // Anexos (prints): sobem para o R2 na hora; guardamos {name, key, url}. Aceita imagem e PDF.
   async function addFiles(list: File[]) {
-    const orgId = profile?.organization_id || preview.orgId() || "support";
+    const orgId = profile?.organization_id || "support";
     const ok = list.filter((x) => /^image\//.test(x.type) || x.type === "application/pdf");
     if (list.length && !ok.length) { setErr(t("Só aceitamos imagens ou PDF.")); return; }
     for (const file of ok.slice(0, 8)) {

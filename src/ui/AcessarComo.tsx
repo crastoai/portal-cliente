@@ -1,12 +1,12 @@
 // "Acessar como" a partir de uma ORGANIZAÇÃO (atalho) — padrão ÚNICO de ver o sistema pelos
 // olhos do cliente.
 //
-// POR QUE ESTE ARQUIVO EXISTE: havia dois jeitos de "ver como cliente" e um deles era falso. O
-// preview (lib/preview.ts) só mandava um header `X-Preview-Org` que APENAS a API do Portal
-// entende — o WhatsApp CRM é outro backend, que olha só o JWT, então o iframe continuava
-// recebendo a identidade do admin e mostrando os dados da Crasto.AI. Trocar de identidade de
-// verdade (impersonação) é o único mecanismo que funciona em TODOS os sistemas de uma vez,
-// porque não exige que ninguém saiba que existe impersonação.
+// POR QUE ESTE ARQUIVO EXISTE: havia três jeitos de "ver como cliente" e dois eram remendos. O
+// "preview" (removido) só mandava um header que APENAS a API do Portal entendia — o WhatsApp CRM
+// é outro backend, que olha só o JWT, então o iframe continuava recebendo a identidade do admin e
+// mostrando os dados da Crasto.AI. Trocar de identidade de verdade (impersonação) é o único
+// mecanismo que funciona em TODOS os sistemas de uma vez, porque não exige que ninguém saiba que
+// existe impersonação: cada um resolve a org pelo JWT, como faz para qualquer usuário.
 //
 // A impersonação existente é por USUÁRIO (`startImpersonation`). Aqui o ponto de partida é a
 // ORGANIZAÇÃO: resolvemos quem daquela empresa vamos acessar. Como quase toda org tem MAIS DE UM

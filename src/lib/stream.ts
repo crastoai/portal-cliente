@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "./supabase";
-import { previewOrgId } from "./preview";
 
 const API_URL = (import.meta.env.VITE_API_URL as string) || "https://portal-api.4hqjjr.easypanel.host";
 
@@ -31,9 +30,8 @@ export function useStream<T>(path: string, deps: unknown[] = []) {
           const { data: s } = await supabase.auth.getSession();
           const token = s.session?.access_token;
           if (!token) { await new Promise((r) => setTimeout(r, 2000)); continue; }
-          const org = previewOrgId();
           const res = await fetch(`${API_URL}${path}`, {
-            headers: { Authorization: "Bearer " + token, ...(org ? { "X-Preview-Org": org } : {}) },
+            headers: { Authorization: "Bearer " + token },
             signal: ctrl.signal,
           });
           if (!res.ok || !res.body) throw new Error("stream " + res.status);

@@ -2,7 +2,6 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
-import { PreviewInterceptor } from './common/preview.store';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -13,7 +12,6 @@ async function bootstrap() {
   app.useBodyParser('json', { limit: '50mb' });
   app.useBodyParser('urlencoded', { limit: '50mb', extended: true });
   // Escopo de "ver como cliente" por requisição (o banco é quem valida).
-  app.useGlobalInterceptors(new PreviewInterceptor());
   // CORS: o SPA do Portal chama esta API do navegador. Allowlist por env.
   const origins = (
     process.env.CORS_ORIGINS ||

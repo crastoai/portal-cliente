@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { previewOrgId } from "./preview";
 
 // Hook de leitura da API com STALE-WHILE-REVALIDATE — igual ao do CRM (wacrm).
 //
@@ -10,21 +9,18 @@ import { previewOrgId } from "./preview";
 // dado aparece NA HORA (do cache) e revalida em 2º plano — o número certo chega em seguida.
 // Nunca é dado velho parado: toda montagem dispara o fetch fresco; o cache só evita o branco.
 //
-// ESCOPO: a chave inclui o previewOrgId (admin "ver como cliente"). Trocar de org NUNCA mostra
-// o cache da anterior (chaves diferentes). Para o cliente normal previewOrgId é null → constante.
+// ESCOPO: não precisa entrar na chave. Ver o sistema como outra pessoa é impersonação, que troca
+// a sessão e RECARREGA a página — este cache é de memória, então morre junto. Não há como o dado
+// de uma identidade sobreviver para a seguinte.
 const mem = new Map<string, unknown>();
 const MAX = 120; // teto do cache (evita crescer sem fim); descarta o mais antigo.
-
-function escopo(): string {
-  try { return previewOrgId() || ""; } catch { return ""; }
-}
 
 export function useFetch<T>(
   fn: () => Promise<T>,
   deps: unknown[] = [],
 ): { data: T | null; loading: boolean; error: string | null; reload: () => void } {
   let autoKey = "";
-  try { autoKey = fn.toString() + "|" + JSON.stringify(deps) + "|" + escopo(); } catch { autoKey = ""; }
+  try { autoKey = fn.toString() + "|" + JSON.stringify(deps); } catch { autoKey = ""; }
 
   const read = (): T | null => {
     if (autoKey && mem.has(autoKey)) return mem.get(autoKey) as T;

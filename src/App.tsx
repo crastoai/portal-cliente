@@ -6,7 +6,6 @@ import { services } from "./services";
 import IdleModal from "./ui/IdleModal";
 import ImpersonationBanner from "./ui/ImpersonationBanner";
 import Splash from "./ui/Splash";
-import { preview } from "./lib/preview";
 import Login from "./pages/Login";
 import TwoFactorChallenge from "./pages/TwoFactorChallenge";
 import ResetRequest from "./pages/ResetRequest";
@@ -65,8 +64,6 @@ function homeFor(role?: string) {
 export default function App() {
   const { session, profile, loading, mfaPending, mfaChecked, signOut } = useAuth();
   const isAdmin = !!session && profile?.role === "crasto_admin";
-  // Segurança: "Ver como cliente" é só para admin — qualquer outro papel (ou sem sessão) limpa o preview.
-  useEffect(() => { if (!isAdmin) preview.clear(); }, [isAdmin]);
   // Sessão não fica aberta para sempre: 30 min parado → pergunta; 30s sem resposta → sai.
   const idle = useIdleGuard(!!session, (motivo) => { void signOut(motivo); });
   // HEARTBEAT de ATIVIDADE REAL (relógio de ponto — lado Portal): logado, a cada 60s manda um ping SE
