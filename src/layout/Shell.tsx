@@ -112,6 +112,18 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
   // Barra lateral SEMPRE entra ABERTA (pedido do Crasto, reunião Connect): recolher é uma ação
   // temporária da sessão — não persiste entre entradas, para nunca "entrar recolhido".
   const [collapsed, setCollapsed] = useState<boolean>(false);
+  // Largura da sidebar AJUSTÁVEL (arrastar a alça na borda direita) — igual ao painel de Info.
+  // Persiste na sessão do navegador; recolhida usa a largura fixa do CSS (66px).
+  const [sideW, setSideW] = useState<number>(() => { try { const v = Number(localStorage.getItem("crasto.side-w")); return v >= 210 && v <= 460 ? v : 280; } catch { return 280; } });
+  const [resizingSide, setResizingSide] = useState(false);
+  useEffect(() => { try { localStorage.setItem("crasto.side-w", String(sideW)); } catch { /* ignore */ } }, [sideW]);
+  const startSideResize = (e: { clientX: number; preventDefault: () => void }) => {
+    e.preventDefault();
+    const x0 = e.clientX, w0 = sideW; setResizingSide(true);
+    const onMove = (ev: MouseEvent) => setSideW(Math.min(460, Math.max(210, w0 + (ev.clientX - x0))));
+    const onUp = () => { setResizingSide(false); document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+    document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
+  };
   // Mensagem central ao clicar num item BLOQUEADO (módulo não contratado) — pedido do Crasto: em vez
   // de mandar pro catálogo, avisa que o conteúdo está indisponível e orienta falar com o comercial.
   const [lockedMsg, setLockedMsg] = useState(false);
@@ -398,7 +410,7 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
   // "cartão" arredondado do .canvas, que fazia o CRM parecer uma caixa flutuando e desperdiçava espaço).
   const flush = /^\/(app|admin)\/crm(\/|$)/.test(pathname);
   return (
-    <div className={"shell" + (collapsed ? " collapsed" : "") + (flush ? " shell--flush" : "")}>
+    <div className={"shell" + (collapsed ? " collapsed" : "") + (flush ? " shell--flush" : "") + (resizingSide ? " resizing" : "")} style={{ ["--side-w" as any]: sideW + "px" }}>
       {open && <div className="side-overlay" onClick={() => setOpen(false)} />}
 
       {/* TOPBAR FULL-WIDTH (uma barra só): logo à esquerda, controles à direita — atravessa a sidebar. */}
@@ -434,6 +446,8 @@ export default function Shell({ nav, who, sub, logoTone, bottomNav, brandTag }: 
           centrado na linha que separa a topbar do conteúdo. Fora da .side de propósito — assim
           não é cortado pela topbar (empilhamento) e NÃO empurra os itens do menu pra baixo. */}
       <button className="side-toggle" onClick={() => setCollapsed((c) => !c)} title={collapsed ? t("Expandir menu") : t("Recolher menu")} aria-label={collapsed ? t("Expandir menu") : t("Recolher menu")}>{collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}</button>
+      {/* Alça de largura AJUSTÁVEL da sidebar (arrastar) — some quando recolhida ou no celular. */}
+      {!collapsed && !narrow && <div className="side-resizer" onMouseDown={startSideResize} title={t("Arraste para ajustar a largura do menu")} />}
 
       <aside className={"side" + (open ? " open" : "")}>
         <button className="side-close" onClick={() => setOpen(false)} aria-label={t("Fechar menu")}><X size={18} /></button>

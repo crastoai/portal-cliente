@@ -29,7 +29,7 @@
 .mobilebar, .side-close, .side-overlay { display: none; }
 
 .side {
-  position: fixed; top: 56px; left: 0; width: 280px; height: calc(100vh - 56px); height: calc(100dvh - 56px); z-index: 30;
+  position: fixed; top: 56px; left: 0; width: var(--side-w, 280px); height: calc(100vh - 56px); height: calc(100dvh - 56px); z-index: 30;
   display: flex; flex-direction: column; gap: 2px; padding: 14px 14px;
   border-right: 1px solid var(--crasto-border-soft);
   background: var(--crasto-surface);
@@ -335,7 +335,17 @@
 .su-out:hover { background: var(--crasto-bg-3); color: var(--crasto-text-primary); }
 
 /* área principal + canvas arredondado (assinatura de sistema do DS) */
-.main { margin-left: 280px; margin-top: 56px; padding: 18px; min-width: 0; min-height: calc(100vh - 56px); min-height: calc(100dvh - 56px); display: flex; flex-direction: column; transition: margin-left .28s cubic-bezier(.22,1,.36,1); }
+.main { margin-left: var(--side-w, 280px); margin-top: 56px; padding: 18px; min-width: 0; min-height: calc(100vh - 56px); min-height: calc(100dvh - 56px); display: flex; flex-direction: column; transition: margin-left .28s cubic-bezier(.22,1,.36,1); }
+/* Resizer da sidebar: alça fina na borda direita (aparece no hover) pra ajustar a largura —
+   igual ao painel de Informações do Lead. Some quando recolhido ou no celular. */
+.side-resizer { position: fixed; top: 56px; bottom: 0; left: var(--side-w, 280px); width: 8px; transform: translateX(-4px); z-index: 31; cursor: col-resize; }
+body.impersonating .side-resizer { top: 96px; }
+.side-resizer::before { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: var(--crasto-blue, #6E9CE8); opacity: 0; transition: opacity .15s; }
+.side-resizer:hover::before, .shell.resizing .side-resizer::before { opacity: .9; }
+.side-resizer::after { content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 6px; height: 34px; border-radius: 6px; background: var(--crasto-surface, #fff); border: 1px solid var(--crasto-border-soft); box-shadow: 0 2px 6px rgba(1,14,38,.14); opacity: 0; transition: opacity .15s; }
+.side-resizer:hover::after { opacity: 1; }
+.shell.resizing .side, .shell.resizing .main, .shell.resizing .side-toggle, .shell.resizing .side-resizer { transition: none; }
+.shell.resizing { user-select: none; }
 
 /* ENTRADA SUAVE DE TELA — o conteúdo surge (fade + leve subida) a cada troca de rota. */
 @keyframes page-enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
@@ -351,7 +361,7 @@
 /* Recolher/expandir: handle circular FLUTUANTE, centrado na linha que separa a topbar do
    conteúdo (y=56) e cravado na borda direita da sidebar (x = largura da sidebar). Fica FORA do
    fluxo (position:fixed) → não empurra os itens do menu; z acima da topbar p/ não ser cortado. */
-.side-toggle { position: fixed; top: 56px; left: 280px; transform: translate(-50%, -50%); z-index: 46; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--crasto-border-soft); background: var(--crasto-surface); color: var(--crasto-text-muted); cursor: pointer; transition: background .15s, color .15s, left .28s cubic-bezier(.22,1,.36,1); box-shadow: 0 2px 6px rgba(1,14,38,.14); }
+.side-toggle { position: fixed; top: 56px; left: var(--side-w, 280px); transform: translate(-50%, -50%); z-index: 46; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--crasto-border-soft); background: var(--crasto-surface); color: var(--crasto-text-muted); cursor: pointer; transition: background .15s, color .15s, left .28s cubic-bezier(.22,1,.36,1); box-shadow: 0 2px 6px rgba(1,14,38,.14); }
 .side-toggle:hover { background: var(--crasto-navy-05); color: var(--crasto-text-primary); }
 
 /* IMPERSONAÇÃO ("Acessar como"): a faixa de auditoria (40px, ImpersonationBanner) fica ACIMA de

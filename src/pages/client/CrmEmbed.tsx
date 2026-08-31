@@ -459,7 +459,7 @@ export default function CrmEmbed() {
     return t("Fila zerada e follow-ups em dia. Bom ritmo — foque em converter os quentes.");
   };
   const coachCell = (
-    <div style={{ marginLeft: "auto", alignSelf: "stretch", display: "flex", alignItems: "center", gap: 9, padding: "8px 16px", minWidth: 250, background: "var(--crasto-blue-05, rgba(14,99,199,.06))", borderLeft: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))" }}>
+    <div style={{ flex: "0 0 auto", alignSelf: "stretch", display: "flex", alignItems: "center", gap: 9, padding: "8px 16px", minWidth: 250, background: "var(--crasto-blue-05, rgba(14,99,199,.06))", borderLeft: "1px solid var(--crasto-border-soft, rgba(1,14,38,.08))" }}>
       <span style={{ fontSize: 15, color: "#0E63C7", flex: "0 0 auto" }}>✦</span>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 9.5, letterSpacing: ".1em", textTransform: "uppercase", color: "#0E63C7", fontWeight: 700 }}>{t("Sugestão da IA")}</div>
