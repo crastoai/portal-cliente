@@ -265,7 +265,7 @@ export default function Financeiro() {
     } finally { setClienteBusy(false); }
   }
   const [cOpen, setCOpen] = useState(false); const [cf, setCf] = useState<any>({ ...C_EMPTY });
-  const qEmpty = () => ({ desc: "", valor: "", data: today(), categoria: "outros", metodo: "pix", pago: true });
+  const qEmpty = () => ({ desc: "", valor: "", data: today(), depto: "Vendas", kind: "refeicao", profs: "", metodo: "pix", pago: true, obs: "" });
   const [qOpen, setQOpen] = useState(false); const [qf, setQf] = useState<any>(qEmpty());
   const [tOpen, setTOpen] = useState(false); const [tf, setTf] = useState<any>({ ...T_EMPTY });
 
@@ -705,7 +705,13 @@ export default function Financeiro() {
     if (!val || val <= 0) { flash(t("Informe um valor.")); return; }
     setBusy(true);
     try {
-      await services.finance.costs.save({ vendor_name: qf.desc.trim(), description: qf.desc.trim(), category: qf.categoria, currency: "BRL", amount_original: val, exchange_rate: 1, amount_brl: val, recurrence: "pontual", cost_type: "variavel", cost_nature: "pontual", reference_date: qf.data, is_active: true, amount_paid: qf.pago ? val : 0, payment_date: qf.pago ? qf.data : null, payment_method: qf.metodo, notes: "Despesa pontual (cadastro rapido)" });
+      const kl: any = { refeicao: "Refeição", transporte: "Transporte (Uber/Táxi)", hospedagem: "Hospedagem", telefone: "Telefone/Celular", equipamento: "Equipamento/Compras", manutencao: "Manutenção/Mecânico", software: "Software/Assinatura", outros: "Outros" };
+      const kindLabel = kl[qf.kind] || qf.kind;
+      const profs = String(qf.profs || "").trim();
+      const notaObs = String(qf.obs || "").trim();
+      const purpose = qf.depto + " · " + kindLabel + (profs ? " · " + profs : "");
+      const notes = "Departamento: " + qf.depto + ". Categoria: " + kindLabel + (profs ? ". Profissionais: " + profs : "") + (notaObs ? ". Obs: " + notaObs : "") + " [Despesa rápida]";
+      await services.finance.costs.save({ vendor_name: qf.desc.trim(), description: qf.desc.trim(), category: qf.kind, currency: "BRL", amount_original: val, exchange_rate: 1, amount_brl: val, recurrence: "pontual", cost_type: "variavel", cost_nature: "pontual", reference_date: qf.data, is_active: true, amount_paid: qf.pago ? val : 0, payment_date: qf.pago ? qf.data : null, payment_method: qf.metodo, purpose, notes });
       setQOpen(false); setQf(qEmpty()); reload(); flash(t("Despesa registrada ✓"));
     } catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
   }
@@ -1341,11 +1347,16 @@ export default function Financeiro() {
             <Field label="Data"><input type="date" value={qf.data} onChange={(e) => setQf({ ...qf, data: e.target.value })} /></Field>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Field label="Categoria"><select value={qf.categoria} onChange={(e) => setQf({ ...qf, categoria: e.target.value })}><option value="servico">{t("Serviço")}</option><option value="ferramenta">{t("Ferramenta")}</option><option value="infraestrutura">{t("Infraestrutura")}</option><option value="beneficio">{t("Benefícios")}</option><option value="salario">{t("Pessoas")}</option><option value="ia">{t("IA")}</option><option value="outros">{t("Outros")}</option></select></Field>
-            <Field label="Forma de pagamento"><select value={qf.metodo} onChange={(e) => setQf({ ...qf, metodo: e.target.value })}><option value="pix">Pix</option><option value="cartao">{t("Cartão")}</option><option value="dinheiro">{t("Dinheiro")}</option><option value="boleto">Boleto</option><option value="transferencia">{t("Transferência")}</option></select></Field>
+            <Field label="Departamento"><select value={qf.depto} onChange={(e) => setQf({ ...qf, depto: e.target.value })}><option>Vendas</option><option>Marketing</option><option>Técnico/TI</option><option>Financeiro</option><option>RH</option><option>Operações</option><option>Diretoria</option><option>Geral</option></select></Field>
+            <Field label="Categoria da despesa"><select value={qf.kind} onChange={(e) => setQf({ ...qf, kind: e.target.value })}><option value="refeicao">Refeição</option><option value="transporte">Transporte (Uber/Táxi)</option><option value="hospedagem">Hospedagem</option><option value="telefone">Telefone/Celular</option><option value="equipamento">Equipamento/Compras</option><option value="manutencao">Manutenção/Mecânico</option><option value="software">Software/Assinatura</option><option value="outros">Outros</option></select></Field>
           </div>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}><input type="checkbox" checked={qf.pago} onChange={(e) => setQf({ ...qf, pago: e.target.checked })} /> {t("Já foi paga")}</label>
-          <div className="fin-note" style={{ fontSize: 11.5, color: "var(--crasto-text-muted)" }}>{t("Entra como despesa pontual do dia. Para custo recorrente (mensal/anual) use \"Custo recorrente\".")}</div>
+          <Field label="Profissionais envolvidos"><div style={{ width: "100%" }}><input value={qf.profs} onChange={(e) => setQf({ ...qf, profs: e.target.value })} placeholder={t("Ex.: Carlos Crasto, Jhonatan de Matos")} style={{ width: "100%" }} /><div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>{["Carlos Crasto", "Jhonatan de Matos"].map((nm) => <button key={nm} type="button" className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setQf((st: any) => { const has = String(st.profs || "").split(",").map((x: string) => x.trim()).includes(nm); return has ? st : { ...st, profs: st.profs ? st.profs.trim().replace(/,\s*$/, "") + ", " + nm : nm }; })}>+ {nm}</button>)}</div></div></Field>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "end" }}>
+            <Field label="Forma de pagamento"><select value={qf.metodo} onChange={(e) => setQf({ ...qf, metodo: e.target.value })}><option value="pix">Pix</option><option value="cartao">{t("Cartão")}</option><option value="dinheiro">{t("Dinheiro")}</option><option value="boleto">Boleto</option><option value="transferencia">{t("Transferência")}</option></select></Field>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, paddingBottom: 9 }}><input type="checkbox" checked={qf.pago} onChange={(e) => setQf({ ...qf, pago: e.target.checked })} /> {t("Já foi paga")}</label>
+          </div>
+          <Field label="Observações — por que gastou (justificativa)"><textarea value={qf.obs} onChange={(e) => setQf({ ...qf, obs: e.target.value })} rows={3} placeholder={t("Ex.: Na saída do cliente, com a certeza de fechar o negócio, almoçamos para alinhar os próximos passos.")} style={{ resize: "vertical", width: "100%", font: "inherit" }} /></Field>
+          <div className="fin-note" style={{ fontSize: 11.5, color: "var(--crasto-text-muted)" }}>{t("Entra como despesa pontual do dia (departamento, categoria, profissionais e o porquê ficam registrados). Para custo recorrente use \"Custo recorrente\".")}</div>
         </div>
       </Modal>
 

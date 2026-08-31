@@ -25,7 +25,7 @@ function fmtDT(v: any): string {
   return out;
 }
 const ymd = (v: any) => (v ? String(v).slice(0, 10) : "");
-const CATMAP: Record<string, string> = { ferramenta: "Ferramenta", infraestrutura: "Infraestrutura", servico: "Serviço", salario: "Pessoas", ia: "IA", pessoas: "Pessoas", beneficio: "Benefícios" };
+const CATMAP: Record<string, string> = { ferramenta: "Ferramenta", infraestrutura: "Infraestrutura", servico: "Serviço", salario: "Pessoas", ia: "IA", pessoas: "Pessoas", beneficio: "Benefícios", refeicao: "Refeição", transporte: "Transporte", hospedagem: "Hospedagem", telefone: "Telefone", equipamento: "Equipamento", manutencao: "Manutenção", software: "Software", outros: "Outros" };
 const catLabel = (c?: string) => (c ? (CATMAP[c] || c.charAt(0).toUpperCase() + c.slice(1)) : "Serviço");
 const CAT_EMOJI: Record<string, string> = { IA: "🤖", Pessoas: "👤", Ferramenta: "🛠️", Infraestrutura: "☁️", "Serviço": "📦", "Benefícios": "🎁" };
 // ícones (SVG inline, sem dependência) — usados nas ações de parcela
