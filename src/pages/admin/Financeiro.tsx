@@ -265,6 +265,8 @@ export default function Financeiro() {
     } finally { setClienteBusy(false); }
   }
   const [cOpen, setCOpen] = useState(false); const [cf, setCf] = useState<any>({ ...C_EMPTY });
+  const qEmpty = () => ({ desc: "", valor: "", data: today(), categoria: "outros", metodo: "pix", pago: true });
+  const [qOpen, setQOpen] = useState(false); const [qf, setQf] = useState<any>(qEmpty());
   const [tOpen, setTOpen] = useState(false); const [tf, setTf] = useState<any>({ ...T_EMPTY });
 
   const rem = (r: any) => Number(r.amount || 0) - Number(r.amount_paid || 0);
@@ -697,6 +699,16 @@ export default function Financeiro() {
     try { await services.finance.costs.save({ ...cf, amount_original: cf.amount_original || 0, exchange_rate: cf.exchange_rate || 1, amount_brl: cf.amount_brl || 0 }); setCOpen(false); reload(); flash(t("Custo salvo ✓")); }
     catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
   }
+  async function saveQuick() {
+    const val = parseFloat(String(qf.valor).replace(",", "."));
+    if (!qf.desc.trim()) { flash(t("Diga o que foi a despesa.")); return; }
+    if (!val || val <= 0) { flash(t("Informe um valor.")); return; }
+    setBusy(true);
+    try {
+      await services.finance.costs.save({ vendor_name: qf.desc.trim(), description: qf.desc.trim(), category: qf.categoria, currency: "BRL", amount_original: val, exchange_rate: 1, amount_brl: val, recurrence: "pontual", cost_type: "variavel", cost_nature: "pontual", reference_date: qf.data, is_active: true, amount_paid: qf.pago ? val : 0, payment_date: qf.pago ? qf.data : null, payment_method: qf.metodo, notes: "Despesa pontual (cadastro rapido)" });
+      setQOpen(false); setQf(qEmpty()); reload(); flash(t("Despesa registrada ✓"));
+    } catch (e) { flash(errorMessage(e)); } finally { setBusy(false); }
+  }
   async function markPaid(i: any) {
     setBusy(true);
     try {
@@ -1097,8 +1109,9 @@ export default function Financeiro() {
         {/* A Pagar — layout v3 APROVADO (2026-08-27): componente dedicado com dado real.
             Substitui os KPIs antigos, o CustoIA embedded e a tabela agrupada. */}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginBottom: 12 }}>
-          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => newAccount("payable")}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Novo lançamento")}</span></button>
-          <button className="crasto-btn crasto-btn--secondary crasto-btn--sm" onClick={() => { setCf({ ...C_EMPTY }); setCOpen(true); }}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Novo custo")}</span></button>
+          <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => { setQf(qEmpty()); setQOpen(true); }} title={t("Cadastro simples de uma despesa pontual (almoço, curso, avulso…)")}><span className="crasto-btn__icon"><Plus size={14} /></span><span className="crasto-btn__label">{t("Despesa rápida")}</span></button>
+          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => newAccount("payable")} title={t("Lançamento detalhado (parcelas, contrato)")}><span className="crasto-btn__label">{t("Novo lançamento")}</span></button>
+          <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => { setCf({ ...C_EMPTY }); setCOpen(true); }} title={t("Custo recorrente detalhado (mensal/anual, câmbio…)")}><span className="crasto-btn__label">{t("Custo recorrente")}</span></button>
         </div>
         <FinanceiroAPagarV3 pay={pay} costs={costs} reload={reload} onEdit={(id) => { const it = payItems.find((p) => p.id === id); if (it) editItem(it); }} />
       </>) : tab === "receber" ? (<>
@@ -1317,6 +1330,23 @@ export default function Financeiro() {
               {drill.foot && <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 2px 2px", marginTop: 6, borderTop: "2px solid var(--crasto-border, #e5e7eb)", fontWeight: 800, fontSize: 16 }}><span>{drill.foot.label}</span><span className="tnum" style={{ color: drill.foot.value < 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(drill.foot.value)}</span></div>}
             </div>
         )}
+      </Modal>
+
+      {/* Modal DESPESA RÁPIDA — cadastro simples e objetivo de despesa pontual */}
+      <Modal title={t("Despesa rápida")} open={qOpen} onClose={() => setQOpen(false)} footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setQOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={saveQuick}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar despesa")}</span></button></>}>
+        <div style={{ display: "grid", gap: 12 }}>
+          <Field label="O que foi a despesa?"><input value={qf.desc} onChange={(e) => setQf({ ...qf, desc: e.target.value })} placeholder={t("Ex.: Almoço da equipe (curso)")} autoFocus /></Field>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Field label="Valor (R$)"><input type="number" step="0.01" inputMode="decimal" value={qf.valor} onChange={(e) => setQf({ ...qf, valor: e.target.value })} placeholder="0,00" /></Field>
+            <Field label="Data"><input type="date" value={qf.data} onChange={(e) => setQf({ ...qf, data: e.target.value })} /></Field>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Field label="Categoria"><select value={qf.categoria} onChange={(e) => setQf({ ...qf, categoria: e.target.value })}><option value="servico">{t("Serviço")}</option><option value="ferramenta">{t("Ferramenta")}</option><option value="infraestrutura">{t("Infraestrutura")}</option><option value="beneficio">{t("Benefícios")}</option><option value="salario">{t("Pessoas")}</option><option value="ia">{t("IA")}</option><option value="outros">{t("Outros")}</option></select></Field>
+            <Field label="Forma de pagamento"><select value={qf.metodo} onChange={(e) => setQf({ ...qf, metodo: e.target.value })}><option value="pix">Pix</option><option value="cartao">{t("Cartão")}</option><option value="dinheiro">{t("Dinheiro")}</option><option value="boleto">Boleto</option><option value="transferencia">{t("Transferência")}</option></select></Field>
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}><input type="checkbox" checked={qf.pago} onChange={(e) => setQf({ ...qf, pago: e.target.checked })} /> {t("Já foi paga")}</label>
+          <div className="fin-note" style={{ fontSize: 11.5, color: "var(--crasto-text-muted)" }}>{t("Entra como despesa pontual do dia. Para custo recorrente (mensal/anual) use \"Custo recorrente\".")}</div>
+        </div>
       </Modal>
 
       {/* Modal conta (lançamento rico) */}
