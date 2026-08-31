@@ -1339,7 +1339,7 @@ export default function Financeiro() {
       </Modal>
 
       {/* Modal DESPESA RÁPIDA — cadastro simples e objetivo de despesa pontual */}
-      <Modal title={t("Despesa rápida")} open={qOpen} onClose={() => setQOpen(false)} footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setQOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={saveQuick}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar despesa")}</span></button></>}>
+      <Modal title={t("Despesa rápida")} open={qOpen} onClose={() => setQOpen(false)} persistent footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setQOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={saveQuick}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar despesa")}</span></button></>}>
         <div style={{ display: "grid", gap: 12 }}>
           <Field label="O que foi a despesa?"><input value={qf.desc} onChange={(e) => setQf({ ...qf, desc: e.target.value })} placeholder={t("Ex.: Almoço da equipe (curso)")} autoFocus /></Field>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -1361,7 +1361,7 @@ export default function Financeiro() {
       </Modal>
 
       {/* Modal conta (lançamento rico) */}
-      <Modal title={(af.id ? t("Editar Lançamento") : t("Novo Lançamento")) + " — " + (af.account_type === "payable" ? t("A Pagar") : t("A Receber"))} open={aOpen} onClose={() => setAOpen(false)} wide fullscreen
+      <Modal title={(af.id ? t("Editar Lançamento") : t("Novo Lançamento")) + " — " + (af.account_type === "payable" ? t("A Pagar") : t("A Receber"))} open={aOpen} onClose={() => setAOpen(false)} persistent wide fullscreen
         footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setAOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={saveAccount}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar")}</span></button></>}>
 
         {/* Identificação */}
@@ -1549,7 +1549,7 @@ export default function Financeiro() {
       </Modal>
 
       {/* Modal custo */}
-      <Modal title={cf.id ? t("Editar custo") : t("Novo custo")} open={cOpen} onClose={() => setCOpen(false)}
+      <Modal title={cf.id ? t("Editar custo") : t("Novo custo")} open={cOpen} onClose={() => setCOpen(false)} persistent
         footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setCOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={saveCost}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar")}</span></button></>}>
         <div className="grid2">
           <Field label="Fornecedor"><input value={cf.vendor_name} onChange={(e) => setCf({ ...cf, vendor_name: e.target.value })} /></Field>
@@ -1572,7 +1572,7 @@ export default function Financeiro() {
       </Modal>
 
       {/* Modal tesouraria */}
-      <Modal title={tf.id ? t("Editar lançamento") : (tf.type === "income" ? t("Nova entrada") : t("Nova saída"))} open={tOpen} onClose={() => setTOpen(false)}
+      <Modal title={tf.id ? t("Editar lançamento") : (tf.type === "income" ? t("Nova entrada") : t("Nova saída"))} open={tOpen} onClose={() => setTOpen(false)} persistent
         footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setTOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy} onClick={saveTx}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar")}</span></button></>}>
         <Field label="Descrição *"><input value={tf.description} onChange={(e) => setTf({ ...tf, description: e.target.value })} /></Field>
         <div className="grid3">
