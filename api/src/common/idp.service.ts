@@ -112,14 +112,18 @@ export class IdpService {
 
   /**
    * Define uma SENHA diretamente para o usuário (ato de admin/dono) via GoTrue admin — NÃO envia
-   * e-mail. Usado no reset manual (a pessoa perdeu acesso ao e-mail e recebe a senha por outro canal).
+   * e-mail. Usado no reset manual e na criação com senha (a pessoa recebe a senha por outro canal).
+   *
+   * CONFIRMA o e-mail junto (`email_confirm: true`): é um ato de admin/provisionamento, igual ao
+   * updateUser. Sem isso o GoTrue recusa o login de e-mail não confirmado com "credenciais
+   * inválidas" — mesmo com a senha certa (bug histórico: senha definida, mas login negado).
    */
   async setPassword(id: string, password: string): Promise<void> {
     if (!this.svcKey) throw new BadRequestException('PORTAL_SERVICE_KEY ausente na API.');
     const r = await fetch(`${this.gotrue}/admin/users/${id}`, {
       method: 'PUT',
       headers: { apikey: this.svcKey, Authorization: 'Bearer ' + this.svcKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ password, email_confirm: true }),
     });
     const j: any = await r.json().catch(() => ({}));
     if (!r.ok) {

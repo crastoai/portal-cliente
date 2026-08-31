@@ -96,12 +96,14 @@ export const profiles = {
 const failed = (e: unknown) => ({ ok: false as const, error: errorMessage(e) });
 
 export const users = {
-  /** Admin cria o login do responsável de um cliente (+ e-mail com link de senha). */
-  create: async (body: { email: string; full_name: string; organization_id: string; role: string }): Promise<{ ok: boolean; id?: string; email?: string; error?: string; email_sent?: boolean; email_error?: string }> => {
+  /** Admin cria o login do responsável de um cliente. Com `password` → define a senha na hora
+   *  (a pessoa entra já) e NÃO manda e-mail; sem senha → e-mail com link para ela definir. */
+  create: async (body: { email: string; full_name: string; organization_id: string; role: string; password?: string }): Promise<{ ok: boolean; id?: string; email?: string; error?: string; email_sent?: boolean; email_error?: string; password_set?: boolean }> => {
     try { return await api.post(`/api/identity/users`, body); } catch (e) { return failed(e); }
   },
-  /** Cliente-dono convida alguém da própria empresa (o servidor confere o papel). */
-  invite: async (body: { email: string; full_name?: string; role?: string }): Promise<{ ok: boolean; email_sent?: boolean; email_error?: string; error?: string }> => {
+  /** Cliente-dono convida alguém da própria empresa (o servidor confere o papel). Com `password`
+   *  → define a senha na hora (entrega manual) e NÃO manda e-mail; sem senha → e-mail com link. */
+  invite: async (body: { email: string; full_name?: string; role?: string; password?: string }): Promise<{ ok: boolean; id?: string; email_sent?: boolean; email_error?: string; error?: string; password_set?: boolean }> => {
     try { return await api.post(`/api/identity/users/invite`, body); } catch (e) { return failed(e); }
   },
   /** Reenvia o acesso: link novo para a pessoa definir a senha. NÃO redefine a atual. */

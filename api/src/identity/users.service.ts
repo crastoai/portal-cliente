@@ -38,7 +38,7 @@ export class UsersService {
   }
 
   /** Concede acesso ao Portal: identidade + perfil na org + e-mail com link de senha. */
-  private async grant(req: any, orgId: string, b: { email?: string; full_name?: string; role?: string }) {
+  private async grant(req: any, orgId: string, b: { email?: string; full_name?: string; role?: string; password?: string }) {
     const email = String(b.email || '').trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new BadRequestException('E-mail inválido.');
     const role = b.role === 'client_owner' ? 'client_owner' : 'client_member';
@@ -64,6 +64,20 @@ export class UsersService {
             role=excluded.role, organization_id=excluded.organization_id`,
       [acc.id, email, b.full_name || '', role, orgId]));
 
+    // Senha definida JÁ na criação (o dono/admin entrega a senha à pessoa): aplica direto — o
+    // setPassword confirma o e-mail, então ela entra na hora — e NÃO manda o link de "defina sua
+    // senha" (seria redundante e confuso). Em branco → segue o fluxo por e-mail (abaixo).
+    const senha = String(b.password || '').trim();
+    if (senha) {
+      if (senha.length < 8) throw new BadRequestException('A senha precisa de ao menos 8 caracteres.');
+      await this.idp.setPassword(acc.id, senha);
+      await this.audit.log(req, 'portal_access_granted', {
+        targetType: 'user', targetId: acc.id, org: orgId,
+        ctx: { email, papel: role, conta_nova: acc.isNew, senha_definida: true, email_enviado: false },
+      });
+      return { ok: true, id: acc.id, email, invited: false, email_sent: false, password_set: true };
+    }
+
     const tpl = portalInvite({ name: b.full_name, org: await this.orgName(orgId), url: acc.url, hours: this.idp.linkHours, isNew: acc.isNew });
     const sent = await this.email.send(email, tpl.subject, tpl.html);
     await this.audit.log(req, 'portal_access_granted', {
@@ -74,7 +88,7 @@ export class UsersService {
   }
 
   /** Admin cria o login de um cliente qualquer (tela ClienteDetalhe). */
-  async createByAdmin(req: any, b: { email?: string; full_name?: string; organization_id?: string; role?: string }) {
+  async createByAdmin(req: any, b: { email?: string; full_name?: string; organization_id?: string; role?: string; password?: string }) {
     if (!b.organization_id) throw new BadRequestException('organization_id obrigatório.');
     const exists = await this.db.asService(async (c) =>
       (await c.query(`select 1 from public.organizations where id=$1`, [b.organization_id])).rowCount);
@@ -154,7 +168,7 @@ export class UsersService {
   }
 
   /** Cliente-dono convida alguém da PRÓPRIA empresa (tela Usuários do cliente). */
-  async inviteByOwner(req: any, uid: string, b: { email?: string; full_name?: string; role?: string }) {
+  async inviteByOwner(req: any, uid: string, b: { email?: string; full_name?: string; role?: string; password?: string }) {
     const me = await this.db.asService(async (c) =>
       (await c.query(`select role, organization_id from public.profiles where id=$1`, [uid])).rows[0]);
     if (!me?.organization_id) throw new ForbiddenException('Seu usuário não está ligado a uma empresa.');

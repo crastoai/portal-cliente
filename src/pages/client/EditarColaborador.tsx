@@ -326,10 +326,14 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
       let uid = user?.id;
       if (!uid) {
         if (!f.email.trim()) { setTab("dados"); throw new Error(t("Informe o e-mail.")); }
+        // Senha OPCIONAL na criação: se preenchida, a pessoa entra já com ela (o backend define e
+        // confirma o e-mail, sem mandar link). Em branco → e-mail para ela criar a própria.
+        const senha = newPw.trim();
+        if (senha && senha.length < 8) { setTab("dados"); throw new Error(t("A nova senha precisa ter ao menos 8 caracteres.")); }
         // Cliente: convite pelo dono (inviteByOwner). Admin: criação cross-org (create).
         const r: any = isAdmin
-          ? await services.identity.users.create({ email: f.email.trim(), full_name: f.full_name.trim(), organization_id: orgId, role: dono ? "client_owner" : "client_member" })
-          : await services.identity.users.invite({ email: f.email.trim(), full_name: f.full_name.trim() || undefined, role: "client_member" });
+          ? await services.identity.users.create({ email: f.email.trim(), full_name: f.full_name.trim(), organization_id: orgId, role: dono ? "client_owner" : "client_member", password: senha || undefined })
+          : await services.identity.users.invite({ email: f.email.trim(), full_name: f.full_name.trim() || undefined, role: "client_member", password: senha || undefined });
         if (!r?.ok || !r?.id) throw new Error(r?.error || t("Não foi possível criar o colaborador."));
         uid = r.id as string;
       } else if (isAdmin) {
@@ -449,7 +453,17 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
               <span className="muted sm" style={{ display: "block", marginTop: 4 }}>{t("Define a senha na hora — NÃO envia e-mail. Use quando a pessoa perdeu o acesso ao e-mail; depois repasse a senha por outro canal (ex.: WhatsApp).")}</span>
             </div>
           )}
-          {isNew && <div className="note" style={{ marginTop: 12 }}><span>{t("A pessoa recebe um e-mail de acesso da Crasto.AI e define a própria senha no primeiro login.")}</span></div>}
+          {isNew && (
+            <div className="ec-field" style={{ marginTop: 12 }}>
+              <label>{t("Senha de acesso (opcional)")}</label>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <input type={showPw ? "text" : "password"} value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder={t("Deixe em branco para enviar por e-mail")} autoComplete="new-password" style={{ flex: 1, minWidth: 200 }} />
+                <button type="button" className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setShowPw((v) => !v)}><span className="crasto-btn__label">{showPw ? t("Ocultar") : t("Mostrar")}</span></button>
+                <button type="button" className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={gerarSenha}><span className="crasto-btn__label">{t("Gerar")}</span></button>
+              </div>
+              <span className="muted sm" style={{ display: "block", marginTop: 4 }}>{t("Se você definir uma senha, entregue-a à pessoa — ela entra na hora. Em branco, a pessoa recebe um e-mail para criar a própria senha.")}</span>
+            </div>
+          )}
           <div className="ec-field" style={{ marginTop: 14 }}><label>{t("Observações")}</label>
             <textarea value={f.observacoes} onChange={(e) => setField("observacoes", e.target.value)} placeholder={t("Notas adicionais…")} rows={3} /></div>
         </>)}
