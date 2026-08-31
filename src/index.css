@@ -13,6 +13,7 @@
 @import './styles/marketing-imagens.css';
 @import './styles/marketing-calendario.css';
 @import './styles/marketing-automacao.css';
+@import './styles/marketing-trafego.css';
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body, #root { margin: 0; padding: 0; height: 100%; }
