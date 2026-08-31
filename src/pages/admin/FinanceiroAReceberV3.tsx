@@ -200,7 +200,7 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
                 const atrasado = paid && !!p.paid_date && ymd(p.paid_date) > ymd(p.date);
                 return (
                   <tr key={r.id + "_p" + idx} className="parcrow">
-                    <td className="co pc"><span className="pcn">Parcela {p.installment || idx + 1}/{r.ps!.length}</span></td>
+                    <td className="co pc"><span className="pcn">{p.label || ("Parcela " + (p.installment || idx + 1) + "/" + r.ps!.length)}</span></td>
                     <td><span className="typ">Parcela</span></td>
                     <td className="dt">{isEd ? <input type="date" value={parcEdit!.date} onChange={e => setParcEdit({ ...parcEdit!, date: e.target.value })} className="pinp" /> : (<>{fmtDT(p.date)}{atrasado && <span style={{ color: "#b45309", fontSize: 11, marginLeft: 5, whiteSpace: "nowrap" }} title={"Pago em atraso — venceu " + fmtDT(p.date) + ", pago " + fmtDT(p.paid_date)}>· pago {fmtDT(p.paid_date)}</span>}</>)}</td>
                     <td className="r">{isEd ? <input type="number" step="0.01" value={parcEdit!.amount} onChange={e => setParcEdit({ ...parcEdit!, amount: e.target.value })} className="pinp num" /> : BRL(Number(p.amount || 0))}</td>
