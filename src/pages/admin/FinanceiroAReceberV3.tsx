@@ -4,6 +4,7 @@
 // tabela Contratos & recebíveis + explicação do caso Dr. Francisco. CSS escopado `.frv3`.
 // ============================================================================
 import { Fragment, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { money } from "../../ui/ui";
 import { services } from "../../services";
 
@@ -224,7 +225,8 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
         <b>Competência × Caixa (ex.: {francisco ? (francisco.contact_name || "Dr. Francisco") : "Dr. Francisco"}):</b> um contrato parcelado (ex.: R$ 10.000 em 5×) entra no <b>caixa</b> só nos meses das parcelas, mas na <b>competência</b> é reconhecido R$ 10.000 ÷ 12 = ~R$ 833/mês o ano todo — mostrando receita recorrente estável, sem "5 meses cheios e 7 zerados". Fiscalmente, o imposto segue a <b>NF do mês</b> (confirme com o contador).
       </div>
 
-      {drill && drillCfg && (
+      {drill && drillCfg && createPortal(
+        <div className="frv3">
         <div className="frv3-modal" onClick={() => setDrill(null)}>
           <div className="frv3-modal-card" onClick={e => e.stopPropagation()}>
             <div className="frv3-modal-head">
@@ -246,7 +248,7 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
             )}
           </div>
         </div>
-      )}
+        </div>, document.body)}
     </div>
   );
 }
@@ -308,7 +310,7 @@ const CSS = `
 .frv3-kpi.clk:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(16,24,40,.14)}
 .frv3-kpi.clk::after{content:"›";position:absolute;top:12px;right:15px;font-size:17px;font-weight:800;opacity:0;transition:opacity .12s}
 .frv3-kpi.clk:hover::after{opacity:.5}
-.frv3-modal{position:fixed;inset:0;background:rgba(6,12,26,.55);display:flex;align-items:center;justify-content:center;z-index:60;padding:20px;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+.frv3-modal{position:fixed;inset:0;background:rgba(6,12,26,.55);display:flex;align-items:center;justify-content:center;z-index:99999;padding:20px;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
 .frv3-modal-card{background:var(--card);border-radius:18px;box-shadow:0 24px 64px rgba(0,0,0,.35);max-width:560px;width:100%;max-height:82vh;overflow:auto;padding:22px 24px}
 .frv3-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:2px}
 .frv3-modal-head h3{font-size:16.5px;font-weight:800;color:var(--txt);line-height:1.32}
