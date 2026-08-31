@@ -1,19 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Building2, ChevronDown, Search, Check } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { services } from "../../services";
 import { useT } from "../../lib/i18n";
+import AcessarComoModal from "../../ui/AcessarComo";
 
-// WhatsApp CRM INTERNO da Crasto.AI (admin) — embarcado, tela cheia, com SELETOR DE CLIENTE no topo.
+// WhatsApp CRM INTERNO da Crasto.AI (admin) — embarcado, tela cheia, com SELETOR no topo.
 //
-// Um só lugar pra ver qualquer WhatsApp CRM:
-//  • "Crasto.AI · interno" → NATIVO (org ativa; o admin é membro), sem banner de visualização.
-//  • um CLIENTE → IMPERSONAÇÃO (o admin não é membro): o CRM mostra o banner "Visualizando…
-//    (Console)" — aí é CORRETO, é a trava de auditoria de ver o dado do cliente.
+// DUAS COISAS DIFERENTES, e a distinção é o ponto deste arquivo:
+//  • "Crasto.AI · interno" → NATIVO. O admin É membro desta org: vê o CRM dela como ele mesmo.
+//    Não é impersonação, não precisa de nada especial — continua embarcado aqui.
+//  • um CLIENTE → é VER O DADO DE OUTRA EMPRESA, e para isso o sistema tem UM caminho só:
+//    "Acessar como" (impersonação real). Abre o seletor de pessoa e troca a identidade.
 //
-// Como troca o escopo: o CRM mora em portal.crasto.ai/crm (MESMA origem do Portal), então o
-// localStorage é COMPARTILHADO — escrevemos aqui `wacrm.active_org` (interno) OU `wacrm.impersonate`
-// (cliente) e recarregamos o iframe (via `key`). Token do admin no FRAGMENTO (#), nunca na query.
+// Antes, escolher um cliente escrevia `wacrm.impersonate` no localStorage (compartilhado, porque o
+// CRM mora na mesma origem) e recarregava o iframe com o token do ADMIN — um terceiro mecanismo,
+// que dependia de o CRM saber tratar um escopo alheio, e cujo resquício no localStorage ainda
+// contaminava outras telas. Trocar de identidade dispensa tudo isso.
+//
+// O que ficou: `wacrm.active_org` para o modo interno (é o escopo do próprio admin, legítimo).
 const CRM_WEB_FALLBACK = "https://portal.crasto.ai/crm";
 const CRASTO_ORG = "8052e24d-eed4-4bbc-bcfb-f9b66ba41cdd";
 const JULIE_ID = "5acfe775-1f15-46d2-9393-20a5e2ba5b78";
@@ -30,28 +36,27 @@ export default function AdminCrm() {
   const [err, setErr] = useState("");
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [verComo, setVerComo] = useState<{ org: string; nome: string } | null>(null);
+  const nav = useNavigate();
 
   // Escreve o escopo no localStorage compartilhado e monta a src. Síncrono: garante que o iframe
   // (que recarrega pelo `key`) já leia o escopo novo no boot.
-  function aplicar(s: Sel, b: string, tk: string) {
+  function aplicar(_s: Sel, b: string, tk: string) {
+    // Só o modo interno chega aqui (ver o cabeçalho): o escopo é a própria org do admin.
     try {
-      if (s.kind === "internal") {
-        localStorage.setItem("wacrm.active_org", CRASTO_ORG); // membro → sem banner
-        localStorage.removeItem("wacrm.impersonate");
-      } else {
-        localStorage.setItem("wacrm.impersonate", JSON.stringify({ orgId: s.orgId, name: s.name })); // visualização do cliente
-        localStorage.removeItem("wacrm.active_org");
-      }
+      localStorage.setItem("wacrm.active_org", CRASTO_ORG); // membro → sem banner
+      localStorage.removeItem("wacrm.impersonate");
     } catch { /* storage indisponível */ }
-    const agentQS = s.kind === "internal" ? `&agent=${encodeURIComponent(JULIE_ID)}` : "";
-    setSrc(`${b.replace(/\/$/, "")}/?embedded=1${agentQS}#access_token=${encodeURIComponent(tk)}`);
+    setSrc(`${b.replace(/\/$/, "")}/?embedded=1&agent=${encodeURIComponent(JULIE_ID)}#access_token=${encodeURIComponent(tk)}`);
   }
 
   function selecionar(s: Sel) {
     if (!token) return;
+    setOpen(false); setQ("");
+    // Cliente = dado de outra empresa → caminho único: "Acessar como" (troca a identidade).
+    if (s.kind === "client") { setVerComo({ org: s.orgId, nome: s.name }); return; }
     setSel(s);
     aplicar(s, base, token);
-    setOpen(false); setQ("");
   }
 
   useEffect(() => {
@@ -113,8 +118,12 @@ export default function AdminCrm() {
             </>
           )}
         </div>
-        {sel.kind === "client" && <span className="crm-fs-title">{t("Visualizando como admin")}</span>}
+        <span className="crm-fs-title">{t("Escolher um cliente abre o CRM dele como um usuário dele.")}</span>
       </div>
+
+      <AcessarComoModal orgId={verComo?.org || ""} orgName={verComo?.nome || ""} open={!!verComo}
+        onClose={() => setVerComo(null)}
+        onIrParaPermissoes={() => { const o = verComo?.org; setVerComo(null); nav(`/admin/console/permissoes?org=${o}`); }} />
 
       {err ? <div className="crm-fs-msg">{err}</div>
         : !src ? <div className="crm-fs-msg">{t("Abrindo o WhatsApp CRM…")}</div>

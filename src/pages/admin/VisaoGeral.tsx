@@ -7,7 +7,7 @@ import { fetchClients, healthScore, timeAgo, modShort, type Client } from "../..
 import { STAGES, WON_STAGE } from "../../lib/countries";
 import { useT } from "../../lib/i18n";
 import Modal from "../../ui/Modal";
-import type { CrmAgent } from "../../services/crmAccess.service";
+import AcessarComoModal from "../../ui/AcessarComo";
 
 // farol operacional do agente (SPEC 3.1 — coluna "Agente (IA)")
 const AGENT_FAROL: Record<string, { label: string; tone: "ok" | "warn" | "crit" | "mute" }> = {
@@ -155,48 +155,19 @@ export default function VisaoGeral() {
     return { label: t("Em implantação") + (m.progress ? ` · ${m.progress}%` : ""), color: "#B8863A" };
   };
 
-  // ESCOLHER O CRM: cada agente do cliente tem o SEU CRM. Abrimos a popup com os agentes
-  // (mesma lógica do Console do wacrm) — o admin escolhe qual visualizar. Sem escolher um
-  // agente = "empresa inteira" (vê todos os agentes da org).
+  // ENTRAR NO CRM DO CLIENTE = o mesmo "Acessar como" do resto do sistema (modo ÚNICO).
+  //
+  // O que havia aqui antes era um TERCEIRO mecanismo: pedíamos um magiclink do PRÓPRIO admin e
+  // mandávamos o escopo do cliente na URL (`imp_org`/`imp_agent`) para o CRM. Ou seja, quem
+  // entrava continuava sendo o admin, e o CRM tinha de saber tratar um escopo alheio — cada
+  // sistema precisando aprender a fingir. Trocar de identidade resolve na origem: o CRM (e todo
+  // o resto) passa a resolver a org sozinho, pelo JWT, sem saber que existe impersonação.
+  //
+  // Efeito colateral aceito: some a escolha de UM agente específico. Entrando como a pessoa,
+  // vê-se o CRM dela — com os agentes dela — que é justamente o ponto de auditar "como o cliente vê".
   const [escolher, setEscolher] = useState<{ org: string; nome: string } | null>(null);
-  const [agentes, setAgentes] = useState<CrmAgent[] | null>(null);
-  const [crmUrl, setCrmUrl] = useState("");
-  const [escErr, setEscErr] = useState("");
 
-  async function enterCrm(c: any) {
-    setEscolher({ org: c.id, nome: c.name }); setAgentes(null); setEscErr("");
-    try {
-      const ov = await services.crmAccess.overview(c.id);
-      setAgentes(ov.agents || []);
-      setCrmUrl(ov.crm_url || "");
-      if (ov.crm_error) setEscErr(ov.crm_error);
-    } catch (e) { setEscErr(errorMessage(e)); setAgentes([]); }
-  }
-
-  // Entra no CRM daquele agente (ou na org inteira). Somos admin do Portal → entramos na
-  // VISUALIZAÇÃO do cliente, não na tela de login. Como o CRM é outra origem (sessão por
-  // origem), pedimos ao Portal um OTP de uso único (magiclink do próprio admin) e mandamos
-  // na URL SÓ o OTP + o escopo (org/agente). Nunca o bearer — respeita a decisão de 15/07;
-  // o CRM troca o OTP por sessão na origem dele (/entrar). Quem autoriza é o is_admin do JWT.
-  const [entrando, setEntrando] = useState(false);
-  async function abrirCrm(agent?: CrmAgent) {
-    if (!escolher || entrando) return;
-    const base = crmUrl || "";
-    if (!base) { setEscErr(t("CRM ainda não configurado (CRM_WEB_URL).")); return; }
-    setEntrando(true); setEscErr("");
-    try { await services.analytics.admin.auditRecord({ action: "impersonate_attempt", target_type: agent ? "agent" : "org", target_id: agent?.id || escolher.org, organization_id: escolher.org, context: { via: "portal_dashboard", agent: agent?.name ?? null } }); } catch { /* best-effort */ }
-    try {
-      const { token, type } = await services.crmAccess.enter();
-      const u = new URL(base);
-      u.pathname = "/entrar";
-      u.searchParams.set("token", token);
-      u.searchParams.set("type", type || "magiclink");
-      u.searchParams.set("imp_org", escolher.org);
-      u.searchParams.set("imp_org_nome", escolher.nome);
-      if (agent) { u.searchParams.set("imp_agent", agent.id); u.searchParams.set("imp_agent_nome", agent.name); }
-      window.location.href = u.toString();
-    } catch (e) { setEscErr(errorMessage(e)); setEntrando(false); }
-  }
+  function enterCrm(c: any) { setEscolher({ org: c.id, nome: c.name }); }
 
   const [open, setOpen] = useState(false);
   const [cfg, setCfg] = useState<Cfg | null>(null);
@@ -362,26 +333,9 @@ export default function VisaoGeral() {
         </table>
       </div>
 
-      <Modal title={t("Entrar no CRM de") + " " + (escolher?.nome || "")} open={!!escolher} onClose={() => setEscolher(null)}>
-        <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--crasto-text-muted)" }}>{t("Escolha o agente — cada um tem o seu próprio CRM.")}</p>
-        {escErr && <div className="alert alert--warn" style={{ marginBottom: 10 }}>{escErr}</div>}
-        {!agentes && <div style={{ padding: "10px 0", color: "var(--crasto-text-muted)" }}>{t("Carregando agentes…")}</div>}
-        {agentes && agentes.length === 0 && !escErr && <div style={{ padding: "10px 0", color: "var(--crasto-text-muted)" }}>{t("Este cliente ainda não tem agente no WhatsApp CRM.")}</div>}
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {(agentes || []).map((a) => (
-            <button key={a.id} className="rowbtn" disabled={entrando} onClick={() => abrirCrm(a)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "10px 12px", border: "1px solid var(--crasto-border)", borderRadius: 10, background: "var(--crasto-surface)", cursor: entrando ? "wait" : "pointer", opacity: entrando ? 0.6 : 1 }}>
-              <span className="logo" style={{ width: 30, height: 30, fontSize: 12 }}>{initials(a.name)}</span>
-              <span style={{ flex: 1 }}><b>{a.name}</b>{a.plan ? <span style={{ color: "var(--crasto-text-muted)" }}> · {a.plan}</span> : null}</span>
-              <ArrowRight size={14} style={{ opacity: .5 }} />
-            </button>
-          ))}
-        </div>
-        {agentes && agentes.length > 0 && (
-          <button onClick={() => abrirCrm()} disabled={entrando} style={{ marginTop: 12, width: "100%", padding: "9px 12px", border: "1px dashed var(--crasto-border)", borderRadius: 10, background: "transparent", color: "var(--crasto-text-muted)", cursor: entrando ? "wait" : "pointer", fontSize: 13, opacity: entrando ? 0.6 : 1 }}>
-            {entrando ? t("Entrando…") : `${t("Ver a empresa inteira")} (${agentes.length} ${agentes.length === 1 ? t("agente") : t("agentes")})`}
-          </button>
-        )}
-      </Modal>
+      <AcessarComoModal orgId={escolher?.org || ""} orgName={escolher?.nome || ""} open={!!escolher}
+        onClose={() => setEscolher(null)}
+        onIrParaPermissoes={() => { const o = escolher?.org; setEscolher(null); navigate(`/admin/console/permissoes?org=${o}`); }} />
 
       <Modal title={t("Régua de saúde do cliente")} open={open} onClose={() => setOpen(false)}
         footer={<><button className="crasto-btn crasto-btn--ghost crasto-btn--sm" onClick={() => setOpen(false)}><span className="crasto-btn__label">{t("Cancelar")}</span></button><button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={busy || !cfg} onClick={saveCfg}><span className="crasto-btn__label">{busy ? t("Salvando…") : t("Salvar")}</span></button></>}>
