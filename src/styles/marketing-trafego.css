@@ -6,13 +6,22 @@
  * As classes de contas (.ap-accounts/.ap-ic/...) vêm de marketing-calendario.css
  * (já escopadas para .mkt-root). Header/ap-* base vêm de marketing-automacao.css.
  * ========================================================================== */
-.mkt-root .roy-emoji{font-size:26px;display:grid;place-items:center;width:34px;height:34px}
+.mkt-root .roy-emoji{font-size:26px;display:grid;place-items:center;width:34px;height:32px}
+
+/* "Quem é o Roy" (aside) — portado do protótipo, escopado sob .mkt-root */
+.mkt-root .ap-who{display:flex;gap:10px;align-items:flex-start;padding:12px;background:var(--surface-2);border:1px solid var(--border);border-radius:11px}
+.mkt-root .ap-who-ava{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,var(--blue),var(--blue-3));display:grid;place-items:center;flex:0 0 auto;font-size:17px}
+.mkt-root .ap-who-body{min-width:0}
+.mkt-root .ap-who-top{font-size:13px;color:var(--heading);font-weight:600}
+.mkt-root .ap-who-top b{color:var(--heading)}
+.mkt-root .ap-who-row{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.5}
+.mkt-root .ap-who-row b{color:var(--heading)}
 
 /* Radar */
 .mkt-root .roy-radar{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:8px}
 .mkt-root .roy-cnpj{font-size:13px;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .mkt-root .roy-cnpj b{color:var(--heading);font-family:var(--font-mono)}
-.mkt-root .roy-pill{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:2px 8px;font-size:10.5px;color:var(--muted-2);white-space:nowrap}
+.mkt-root .roy-pill{background:var(--surface-3);border:1px solid var(--border);border-radius:8px;padding:2px 8px;font-size:10.5px;color:var(--muted-2);white-space:nowrap}
 .mkt-root .roy-search{display:flex;gap:10px}
 .mkt-root .roy-input{flex:1;min-width:0;background:var(--surface);border:1px solid var(--blue-2);border-radius:11px;padding:12px 14px;color:var(--text);font-family:inherit;font-size:14px;box-shadow:var(--glow)}
 .mkt-root .roy-input:focus{outline:none;border-color:var(--blue-3)}

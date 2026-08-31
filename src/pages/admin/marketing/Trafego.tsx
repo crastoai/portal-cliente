@@ -307,7 +307,7 @@ function CampaignModal({ current, onClose, onSaved }: { current: any | null; onC
           <option>Leads (mensagens)</option><option>Vendas (conversão)</option><option>Alcance</option><option>Tráfego (site)</option>
         </select>
       </div>
-      <div className="bkf"><label>Orçamento por dia (R$)</label><input type="number" min="0" value={budgetDay} onChange={(e) => setBudgetDay(e.target.value)} placeholder="Ex.: 40" /></div>
+      <div className="bkf"><label>Orçamento por dia (R$)</label><input type="text" inputMode="numeric" value={budgetDay} onChange={(e) => setBudgetDay(e.target.value.replace(/[^\d]/g, ""))} placeholder="Ex.: 40" /></div>
       <div className="bkf"><label>Público</label><input value={audience} onChange={(e) => setAudience(e.target.value)} placeholder="Ex.: Donos de PME · BR" /></div>
       <div className="bkf">
         <label>Redes</label>
