@@ -503,8 +503,12 @@ export default function Financeiro() {
   // Despesas PONTUAIS do mês-calendário (ex.: despesa rápida) — entram automaticamente no "Saiu no mês" e no Resultado.
   const pontuaisMes = activeCosts.filter((c: any) => c.recurrence === "pontual" && (inCal(c.payment_date) || inCal(c.reference_date)));
   const custoPontualMes = pontuaisMes.reduce((a: number, c: any) => a + Number(c.amount_brl || 0), 0);
+  // Contas a pagar (payable accounts) com parcela/pagamento no mês-calendário — entram também no "Saiu no mês".
+  const acctMesAmount = (a: any) => { const ps = parcelas(a); if (ps.length) return ps.filter((pp: any) => inCal(pp.paid_date || pp.date)).reduce((sm: number, pp: any) => sm + Number(pp.amount || 0), 0); return (inCal(a.payment_date) || inCal(a.due_date)) ? Number(a.amount || 0) : 0; };
+  const payAccMes = (pay || []).map((a: any) => ({ a, val: acctMesAmount(a) })).filter((x: any) => x.val > 0.005);
+  const custoPayAccMes = payAccMes.reduce((sm: number, x: any) => sm + x.val, 0);
   const custoAnualCat = (cat?: string) => activeCosts.filter((c) => (!cat || c.category === cat) && c.recurrence === "anual").reduce((a, c) => a + Number(c.amount_brl || 0), 0);
-  const aPagarMes = custoMensalCat() + custoPontualMes;
+  const aPagarMes = custoMensalCat() + custoPontualMes + custoPayAccMes;
   const resultadoMes = totalMesAll - aPagarMes; // tudo que entra no mês (recorrente + avulso) − custo mensal
   // Snapshot MENSAL (inCal) para os KPIs do topo — NAO seguem o filtro de periodo (custo do mes = run-rate completo).
   const recebidoCal = recFlat.filter((pp: any) => pp.paid && inCal(pp.date)).reduce((a: number, pp: any) => a + pp.amount, 0);
@@ -528,7 +532,10 @@ export default function Financeiro() {
   const rowsSemContrato = rec.filter((r) => r.status !== "cancelled" && !isRecurring(r)).map((r) => ({ name: r.contact_name, detail: (r.description || t("avulso")), value: rem(r), tone: "mute", status: r.status === "paid" ? t("Pago") : t("Em aberto") }));
   const rowsVencidos = recFlat.filter((p) => !p.paid && p.date && p.date < today()).map((p) => ({ name: p.name, detail: `${t("venceu")} ${fmtD(p.date)}`, value: p.amount, tone: "warn", status: t("Vencido") }));
   // A pagar
-  const rowsPagarMes = [...activeCosts.filter((c) => c.recurrence === "mensal"), ...pontuaisMes].map((c: any) => ({ name: c.vendor_name, detail: catLabel(c.category) + " · " + (c.recurrence === "pontual" ? (t("pontual") + " · " + fmtD(c.payment_date || c.reference_date)) : t("mensal")), value: Number(c.amount_brl || 0), tone: c.recurrence === "pontual" ? "info" : "mute", status: catLabel(c.category) })).sort((a, b) => b.value - a.value);
+  const rowsPagarMes = [
+    ...[...activeCosts.filter((c) => c.recurrence === "mensal"), ...pontuaisMes].map((c: any) => ({ name: c.vendor_name, detail: catLabel(c.category) + " · " + (c.recurrence === "pontual" ? (t("pontual") + " · " + fmtD(c.payment_date || c.reference_date)) : t("mensal")), value: Number(c.amount_brl || 0), tone: c.recurrence === "pontual" ? "info" : "mute", status: catLabel(c.category) })),
+    ...payAccMes.map((x: any) => ({ name: x.a.contact_name || x.a.description || "—", detail: (x.a.category || t("Lançamento")) + " · " + t("conta a pagar") + (ymd(x.a.payment_date || x.a.due_date) ? " · " + fmtD(x.a.payment_date || x.a.due_date) : ""), value: x.val, tone: "info", status: x.a.category || t("Conta a pagar") })),
+  ].sort((a, b) => b.value - a.value);
   const rowsAnuais = activeCosts.filter((c) => c.recurrence === "anual").map((c) => ({ name: c.vendor_name, detail: `${catLabel(c.category)} · ${t("renova")} ${fmtD(c.next_payment_date)}`, value: Number(c.amount_brl || 0), tone: "info", status: t("anual") })).sort((a, b) => b.value - a.value);
   const rowsAnoTudo = activeCosts.map((c) => ({ name: c.vendor_name, detail: `${catLabel(c.category)} · ${c.recurrence}`, value: c.recurrence === "mensal" ? Number(c.amount_brl || 0) * 12 : Number(c.amount_brl || 0), tone: "mute", status: catLabel(c.category) })).sort((a, b) => b.value - a.value);
   const rowsResultado = [
