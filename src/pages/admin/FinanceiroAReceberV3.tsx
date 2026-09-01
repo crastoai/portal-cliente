@@ -109,10 +109,10 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
   const recebidoMes = rows.reduce((a, r) => a + r.recebidoMes, 0);
   const _inPer = (d: any) => { const x = ymd(d); return !!x && x >= perFrom && x <= perTo; };
   const recebidoPeriodoDe = (r: any) => { const ps = arr(r.payment_schedule); if (ps.length) return ps.filter((p: any) => p.status === "paid" && _inPer(p.paid_date || p.date)).reduce((a: number, p: any) => a + Number(p.amount || 0), 0); return _inPer(r.payment_date) ? Number(r.amount_paid || 0) : 0; };
-  const recebidoPeriodoRows = ativos.map((r: any) => ({ cliente: r.contact_name || r.description || "—", valor: recebidoPeriodoDe(r) })).filter((x: any) => x.valor > 0.005);
+  const recebidoPeriodoRows = ativos.map((r: any) => ({ cliente: r.contact_name || r.description || "—", valor: recebidoPeriodoDe(r), raw: r })).filter((x: any) => x.valor > 0.005);
   const recebidoPeriodo = recebidoPeriodoRows.reduce((a: number, x: any) => a + x.valor, 0);
   // Receita variável = caixa recebido no período de recebíveis NÃO-recorrentes (vendas pontuais + contratos parcelados), fora do MRR.
-  const recVarRows = ativos.filter((r: any) => !isRecurring(r)).map((r: any) => ({ cliente: r.contact_name || r.description || "—", valor: recebidoPeriodoDe(r), modelo: modeloDe(r) })).filter((x: any) => x.valor > 0.005);
+  const recVarRows = ativos.filter((r: any) => !isRecurring(r)).map((r: any) => ({ cliente: r.contact_name || r.description || "—", valor: recebidoPeriodoDe(r), modelo: modeloDe(r), raw: r })).filter((x: any) => x.valor > 0.005);
   const recebidoVariavel = recVarRows.reduce((a: number, x: any) => a + x.valor, 0);
   const semNfRows = rows.filter((r: any) => !r.raw?.has_nf);
   const semNfRecebido = semNfRows.reduce((a: number, r: any) => a + r.recebido, 0);
@@ -125,30 +125,42 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
 
   // ---- detalhamento dos cards (drill-down): cada lista SOMA o total do card ----
   const nomeDe = (r: any) => r.contact_name || r.description || "—";
+  // Árvore por contrato: mês a mês (✓ pago × ⏳ a pagar) + subtotais. Usada em todos os drills.
+  const treeOf = (raw: any) => {
+    const ps = arr(raw?.payment_schedule);
+    const parc = ps.map((p: any) => ({ date: ymd(p.date), amount: Number(p.amount || 0), paid: p.status === "paid" }));
+    const pago = parc.filter((p: any) => p.paid).reduce((a: number, p: any) => a + p.amount, 0);
+    const contrato = parc.reduce((a: number, p: any) => a + p.amount, 0) || Number(raw?.contract_total || raw?.amount || 0);
+    return { id: raw?.id, parc, pago, contrato };
+  };
   const recorrentes = ativos.filter(isRecurring);
   const drillCfg: any =
     drill === "mrr" ? {
       title: `MRR — composição de ${BRL(mrr)}/mês`,
       sub: "Receita recorrente mensal (competência): a mensalidade reconhecida de cada contrato ativo = total do contrato ÷ meses de vigência.",
       total: mrr,
-      rows: recorrentes.map((r: any) => ({ nome: nomeDe(r), valor: mensalDe(r), det: `${BRL(Number(r.contract_total || 0))} ÷ ${mesesContrato(r)} meses de contrato` })),
+      tree: true,
+      rows: recorrentes.map((r: any) => ({ nome: nomeDe(r), valor: mensalDe(r), det: `${BRL(Number(r.contract_total || 0))} ÷ ${mesesContrato(r)} meses de contrato`, ...treeOf(r) })),
     } : drill === "arr" ? {
       title: `ARR — composição de ${BRL(mrr * 12)}/ano`,
       sub: "Receita recorrente anual = MRR × 12. Cada contrato entra pela sua mensalidade × 12 (a recorrência anualizada — não a soma dos contratos, nem o saldo a receber).",
       total: mrr * 12,
-      rows: recorrentes.map((r: any) => ({ nome: nomeDe(r), valor: mensalDe(r) * 12, det: `${BRL(mensalDe(r))}/mês × 12` })),
+      tree: true,
+      rows: recorrentes.map((r: any) => ({ nome: nomeDe(r), valor: mensalDe(r) * 12, det: `${BRL(mensalDe(r))}/mês × 12`, ...treeOf(r) })),
       foot: `${BRL(mrr)} (MRR) × 12 = ${BRL(mrr * 12)}`,
     } : drill === "caixa" ? {
       title: `Recebido no período — composição de ${BRL(recebidoPeriodo)}`,
       sub: `Parcelas recebidas em ${per.label.toLowerCase()} — o dinheiro que entrou na conta no período.`,
       total: recebidoPeriodo,
-      rows: recebidoPeriodoRows.map((x: any) => ({ nome: x.cliente, valor: x.valor, det: "recebido no período" })),
+      tree: true,
+      rows: recebidoPeriodoRows.map((x: any) => ({ nome: x.cliente, valor: x.valor, det: "recebido no período", ...treeOf(x.raw) })),
       empty: "Nenhuma parcela recebida no período.",
     } : drill === "variavel" ? {
       title: `Receita variável no período — composição de ${BRL(recebidoVariavel)}`,
       sub: `Vendas NÃO-recorrentes (pontuais e contratos parcelados) cujo dinheiro entrou em ${per.label.toLowerCase()} — sua renda variável além do MRR. Muda o período acima (1m/3m/6m/1a) para ver a variável de cada janela.`,
       total: recebidoVariavel,
-      rows: recVarRows.map((x: any) => ({ nome: x.cliente, valor: x.valor, det: `${String(x.modelo).toLowerCase()} · recebido no período` })),
+      tree: true,
+      rows: recVarRows.map((x: any) => ({ nome: x.cliente, valor: x.valor, det: `${String(x.modelo).toLowerCase()} · recebido no período`, ...treeOf(x.raw) })),
       empty: "Nenhuma venda variável recebida no período.",
     } : drill === "futuro" ? {
       title: `A receber (futuro) — saldo em aberto de ${BRL(aReceberFut)}`,
@@ -276,7 +288,7 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
                                   <span className="mc-tval">{BRL(p.amount)} <em>{p.paid ? "pago" : "a pagar"}</em></span>
                                 </div>
                               ))}
-                              <div className="mc-tsum"><span>Pago {BRL(it.pago)} · Falta {BRL(it.valor)}</span><span>Total do contrato {BRL(it.contrato)}</span></div>
+                              <div className="mc-tsum"><span>Pago {BRL(it.pago)} · Falta {BRL(Math.max(0, it.contrato - it.pago))}</span><span>Total do contrato {BRL(it.contrato)}</span></div>
                             </div>
                           </td></tr>
                         )}
@@ -363,7 +375,7 @@ const CSS = `
 .frv3-kpi.clk::after{content:"›";position:absolute;top:12px;right:15px;font-size:17px;font-weight:800;opacity:0;transition:opacity .12s}
 .frv3-kpi.clk:hover::after{opacity:.5}
 .frv3-modal{position:fixed;inset:0;background:rgba(6,12,26,.55);display:flex;align-items:center;justify-content:center;z-index:99999;padding:20px;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
-.frv3-modal-card{background:var(--card);border-radius:18px;box-shadow:0 24px 64px rgba(0,0,0,.35);max-width:560px;width:100%;max-height:82vh;overflow:auto;padding:22px 24px}
+.frv3-modal-card{background:var(--card);border-radius:18px;box-shadow:0 24px 64px rgba(0,0,0,.35);max-width:760px;width:100%;max-height:86vh;overflow:auto;padding:24px 28px}
 .frv3-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:2px}
 .frv3-modal-head h3{font-size:16.5px;font-weight:800;color:var(--txt);line-height:1.32}
 .frv3-mx{border:1px solid var(--line2);background:var(--card);color:var(--muted);border-radius:9px;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 auto}
