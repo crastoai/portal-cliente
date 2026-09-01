@@ -60,6 +60,9 @@ export const aiCost = {
 export const proofs = {
   extract: async (image_base64: string, mime: string, filename?: string): Promise<{ ok: boolean; data?: any; error?: string }> =>
     api.post(`/api/finance/proofs/extract`, { image_base64, mime, filename }),
+  // Fatia 2 — leitor unificado: comprovante OU extrato. Devolve LISTA de lançamentos classificados.
+  read: async (file_base64: string, mime: string, filename?: string): Promise<{ ok: boolean; data?: any; error?: string }> =>
+    api.post(`/api/finance/proofs/read`, { file_base64, mime, filename }),
 };
 
 export const finance = { accounts, costs, transactions, aiCost, proofs, documents };

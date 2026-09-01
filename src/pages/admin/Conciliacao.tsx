@@ -1,28 +1,43 @@
 import { useMemo, useRef, useState } from "react";
-import { UploadCloud, FileText, CheckCircle2, X, Loader2, AlertTriangle, Sparkles } from "lucide-react";
+import { UploadCloud, FileText, CheckCircle2, X, Loader2, AlertTriangle, Sparkles, Ban } from "lucide-react";
 import { services, errorMessage } from "../../services";
 import { money } from "../../ui/ui";
 
 // ============================================================================
-// CONCILIAÇÃO POR COMPROVANTE (IA) — Fatia 1
-// O operador ARRASTA o comprovante (imagem/PDF); a IA LÊ (valor/data/hora/pagador)
-// e SUGERE a parcela em aberto que casa. Nada vira "pago" sozinho: o operador
-// confirma em 1 clique → grava paid_date + proof_url + proof_note na parcela
-// (mesmo caminho de sempre, accounts.save). Portão de dinheiro = humano.
+// CONCILIAÇÃO POR IA — COMPROVANTE **ou** EXTRATO (Fatia 2)
+// Um caminho só: a IA detecta o tipo do documento e devolve TODOS os lançamentos,
+// já classificados (receita de cliente / custo / interna / imposto / pessoal).
+// O sistema então CASA cada linha com a parcela a receber ou a conta a pagar em
+// aberto, trava duplicidade pelo E2E e o operador confirma em lote.
 //
-// Fatias seguintes: 2 (ler a pasta do Drive por conta de serviço) e 3 (cron 20:00).
+// Portão de dinheiro continua HUMANO: nada vira "pago" sem clique. Linhas
+// "interna"/"pessoal" nascem marcadas para IGNORAR (não são resultado).
 // ============================================================================
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
 const ymd = (x: any) => (x ? String(x).slice(0, 10) : "");
 const brDate = (iso?: string) => { if (!iso) return "—"; const [y, m, d] = ymd(iso).split("-"); return d ? `${d}/${m}/${y}` : "—"; };
+const norm = (s: any) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+const diasEntre = (a?: string, b?: string) => { if (!a || !b) return 999; const d = (new Date(a + "T00:00:00").getTime() - new Date(b + "T00:00:00").getTime()) / 86400000; return Math.abs(d); };
 
-type Parc = { accId: string; accName: string; desc: string; inst: number; total: number; venc: string; valor: number };
-type Card = {
+type Alvo = { kind: "rec" | "pay"; accId: string; accName: string; inst: number; total: number; venc: string; valor: number };
+
+// Uma linha lida do documento + o que o operador decidiu fazer com ela.
+type Linha = {
+  key: string;
+  ex: any;                       // lançamento cru lido pela IA
+  acao: "baixar" | "despesa" | "ignorar";
+  alvo: string;                  // "kind:accId:inst" do alvo escolhido
+  status: "pend" | "saving" | "done" | "error";
+  erro?: string;
+  duplicado?: string;            // se o E2E já existe no sistema
+};
+
+type Doc = {
   key: string; fileName: string; file: File; previewUrl: string; isImg: boolean;
-  status: "reading" | "ready" | "error" | "saving" | "done";
-  extracted?: any; error?: string; proofKey?: string; uploadFailed?: boolean;
-  accId: string; inst: number;
+  status: "reading" | "ready" | "error";
+  head?: any; erro?: string; proofKey?: string;
+  linhas: Linha[];
 };
 
 function fileToBase64(file: File): Promise<string> {
@@ -34,124 +49,177 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-// Dica de parcela pelo NOME do arquivo ("parcela 03 de 5", "parcela 3", "3/5").
-function instFromName(name: string): number | null {
-  const m = name.toLowerCase().match(/parcela\s*0*(\d{1,2})|(?:^|\D)0*(\d{1,2})\s*\/\s*\d{1,2}/);
-  const n = m ? Number(m[1] || m[2]) : NaN;
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
+const NAT_UI: Record<string, { lbl: string; cor: string; bg: string }> = {
+  receita_cliente: { lbl: "Receita de cliente", cor: "#1F8A5B", bg: "rgba(31,138,91,.12)" },
+  custo: { lbl: "Custo", cor: "#B54708", bg: "rgba(181,71,8,.12)" },
+  interna: { lbl: "Interna (não é resultado)", cor: "#3E6FB8", bg: "rgba(62,111,184,.12)" },
+  imposto: { lbl: "Imposto", cor: "#8B5CF6", bg: "rgba(139,92,246,.12)" },
+  pessoal: { lbl: "Pessoal (fora da empresa)", cor: "#667085", bg: "rgba(102,112,133,.12)" },
+  desconhecido: { lbl: "Não identificado", cor: "#B42318", bg: "rgba(180,35,24,.10)" },
+};
 
-export default function Conciliacao({ rec, reload, flash }: { rec: any[]; reload: () => void; flash: (m: string) => void }) {
-  const [cards, setCards] = useState<Card[]>([]);
+export default function Conciliacao({ rec, pay, reload, flash }: { rec: any[]; pay?: any[]; reload: () => void; flash: (m: string) => void }) {
+  const [docs, setDocs] = useState<Doc[]>([]);
   const [drag, setDrag] = useState(false);
   const inp = useRef<HTMLInputElement>(null);
 
-  // Todas as parcelas EM ABERTO (não pagas), achatadas — universo de match.
-  const abertas = useMemo<Parc[]>(() => {
-    const out: Parc[] = [];
-    for (const a of rec || []) {
-      if (a.status === "cancelled") continue;
-      const ps: any[] = Array.isArray(a.payment_schedule) ? a.payment_schedule : [];
-      if (ps.length) {
-        ps.forEach((p, k) => {
-          if (p.status === "paid") return;
-          out.push({ accId: a.id, accName: a.contact_name || "(sem empresa)", desc: a.description || "", inst: p.installment ?? k + 1, total: ps.length, venc: ymd(p.date), valor: Number(p.amount || 0) });
-        });
-      } else if (a.status !== "paid") {
-        out.push({ accId: a.id, accName: a.contact_name || "(sem empresa)", desc: a.description || "", inst: 0, total: 1, venc: ymd(a.due_date), valor: Number(a.amount || 0) });
+  // Universo de match: parcelas EM ABERTO, de recebíveis (crédito) e de contas a pagar (débito).
+  const alvos = useMemo<Alvo[]>(() => {
+    const out: Alvo[] = [];
+    const push = (kind: "rec" | "pay", list: any[]) => {
+      for (const a of list || []) {
+        if (a.status === "cancelled") continue;
+        const ps: any[] = Array.isArray(a.payment_schedule) ? a.payment_schedule : [];
+        if (ps.length) {
+          ps.forEach((p, k) => {
+            if (p.status === "paid") return;
+            out.push({ kind, accId: a.id, accName: a.contact_name || a.description || "(sem nome)", inst: p.installment ?? k + 1, total: ps.length, venc: ymd(p.date), valor: Number(p.amount || 0) });
+          });
+        } else if (a.status !== "paid") {
+          out.push({ kind, accId: a.id, accName: a.contact_name || a.description || "(sem nome)", inst: 0, total: 1, venc: ymd(a.due_date), valor: Number(a.amount || 0) });
+        }
+      }
+    };
+    push("rec", rec || []);
+    push("pay", pay || []);
+    return out;
+  }, [rec, pay]);
+
+  // E2E já usados no sistema — trava anti-duplicidade (o mesmo comprovante 2x).
+  const e2eUsados = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of [...(rec || []), ...(pay || [])]) {
+      for (const p of (Array.isArray(a.payment_schedule) ? a.payment_schedule : [])) {
+        const id = String(p?.e2e_id || "").trim();
+        if (id) m.set(id.toLowerCase(), a.contact_name || a.description || "lançamento");
       }
     }
-    return out;
-  }, [rec]);
+    return m;
+  }, [rec, pay]);
 
-  // Melhor parcela para um comprovante lido: casa por VALOR (exato ganha), com
-  // desempate pela dica do nome do arquivo e pelo nome do pagador. Sem valor legível → sem palpite.
-  function melhorMatch(ex: any, fileName: string): { accId: string; inst: number } {
+  // Casa uma linha lida com a melhor parcela em aberto: valor (peso maior), proximidade
+  // de data e nome da contraparte. Sem valor legível não há palpite.
+  function melhorAlvo(ex: any): string {
     const val = ex?.valor != null ? Number(ex.valor) : null;
-    const hintInst = instFromName(fileName);
-    const pag = String(ex?.pagador_nome || "").toLowerCase();
-    const cand = abertas
-      .map((p) => {
+    if (val == null) return "";
+    const kind: "rec" | "pay" = ex?.sentido === "debito" ? "pay" : "rec";
+    const nome = norm(ex?.match_sugerido || ex?.contraparte_nome);
+    const cand = alvos
+      .filter((a) => a.kind === kind)
+      .map((a) => {
         let score = 0;
-        if (val != null && Math.abs(p.valor - val) < 0.01) score += 100;
-        else if (val != null && p.valor > 0 && Math.abs(p.valor - val) / p.valor < 0.02) score += 60;
-        if (hintInst && p.inst === hintInst) score += 25;
-        if (pag && p.accName.toLowerCase().includes(pag.split(" ")[0])) score += 15;
-        return { p, score };
+        if (Math.abs(a.valor - val) < 0.01) score += 100;
+        else if (a.valor > 0 && Math.abs(a.valor - val) / a.valor < 0.02) score += 55;
+        else return { a, score: 0 };
+        const dd = diasEntre(ymd(ex?.data), a.venc);
+        if (dd <= 3) score += 30; else if (dd <= 10) score += 18; else if (dd <= 31) score += 6;
+        if (nome) { const alvo = norm(a.accName); const tok = nome.split(/\s+/).filter((w: string) => w.length >= 4); if (tok.some((w: string) => alvo.includes(w))) score += 25; }
+        return { a, score };
       })
       .filter((x) => x.score > 0)
-      .sort((a, b) => b.score - a.score);
-    const top = cand[0]?.p;
-    return { accId: top?.accId || "", inst: top?.inst ?? 0 };
+      .sort((x, y) => y.score - x.score);
+    const top = cand[0]?.a;
+    return top ? `${top.kind}:${top.accId}:${top.inst}` : "";
   }
 
-  function patch(key: string, up: Partial<Card>) { setCards((cs) => cs.map((c) => (c.key === key ? { ...c, ...up } : c))); }
-  function discard(key: string) { setCards((cs) => cs.filter((c) => c.key !== key)); }
+  function patchDoc(key: string, up: Partial<Doc>) { setDocs((ds) => ds.map((d) => (d.key === key ? { ...d, ...up } : d))); }
+  function patchLinha(dk: string, lk: string, up: Partial<Linha>) {
+    setDocs((ds) => ds.map((d) => (d.key === dk ? { ...d, linhas: d.linhas.map((l) => (l.key === lk ? { ...l, ...up } : l)) } : d)));
+  }
+  function discard(key: string) { setDocs((ds) => ds.filter((d) => d.key !== key)); }
 
   async function addFiles(files: FileList | File[]) {
     const arr = Array.from(files).filter((f) => /image\/|pdf/.test(f.type) || /\.(jpe?g|png|webp|heic|pdf)$/i.test(f.name));
     for (const file of arr) {
-      const key = `${file.name}-${file.size}-${Math.round(performance.now())}-${cards.length}`;
+      const key = `${file.name}-${file.size}-${Math.round(performance.now())}-${docs.length}`;
       const isImg = /image\//.test(file.type) || /\.(jpe?g|png|webp|heic)$/i.test(file.name);
-      const card: Card = { key, fileName: file.name, file, previewUrl: isImg ? URL.createObjectURL(file) : "", isImg, status: "reading", accId: "", inst: 0 };
-      setCards((cs) => [...cs, card]);
-      // 1) sobe o arquivo pro R2 (mesmo storage do anexo manual) → vira o proof_url.
-      services.storage.upload("financeiro", file).then((k: string) => patch(key, { proofKey: k })).catch(() => patch(key, { uploadFailed: true }));
-      // 2) manda a imagem pra IA ler.
+      setDocs((ds) => [...ds, { key, fileName: file.name, file, previewUrl: isImg ? URL.createObjectURL(file) : "", isImg, status: "reading", linhas: [] }]);
+      services.storage.upload("financeiro", file).then((k: string) => patchDoc(key, { proofKey: k })).catch(() => {});
       try {
         const b64 = await fileToBase64(file);
-        const res: any = await services.finance.proofs.extract(b64, file.type || "image/jpeg", file.name);
-        if (!res?.ok) { patch(key, { status: "error", error: res?.error || "não foi possível ler" }); continue; }
-        const ex = res.data;
-        const m = melhorMatch(ex, file.name);
-        patch(key, { status: "ready", extracted: ex, accId: m.accId, inst: m.inst });
-      } catch (e) { patch(key, { status: "error", error: errorMessage(e) }); }
+        const res: any = await services.finance.proofs.read(b64, file.type || "image/jpeg", file.name);
+        if (!res?.ok) { patchDoc(key, { status: "error", erro: res?.error || "não foi possível ler" }); continue; }
+        const d = res.data || {};
+        const linhas: Linha[] = (d.lancamentos || []).map((ex: any, i: number) => {
+          const dup = ex?.id_transacao ? e2eUsados.get(String(ex.id_transacao).toLowerCase()) : undefined;
+          const naoEntra = ex?.natureza === "interna" || ex?.natureza === "pessoal";
+          const alvo = naoEntra || dup ? "" : melhorAlvo(ex);
+          return { key: `${key}-l${i}`, ex, acao: (naoEntra || dup ? "ignorar" : alvo ? "baixar" : "ignorar") as any, alvo, status: "pend", duplicado: dup };
+        });
+        patchDoc(key, { status: "ready", head: d, linhas });
+      } catch (e) { patchDoc(key, { status: "error", erro: errorMessage(e) }); }
     }
   }
 
-  async function confirmar(c: Card) {
-    if (!c.accId) { flash("Escolha o cliente/parcela antes de confirmar."); return; }
-    const acc = (rec || []).find((a) => a.id === c.accId);
-    if (!acc) { flash("Conta não encontrada — recarregue."); return; }
-    const ex = c.extracted || {};
+  // Grava UMA linha conforme a ação escolhida. Reusa os caminhos já existentes.
+  async function aplicar(d: Doc, l: Linha) {
+    const ex = l.ex || {};
     const paidDate = ymd(ex.data) || today();
-    const nota = ex.resumo || [ex.tipo ? String(ex.tipo).toUpperCase() : "Comprovante", ex.valor != null ? money(Number(ex.valor)) : null, paidDate ? `em ${brDate(paidDate)}` : null].filter(Boolean).join(" · ");
-    patch(c.key, { status: "saving" });
-    try {
-      const cur: any[] = Array.isArray(acc.payment_schedule) ? acc.payment_schedule : [];
-      let sched: any[]; let payload: any;
-      if (cur.length && c.inst) {
-        sched = cur.map((p: any) => p.installment === c.inst
-          ? { ...p, status: "paid", amount_paid: Number(p.amount || 0), paid_date: paidDate, proof_url: c.proofKey || p.proof_url || "", proof_note: nota, paid_at: p.paid_at || new Date().toISOString() }
-          : p);
-        const paid = sched.filter((p) => p.status === "paid").reduce((a, p) => a + Number(p.amount || 0), 0);
-        const total = Number(acc.amount || 0) || sched.reduce((a, p) => a + Number(p.amount || 0), 0);
-        const status = paid >= total && total > 0 ? "paid" : paid > 0 ? "partial" : "pending";
-        const lastPaid = sched.filter((p) => p.status === "paid").map((p) => p.paid_date || p.date).filter(Boolean).sort().slice(-1)[0] || null;
-        payload = { id: acc.id, payment_schedule: sched, amount_paid: paid, status, payment_date: status === "paid" ? (ymd(lastPaid) || today()) : "" };
-      } else {
-        // conta simples (sem parcelas): marca a conta paga.
-        payload = { id: acc.id, account_type: acc.account_type, status: "paid", payment_date: paidDate, amount_paid: Number(acc.amount || 0) };
-      }
-      await services.finance.accounts.save(payload);
-      patch(c.key, { status: "done" });
-      flash("Baixa confirmada ✓");
-      reload();
-      setTimeout(() => discard(c.key), 1200);
-    } catch (e) { patch(c.key, { status: "ready", error: errorMessage(e) }); flash(errorMessage(e)); }
+    const nota = [ex.tipo ? String(ex.tipo).toUpperCase() : "Lançamento", ex.valor != null ? money(Number(ex.valor)) : null, `em ${brDate(paidDate)}`, ex.contraparte_nome ? `· ${ex.contraparte_nome}` : null].filter(Boolean).join(" ");
+    if (l.acao === "ignorar") { patchLinha(d.key, l.key, { status: "done" }); return; }
+
+    if (l.acao === "despesa") {
+      await services.finance.transactions.save({
+        type: ex.sentido === "credito" ? "income" : "expense",
+        category: ex.natureza === "imposto" ? "imposto" : ex.natureza === "interna" ? "Interna -" : "",
+        amount: Number(ex.valor || 0), description: ex.descricao || nota, status: "completed",
+        transaction_date: paidDate, contact_name: ex.contraparte_nome || "", payment_method: ex.tipo || "",
+        notes: `Conciliado por IA · ${d.fileName}${ex.id_transacao ? ` · E2E ${ex.id_transacao}` : ""}`,
+      });
+      patchLinha(d.key, l.key, { status: "done" });
+      return;
+    }
+
+    // baixar: marca a parcela do alvo escolhido como paga (mesmo caminho do fluxo manual)
+    const [kind, accId, instS] = String(l.alvo).split(":");
+    const inst = Number(instS || 0);
+    const acc = (kind === "pay" ? pay || [] : rec || []).find((a: any) => a.id === accId);
+    if (!acc) throw new Error("conta não encontrada — recarregue");
+    const cur: any[] = Array.isArray(acc.payment_schedule) ? acc.payment_schedule : [];
+    let payload: any;
+    if (cur.length && inst) {
+      const sched = cur.map((p: any) => p.installment === inst
+        ? { ...p, status: "paid", amount_paid: Number(p.amount || 0), paid_date: paidDate, proof_url: d.proofKey || p.proof_url || "", proof_note: nota, e2e_id: ex.id_transacao || p.e2e_id || "", paid_at: p.paid_at || new Date().toISOString() }
+        : p);
+      const pago = sched.filter((p: any) => p.status === "paid").reduce((a: number, p: any) => a + Number(p.amount || 0), 0);
+      const total = Number(acc.amount || 0) || sched.reduce((a: number, p: any) => a + Number(p.amount || 0), 0);
+      const st = pago >= total && total > 0 ? "paid" : pago > 0 ? "partial" : "pending";
+      const lastPaid = sched.filter((p: any) => p.status === "paid").map((p: any) => p.paid_date || p.date).filter(Boolean).sort().slice(-1)[0] || null;
+      payload = { id: acc.id, payment_schedule: sched, amount_paid: pago, status: st, payment_date: st === "paid" ? (ymd(lastPaid) || today()) : "" };
+    } else {
+      payload = { id: acc.id, account_type: acc.account_type, status: "paid", payment_date: paidDate, amount_paid: Number(acc.amount || 0) };
+    }
+    await services.finance.accounts.save(payload);
+    patchLinha(d.key, l.key, { status: "done" });
   }
 
-  const parcelasDe = (accId: string) => abertas.filter((p) => p.accId === accId);
+  async function aplicarTodas(d: Doc) {
+    const pend = d.linhas.filter((l) => l.status === "pend");
+    if (!pend.length) { flash("Nada pendente neste documento."); return; }
+    let ok = 0, err = 0;
+    for (const l of pend) {
+      patchLinha(d.key, l.key, { status: "saving" });
+      try { await aplicar(d, l); ok++; }
+      catch (e) { patchLinha(d.key, l.key, { status: "error", erro: errorMessage(e) }); err++; }
+    }
+    reload();
+    flash(err ? `${ok} aplicada(s), ${err} com erro` : `${ok} linha(s) conciliada(s) ✓`);
+  }
+
+  const alvoLabel = (v: string) => {
+    const [kind, accId, instS] = String(v).split(":");
+    const a = alvos.find((x) => x.kind === kind && x.accId === accId && String(x.inst) === instS);
+    return a ? `${a.accName} · ${a.inst ? `parc ${a.inst}/${a.total}` : "conta"} · ${money(a.valor)} · vence ${brDate(a.venc)}` : "";
+  };
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
         <Sparkles size={16} color="#6C5CE7" />
-        <span style={{ fontWeight: 700 }}>Conciliação por comprovante</span>
-        <span style={{ fontSize: 12, color: "var(--crasto-text-muted)" }}>a IA lê o comprovante e sugere a baixa — você confirma</span>
+        <span style={{ fontWeight: 700 }}>Conciliação por IA — comprovante ou extrato</span>
+        <span style={{ fontSize: 12, color: "var(--crasto-text-muted)" }}>a IA detecta o tipo, lê todos os lançamentos e classifica — você confirma</span>
       </div>
 
-      {/* dropzone */}
       <div
         onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
         onDragLeave={() => setDrag(false)}
@@ -160,82 +228,110 @@ export default function Conciliacao({ rec, reload, flash }: { rec: any[]; reload
         style={{ cursor: "pointer", border: `2px dashed ${drag ? "#6C5CE7" : "var(--crasto-border)"}`, background: drag ? "rgba(108,92,231,.06)" : "var(--crasto-surface, transparent)", borderRadius: 14, padding: "26px 18px", textAlign: "center", transition: "all .15s", marginBottom: 16 }}
       >
         <UploadCloud size={26} color={drag ? "#6C5CE7" : "var(--crasto-text-muted)"} />
-        <div style={{ marginTop: 8, fontWeight: 600 }}>Arraste os comprovantes aqui ou clique para escolher</div>
-        <div style={{ fontSize: 12, color: "var(--crasto-text-muted)", marginTop: 3 }}>Imagens (Pix, TED, transferência) ou PDF · a leitura é feita por IA</div>
+        <div style={{ marginTop: 8, fontWeight: 600 }}>Arraste um comprovante ou um extrato aqui</div>
+        <div style={{ fontSize: 12, color: "var(--crasto-text-muted)", marginTop: 3 }}>Imagem (Pix, TED) ou PDF · a IA lê linha a linha e diz o que é da empresa</div>
         <input ref={inp} type="file" hidden multiple accept=".jpg,.jpeg,.png,.webp,.heic,.pdf,image/*" onChange={(e) => { if (e.target.files?.length) addFiles(e.target.files); if (inp.current) inp.current.value = ""; }} />
       </div>
 
-      {cards.length === 0 ? (
+      {docs.length === 0 ? (
         <div className="card"><div style={{ padding: 16, color: "var(--crasto-text-muted)", fontSize: 13 }}>
-          Nenhum comprovante na fila. Solte aqui os comprovantes que os clientes te mandam — a IA lê valor, data e hora, encontra a parcela em aberto que casa e você dá a baixa com 1 clique. Nada vira "pago" sem a sua confirmação.
+          Nenhum documento na fila. Solte um <b>comprovante</b> (Pix que o cliente mandou) ou um <b>extrato bancário</b> — a IA identifica o tipo sozinha, lê <b>todos</b> os lançamentos, separa o que é receita de cliente, custo, transferência interna, imposto ou pessoal, e casa cada linha com a parcela em aberto. Nada vira "pago" sem a sua confirmação.
         </div></div>
       ) : (
-        <div style={{ display: "grid", gap: 12 }}>
-          {cards.map((c) => {
-            const ex = c.extracted || {};
-            const conf = Math.round((ex.confianca || 0) * 100);
-            const parcs = parcelasDe(c.accId);
-            const inconclusivo = c.status === "ready" && (ex.legivel === false || ex.valor == null);
+        <div style={{ display: "grid", gap: 14 }}>
+          {docs.map((d) => {
+            const pend = d.linhas.filter((l) => l.status === "pend").length;
+            const naoIdent = d.linhas.filter((l) => l.ex?.natureza === "desconhecido").length;
             return (
-              <div key={c.key} className="card" style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 14, padding: 14, alignItems: "start", opacity: c.status === "done" ? 0.6 : 1 }}>
-                {/* thumb */}
-                <div style={{ width: 84, height: 84, borderRadius: 10, overflow: "hidden", background: "var(--crasto-surface-2, #f1f1f4)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {c.isImg && c.previewUrl ? <img src={c.previewUrl} alt="comprovante" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <FileText size={28} color="var(--crasto-text-muted)" />}
-                </div>
-
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                    <span style={{ fontSize: 12, color: "var(--crasto-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>{c.fileName}</span>
-                    {c.status === "reading" && <span style={{ fontSize: 12, color: "#6C5CE7", display: "inline-flex", alignItems: "center", gap: 5 }}><Loader2 size={13} className="spin" /> lendo…</span>}
-                    {c.status === "ready" && !inconclusivo && <span style={{ fontSize: 11, fontWeight: 700, color: conf >= 70 ? "#1F8A5B" : "#B54708", background: conf >= 70 ? "rgba(31,138,91,.1)" : "rgba(181,71,8,.1)", padding: "1px 8px", borderRadius: 999 }}>{conf}% confiança</span>}
-                    <button className="icobtn" title="Descartar" style={{ marginLeft: "auto" }} onClick={() => discard(c.key)}><X size={14} /></button>
+              <div key={d.key} className="card" style={{ padding: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", background: "var(--crasto-surface-2, #f1f1f4)", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
+                    {d.isImg && d.previewUrl ? <img src={d.previewUrl} alt="doc" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <FileText size={20} color="var(--crasto-text-muted)" />}
                   </div>
-
-                  {c.status === "error" ? (
-                    <div style={{ fontSize: 13, color: "#B42318", display: "flex", alignItems: "center", gap: 6 }}><AlertTriangle size={14} /> {c.error || "não foi possível ler o comprovante"}</div>
-                  ) : c.status === "reading" ? (
-                    <div style={{ fontSize: 13, color: "var(--crasto-text-muted)" }}>Extraindo valor, data e pagador da imagem…</div>
-                  ) : (<>
-                    {/* dados lidos */}
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px", alignItems: "baseline", marginBottom: 8 }}>
-                      <span style={{ fontSize: 20, fontWeight: 800 }}>{ex.valor != null ? money(Number(ex.valor)) : "—"}</span>
-                      <span style={{ fontSize: 13 }}>{brDate(ex.data)}{ex.hora ? ` · ${ex.hora}` : ""}</span>
-                      {ex.tipo && <span style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#3E6FB8" }}>{ex.tipo}</span>}
-                      {ex.pagador_nome && <span style={{ fontSize: 12, color: "var(--crasto-text-muted)" }}>de {ex.pagador_nome}</span>}
-                      {ex.instituicao && <span style={{ fontSize: 12, color: "var(--crasto-text-muted)" }}>· {ex.instituicao}</span>}
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13.5 }}>
+                      {d.status === "reading" ? "Lendo…" : d.head?.tipo_documento === "extrato" ? "Extrato bancário" : d.head?.tipo_documento === "comprovante" ? "Comprovante" : d.fileName}
+                      {d.head?.instituicao ? <span style={{ fontWeight: 500, color: "var(--crasto-text-muted)" }}> · {d.head.instituicao}</span> : null}
                     </div>
-                    {inconclusivo && <div style={{ fontSize: 12, color: "#B54708", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><AlertTriangle size={13} /> A IA não leu com segurança — confira e escolha a parcela manualmente.</div>}
-                    {c.uploadFailed && <div style={{ fontSize: 12, color: "#B54708", marginBottom: 8 }}>⚠ falha ao guardar o arquivo (segue sem anexo).</div>}
-
-                    {/* match: cliente + parcela */}
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                      <select value={c.accId} onChange={(e) => patch(c.key, { accId: e.target.value, inst: parcelasDe(e.target.value)[0]?.inst ?? 0 })} style={selStyle}>
-                        <option value="">— escolher cliente —</option>
-                        {Array.from(new Map((rec || []).filter((a) => a.status !== "cancelled").map((a) => [a.id, a])).values()).map((a: any) => (
-                          <option key={a.id} value={a.id}>{a.contact_name || a.description || a.id.slice(0, 6)}</option>
-                        ))}
-                      </select>
-                      <select value={c.inst} onChange={(e) => patch(c.key, { inst: Number(e.target.value) })} disabled={!c.accId} style={selStyle}>
-                        {parcs.length === 0 && <option value={0}>sem parcela em aberto</option>}
-                        {parcs.map((p) => (
-                          <option key={p.inst} value={p.inst}>{p.inst ? `Parcela ${p.inst}/${p.total}` : "Conta"} · {money(p.valor)} · vence {brDate(p.venc)}</option>
-                        ))}
-                      </select>
-                      <button className="crasto-btn crasto-btn--primary crasto-btn--sm" disabled={c.status === "saving" || c.status === "done" || !c.accId} onClick={() => confirmar(c)}>
-                        <span className="crasto-btn__icon">{c.status === "saving" ? <Loader2 size={14} className="spin" /> : <CheckCircle2 size={14} />}</span>
-                        <span className="crasto-btn__label">{c.status === "done" ? "Baixado ✓" : "Confirmar baixa"}</span>
-                      </button>
+                    <div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 460 }}>
+                      {d.fileName}{d.head?.periodo ? ` · ${d.head.periodo}` : ""}{d.linhas.length ? ` · ${d.linhas.length} lançamento(s)` : ""}
                     </div>
-                    {c.error && <div style={{ fontSize: 12, color: "#B42318", marginTop: 6 }}>{c.error}</div>}
-                  </>)}
+                  </div>
+                  {d.status === "reading" && <span style={{ fontSize: 12, color: "#6C5CE7", display: "inline-flex", alignItems: "center", gap: 5 }}><Loader2 size={13} className="spin" /> lendo o documento…</span>}
+                  <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+                    {pend > 0 && <button className="crasto-btn crasto-btn--primary crasto-btn--sm" onClick={() => aplicarTodas(d)}><span className="crasto-btn__icon"><CheckCircle2 size={14} /></span><span className="crasto-btn__label">Aplicar {pend} linha(s)</span></button>}
+                    <button className="icobtn" title="Descartar" onClick={() => discard(d.key)}><X size={14} /></button>
+                  </div>
                 </div>
+
+                {d.status === "error" && <div style={{ fontSize: 13, color: "#B42318", display: "flex", alignItems: "center", gap: 6 }}><AlertTriangle size={14} /> {d.erro}</div>}
+                {d.head?.aviso && <div style={{ fontSize: 12, color: "#B54708", marginBottom: 8 }}>⚠ {d.head.aviso}</div>}
+                {naoIdent > 0 && <div style={{ fontSize: 12, color: "#B42318", marginBottom: 8 }}>⚠ {naoIdent} lançamento(s) a IA não conseguiu identificar — decida manualmente antes de aplicar.</div>}
+
+                {d.linhas.length > 0 && (
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, minWidth: 720 }}>
+                      <thead><tr style={{ textAlign: "left", color: "var(--crasto-text-muted)", fontSize: 11, textTransform: "uppercase", letterSpacing: ".04em" }}>
+                        <th style={thS}>Data</th><th style={thS}>Descrição</th><th style={{ ...thS, textAlign: "right" }}>Valor</th><th style={thS}>Classificação</th><th style={thS}>O que fazer</th><th style={thS}></th>
+                      </tr></thead>
+                      <tbody>
+                        {d.linhas.map((l) => {
+                          const ex = l.ex || {};
+                          const nat = NAT_UI[ex.natureza] || NAT_UI.desconhecido;
+                          const cred = ex.sentido === "credito";
+                          const opts = alvos.filter((a) => a.kind === (cred ? "rec" : "pay"));
+                          return (
+                            <tr key={l.key} style={{ borderTop: "1px solid var(--crasto-border-soft)", opacity: l.status === "done" ? 0.5 : 1 }}>
+                              <td style={{ ...tdS, whiteSpace: "nowrap" }}>{brDate(ex.data)}</td>
+                              <td style={tdS}>
+                                <div style={{ fontWeight: 600 }}>{ex.contraparte_nome || ex.descricao || "—"}</div>
+                                {ex.contraparte_nome && ex.descricao && <div style={{ fontSize: 11, color: "var(--crasto-text-muted)" }}>{ex.descricao}</div>}
+                                {l.duplicado && <div style={{ fontSize: 11, color: "#B54708", fontWeight: 700 }}>⚠ já conciliado antes ({l.duplicado}) — duplicidade</div>}
+                              </td>
+                              <td style={{ ...tdS, textAlign: "right", whiteSpace: "nowrap", fontWeight: 700, color: cred ? "var(--fin-green, #1F8A5B)" : "var(--fin-orange, #B54708)" }}>
+                                {cred ? "+" : "−"} {ex.valor != null ? money(Number(ex.valor)) : "—"}
+                              </td>
+                              <td style={tdS}><span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 999, whiteSpace: "nowrap", color: nat.cor, background: nat.bg }}>{nat.lbl}</span></td>
+                              <td style={tdS}>
+                                <select value={l.acao} onChange={(e) => patchLinha(d.key, l.key, { acao: e.target.value as any })} style={selStyle} disabled={l.status !== "pend"}>
+                                  <option value="baixar">Baixar parcela</option>
+                                  <option value="despesa">Registrar como lançamento</option>
+                                  <option value="ignorar">Ignorar (não é resultado)</option>
+                                </select>
+                                {l.acao === "baixar" && (
+                                  <select value={l.alvo} onChange={(e) => patchLinha(d.key, l.key, { alvo: e.target.value })} style={{ ...selStyle, marginTop: 4, maxWidth: 300 }} disabled={l.status !== "pend"}>
+                                    <option value="">— escolher {cred ? "recebível" : "conta a pagar"} —</option>
+                                    {opts.map((a) => <option key={`${a.kind}:${a.accId}:${a.inst}`} value={`${a.kind}:${a.accId}:${a.inst}`}>{a.accName} · {a.inst ? `parc ${a.inst}/${a.total}` : "conta"} · {money(a.valor)} · {brDate(a.venc)}</option>)}
+                                  </select>
+                                )}
+                                {l.acao === "baixar" && !l.alvo && <div style={{ fontSize: 11, color: "#B54708", marginTop: 3 }}>sem parcela em aberto que case — escolha ou troque a ação</div>}
+                              </td>
+                              <td style={{ ...tdS, whiteSpace: "nowrap" }}>
+                                {l.status === "saving" ? <Loader2 size={14} className="spin" />
+                                  : l.status === "done" ? <span style={{ color: "var(--fin-green,#1F8A5B)", fontWeight: 700, fontSize: 11.5 }}>{l.acao === "ignorar" ? <><Ban size={12} /> ignorado</> : "✓ aplicado"}</span>
+                                  : l.status === "error" ? <span title={l.erro} style={{ color: "#B42318", fontWeight: 700, fontSize: 11.5 }}>erro</span>
+                                  : <button className="crasto-btn crasto-btn--ghost crasto-btn--sm" disabled={l.acao === "baixar" && !l.alvo} onClick={async () => { patchLinha(d.key, l.key, { status: "saving" }); try { await aplicar(d, l); reload(); } catch (e) { patchLinha(d.key, l.key, { status: "error", erro: errorMessage(e) }); flash(errorMessage(e)); } }}><span className="crasto-btn__label">Aplicar</span></button>}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {d.status === "ready" && d.linhas.length === 0 && <div style={{ fontSize: 13, color: "#B54708" }}>A IA não encontrou lançamentos neste arquivo — confira se é mesmo um comprovante ou extrato legível.</div>}
               </div>
             );
           })}
         </div>
       )}
+      <div style={{ fontSize: 11.5, color: "var(--crasto-text-muted)", marginTop: 12 }}>
+        A leitura é feita por IA e pode errar — <b>confira cada linha antes de aplicar</b>. Nada é gravado sem o seu clique; o arquivo fica anexado como comprovante da parcela.
+      </div>
     </div>
   );
 }
 
-const selStyle: any = { fontSize: 13, padding: "6px 8px", borderRadius: 8, border: "1px solid var(--crasto-border)", background: "var(--crasto-surface, #fff)", color: "var(--crasto-text)", maxWidth: 320 };
+const thS: any = { padding: "6px 8px", fontWeight: 700 };
+const tdS: any = { padding: "8px", verticalAlign: "top" };
+const selStyle: any = { fontSize: 12.5, padding: "5px 7px", borderRadius: 8, border: "1px solid var(--crasto-border)", background: "var(--crasto-surface, #fff)", color: "var(--crasto-text)", maxWidth: 260, width: "100%" };

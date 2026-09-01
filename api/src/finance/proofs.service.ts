@@ -125,9 +125,186 @@ export async function extrairComprovante(
   };
 }
 
+// ============================================================================
+// LEITOR UNIFICADO (Fatia 2) — COMPROVANTE **ou** EXTRATO no mesmo caminho.
+// A IA detecta o tipo e devolve SEMPRE uma LISTA de lançamentos (comprovante = 1).
+// Recebe o CONTEXTO da empresa (clientes e fornecedores reais, vindos do banco) para
+// conseguir dizer o que é da Crasto e o que não é — sem isso ela chutaria.
+// Continua só LENDO: quem grava é o operador, na tela, depois de conferir.
+// ============================================================================
+
+export type LancamentoLido = {
+  data: string | null;
+  valor: number | null;              // SEMPRE positivo; o sinal vai em `sentido`
+  sentido: 'credito' | 'debito' | null;
+  descricao: string | null;          // histórico da linha do extrato
+  contraparte_nome: string | null;
+  contraparte_documento: string | null;
+  tipo: 'pix' | 'ted' | 'doc' | 'boleto' | 'transferencia' | 'cartao' | 'tarifa' | 'outro' | null;
+  id_transacao: string | null;       // E2E / autenticação — usado p/ travar duplicidade
+  natureza: 'receita_cliente' | 'custo' | 'interna' | 'imposto' | 'pessoal' | 'desconhecido';
+  match_sugerido: string | null;     // nome do cliente/fornecedor do CONTEXTO que casa
+  confianca: number;
+};
+
+export type DocLido = {
+  tipo_documento: 'comprovante' | 'extrato' | 'desconhecido';
+  instituicao: string | null;
+  titular: string | null;
+  periodo: string | null;
+  lancamentos: LancamentoLido[];
+  aviso: string | null;
+};
+
+export type ContextoEmpresa = { clientes: string[]; fornecedores: string[] };
+
+function promptDoc(ctx: ContextoEmpresa, filename?: string): string {
+  const lista = (a: string[]) => (a.length ? a.map((x) => `  - ${x}`).join('\n') : '  (nenhum cadastrado)');
+  return [
+    'Você lê documentos financeiros brasileiros: COMPROVANTES de pagamento (Pix, TED, boleto, transferência) e EXTRATOS bancários.',
+    'Detecte qual dos dois é o documento e devolva TODOS os lançamentos que ele contém.',
+    '',
+    'CONTEXTO DA EMPRESA (use para classificar — NÃO invente nomes fora destas listas):',
+    'Empresa: Crasto.com Tecnologia e Neurociências Ltda ("Crasto.AI", "Crasto").',
+    'CLIENTES conhecidos (dinheiro que ENTRA):',
+    lista(ctx.clientes),
+    'FORNECEDORES/CUSTOS conhecidos (dinheiro que SAI):',
+    lista(ctx.fornecedores),
+    '',
+    'Devolva SOMENTE um objeto JSON assim:',
+    `{
+  "tipo_documento": "comprovante"|"extrato"|"desconhecido",
+  "instituicao": string|null,
+  "titular": string|null,
+  "periodo": string|null,
+  "aviso": string|null,
+  "lancamentos": [{
+    "data": "YYYY-MM-DD"|null,
+    "valor": number|null,
+    "sentido": "credito"|"debito"|null,
+    "descricao": string|null,
+    "contraparte_nome": string|null,
+    "contraparte_documento": string|null,
+    "tipo": "pix"|"ted"|"doc"|"boleto"|"transferencia"|"cartao"|"tarifa"|"outro"|null,
+    "id_transacao": string|null,
+    "natureza": "receita_cliente"|"custo"|"interna"|"imposto"|"pessoal"|"desconhecido",
+    "match_sugerido": string|null,
+    "confianca": number
+  }]
+}`,
+    '',
+    'REGRAS OBRIGATÓRIAS:',
+    '- EXTRATO: devolva TODAS as linhas de movimentação, uma por uma, inclusive as que não reconhecer. NUNCA resuma, agrupe ou pule linhas.',
+    '- Linhas de SALDO (saldo anterior, saldo do dia, saldo final) NÃO são lançamentos — não inclua.',
+    '- COMPROVANTE: devolva exatamente 1 lançamento.',
+    '- Use APENAS o que está VISÍVEL. Campo que não aparece = null. NUNCA invente valor, data, nome ou ID.',
+    '- "valor" sempre POSITIVO, número com ponto decimal (R$ 2.000,00 -> 2000.00). O sinal vai em "sentido": credito = entrou, debito = saiu.',
+    '- "data" em ISO YYYY-MM-DD (11/08/2026 -> 2026-08-11). Se o extrato só traz dia/mês, use o ano do período do documento.',
+    '- "natureza": "receita_cliente" = entrada de um CLIENTE da lista (ou claramente pagamento de serviço prestado); "custo" = saída para fornecedor/serviço da empresa; "interna" = transferência entre contas da PRÓPRIA empresa ou do sócio, aplicação, resgate, pagamento de fatura do próprio cartão (NÃO é receita nem despesa); "imposto" = DAS/tributos/taxas de governo; "pessoal" = claramente gasto pessoal, não da empresa; "desconhecido" = não dá para afirmar.',
+    '- Na dúvida use "desconhecido". É MUITO melhor devolver "desconhecido" do que classificar errado.',
+    '- "match_sugerido" só quando o nome da contraparte casa com alguém das listas do contexto; senão null.',
+    '- "confianca" de 0 a 1 por lançamento.',
+    '- Responda só o JSON, sem texto antes/depois, sem ```.',
+    filename ? `Dica (NÃO é fonte de verdade, só contexto): o arquivo se chama "${filename}".` : '',
+  ].filter(Boolean).join('\n');
+}
+
+export async function lerDocumentoFinanceiro(
+  apiKey: string,
+  fileBase64: string,
+  mime: string,
+  ctx: ContextoEmpresa,
+  filename?: string,
+  model = process.env.PROOFS_MODEL || 'gemini-2.5-flash',
+): Promise<DocLido> {
+  const body = {
+    contents: [{ role: 'user', parts: [{ text: promptDoc(ctx, filename) }, { inline_data: { mime_type: mime || 'image/jpeg', data: fileBase64 } }] }],
+    // Extrato rende MUITA saída (uma linha por lançamento) — orçamento folgado, senão o JSON trunca.
+    generationConfig: { temperature: 0, response_mime_type: 'application/json', maxOutputTokens: 32768, thinkingConfig: { thinkingBudget: 0 } },
+  };
+  const call = async (m: string) => {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+      body: JSON.stringify(body),
+    });
+    const j: any = await r.json().catch(() => ({}));
+    return { ok: r.ok, status: r.status, j };
+  };
+  let res = await call(model);
+  if (!res.ok && (res.status === 404 || /not found|not supported/i.test(String(res.j?.error?.message || ''))) && model !== 'gemini-flash-latest') {
+    res = await call('gemini-flash-latest');
+  }
+  if (!res.ok) throw new Error(`Gemini respondeu ${res.status}: ${String(res.j?.error?.message || '').slice(0, 200)}`);
+  const cand = res.j?.candidates?.[0];
+  const raw = (cand?.content?.parts || []).map((p: any) => p?.text || '').join('').trim();
+  if (!raw) throw new Error(`Gemini não devolveu leitura (${cand?.finishReason || 'sem motivo'}).`);
+  // MAX_TOKENS = extrato grande truncado: melhor falhar alto do que entregar lista pela metade.
+  if (cand?.finishReason === 'MAX_TOKENS') throw new Error('O documento é grande demais e a leitura foi truncada — envie o extrato em partes (por mês, por exemplo).');
+  let obj: any;
+  try {
+    obj = JSON.parse(raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim());
+  } catch {
+    throw new Error('A IA não devolveu um JSON válido do documento.');
+  }
+  const numOrNull = (v: any) => (v === null || v === undefined || v === '' || isNaN(Number(v)) ? null : Number(v));
+  const strOrNull = (v: any) => (v === null || v === undefined || String(v).trim() === '' ? null : String(v).trim());
+  const NAT = ['receita_cliente', 'custo', 'interna', 'imposto', 'pessoal', 'desconhecido'];
+  const lancs: LancamentoLido[] = (Array.isArray(obj?.lancamentos) ? obj.lancamentos : [])
+    .map((l: any) => {
+      const v = numOrNull(l?.valor);
+      const nat = String(l?.natureza || '');
+      return {
+        data: strOrNull(l?.data),
+        valor: v === null ? null : Math.abs(v),
+        sentido: l?.sentido === 'credito' || l?.sentido === 'debito' ? l.sentido : (v !== null && v < 0 ? 'debito' : null),
+        descricao: strOrNull(l?.descricao),
+        contraparte_nome: strOrNull(l?.contraparte_nome),
+        contraparte_documento: strOrNull(l?.contraparte_documento),
+        tipo: strOrNull(l?.tipo) as any,
+        id_transacao: strOrNull(l?.id_transacao),
+        natureza: (NAT.includes(nat) ? nat : 'desconhecido') as any,
+        match_sugerido: strOrNull(l?.match_sugerido),
+        confianca: Math.max(0, Math.min(1, numOrNull(l?.confianca) ?? 0)),
+      };
+    })
+    .filter((l: LancamentoLido) => l.valor !== null || l.data !== null); // descarta linha vazia
+  const td = String(obj?.tipo_documento || '');
+  return {
+    tipo_documento: (['comprovante', 'extrato'].includes(td) ? td : 'desconhecido') as any,
+    instituicao: strOrNull(obj?.instituicao),
+    titular: strOrNull(obj?.titular),
+    periodo: strOrNull(obj?.periodo),
+    lancamentos: lancs,
+    aviso: strOrNull(obj?.aviso),
+  };
+}
+
 @Injectable()
 export class ProofsService {
   constructor(private readonly db: RlsDbService) {}
+
+  // Contexto REAL da empresa (clientes e fornecedores do próprio banco) — é o que permite
+  // à IA dizer "isso é da Crasto". Escopado por RLS no usuário que pediu.
+  async contexto(userId: string): Promise<ContextoEmpresa> {
+    return this.db.asUser(userId, async (c) => {
+      const acc = await c.query(`select * from public.fin_accounts(null,null)`).catch(() => ({ rows: [] as any[] }));
+      const cst = await c.query(`select * from public.fin_costs(null)`).catch(() => ({ rows: [] as any[] }));
+      const uniq = (a: any[]) => Array.from(new Set(a.map((x) => String(x || '').trim()).filter(Boolean))).slice(0, 200);
+      return {
+        clientes: uniq((acc.rows || []).filter((r: any) => r.account_type === 'receivable').map((r: any) => r.contact_name)),
+        fornecedores: uniq([
+          ...(cst.rows || []).map((r: any) => r.vendor_name),
+          ...(acc.rows || []).filter((r: any) => r.account_type === 'payable').map((r: any) => r.contact_name),
+        ]),
+      };
+    });
+  }
+
+  async readDoc(userId: string, fileBase64: string, mime: string, filename?: string): Promise<DocLido> {
+    const [key, ctx] = await Promise.all([this.googleKey(), this.contexto(userId).catch(() => ({ clientes: [], fornecedores: [] }))]);
+    return lerDocumentoFinanceiro(key, fileBase64, mime, ctx, filename);
+  }
 
   // Chave do Gemini do cofre do Portal (mesmo RPC da Julie); env só como último recurso.
   private async googleKey(): Promise<string> {
