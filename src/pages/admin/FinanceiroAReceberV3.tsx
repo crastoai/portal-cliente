@@ -59,11 +59,16 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
   const toggleDrillExp = (k: string) => setDrillExp((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; });
   const [busyP, setBusyP] = useState(false);
   const [parcEdit, setParcEdit] = useState<{ id: string; idx: number; date: string; amount: string } | null>(null);
-  // atalhos de período (fluxo): 30 dias (padrão) / 1m / 3m / 6m / 1 ano — dirige "Recebido no período"
+  // atalhos de período: "Este mês" (padrão — vira junto com o mês) / Hoje / 1m / 3m / 6m / 1 ano.
   const _dt = new Date(today + "T00:00:00");
-  const _bd = (n: number) => { const d = new Date(_dt); d.setDate(d.getDate() - n + 1); return d.toISOString().slice(0, 10); };
-  const _bm = (n: number) => { const d = new Date(_dt); d.setMonth(d.getMonth() - n); return d.toISOString().slice(0, 10); };
+  const _iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const _bd = (n: number) => { const d = new Date(_dt); d.setDate(d.getDate() - n + 1); return _iso(d); };
+  const _bm = (n: number) => { const d = new Date(_dt); d.setMonth(d.getMonth() - n); return _iso(d); };
+  const _mIni = _iso(new Date(_dt.getFullYear(), _dt.getMonth(), 1));
+  const _mFim = _iso(new Date(_dt.getFullYear(), _dt.getMonth() + 1, 0));
   const QUICK = [
+    { key: "mes", label: "Este mês", from: _mIni, to: _mFim },
+    { key: "hoje", label: "Hoje", from: today, to: today },
     { key: "1m", label: "1 mês", from: _bm(1), to: today },
     { key: "3m", label: "3 meses", from: _bm(3), to: today },
     { key: "6m", label: "6 meses", from: _bm(6), to: today },

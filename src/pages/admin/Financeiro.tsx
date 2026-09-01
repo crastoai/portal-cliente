@@ -60,11 +60,17 @@ function aiPeriods() {
 // Atalhos de período (fluxo): últimos 30 dias (padrão) / 1m / 3m / 6m / 1 ano.
 function finQuickPeriods() {
   const now = new Date();
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  // ISO em horário LOCAL (toISOString usa UTC e vira o dia à noite no Brasil).
+  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const backDays = (n: number) => { const d = new Date(now); d.setDate(d.getDate() - n + 1); return iso(d); };
   const backMonths = (n: number) => { const d = new Date(now); d.setMonth(d.getMonth() - n); return iso(d); };
   const to = iso(now);
+  // "Este mês" = mês-calendário vigente (1º → último dia). É o PADRÃO: quando o mês vira, todo card vira junto.
+  const mIni = iso(new Date(now.getFullYear(), now.getMonth(), 1));
+  const mFim = iso(new Date(now.getFullYear(), now.getMonth() + 1, 0));
   return [
+    { key: "mes", label: "Este mês", from: mIni, to: mFim },
+    { key: "hoje", label: "Hoje", from: to, to },
     { key: "1m", label: "1 mês", from: backMonths(1), to },
     { key: "3m", label: "3 meses", from: backMonths(3), to },
     { key: "6m", label: "6 meses", from: backMonths(6), to },
@@ -222,6 +228,7 @@ export default function Financeiro() {
   const [drill, setDrill] = useState<any>(null); // pop-up de detalhes de um card (drill-down)
   const [per, setPer] = useState<{ from: string; to: string; label: string } | null>(() => { const q = finQuickPeriods()[0]; return { from: q.from, to: q.to, label: q.label }; }); // default: últimos 30 dias
   const [perOpen, setPerOpen] = useState(false); // popover do filtro personalizado
+  const [perCust, setPerCust] = useState(false); // faixa de datas personalizada (cockpit)
   useEffect(() => { setStatusF("todos"); setCatF(null); }, [tab]); // trocar de aba zera os filtros dos cards de baixo
   const toggleRecOnly = () => setRecOnly((v) => {
     const nv = !v; const next = new URLSearchParams(sp);
@@ -469,7 +476,7 @@ export default function Financeiro() {
   // Filtro por período (o Crasto quer projeções): se `per` setado, usa a faixa; senão, o mês atual.
   const inMes = (d: any) => { const x = ymd(d); if (!x) return false; return per ? (x >= per.from && x <= per.to) : x.slice(0, 7) === mesAtual; };
   const inCal = (d: any) => { const x = ymd(d); return !!x && x.slice(0, 7) === mesAtual; }; // sempre mes-calendario (DAS/tributos nao seguem o filtro de periodo)
-  const noMesLbl = per ? t("no período") : t("no mês");
+  const noMesLbl = !per || per.label === "Este mês" ? t("no mês") : t("no período");
   const perPresets = () => {
     const [y, mo] = today().split("-").map(Number);
     const f = (yy: number, mm: number) => `${yy}-${String(mm).padStart(2, "0")}-01`;
@@ -502,19 +509,26 @@ export default function Financeiro() {
   // Anuais NÃO entram aqui (foram pagos adiantado no ano) — aparecem em "Renovações anuais" e no Total do ano.
   const custoMensalCat = (cat?: string) => activeCosts.filter((c) => (!cat || c.category === cat) && c.recurrence === "mensal").reduce((a, c) => a + Number(c.amount_brl || 0), 0);
   // Despesas PONTUAIS do mês-calendário (ex.: despesa rápida) — entram automaticamente no "Saiu no mês" e no Resultado.
-  const pontuaisMes = activeCosts.filter((c: any) => c.recurrence === "pontual" && (inCal(c.payment_date) || inCal(c.reference_date)));
+  const pontuaisMes = activeCosts.filter((c: any) => c.recurrence === "pontual" && (inMes(c.payment_date) || inMes(c.reference_date)));
   const custoPontualMes = pontuaisMes.reduce((a: number, c: any) => a + Number(c.amount_brl || 0), 0);
   // Contas a pagar (payable accounts) com parcela/pagamento no mês-calendário — entram também no "Saiu no mês".
-  const acctMesAmount = (a: any) => { const ps = parcelas(a); if (ps.length) return ps.filter((pp: any) => inCal(pp.paid_date || pp.date)).reduce((sm: number, pp: any) => sm + Number(pp.amount || 0), 0); return (inCal(a.payment_date) || inCal(a.due_date)) ? Number(a.amount || 0) : 0; };
+  const acctMesAmount = (a: any) => { const ps = parcelas(a); if (ps.length) return ps.filter((pp: any) => inMes(pp.paid_date || pp.date)).reduce((sm: number, pp: any) => sm + Number(pp.amount || 0), 0); return (inMes(a.payment_date) || inMes(a.due_date)) ? Number(a.amount || 0) : 0; };
   const payAccMes = (pay || []).map((a: any) => ({ a, val: acctMesAmount(a) })).filter((x: any) => x.val > 0.005);
   const custoPayAccMes = payAccMes.reduce((sm: number, x: any) => sm + x.val, 0);
   const custoAnualCat = (cat?: string) => activeCosts.filter((c) => (!cat || c.category === cat) && c.recurrence === "anual").reduce((a, c) => a + Number(c.amount_brl || 0), 0);
-  const aPagarMes = custoMensalCat() + custoPontualMes + custoPayAccMes;
+  const aPagarMes = custoMensalCat() + custoPontualMes + custoPayAccMes; // PREVISTO do mês (run-rate) — usado no card "A pagar no mês"
+  // ── CAIXA REAL do período: só o que efetivamente SAIU (quitado). Vira junto com o mês, igual "Entrou no mês". ──
+  // Custo mensal (assinatura) só conta como saída quando há quitação registrada — senão o card mostraria o
+  // compromisso do mês inteiro já no dia 1º (era o bug: "Saiu R$7.385" em 01/09 sem nada ter saído).
+  const mensalPagoDe = (c: any) => { const ps = parcelas(c); if (ps.length) return ps.filter((pp: any) => pp.status === "paid" && inMes(pp.paid_date || pp.date)).reduce((s: number, pp: any) => s + Number(pp.amount || 0), 0); return inMes(c.payment_date) ? Number(c.amount_paid || c.amount_brl || 0) : 0; };
+  const mensaisPagosMes = activeCosts.filter((c: any) => c.recurrence === "mensal").map((c: any) => ({ c, val: mensalPagoDe(c) })).filter((x: any) => x.val > 0.005);
+  const custoMensalPagoMes = mensaisPagosMes.reduce((s: number, x: any) => s + x.val, 0);
+  const saiuNoMes = custoMensalPagoMes + custoPontualMes + custoPayAccMes; // dinheiro que saiu de fato no período
   const resultadoMes = totalMesAll - aPagarMes; // tudo que entra no mês (recorrente + avulso) − custo mensal
-  // Snapshot MENSAL (inCal) para os KPIs do topo — NAO seguem o filtro de periodo (custo do mes = run-rate completo).
-  const recebidoCal = recFlat.filter((pp: any) => pp.paid && inCal(pp.date)).reduce((a: number, pp: any) => a + pp.amount, 0);
-  const totalMesAllCal = recFlat.filter((pp: any) => inCal(pp.date)).reduce((a: number, pp: any) => a + pp.amount, 0);
-  const resultadoCal = totalMesAllCal - aPagarMes;
+  // KPIs de CAIXA do topo — seguem o filtro de período (padrão = "Este mês"), então viram junto com o mês.
+  const recebidoCal = recFlat.filter((pp: any) => pp.paid && inMes(pp.date)).reduce((a: number, pp: any) => a + pp.amount, 0);
+  const totalMesAllCal = recFlat.filter((pp: any) => inMes(pp.date)).reduce((a: number, pp: any) => a + pp.amount, 0);
+  const resultadoCal = recebidoCal - saiuNoMes; // caixa: entrou de fato − saiu de fato (os dois no MESMO período)
   // A Receber: com contrato (recorrente) × sem contrato (avulso)
   const comContrato = rec.filter((r) => r.status !== "cancelled" && isRecurring(r)).reduce((a, r) => a + rem(r), 0);
   const semContrato = rec.filter((r) => r.status !== "cancelled" && !isRecurring(r)).reduce((a, r) => a + rem(r), 0);
@@ -526,8 +540,14 @@ export default function Financeiro() {
   // A receber
   const rowsRecMes = recFlatRec.filter((p) => inMes(p.date)).map((p) => ({ name: p.name, detail: fmtD(p.date), value: p.amount, tone: p.paid ? "ok" : "info", status: p.paid ? t("Recebido") : t("A receber") }));
   const rowsRecebidoMes = recFlat.filter((p) => p.paid && inMes(p.date)).map((p) => ({ name: p.name, detail: fmtD(p.date), value: p.amount, tone: "ok", status: t("Recebido") }));
-  const rowsRecebidoCal = recFlat.filter((p: any) => p.paid && inCal(p.date)).map((p: any) => ({ name: p.name, detail: fmtD(p.date), value: p.amount, tone: "ok", status: t("Recebido") }));
-  const rowsResultadoCal = [ { name: t("Entradas do mês"), detail: t("recorrentes + avulsos"), value: totalMesAllCal, tone: "ok", status: "+" }, { name: t("A pagar no mês"), detail: t("ferramenta + infra + serviço"), value: -aPagarMes, tone: "warn", status: "−" } ];
+  const rowsRecebidoCal = recFlat.filter((p: any) => p.paid && inMes(p.date)).map((p: any) => ({ name: p.name, detail: fmtD(p.date), value: p.amount, tone: "ok", status: t("Recebido") }));
+  const rowsResultadoCal = [ { name: t("Entrou (caixa)"), detail: t("recebido de fato no período"), value: recebidoCal, tone: "ok", status: "+" }, { name: t("Saiu (caixa)"), detail: t("pago de fato no período"), value: -saiuNoMes, tone: "warn", status: "−" } ];
+  // Drill do card "Saiu no mês (caixa)": o que saiu de fato + o compromisso ainda não quitado (contexto).
+  const rowsSaiuMes = [
+    ...mensaisPagosMes.map((x: any) => ({ name: x.c.vendor_name, detail: catLabel(x.c.category) + " · " + t("mensal") + " · " + t("quitado"), value: x.val, tone: "warn", status: t("Pago") })),
+    ...pontuaisMes.map((c: any) => ({ name: c.vendor_name, detail: catLabel(c.category) + " · " + t("pontual") + " · " + fmtD(c.payment_date || c.reference_date), value: Number(c.amount_brl || 0), tone: "warn", status: t("Pago") })),
+    ...payAccMes.map((x: any) => ({ name: x.a.contact_name || x.a.description || "—", detail: (x.a.category || t("Lançamento")) + " · " + t("conta a pagar"), value: x.val, tone: "warn", status: t("Pago") })),
+  ].sort((a, b) => b.value - a.value);
   const rowsMRR = recContratos.map((r) => ({ name: r.contact_name, detail: t("recorrente/mês"), value: mensalDe(r), tone: "mute", status: r.recurrence }));
   const rowsComContrato = rec.filter((r) => r.status !== "cancelled" && isRecurring(r)).map((r) => ({ name: r.contact_name, detail: `${t("saldo")} · ${t("pago")} ${money(Number(r.amount_paid || 0))}`, value: rem(r), tone: "info", status: t("contrato") }));
   const rowsSemContrato = rec.filter((r) => r.status !== "cancelled" && !isRecurring(r)).map((r) => ({ name: r.contact_name, detail: (r.description || t("avulso")), value: rem(r), tone: "mute", status: r.status === "paid" ? t("Pago") : t("Em aberto") }));
@@ -873,7 +893,15 @@ export default function Financeiro() {
       {/* Filtro de período (fluxo): 30 dias (padrão) / 1m / 3m / 6m / 1 ano — dirige os cards de fluxo do cockpit. Tributos seguem mensal. */}
       <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: "var(--crasto-text-faint)", textTransform: "uppercase", letterSpacing: ".05em", marginRight: 4 }}>{t("Período")}</span>
-        {finQuickPeriods().map((pp) => <button key={pp.key} className={"ptab" + (per && per.from === pp.from && per.to === pp.to ? " is-active" : "")} style={{ padding: "6px 13px", fontSize: 12 }} onClick={() => { setPer({ from: pp.from, to: pp.to, label: pp.label }); setTxFrom(pp.from); setTxTo(pp.to); setTxYear("todos"); }}>{t(pp.label)}</button>)}
+        {finQuickPeriods().map((pp) => <button key={pp.key} className={"ptab" + (!perCust && per && per.from === pp.from && per.to === pp.to ? " is-active" : "")} style={{ padding: "6px 13px", fontSize: 12 }} onClick={() => { setPerCust(false); setPer({ from: pp.from, to: pp.to, label: pp.label }); setTxFrom(pp.from); setTxTo(pp.to); setTxYear("todos"); }}>{t(pp.label)}</button>)}
+        <button className={"ptab" + (perCust ? " is-active" : "")} style={{ padding: "6px 13px", fontSize: 12 }} onClick={() => setPerCust((v) => !v)}>{t("Personalizado")}</button>
+        {perCust && (
+          <span style={{ display: "inline-flex", gap: 6, alignItems: "center", marginLeft: 2 }}>
+            <input type="date" value={per?.from || ""} max={per?.to || undefined} onChange={(e) => { const f = e.target.value; if (!f) return; const tt = per?.to && per.to >= f ? per.to : f; setPer({ from: f, to: tt, label: t("Personalizado") }); setTxFrom(f); setTxTo(tt); setTxYear("todos"); }} style={{ font: "inherit", fontSize: 12, padding: "5px 8px", borderRadius: 8, border: "1px solid var(--crasto-border)", background: "var(--crasto-surface)", color: "var(--crasto-text-primary)" }} />
+            <span style={{ fontSize: 11, color: "var(--crasto-text-muted)" }}>→</span>
+            <input type="date" value={per?.to || ""} min={per?.from || undefined} onChange={(e) => { const tt = e.target.value; if (!tt) return; const f = per?.from && per.from <= tt ? per.from : tt; setPer({ from: f, to: tt, label: t("Personalizado") }); setTxFrom(f); setTxTo(tt); setTxYear("todos"); }} style={{ font: "inherit", fontSize: 12, padding: "5px 8px", borderRadius: 8, border: "1px solid var(--crasto-border)", background: "var(--crasto-surface)", color: "var(--crasto-text-primary)" }} />
+          </span>
+        )}
         <span style={{ fontSize: 11, color: "var(--crasto-text-muted)", marginLeft: 6 }}>{per ? mmdd(per.from) + " → " + mmdd(per.to) : ""}</span>
       </div>
       {/* ALERTA de renovação anual — 30 dias antes do vencimento (sininho + e-mail disparam pela automação de fundo) */}
@@ -900,9 +928,9 @@ export default function Financeiro() {
 
       {/* KPIs topo — clicáveis: cada card leva à aba/tela correspondente (dado real). kpis--5 = 5 cards em 1 linha */}
       <div className="kpis kpis--5" style={{ marginBottom: 16 }}>
-        <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Recebido no mês"), rows: rowsRecebidoCal, foot: { label: t("Recebido no mês"), value: recebidoCal } })} title={t("Snapshot do mês — não segue o filtro de período")}><div className="lab">{t("Entrou no mês (caixa)")}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(recebidoCal)}</div><div className="delta">{t("recebido de fato")}</div></button>
-        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("A pagar no mês"), rows: rowsPagarMes, foot: { label: t("Total/mês"), value: aPagarMes } })} title={t("Custo mensal (run-rate) — não segue o filtro de período")}><div className="lab">{t("Saiu no mês (caixa)")}</div><div className="val tnum" style={{ fontSize: 22, color: "var(--fin-orange)" }}>{money(aPagarMes)}</div><div className="delta">{t("IA + Pessoas + Ferramentas + Infra")}</div></button>
-        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado do mês"), rows: rowsResultadoCal, foot: { label: t("Resultado"), value: resultadoCal } })} title={t("Resultado do mês = recebido − custo mensal (não segue o filtro de período)")} style={{ background: "linear-gradient(180deg,#0B1830,#010E26)", borderColor: "transparent", color: "#fff" }}><div className="lab" style={{ color: "#9DB4E0" }}>{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "#fff" }}>{money(resultadoCal)}</div><div className="delta" style={{ color: "#B7C6E6" }}>{t("recebido − pago (caixa)")}</div></button>
+        <button className="kpi g kpi-btn" onClick={() => setDrill({ title: t("Recebido no mês"), rows: rowsRecebidoCal, foot: { label: t("Recebido no mês"), value: recebidoCal } })} title={t("Dinheiro que entrou de fato no período selecionado")}><div className="lab">{t("Entrou no mês (caixa)")}</div><div className="val tnum" style={{ fontSize: 22 }}>{money(recebidoCal)}</div><div className="delta">{t("recebido de fato")}</div></button>
+        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Saiu no período (caixa)"), rows: rowsSaiuMes, foot: { label: t("Saiu de fato"), value: saiuNoMes }, goto: { tab: "pagar", label: t("Abrir em A Pagar") } })} title={t("Dinheiro que saiu de fato no período selecionado")}><div className="lab">{t("Saiu no mês (caixa)")}</div><div className="val tnum" style={{ fontSize: 22, color: "var(--fin-orange)" }}>{money(saiuNoMes)}</div><div className="delta">{money(aPagarMes)} {t("previsto no mês")}</div></button>
+        <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Resultado do mês"), rows: rowsResultadoCal, foot: { label: t("Resultado"), value: resultadoCal } })} title={t("Resultado = entrou − saiu, os dois no período selecionado")} style={{ background: "linear-gradient(180deg,#0B1830,#010E26)", borderColor: "transparent", color: "#fff" }}><div className="lab" style={{ color: "#9DB4E0" }}>{t("Resultado do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "#fff" }}>{money(resultadoCal)}</div><div className="delta" style={{ color: "#B7C6E6" }}>{t("recebido − pago (caixa)")}</div></button>
         <button className="kpi kpi-btn" onClick={() => setDrill({ title: t("Vencidos"), rows: rowsVencidos, foot: { label: t("Total vencido"), value: inadimplencia } })} title={t("Ver detalhes")}><div className="lab">{t("Vencidos (em aberto)")}</div><div className="val tnum" style={{ fontSize: 22, color: inadimplencia > 0 ? "var(--fin-orange)" : "var(--fin-green)" }}>{money(inadimplencia)}</div><div className="delta">{inadimplencia > 0 ? t("a receber vencido") : t("nada vencido ✓")}</div></button>
         <button className="kpi kpi-btn" onClick={() => setDrill({ title: "🧾 " + t("Tributos e impostos do mês"), rows: rowsImposto, foot: { label: t("Tributos + contabilidade do mês"), value: -tributosMes } })} title={t("DAS do Simples Nacional (Anexo III, alíquota efetiva pelo RBT12) + honorários contábeis do mês")}><div className="lab">🧾 {t("Tributos e impostos do mês")}</div><div className="val tnum" style={{ fontSize: 22, color: "var(--fin-red)" }}>{money(tributosMes)}</div><div className="delta">{t("DAS")} {pctAliq} + {t("contábil")}</div></button>
       </div>
