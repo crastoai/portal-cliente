@@ -49,7 +49,7 @@ const proxVenc = (r: any) => { const ps = arr(r.payment_schedule); const nxt = p
 
 export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; reload?: () => void }) {
   const [view, setView] = useState<"comp" | "caixa">("comp");
-  const [drill, setDrill] = useState<null | "mrr" | "arr" | "caixa" | "futuro">(null);
+  const [drill, setDrill] = useState<null | "mrr" | "arr" | "caixa" | "variavel" | "futuro">(null);
   const mes = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }).slice(0, 7);
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
 
@@ -62,7 +62,6 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
   const _bd = (n: number) => { const d = new Date(_dt); d.setDate(d.getDate() - n + 1); return d.toISOString().slice(0, 10); };
   const _bm = (n: number) => { const d = new Date(_dt); d.setMonth(d.getMonth() - n); return d.toISOString().slice(0, 10); };
   const QUICK = [
-    { key: "30d", label: "30 dias", from: _bd(30), to: today },
     { key: "1m", label: "1 mês", from: _bm(1), to: today },
     { key: "3m", label: "3 meses", from: _bm(3), to: today },
     { key: "6m", label: "6 meses", from: _bm(6), to: today },
@@ -110,6 +109,9 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
   const recebidoPeriodoDe = (r: any) => { const ps = arr(r.payment_schedule); if (ps.length) return ps.filter((p: any) => p.status === "paid" && _inPer(p.paid_date || p.date)).reduce((a: number, p: any) => a + Number(p.amount || 0), 0); return _inPer(r.payment_date) ? Number(r.amount_paid || 0) : 0; };
   const recebidoPeriodoRows = ativos.map((r: any) => ({ cliente: r.contact_name || r.description || "—", valor: recebidoPeriodoDe(r) })).filter((x: any) => x.valor > 0.005);
   const recebidoPeriodo = recebidoPeriodoRows.reduce((a: number, x: any) => a + x.valor, 0);
+  // Receita variável = caixa recebido no período de recebíveis NÃO-recorrentes (vendas pontuais + contratos parcelados), fora do MRR.
+  const recVarRows = ativos.filter((r: any) => !isRecurring(r)).map((r: any) => ({ cliente: r.contact_name || r.description || "—", valor: recebidoPeriodoDe(r), modelo: modeloDe(r) })).filter((x: any) => x.valor > 0.005);
+  const recebidoVariavel = recVarRows.reduce((a: number, x: any) => a + x.valor, 0);
   const semNfRows = rows.filter((r: any) => !r.raw?.has_nf);
   const semNfRecebido = semNfRows.reduce((a: number, r: any) => a + r.recebido, 0);
   const toggleNf = async (r: any) => { setBusyP(true); try { await services.finance.accounts.save({ id: r.id, account_type: "receivable", has_nf: !r.raw?.has_nf }); reload?.(); } catch (e: any) { alert("Erro: " + (e?.message || e)); } finally { setBusyP(false); } };
@@ -137,6 +139,12 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
       total: recebidoPeriodo,
       rows: recebidoPeriodoRows.map((x: any) => ({ nome: x.cliente, valor: x.valor, det: "recebido no período" })),
       empty: "Nenhuma parcela recebida no período.",
+    } : drill === "variavel" ? {
+      title: `Receita variável no período — composição de ${BRL(recebidoVariavel)}`,
+      sub: `Vendas NÃO-recorrentes (pontuais e contratos parcelados) cujo dinheiro entrou em ${per.label.toLowerCase()} — sua renda variável além do MRR. Muda o período acima (1m/3m/6m/1a) para ver a variável de cada janela.`,
+      total: recebidoVariavel,
+      rows: recVarRows.map((x: any) => ({ nome: x.cliente, valor: x.valor, det: `${String(x.modelo).toLowerCase()} · recebido no período` })),
+      empty: "Nenhuma venda variável recebida no período.",
     } : drill === "futuro" ? {
       title: `A receber (futuro) — composição de ${BRL(aReceberFut)}`,
       sub: "Saldo em aberto = contratado − já recebido, somando TODAS as parcelas ainda não recebidas de todos os contratos (sem recorte de data; cada parcela tem seu vencimento na lista).",
@@ -173,6 +181,7 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
           <div className="hint"><span className="acr"><b>A</b>nnual <b>R</b>ecurring <b>R</b>evenue &middot; Receita Recorrente Anual</span>MRR × 12 &middot; a recorrência anualizada</div>
         </div>
         <div className="frv3-kpi clk" onClick={() => setDrill("caixa")} title="Clique para ver o que foi recebido no período"><div className="lbl">Recebido no período (caixa)</div><div className="val green">{BRL(recebidoPeriodo)}</div><div className="hint">{per.label.toLowerCase()} · entrou de fato</div></div>
+        <div className="frv3-kpi clk" onClick={() => setDrill("variavel")} title="Vendas pontuais/variáveis recebidas no período — fora do MRR"><div className="lbl">Receita variável (pontual)</div><div className="val" style={{ color: "var(--amber)" }}>{BRL(recebidoVariavel)}</div><div className="hint">{per.label.toLowerCase()} · fora do MRR</div></div>
         <div className="frv3-kpi clk" onClick={() => setDrill("futuro")} title="Clique para ver o saldo a receber"><div className="lbl">A receber (futuro)</div><div className="val blue">{BRL(aReceberFut)}</div><div className="hint">contratado, ainda não recebido</div></div>
       </div>
 
@@ -261,7 +270,8 @@ const CSS = `
 .frv3 .seg button{border:0;background:transparent;padding:8px 15px;border-radius:7px;font:inherit;font-size:12.5px;font-weight:700;color:var(--muted);cursor:pointer}
 .frv3 .seg button.on{background:var(--card);color:var(--navy);box-shadow:var(--shadow)}
 .frv3-hint{font-size:12.5px;color:var(--muted)}
-.frv3-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:14px}
+.frv3-grid4{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:14px}
+@media(max-width:1300px){.frv3-grid4{grid-template-columns:repeat(3,1fr)}}
 .frv3-kpi{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow)}
 .frv3-kpi .lbl{font-size:10.5px;letter-spacing:.08em;font-weight:700;color:var(--muted2);text-transform:uppercase}
 .frv3-kpi .val{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:10px 0 6px}
