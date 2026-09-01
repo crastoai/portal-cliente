@@ -152,9 +152,21 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
 
   // ---- KPIs — validados por DATA. Parcelado conta POR PARCELA (na data dela), nunca o saldo cheio. ----
   const monthOf = (d: string) => (d || "").slice(0, 7);
-  // unidades a vencer: parcelado = cada parcela NAO paga (na sua data); senao = restante na data de venc.
+  // unidades a vencer: parcelado = cada parcela NAO paga (na sua data);
+  // mensal sem parcelas = SEMPRE gera entry no mês corrente (a menos que pago NESTE mês);
+  // demais = restante na data de vencimento.
   const dueUnits = items.flatMap(i => {
     if (i.ps && i.ps.length) return i.ps.filter((p: any) => p.status !== "paid").map((p: any) => ({ i, date: ymd(p.date), amount: Number(p.amount || 0) }));
+    if (i.rec === "mensal" && i.rawKind === "cost") {
+      const paidThisMonth = i.pag && i.pag.slice(0, 7) === mes;
+      if (paidThisMonth) return [];
+      let dueDate = i.venc;
+      if (!dueDate || dueDate.slice(0, 7) !== mes) {
+        const dayStr = (i.venc || i.pag || "").slice(8, 10) || "01";
+        dueDate = mes + "-" + dayStr;
+      }
+      return [{ i, date: dueDate, amount: i.total }];
+    }
     return (i.status !== "Pago" && i.restante > 0.005) ? [{ i, date: ymd(i.venc), amount: i.restante }] : [];
   });
   const drow = (i: Item, dateStr: string, valor: number) => ({ empresa: i.empresa, sub: i.sub, categoria: i.categoria, rec: i.rec, dateStr, valor, rawId: i.rawId });
