@@ -20,7 +20,7 @@ const brDate = (iso?: string) => { if (!iso) return "—"; const [y, m, d] = ymd
 const norm = (s: any) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 const diasEntre = (a?: string, b?: string) => { if (!a || !b) return 999; const d = (new Date(a + "T00:00:00").getTime() - new Date(b + "T00:00:00").getTime()) / 86400000; return Math.abs(d); };
 
-type Alvo = { kind: "rec" | "pay"; accId: string; accName: string; inst: number; total: number; venc: string; valor: number };
+type Alvo = { kind: "rec" | "pay" | "cost"; accId: string; accName: string; inst: number; total: number; venc: string; valor: number };
 
 // Uma linha lida do documento + o que o operador decidiu fazer com ela.
 type Linha = {
@@ -58,7 +58,7 @@ const NAT_UI: Record<string, { lbl: string; cor: string; bg: string }> = {
   desconhecido: { lbl: "Não identificado", cor: "#B42318", bg: "rgba(180,35,24,.10)" },
 };
 
-export default function Conciliacao({ rec, pay, reload, flash }: { rec: any[]; pay?: any[]; reload: () => void; flash: (m: string) => void }) {
+export default function Conciliacao({ rec, pay, costs, reload, flash }: { rec: any[]; pay?: any[]; costs?: any[]; reload: () => void; flash: (m: string) => void }) {
   const [docs, setDocs] = useState<Doc[]>([]);
   const [drag, setDrag] = useState(false);
   const inp = useRef<HTMLInputElement>(null);
@@ -82,8 +82,15 @@ export default function Conciliacao({ rec, pay, reload, flash }: { rec: any[]; p
     };
     push("rec", rec || []);
     push("pay", pay || []);
+    // CUSTOS JÁ CADASTRADOS entram no universo de débito. Sem isso, uma fatura de cartão
+    // (que é toda de assinaturas já cadastradas) não acharia alvo e o operador cairia em
+    // "registrar lançamento" — DUPLICANDO o custo. Aqui a linha casa com o custo e vira baixa.
+    for (const c of costs || []) {
+      if (c.is_active === false) continue;
+      out.push({ kind: "cost", accId: c.id, accName: c.vendor_name || c.description || "(sem nome)", inst: 0, total: 1, venc: ymd(c.next_payment_date), valor: Number(c.amount_brl || 0) });
+    }
     return out;
-  }, [rec, pay]);
+  }, [rec, pay, costs]);
 
   // E2E já usados no sistema — trava anti-duplicidade (o mesmo comprovante 2x).
   const e2eUsados = useMemo(() => {
@@ -102,10 +109,10 @@ export default function Conciliacao({ rec, pay, reload, flash }: { rec: any[]; p
   function melhorAlvo(ex: any): string {
     const val = ex?.valor != null ? Number(ex.valor) : null;
     if (val == null) return "";
-    const kind: "rec" | "pay" = ex?.sentido === "debito" ? "pay" : "rec";
-    const nome = norm(ex?.match_sugerido || ex?.contraparte_nome);
+    const deb = ex?.sentido === "debito";
+    const nome = norm(ex?.match_sugerido || ex?.contraparte_nome || ex?.descricao);
     const cand = alvos
-      .filter((a) => a.kind === kind)
+      .filter((a) => (deb ? a.kind !== "rec" : a.kind === "rec"))
       .map((a) => {
         let score = 0;
         if (Math.abs(a.valor - val) < 0.01) score += 100;
@@ -173,6 +180,15 @@ export default function Conciliacao({ rec, pay, reload, flash }: { rec: any[]; p
     // baixar: marca a parcela do alvo escolhido como paga (mesmo caminho do fluxo manual)
     const [kind, accId, instS] = String(l.alvo).split(":");
     const inst = Number(instS || 0);
+    if (kind === "cost") {
+      // Custo JÁ cadastrado: registra o pagamento no próprio custo — não cria lançamento novo
+      // (seria dupla contagem: o custo já está no run-rate e no "A pagar").
+      const c = (costs || []).find((x: any) => x.id === accId);
+      if (!c) throw new Error("custo não encontrado — recarregue");
+      await services.finance.costs.save({ id: c.id, payment_date: paidDate, amount_paid: Number(ex.valor || c.amount_brl || 0), notes: [c.notes, `Conciliado por IA em ${brDate(paidDate)}${ex.id_transacao ? ` · E2E ${ex.id_transacao}` : ""}`].filter(Boolean).join(" · ") });
+      patchLinha(d.key, l.key, { status: "done" });
+      return;
+    }
     const acc = (kind === "pay" ? pay || [] : rec || []).find((a: any) => a.id === accId);
     if (!acc) throw new Error("conta não encontrada — recarregue");
     const cur: any[] = Array.isArray(acc.payment_schedule) ? acc.payment_schedule : [];
@@ -279,7 +295,9 @@ export default function Conciliacao({ rec, pay, reload, flash }: { rec: any[]; p
                           const ex = l.ex || {};
                           const nat = NAT_UI[ex.natureza] || NAT_UI.desconhecido;
                           const cred = ex.sentido === "credito";
-                          const opts = alvos.filter((a) => a.kind === (cred ? "rec" : "pay"));
+                          const opts = alvos.filter((a) => (cred ? a.kind === "rec" : a.kind !== "rec"));
+                          // Já existe custo/conta cadastrada com esse valor? Então "registrar lançamento" DUPLICA.
+                          const jaCadastrado = !cred && ex.valor != null && opts.find((a) => Math.abs(a.valor - Number(ex.valor)) < 0.01);
                           return (
                             <tr key={l.key} style={{ borderTop: "1px solid var(--crasto-border-soft)", opacity: l.status === "done" ? 0.5 : 1 }}>
                               <td style={{ ...tdS, whiteSpace: "nowrap" }}>{brDate(ex.data)}</td>
@@ -300,11 +318,12 @@ export default function Conciliacao({ rec, pay, reload, flash }: { rec: any[]; p
                                 </select>
                                 {l.acao === "baixar" && (
                                   <select value={l.alvo} onChange={(e) => patchLinha(d.key, l.key, { alvo: e.target.value })} style={{ ...selStyle, marginTop: 4, maxWidth: 300 }} disabled={l.status !== "pend"}>
-                                    <option value="">— escolher {cred ? "recebível" : "conta a pagar"} —</option>
-                                    {opts.map((a) => <option key={`${a.kind}:${a.accId}:${a.inst}`} value={`${a.kind}:${a.accId}:${a.inst}`}>{a.accName} · {a.inst ? `parc ${a.inst}/${a.total}` : "conta"} · {money(a.valor)} · {brDate(a.venc)}</option>)}
+                                    <option value="">— escolher {cred ? "recebível" : "custo / conta a pagar"} —</option>
+                                    {opts.map((a) => <option key={`${a.kind}:${a.accId}:${a.inst}`} value={`${a.kind}:${a.accId}:${a.inst}`}>{a.kind === "cost" ? "[custo] " : ""}{a.accName} · {a.inst ? `parc ${a.inst}/${a.total}` : a.kind === "cost" ? "cadastrado" : "conta"} · {money(a.valor)}{a.venc ? ` · ${brDate(a.venc)}` : ""}</option>)}
                                   </select>
                                 )}
-                                {l.acao === "baixar" && !l.alvo && <div style={{ fontSize: 11, color: "#B54708", marginTop: 3 }}>sem parcela em aberto que case — escolha ou troque a ação</div>}
+                                {l.acao === "baixar" && !l.alvo && <div style={{ fontSize: 11, color: "#B54708", marginTop: 3 }}>nada em aberto que case — escolha ou troque a ação</div>}
+                                {l.acao === "despesa" && jaCadastrado && <div style={{ fontSize: 11, color: "#B42318", marginTop: 3, fontWeight: 700 }}>⚠ já existe "{jaCadastrado.accName}" com este valor — registrar de novo DUPLICA o custo. Use "Baixar".</div>}
                               </td>
                               <td style={{ ...tdS, whiteSpace: "nowrap" }}>
                                 {l.status === "saving" ? <Loader2 size={14} className="spin" />

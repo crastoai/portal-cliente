@@ -1170,7 +1170,7 @@ export default function Financeiro() {
           </table>
         </div>
       </>) : tab === "conciliacao" ? (
-        <Conciliacao rec={rec} pay={pay} reload={reload} flash={flash} />
+        <Conciliacao rec={rec} pay={pay} costs={costs} reload={reload} flash={flash} />
       ) : tab === "pagar" ? (<>
         {/* A Pagar — layout v3 APROVADO (2026-08-27): componente dedicado com dado real.
             Substitui os KPIs antigos, o CustoIA embedded e a tabela agrupada. */}
