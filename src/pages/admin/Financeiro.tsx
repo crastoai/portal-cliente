@@ -420,9 +420,11 @@ export default function Financeiro() {
   };
 
   // Recebíveis RECORRENTES (contratos) — base dos cards da aba A Receber (Fatia 1).
-  // `mensalDe` espelha a Visão geral: parcela = a mensalidade; recorrência mensal = valor;
-  // anual = valor/12. Como não-recorrente dá 0, o MRR aqui bate com o da Visão geral.
-  const mensalDe = (a: any) => { const r = String(a?.recurrence || "").toLowerCase(); if (r === "mensal" || r === "monthly") { const p = parcelas(a); return p.length ? Number(p[0]?.amount || 0) : Number(a.amount || 0); } if (r === "anual" || r === "yearly") return Number(a.amount || 0) / 12; return 0; };
+  // mesesContrato + mensalDe espelham EXATAMENTE o A Receber (competência): contrato com prazo →
+  // total ÷ meses de vigência (ex.: Carneiro 10k ÷ 12 = 833/mês, NÃO a parcela de 2k). Assim o MRR
+  // do cockpit bate com o da tela A Receber. (Crasto 2026-08-31)
+  const mesesContrato = (a: any) => { const cv = Number(a?.contract_validity_value || 0), u = a?.contract_validity_unit || "months"; const m = u === "years" ? cv * 12 : u === "days" ? Math.max(1, Math.round(cv / 30)) : cv; if (m > 0) return m; return Number(a?.payment_installments || 0) || parcelas(a).length || 0; };
+  const mensalDe = (a: any) => { const m = mesesContrato(a); const total = Number(a?.contract_total || 0); if (total > 0 && m > 0) return total / m; const r = String(a?.recurrence || "").toLowerCase(); if (r === "mensal" || r === "monthly") { const p = parcelas(a); return p.length ? Number(p[0]?.amount || 0) : Number(a.amount || 0); } if (r === "anual" || r === "yearly") return Number(a.amount || 0) / 12; return 0; };
   const recContratos = rec.filter((r) => r.status !== "cancelled" && isRecurring(r));
   const mrrMensal = recContratos.reduce((a, r) => a + mensalDe(r), 0);
   const nContratos = recContratos.length;
