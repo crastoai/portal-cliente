@@ -121,6 +121,10 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
   // Carteira = valor TOTAL de todos os contratos fechados (recebido + a receber). É diferente do card "A receber", que é só o saldo em aberto.
   const carteiraTotal = rows.reduce((a, r) => a + r.recebido + r.aReceber, 0);
   const carteiraRecebido = rows.reduce((a, r) => a + r.recebido, 0);
+  const abertosRows = rows.filter((r) => r.aReceber > 0);
+  const recebidoAbertos = abertosRows.reduce((a, r) => a + r.recebido, 0);   // recebido dos contratos que ainda têm saldo (listados)
+  const recebidoQuitados = carteiraRecebido - recebidoAbertos;               // recebido de contratos já 100% quitados (não listados)
+  const nQuitados = rows.length - abertosRows.length;
   const francisco = ativos.find((r: any) => /francisco|cs adv/i.test(r.contact_name || r.description || ""));
 
   // ---- detalhamento dos cards (drill-down): cada lista SOMA o total do card ----
@@ -173,7 +177,7 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
         pago: r.recebido, contrato: r.recebido + r.aReceber,
         parc: arr(r.ps).map((p: any) => ({ date: ymd(p.date), amount: Number(p.amount || 0), paid: p.status === "paid", pd: p.paid_date })),
       })),
-      carteira: { total: carteiraTotal, recebido: carteiraRecebido, aReceber: aReceberFut },
+      carteira: { total: carteiraTotal, recebido: carteiraRecebido, aReceber: aReceberFut, abertos: recebidoAbertos, quitados: recebidoQuitados, nAbertos: abertosRows.length, nTotal: rows.length, nQuit: nQuitados },
       empty: "Nada em aberto — tudo recebido.",
     } : null;
 
@@ -302,9 +306,11 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
               </table>
               {drillCfg.carteira && (
                 <div className="mc-carteira">
-                  <div className="mc-cart-h">📊 Carteira de contratos (todos já fechados)</div>
+                  <div className="mc-cart-h">📊 Carteira de contratos ({drillCfg.carteira.nTotal} contratos fechados)</div>
                   <div className="mc-cart-row"><span>Valor total contratado</span><b>{BRL(drillCfg.carteira.total)}</b></div>
                   <div className="mc-cart-row"><span>− Já recebido</span><b className="g">{BRL(drillCfg.carteira.recebido)}</b></div>
+                  <div className="mc-cart-sub"><span>• dos {drillCfg.carteira.nAbertos} contratos em aberto (listados acima)</span><b>{BRL(drillCfg.carteira.abertos)}</b></div>
+                  <div className="mc-cart-sub"><span>• de {drillCfg.carteira.nQuit} contratos já 100% quitados</span><b>{BRL(drillCfg.carteira.quitados)}</b></div>
                   <div className="mc-cart-row hl"><span>= A receber (este card)</span><b className="b">{BRL(drillCfg.carteira.aReceber)}</b></div>
                 </div>
               )}</>
@@ -404,5 +410,7 @@ const CSS = `
 .mc-cart-row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13.5px;color:var(--txt);padding:5px 0}
 .mc-cart-row b{font-variant-numeric:tabular-nums}
 .mc-cart-row b.g{color:var(--green-ink)}.mc-cart-row b.b{color:var(--blue-ink)}
+.mc-cart-sub{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;color:var(--muted);padding:2px 0 2px 12px}
+.mc-cart-sub b{font-variant-numeric:tabular-nums;font-weight:600;color:var(--muted)}
 .mc-cart-row.hl{border-top:2px solid var(--line2);margin-top:4px;padding-top:9px;font-weight:800;font-size:15px}
 `;
