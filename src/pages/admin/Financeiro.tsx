@@ -538,7 +538,20 @@ export default function Financeiro() {
   const fmtD = (d: any) => (ymd(d) ? new Date(ymd(d) + "T00:00:00").toLocaleDateString("pt-BR") : "—");
   const custoMensalDe = (c: any) => (c.recurrence === "mensal" ? Number(c.amount_brl || 0) : c.recurrence === "anual" ? Number(c.amount_brl || 0) / 12 : 0);
   // A receber
-  const rowsRecMes = recFlatRec.filter((p) => inMes(p.date)).map((p) => ({ name: p.name, detail: fmtD(p.date), value: p.amount, tone: p.paid ? "ok" : "info", status: p.paid ? t("Recebido") : t("A receber") }));
+  // NENHUM cliente recorrente pode sumir em silêncio: o card lista TODOS os contratos recorrentes ativos.
+  // Quem não tem parcela no período entra com R$ 0 e o MOTIVO (não altera o total); quem está sem
+  // cronograma cadastrado entra com ALERTA — antes esses casos simplesmente desapareciam da lista.
+  const recAtivosRec = rec.filter((r) => r.status !== "cancelled" && isRecurring(r));
+  const perToRef = per?.to || today();
+  const rowsRecMes = [
+    ...recFlatRec.filter((p) => inMes(p.date)).map((p) => ({ name: p.name, detail: fmtD(p.date), value: p.amount, tone: p.paid ? "ok" : "info", status: p.paid ? t("Recebido") : t("A receber") })),
+    ...recAtivosRec.filter((r) => !recFlatRec.some((p) => p.ref === r && inMes(p.date))).map((r) => {
+      const ps = parcelas(r);
+      if (!ps.length) return { name: r.contact_name, detail: t("contrato recorrente SEM cronograma cadastrado — revisar"), value: 0, tone: "warn", status: t("Sem cronograma") };
+      const prox = ps.map((p: any) => ymd(p.date)).filter((d: string) => d && d > perToRef).sort()[0];
+      return { name: r.contact_name, detail: prox ? `${t("sem parcela neste período")} · ${t("próxima")} ${fmtD(prox)}` : t("sem parcela neste período · contrato encerrado"), value: 0, tone: "mute", status: t("Sem parcela") };
+    }),
+  ];
   const rowsRecebidoMes = recFlat.filter((p) => p.paid && inMes(p.date)).map((p) => ({ name: p.name, detail: fmtD(p.date), value: p.amount, tone: "ok", status: t("Recebido") }));
   const rowsRecebidoCal = recFlat.filter((p: any) => p.paid && inMes(p.date)).map((p: any) => ({ name: p.name, detail: fmtD(p.date), value: p.amount, tone: "ok", status: t("Recebido") }));
   const rowsResultadoCal = [ { name: t("Entrou (caixa)"), detail: t("recebido de fato no período"), value: recebidoCal, tone: "ok", status: "+" }, { name: t("Saiu (caixa)"), detail: t("pago de fato no período"), value: -saiuNoMes, tone: "warn", status: "−" } ];

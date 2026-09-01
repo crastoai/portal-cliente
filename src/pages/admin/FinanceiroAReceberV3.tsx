@@ -142,6 +142,16 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
     const contrato = parc.reduce((a: number, p: any) => a + p.amount, 0) || Number(raw?.contract_total || raw?.amount || 0);
     return { id: raw?.id, parc, pago, contrato };
   };
+  // AUDITORIA AUTOMÁTICA: denuncia contrato que alimentaria os cards com número errado — recorrente sem
+  // cronograma (sumiria dos cards de mês) ou parcelas que não somam o valor do contrato. Some sozinha quando zerada.
+  const integridade = ativos.map((r: any) => {
+    const ps = arr(r.payment_schedule);
+    const soma = ps.reduce((a: number, p: any) => a + Number(p.amount || 0), 0);
+    const tot = Number(r.contract_total || r.amount || 0);
+    if (isRecurring(r) && ps.length === 0) return { nome: nomeDe(r), msg: "contrato recorrente sem cronograma de parcelas — não entra nos cards do mês" };
+    if (ps.length > 0 && tot > 0 && Math.abs(soma - tot) > 0.5) return { nome: nomeDe(r), msg: `parcelas somam ${BRL(soma)}, mas o contrato é ${BRL(tot)}` };
+    return null;
+  }).filter(Boolean) as any[];
   const recorrentes = ativos.filter(isRecurring);
   const drillCfg: any =
     drill === "mrr" ? {
@@ -220,6 +230,7 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
 
       <div className="frv3-note"><b>Duas verdades, dois números.</b> <b>Competência (MRR)</b> = saúde do negócio (receita recorrente mês a mês). <b>Caixa</b> = dinheiro que entrou (paga as contas). O sistema guarda os dois e nunca os mistura.</div>
       {semNfRecebido > 0 && <div className="frv3-note" style={{ borderLeft: "3px solid #f5b301", background: "rgba(245,179,1,.08)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}><span><b>🧾 Recebido sem NF: {BRL(semNfRecebido)}</b> — {semNfRows.length} lançamento(s) a formalizar.</span><span style={{ fontSize: 11.5, color: "var(--crasto-text-muted, #667085)" }}>Selo "sem NF" em cada linha; clique no selo quando emitir a nota.</span></div>}
+      {integridade.length > 0 && <div className="frv3-note" style={{ borderLeft: "3px solid var(--red)", background: "rgba(220,38,38,.08)" }}><b>⚠ Inconsistência de contrato ({integridade.length})</b> — estes contratos alimentariam os cards com número errado:<ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>{integridade.map((x: any, i: number) => <li key={i} style={{ marginTop: 2 }}><b>{x.nome}</b>: {x.msg}</li>)}</ul></div>}
 
       <div className="frv3-sech"><h3>Contratos &amp; recebíveis</h3><span className="rt">{rows.length} recebível(is)</span></div>
       <div className="frv3-tablewrap"><div className="frv3-tscroll">
