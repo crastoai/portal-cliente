@@ -20,7 +20,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
  *   escolher. Senão um esbarrão no mouse "responderia" por ela.
  */
 const KEY = "crasto.lastActivity";
-export const IDLE_MS = 30 * 60 * 1000; // 30 min parado → pergunta (break de 30 min; servidor também enforça)
+// Reunião SR Brasil (01/09): o logout a cada 30 min derrubava a equipe o dia todo (re-login
+// constante). Subimos para 12h — na prática ninguém cai durante o expediente; só uma inatividade
+// LONGA (madrugada / máquina esquecida) fecha a sessão, mantendo a segurança e o relógio de ponto
+// (o servidor carimba logout_at = last_active_at, então as horas seguem corretas). GLOBAL.
+export const IDLE_MS = 12 * 60 * 60 * 1000; // 12h parado → pergunta (servidor também enforça 12h)
 export const WARN_MS = 30 * 1000;      // 30s para responder → sai
 
 const agora = () => Date.now();

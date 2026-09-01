@@ -39,7 +39,7 @@ export class SessionEnforcementInterceptor implements NestInterceptor {
     try {
       await this.db.asService(async (c) => {
         const r = (await c.query(
-          `select id, (now() - last_active_at) > interval '30 minutes' as idle
+          `select id, (now() - last_active_at) > interval '12 hours' as idle
              from delivery.user_sessions
             where user_id = $1 and logout_at is null
             order by started_at desc limit 1`,
