@@ -65,7 +65,6 @@ function finQuickPeriods() {
   const backMonths = (n: number) => { const d = new Date(now); d.setMonth(d.getMonth() - n); return iso(d); };
   const to = iso(now);
   return [
-    { key: "30d", label: "30 dias", from: backDays(30), to },
     { key: "1m", label: "1 mês", from: backMonths(1), to },
     { key: "3m", label: "3 meses", from: backMonths(3), to },
     { key: "6m", label: "6 meses", from: backMonths(6), to },

@@ -61,7 +61,6 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
   const _bd = (n: number) => { const d = new Date(_d0); d.setDate(d.getDate() - n + 1); return d.toISOString().slice(0, 10); };
   const _bm = (n: number) => { const d = new Date(_d0); d.setMonth(d.getMonth() - n); return d.toISOString().slice(0, 10); };
   const QUICK = [
-    { key: "30d", label: "30 dias", from: _bd(30), to: today },
     { key: "1m", label: "1 mês", from: _bm(1), to: today },
     { key: "3m", label: "3 meses", from: _bm(3), to: today },
     { key: "6m", label: "6 meses", from: _bm(6), to: today },
