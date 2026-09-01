@@ -55,6 +55,8 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
 
   // ---- parcelas: expandir + marcar recebida + editar (persistido em payment_schedule) ----
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [drillExp, setDrillExp] = useState<Set<string>>(new Set());
+  const toggleDrillExp = (k: string) => setDrillExp((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; });
   const [busyP, setBusyP] = useState(false);
   const [parcEdit, setParcEdit] = useState<{ id: string; idx: number; date: string; amount: string } | null>(null);
   // atalhos de período (fluxo): 30 dias (padrão) / 1m / 3m / 6m / 1 ano — dirige "Recebido no período"
@@ -116,6 +118,9 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
   const semNfRecebido = semNfRows.reduce((a: number, r: any) => a + r.recebido, 0);
   const toggleNf = async (r: any) => { setBusyP(true); try { await services.finance.accounts.save({ id: r.id, account_type: "receivable", has_nf: !r.raw?.has_nf }); reload?.(); } catch (e: any) { alert("Erro: " + (e?.message || e)); } finally { setBusyP(false); } };
   const aReceberFut = rows.reduce((a, r) => a + r.aReceber, 0);
+  // Carteira = valor TOTAL de todos os contratos fechados (recebido + a receber). É diferente do card "A receber", que é só o saldo em aberto.
+  const carteiraTotal = rows.reduce((a, r) => a + r.recebido + r.aReceber, 0);
+  const carteiraRecebido = rows.reduce((a, r) => a + r.recebido, 0);
   const francisco = ativos.find((r: any) => /francisco|cs adv/i.test(r.contact_name || r.description || ""));
 
   // ---- detalhamento dos cards (drill-down): cada lista SOMA o total do card ----
@@ -146,10 +151,17 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
       rows: recVarRows.map((x: any) => ({ nome: x.cliente, valor: x.valor, det: `${String(x.modelo).toLowerCase()} · recebido no período` })),
       empty: "Nenhuma venda variável recebida no período.",
     } : drill === "futuro" ? {
-      title: `A receber (futuro) — composição de ${BRL(aReceberFut)}`,
-      sub: "Saldo em aberto = contratado − já recebido, somando TODAS as parcelas ainda não recebidas de todos os contratos (sem recorte de data; cada parcela tem seu vencimento na lista).",
+      title: `A receber (futuro) — saldo em aberto de ${BRL(aReceberFut)}`,
+      sub: "Este card é o SALDO EM ABERTO: tudo que ainda vai entrar dos contratos já fechados (contratado − já recebido). NÃO é o valor total dos contratos. Clique numa empresa para abrir mês a mês (✓ pagos × ⏳ a pagar).",
       total: aReceberFut,
-      rows: rows.filter(r => r.aReceber > 0).map(r => ({ nome: r.cliente, valor: r.aReceber, det: `${BRL(r.recebido)} recebido de ${BRL(r.recebido + r.aReceber)}` })),
+      tree: true,
+      rows: rows.filter(r => r.aReceber > 0).map(r => ({
+        id: r.id, nome: r.cliente, valor: r.aReceber,
+        det: `${BRL(r.recebido)} recebido de ${BRL(r.recebido + r.aReceber)} contratados`,
+        pago: r.recebido, contrato: r.recebido + r.aReceber,
+        parc: arr(r.ps).map((p: any) => ({ date: ymd(p.date), amount: Number(p.amount || 0), paid: p.status === "paid", pd: p.paid_date })),
+      })),
+      carteira: { total: carteiraTotal, recebido: carteiraRecebido, aReceber: aReceberFut },
       empty: "Nada em aberto — tudo recebido.",
     } : null;
 
@@ -182,7 +194,7 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
         </div>
         <div className="frv3-kpi clk" onClick={() => setDrill("caixa")} title="Clique para ver o que foi recebido no período"><div className="lbl">Recebido no período (caixa)</div><div className="val green">{BRL(recebidoPeriodo)}</div><div className="hint">{per.label.toLowerCase()} · entrou de fato</div></div>
         <div className="frv3-kpi clk" onClick={() => setDrill("variavel")} title="Vendas pontuais/variáveis recebidas no período — fora do MRR"><div className="lbl">Receita variável (pontual)</div><div className="val" style={{ color: "var(--amber)" }}>{BRL(recebidoVariavel)}</div><div className="hint">{per.label.toLowerCase()} · fora do MRR</div></div>
-        <div className="frv3-kpi clk" onClick={() => setDrill("futuro")} title="Clique para ver o saldo a receber"><div className="lbl">A receber (futuro)</div><div className="val blue">{BRL(aReceberFut)}</div><div className="hint">contratado, ainda não recebido</div></div>
+        <div className="frv3-kpi clk" onClick={() => setDrill("futuro")} title="Clique para abrir contrato a contrato (mês a mês) + a carteira total"><div className="lbl">A receber (futuro)</div><div className="val blue">{BRL(aReceberFut)}</div><div className="hint">saldo em aberto = contratado − já recebido</div></div>
       </div>
 
       <div className="frv3-note"><b>Duas verdades, dois números.</b> <b>Competência (MRR)</b> = saúde do negócio (receita recorrente mês a mês). <b>Caixa</b> = dinheiro que entrou (paga as contas). O sistema guarda os dois e nunca os mistura.</div>
@@ -246,14 +258,44 @@ export default function FinanceiroAReceberV3({ rec, reload }: { rec: any[]; relo
             {drillCfg.rows.length === 0 ? (
               <div className="frv3-modal-empty">{drillCfg.empty || "Sem itens."}</div>
             ) : (
-              <table className="frv3-modal-tbl">
+              <><table className="frv3-modal-tbl">
                 <tbody>
                   {drillCfg.rows.map((it: any, i: number) => (
-                    <tr key={i}><td className="mc-nome">{it.nome}<small>{it.det}</small></td><td className="mc-val">{BRL(it.valor)}</td></tr>
+                    drillCfg.tree ? (
+                      <Fragment key={i}>
+                        <tr className="mc-clk" onClick={() => toggleDrillExp(it.id)}>
+                          <td className="mc-nome"><span className="mc-caret">{drillExp.has(it.id) ? "▾" : "▸"}</span>{it.nome}<small>{it.det}</small></td>
+                          <td className="mc-val">{BRL(it.valor)}</td>
+                        </tr>
+                        {drillExp.has(it.id) && (
+                          <tr className="mc-subrow"><td colSpan={2}>
+                            <div className="mc-tree">
+                              {it.parc.length === 0 ? <div className="mc-trow">Sem parcelas cadastradas.</div> : it.parc.map((p: any, k: number) => (
+                                <div key={k} className={"mc-trow" + (p.paid ? " pago" : " pend")}>
+                                  <span>{p.paid ? "✓" : "⏳"} {fmtDT(p.date)}</span>
+                                  <span className="mc-tval">{BRL(p.amount)} <em>{p.paid ? "pago" : "a pagar"}</em></span>
+                                </div>
+                              ))}
+                              <div className="mc-tsum"><span>Pago {BRL(it.pago)} · Falta {BRL(it.valor)}</span><span>Total do contrato {BRL(it.contrato)}</span></div>
+                            </div>
+                          </td></tr>
+                        )}
+                      </Fragment>
+                    ) : (
+                      <tr key={i}><td className="mc-nome">{it.nome}<small>{it.det}</small></td><td className="mc-val">{BRL(it.valor)}</td></tr>
+                    )
                   ))}
                 </tbody>
-                <tfoot><tr><td className="mc-nome"><b>Total</b>{drillCfg.foot ? <small>{drillCfg.foot}</small> : null}</td><td className="mc-val"><b>{BRL(drillCfg.total)}</b></td></tr></tfoot>
+                <tfoot><tr><td className="mc-nome"><b>{drillCfg.tree ? "Total a receber" : "Total"}</b>{drillCfg.foot ? <small>{drillCfg.foot}</small> : null}</td><td className="mc-val"><b>{BRL(drillCfg.total)}</b></td></tr></tfoot>
               </table>
+              {drillCfg.carteira && (
+                <div className="mc-carteira">
+                  <div className="mc-cart-h">📊 Carteira de contratos (todos já fechados)</div>
+                  <div className="mc-cart-row"><span>Valor total contratado</span><b>{BRL(drillCfg.carteira.total)}</b></div>
+                  <div className="mc-cart-row"><span>− Já recebido</span><b className="g">{BRL(drillCfg.carteira.recebido)}</b></div>
+                  <div className="mc-cart-row hl"><span>= A receber (este card)</span><b className="b">{BRL(drillCfg.carteira.aReceber)}</b></div>
+                </div>
+              )}</>
             )}
           </div>
         </div>
@@ -335,4 +377,20 @@ const CSS = `
 .frv3-modal-tbl .mc-val{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--txt)}
 .frv3-modal-tbl tfoot td{border-top:2px solid var(--line2);font-size:15px;padding-top:13px}
 .frv3-modal-tbl tfoot .mc-val b{color:var(--blue-ink)}
+.frv3-modal-tbl tr.mc-clk{cursor:pointer}
+.frv3-modal-tbl tr.mc-clk:hover td{background:var(--hover)}
+.mc-caret{display:inline-block;width:16px;color:var(--blue-ink);font-size:11px;margin-right:4px}
+.frv3-modal-tbl tr.mc-subrow td{padding:0 4px 10px 4px;border-top:0}
+.mc-tree{background:var(--hover);border-radius:12px;padding:10px 12px;margin-top:2px}
+.mc-trow{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12.5px;color:var(--muted);padding:4px 2px;border-bottom:1px dashed var(--line)}
+.mc-trow.pago{color:var(--green-ink)}.mc-trow.pend{color:var(--txt)}
+.mc-trow .mc-tval{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mc-trow .mc-tval em{font-style:normal;font-weight:500;font-size:11px;color:var(--muted2);margin-left:4px}
+.mc-tsum{display:flex;justify-content:space-between;gap:10px;font-size:12px;font-weight:700;color:var(--txt);padding-top:8px;margin-top:4px;flex-wrap:wrap}
+.mc-carteira{margin-top:16px;border:1px solid var(--line2);border-radius:14px;padding:14px 16px;background:var(--info-bg)}
+.mc-cart-h{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--blue-ink);margin-bottom:8px}
+.mc-cart-row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13.5px;color:var(--txt);padding:5px 0}
+.mc-cart-row b{font-variant-numeric:tabular-nums}
+.mc-cart-row b.g{color:var(--green-ink)}.mc-cart-row b.b{color:var(--blue-ink)}
+.mc-cart-row.hl{border-top:2px solid var(--line2);margin-top:4px;padding-top:9px;font-weight:800;font-size:15px}
 `;
