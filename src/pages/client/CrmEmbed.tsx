@@ -595,7 +595,12 @@ export default function CrmEmbed() {
 // inteiro, não só o iframe do CRM). Largo. Lê a trilha da wacrm-api com o token do Portal, atualiza
 // a cada 5s (ao vivo) e permite registrar um log manual. Global (todo cliente). ──
 type AuditEv = { id: string; at: string; action: string; actor_name?: string | null; actor_email?: string | null; context?: Record<string, unknown> };
-const dotColor: Record<string, string> = { assumiu: "#2E6F9E", transferiu: "#C9922B", devolveu_ia: "#8892A6", descartou_auto: "#B85C5C", nota: "#1F8A5B" };
+const dotColor: Record<string, string> = {
+  assumiu: "#2E6F9E", transferiu: "#C9922B", devolveu_ia: "#8892A6", descartou_auto: "#B85C5C",
+  descartou_auto_frio: "#B85C5C", nota: "#1F8A5B",
+  // vermelho = saiu do funil / foi apagado (o que o dono mais precisa enxergar de longe)
+  lead_deleted: "#B8434E", conversation_deleted: "#B8434E", conversations_messages_delete: "#B8434E",
+};
 // Data e hora EXATAS, até o segundo (um log tem que saber de tudo): DD/MM/AAAA HH:MM:SS.
 function dataHora(iso: string): string {
   return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -603,6 +608,56 @@ function dataHora(iso: string): string {
 function quemDe(e: AuditEv): string {
   if (e.action === "descartou_auto") return "IA (automático)";
   return e.actor_name || e.actor_email || "Sistema";
+}
+// Frases prontas das ações que o sistema registra sozinho (interceptador da API). A chave é o
+// nome técnico da rota; o que aparece na tela é SEMPRE português comum — o cliente nunca pode ver
+// um "conversations_messages_delete" no histórico dele.
+const FRASES: Record<string, string> = {
+  leads_create: "Cadastrou um lead",
+  leads_update: "Editou um lead",
+  leads_promote_create: "Promoveu um lead para o funil",
+  leads_distribute_create: "Distribuiu leads entre os vendedores",
+  leads_conversation_create: "Abriu conversa com um lead",
+  leads_import_create: "Importou uma lista de leads",
+  leads_assume_create: "Assumiu um lead",
+  leads_release_create: "Devolveu um lead para a fila",
+  conversations_create: "Iniciou uma conversa",
+  conversations_update: "Atualizou uma conversa",
+  conversations_reopen_create: "Reabriu uma conversa",
+  conversations_forward_create: "Encaminhou uma mensagem",
+  "conversations_transfer-agent_create": "Transferiu a conversa para outro número",
+  conversations_messages_delete: "Apagou uma mensagem",
+  conversations_messages_update: "Editou uma mensagem",
+  conversations_docs_create: "Anexou um documento",
+  conversations_docs_update: "Alterou um documento",
+  conversations_docs_delete: "Removeu um documento",
+  conversations_tasks_create: "Criou uma tarefa",
+  conversations_schedule_create: "Agendou um envio",
+  deals_create: "Criou um negócio",
+  deals_update: "Alterou um negócio",
+  deals_delete: "Apagou um negócio",
+  deals_origem_create: "Trocou a origem de um negócio",
+  contacts_create: "Cadastrou um contato",
+  contacts_update: "Editou um contato",
+  contacts_delete: "Apagou um contato",
+};
+// Rede de segurança: ação nova que ainda não ganhou frase própria vira português mesmo assim
+// (nunca o nome técnico da rota). Ex.: "agenda_update" → "Alterou um registro em agenda".
+const COISAS: Record<string, string> = {
+  leads: "um lead", conversations: "uma conversa", messages: "uma mensagem", deals: "um negócio",
+  contacts: "um contato", docs: "um documento", tasks: "uma tarefa", agents: "um agente",
+  pipelines: "um funil", stages: "uma etapa", templates: "um modelo de mensagem",
+};
+// Nome das etapas como o cliente vê no funil (não o código do banco).
+const ETAPAS: Record<string, string> = {
+  novo: "Prospecto", template_enviado: "Template enviado", respondeu: "Lead", ligacoes: "Ligações",
+  aguardando: "Aguardando", oportunidade: "Oportunidade", convertido: "Convertido", descartado: "Descartado",
+};
+function fraseGenerica(action: string): string {
+  const p = action.split("_");
+  const verbo = { create: "Criou", update: "Alterou", delete: "Apagou" }[p[p.length - 1]] || "Mexeu em";
+  const coisa = COISAS[p[p.length - 2]] || COISAS[p[0]] || "um registro";
+  return `${verbo} ${coisa}`;
 }
 function acaoDe(e: AuditEv): string {
   const c = (e.context || {}) as Record<string, string>;
@@ -612,11 +667,19 @@ function acaoDe(e: AuditEv): string {
     case "devolveu_ia": return `Devolveu${contato} para a IA`;
     case "transferiu": return `Transferiu${contato} para ${c.para || "um colega"}`;
     case "descartou_auto": return `Moveu${contato} para Descartados (${c.motivo || "recusa"})`;
+    case "descartou_auto_frio": return `Moveu${contato} para Descartados (respondeu e esfriou)`;
     case "nota": return `Nota: ${c.texto || ""}${c.contato ? ` — ${c.contato}` : ""}`;
     case "entrou_no_crm": return "Entrou no CRM";
     case "conversation_deleted": return "Apagou uma conversa";
     case "conversation_cleared": return "Limpou uma conversa";
-    default: return e.action;
+    // Exclusão de LEAD (01/09/2026): sumiam do funil sem deixar rastro de quem apagou.
+    case "lead_deleted":
+      return `Apagou o lead${contato || " (sem nome)"}${c.etapa ? ` — estava em ${ETAPAS[c.etapa] || c.etapa}` : ""}`;
+    default: {
+      const pronta = FRASES[e.action];
+      if (pronta) return contato ? `${pronta} — ${c.contato}` : pronta;
+      return fraseGenerica(e.action);
+    }
   }
 }
 function HistoricoPortal({ apiBase, token, t, onClose }: { apiBase: string; token: string | null; t: (s: string) => string; onClose: () => void }) {
