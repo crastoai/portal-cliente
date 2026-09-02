@@ -112,6 +112,16 @@ export const crmScreens = {
   set: async (userId: string, screens: string[]) => api.post<{ ok?: boolean; screens?: string[]; error?: string }>(`/api/delivery/crm-screens`, { user_id: userId, screens }),
 };
 
+// "Vê tudo" por PESSOA: alcance da visão (todos os leads/conversas x só os designados), separado
+// do PAPEL, que decide o poder (convidar/remover/configurar). `restricao_ligada` diz se a empresa
+// está de fato restringindo — sem isso a marca fica guardada mas não muda nada na prática.
+export const veTudo = {
+  get: async (userId: string) =>
+    api.get<{ has_access: boolean; owner: boolean; ve_tudo: boolean; restricao_ligada: boolean; error?: string }>(`/api/delivery/ve-tudo?user=${encodeURIComponent(userId)}`),
+  set: async (userId: string, ve_tudo: boolean) =>
+    api.post<{ ok?: boolean; ve_tudo?: boolean; error?: string }>(`/api/delivery/ve-tudo`, { user_id: userId, ve_tudo }),
+};
+
 // Agentes da empresa + de quais o colaborador é RESPONSÁVEL (aprovação in-system) — caminho do cliente
 // (dono/admin), pela guarda do delivery. A dúvida da IA chega ao responsável na Minha Mesa + sino.
 export const crmAgents = {
@@ -303,4 +313,4 @@ export const userSession = {
   close: async () => api.post(`/api/delivery/session-close`, {}),
 };
 
-export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, collaborator, myCollaborator, crmScreens, crmAgents, selfService, moduleSessions, teamUsage, meetings, implEvents, agentUsage, cockpit, crmLive, userSession };
+export const delivery = { clientModules, implementations, systemHealth, projectTasks, moduleCredentials, clientServices, userModules, userScreens, collaborator, myCollaborator, crmScreens, veTudo, crmAgents, selfService, moduleSessions, teamUsage, meetings, implEvents, agentUsage, cockpit, crmLive, userSession };

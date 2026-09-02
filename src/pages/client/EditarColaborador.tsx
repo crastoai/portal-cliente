@@ -174,6 +174,11 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
   // chega a quem for responsável (Minha Mesa + sino). Sem ninguém → aparece para todos.
   const [agentsList, setAgentsList] = useState<{ id: string; name: string }[]>([]);
   const [respAgents, setRespAgents] = useState<Set<string>>(new Set());
+  // Alcance da visão: separado do papel de propósito (papel = poder; esta marca = alcance).
+  const [veTudo, setVeTudo] = useState(false);
+  const [veTudoInicial, setVeTudoInicial] = useState(false);   // só grava se mudou
+  const [veTudoDisponivel, setVeTudoDisponivel] = useState(false);
+  const [restricaoLigada, setRestricaoLigada] = useState(false);
   // Regime tributário da EMPRESA (custo do empregador — Fatia 3). Padrão Simples; só o dono edita.
   const [orgTaxRegime, setOrgTaxRegime] = useState<string>("simples");
 
@@ -281,6 +286,25 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
     return () => { alive = false; };
   }, [orgId, user?.id, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Alcance da visão (marca "vê tudo") — só faz sentido para quem já existe e não é dono.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      // Só faz sentido para quem USA o CRM: a marca é sobre leads e conversas. Quem só tem
+      // Financeiro, por exemplo, veria um interruptor que não muda nada na vida dele.
+      if (!user?.id || targetIsOwner || !crmHas) return;
+      try {
+        const r: any = await services.delivery.veTudo.get(user.id);
+        if (!alive || r?.error || !r?.has_access) return;
+        setVeTudo(r.ve_tudo === true);
+        setVeTudoInicial(r.ve_tudo === true);
+        setRestricaoLigada(r.restricao_ligada === true);
+        setVeTudoDisponivel(true);
+      } catch { /* sem CRM → o bloco some */ }
+    })();
+    return () => { alive = false; };
+  }, [user?.id, targetIsOwner, crmHas]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── árvore de permissões ──────────────────────────────────────────────────────────────────
   const groups: Group[] = useMemo(() => [
     ...SCREENS_BY_CATEGORY.map((g) => ({ key: g.key, label: g.label, kind: "portal" as Kind, items: g.screens.map((s) => ({ key: s.key, label: s.label, base: s.key === BASE_SCREEN })) })),
@@ -387,6 +411,21 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
       if (!isAdmin && crmHas) {
         const rr: any = await services.delivery.crmAgents.setResponsibles(uid!, Array.from(respAgents));
         if (rr?.error) throw new Error(rr.error);
+      }
+      // Alcance da visão — só grava se o dono realmente mexeu no interruptor (e nunca para o dono,
+      // que enxerga tudo por definição e teria a gravação recusada pelo back).
+      if (veTudoDisponivel && !ehDono && veTudo !== veTudoInicial) {
+        const rv: any = await services.delivery.veTudo.set(uid!, veTudo);
+        if (rv?.error) throw new Error(rv.error);
+      }
+      // HIGIENE: ao promover alguém a DONO, zera a marca. O dono vê tudo pelo papel; se um dia for
+      // rebaixado a membro, não pode herdar em silêncio o alcance que tinha antes.
+      // Roda DEPOIS da promoção (o papel no CRM já é dono), por isso o back precisa aceitar a
+      // limpeza mesmo para dono — ligar é que continua recusado. Falha aqui não derruba o
+      // salvamento, mas é registrada: silêncio total foi o que escondeu o problema antes.
+      if (veTudoDisponivel && ehDono && veTudoInicial) {
+        const rz: any = await services.delivery.veTudo.set(uid!, false).catch(() => null);
+        if (rz?.error) console.warn("[ve-tudo] não foi possível limpar a marca ao promover a dono:", rz.error);
       }
       onSaved(isNew ? t("Colaborador criado ✓") : t("Colaborador atualizado ✓"));
     } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
@@ -508,6 +547,49 @@ export default function EditarColaborador({ orgId, user, context = "client", onC
               <button key={lv.key} type="button" className={"ec-seg-b" + (!dono && level === lv.key ? " on" : "")} onClick={() => { setDono(false); setLevel(lv.key); }}>{t(lv.label)}</button>
             ))}
           </div>
+          {veTudoDisponivel && (
+            <div style={{
+              marginTop: 18, padding: 16, borderRadius: 14,
+              border: "1px solid rgba(110,156,232,0.38)",
+              background: "rgba(110,156,232,0.08)",
+              boxShadow: "0 1px 0 rgba(110,156,232,0.10) inset",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                <span style={{ display: "inline-flex", width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 9, background: "linear-gradient(135deg,#6E9CE8,#2E6F9E)", color: "#fff", flex: "0 0 auto", boxShadow: "0 2px 8px rgba(46,111,158,0.35)" }}>
+                  <Shield size={16} />
+                </span>
+                <span style={{ fontSize: 13.5, fontWeight: 800, letterSpacing: ".02em", color: "var(--crasto-blue)" }}>{t("O que esta pessoa enxerga")}</span>
+              </div>
+              <p style={{ margin: "0 0 12px 40px", fontSize: 12.5, lineHeight: 1.55, color: "var(--crasto-text-body)" }}>
+                {t("Por padrão, um membro vê apenas os contatos e conversas designados a ele — mais a fila de quem ainda não tem responsável. Ligue abaixo se esta pessoa precisar acompanhar a operação inteira (por exemplo, quem supervisiona o time) sem virar dona da conta.")}
+              </p>
+              <div style={{ marginLeft: 40, display: "flex", flexDirection: "column", gap: 10 }}>
+                <button type="button" aria-pressed={veTudo} onClick={() => setVeTudo((v) => !v)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, cursor: "pointer",
+                    border: "1px solid " + (veTudo ? "var(--crasto-blue)" : "rgba(0,0,0,0.14)"),
+                    background: veTudo ? "rgba(110,156,232,0.16)" : "var(--crasto-surface, #fff)",
+                    textAlign: "left", width: "100%",
+                  }}>
+                  <span style={{
+                    width: 34, height: 20, borderRadius: 999, flex: "0 0 auto", position: "relative",
+                    background: veTudo ? "var(--crasto-blue)" : "rgba(0,0,0,0.22)", transition: "background .15s",
+                  }}>
+                    <span style={{ position: "absolute", top: 2, left: veTudo ? 16 : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left .15s" }} />
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>
+                    {veTudo ? t("Vê toda a operação da empresa") : t("Vê apenas o que é designado a ela")}
+                  </span>
+                </button>
+                {/* Sem a restrição ligada, TODO MUNDO já vê tudo — o interruptor ficaria mentindo. */}
+                {!restricaoLigada && (
+                  <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "var(--crasto-text-muted, #6b7280)" }}>
+                    {t("Hoje toda a equipe enxerga a operação inteira, então esta opção fica guardada mas ainda não muda nada. Fale com a Crasto para passar a separar por responsável.")}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
           {agentsList.length > 0 && (
             <div style={{
               marginTop: 18, padding: 16, borderRadius: 14,

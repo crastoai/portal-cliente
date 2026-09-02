@@ -572,6 +572,27 @@ export class DeliveryController {
     return null;
   }
 
+  /**
+   * Portão ESTRITO: só o DONO da org (ou a Crasto). Usado no alcance de visão ("vê tudo").
+   *
+   * NÃO reusar `gerenciaModulos` aqui: aquele portão libera também o colaborador admin-level, e
+   * ele existe para gerir MÓDULOS E TELAS — um poder de configuração. Alcance de dados é outra
+   * coisa: se o admin-level pudesse mexer nisso, ligaria a marca para SI MESMO e passaria a ver a
+   * operação inteira, reacoplando poder e alcance — exatamente o que esta funcionalidade separa.
+   * (QA pegou como P0 antes do deploy, 01/09/2026.)
+   */
+  private async apenasDono(c: any, callerId: string, targetId: string): Promise<string | null> {
+    const caller = (await c.query(`select id, role::text r, organization_id o from public.profiles where id=$1`, [callerId])).rows[0];
+    const target = (await c.query(`select id, role::text r, organization_id o from public.profiles where id=$1`, [targetId])).rows[0];
+    if (!caller || !target) return null;
+    if (caller.r === 'crasto_admin') return target.o;
+    if (caller.o !== target.o) return null;                       // fora da própria org: nunca
+    // Nem o dono mexe no próprio alcance por esta porta: ele já vê tudo pelo papel, e permitir a
+    // auto-edição só abriria caminho para confusão (e para o alvo virar o próprio chamador).
+    if (caller.r === 'client_owner' && String(caller.id) !== String(target.id)) return target.o;
+    return null;
+  }
+
   // Chama um endpoint INTERNO do wacrm (service-to-service, X-Service-Key — sem bearer). É como
   // o dono/admin do CLIENTE (que não passa pelo AdminGuard do crm-access) grava telas do CRM.
   private async callCrmInternal(path: string, body: any): Promise<any | null> {
@@ -787,6 +808,28 @@ export class DeliveryController {
       return (await this.callCrmInternal('/internal/get-crm-screens', { id: user, organization_id: org })) ?? { error: 'CRM indisponível' };
     });
   }
+  // "Vê tudo" por PESSOA — o dono liga/desliga sem depender da Crasto. O papel segue decidindo o
+  // PODER (convidar/remover/configurar); esta marca decide só o ALCANCE da visão, para o caso do
+  // membro que precisa enxergar a operação inteira sem virar dono.
+  @Get('ve-tudo')
+  async veTudoGet(@Req() req: any, @Query('user') user: string) {
+    return this.db.asService(async (c) => {
+      const org = await this.apenasDono(c, this.uid(req), user);
+      if (!org) return { error: 'sem permissão' };
+      return (await this.callCrmInternal('/internal/get-ve-tudo', { id: user, organization_id: org })) ?? { error: 'CRM indisponível' };
+    });
+  }
+  @Post('ve-tudo')
+  async veTudoSet(@Req() req: any, @Body() b: any) {
+    const user = String(b?.user_id || '');
+    const veTudo = b?.ve_tudo === true;
+    return this.db.asService(async (c) => {
+      const org = await this.apenasDono(c, this.uid(req), user);
+      if (!org) return { error: 'sem permissão' };
+      return (await this.callCrmInternal('/internal/set-ve-tudo', { id: user, organization_id: org, ve_tudo: veTudo })) ?? { error: 'CRM indisponível' };
+    });
+  }
+
   @Post('crm-screens')
   async crmScreensSet(@Req() req: any, @Body() b: any) {
     const user = String(b?.user_id || '');
