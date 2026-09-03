@@ -182,7 +182,7 @@ export default function BrandKit() {
     tick();
   }
 
-  async function applyAnalysis(pick: { logos: string[]; colors: string[]; fonts: string[]; gradients: string[]; replace: boolean }) {
+  async function applyAnalysis(pick: { logos: string[]; colors: string[]; fonts: string[]; gradients: string[]; replace: boolean; voice: boolean; audience: boolean; promise: boolean; rules: boolean; colorNames: boolean }) {
     if (!unitId || !analysis) return;
     try {
       const r = await mktApi.post<any>(`/marketing/brand-kit/jobs/${analysis.id}/apply?unit=` + unitId, pick);
@@ -779,7 +779,7 @@ function GradientEditModal({ grad, onClose, onSave, onDelete }: { grad: any; onC
 }
 
 /** O que a leitura do site encontrou — o cliente escolhe o que vira o Brand Kit dele. */
-function AnalysisModal({ job, onClose, onApply }: { job: any; onClose: () => void; onApply: (p: { logos: string[]; colors: string[]; fonts: string[]; gradients: string[]; replace: boolean }) => void }) {
+function AnalysisModal({ job, onClose, onApply }: { job: any; onClose: () => void; onApply: (p: { logos: string[]; colors: string[]; fonts: string[]; gradients: string[]; replace: boolean; voice: boolean; audience: boolean; promise: boolean; rules: boolean; colorNames: boolean }) => void }) {
   const p = job?.proposal || {};
   const colors: any[] = p.colors || [];
   const fonts: any[] = p.fonts || [];
@@ -789,10 +789,24 @@ function AnalysisModal({ job, onClose, onApply }: { job: any; onClose: () => voi
   const SLOT_LBL: Record<string, string> = { logo_principal: "Logo principal", logo_clara: "Versão clara (fundo escuro)", simbolo: "Símbolo / ícone", favicon: "Favicon" };
   const logoSlots = Object.keys(SLOT_LBL).filter((s) => p.logos?.[s]);
   const [onLogo, setOnLogo] = useState<Record<string, boolean>>(() => Object.fromEntries(logoSlots.map((s) => [s, true])));
-  const [onCol, setOnCol] = useState<boolean[]>(() => colors.map((_, i) => i < 6));
+  // se a IA curou a paleta, já vem marcado só o que ela considerou identidade
+  const [onCol, setOnCol] = useState<boolean[]>(() => {
+    const keep = new Map<string, boolean>((p.ai?.paleta || []).map((x: any) => [String(x.hex).toLowerCase(), x.manter !== false]));
+    return colors.map((c, i) => (keep.size ? keep.get(String(c.hex).toLowerCase()) === true : i < 6));
+  });
   const [onFnt, setOnFnt] = useState<boolean[]>(() => fonts.map(() => true));
   const [onGrad, setOnGrad] = useState<boolean[]>(() => grads.map(() => true));
   const [replace, setReplace] = useState(false);
+  const ai = p.ai || null;
+  const aiHas = !!(ai && (ai.tomDeVoz || ai.publico || ai.promessa || (ai.regras || []).length));
+  const [onVoice, setOnVoice] = useState(!!ai?.tomDeVoz);
+  const [onAud, setOnAud] = useState(!!ai?.publico);
+  const [onProm, setOnProm] = useState(!!ai?.promessa);
+  const [onRules, setOnRules] = useState(!!(ai?.regras || []).length);
+  const [useAiNames, setUseAiNames] = useState(!!(ai?.paleta || []).length);
+  // a IA marca quais cores são identidade; o "descartadas" é só informativo
+  const aiKeep = new Map<string, any>((ai?.paleta || []).map((x: any) => [String(x.hex).toLowerCase(), x]));
+  const aiDrop = (ai?.paleta || []).filter((x: any) => x.manter === false);
   const nada = !logoSlots.length && !colors.length && !fonts.length && !grads.length;
   const nSel = Object.values(onLogo).filter(Boolean).length + onCol.filter(Boolean).length + onFnt.filter(Boolean).length + onGrad.filter(Boolean).length;
   const lbl = { title: "Títulos", body: "Corpo", num: "Números / código" } as Record<string, string>;
@@ -811,6 +825,7 @@ function AnalysisModal({ job, onClose, onApply }: { job: any; onClose: () => voi
           fonts: fonts.filter((_, i) => onFnt[i]).map((f) => f.family),
           gradients: grads.filter((_, i) => onGrad[i]).map((g) => g.css),
           replace,
+          voice: onVoice, audience: onAud, promise: onProm, rules: onRules, colorNames: useAiNames,
         })}>Aplicar ao meu Brand Kit</button>
       </>}>
       <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12 }}>
@@ -860,9 +875,52 @@ function AnalysisModal({ job, onClose, onApply }: { job: any; onClose: () => voi
                 style={{ border: onCol[i] ? "2px solid var(--blue-3)" : "1px solid var(--border-2)", background: "var(--surface)", borderRadius: 10, padding: 6, cursor: "pointer", display: "grid", gap: 4, justifyItems: "center", width: 92, opacity: onCol[i] ? 1 : 0.45 }}>
                 <span style={{ width: "100%", height: 34, borderRadius: 6, background: c.hex, border: "1px solid rgba(0,0,0,.12)" }} />
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "var(--text)" }}>{c.hex}</span>
-                {c.name ? <span style={{ fontSize: 9.5, color: "var(--muted)", lineHeight: 1.2, textAlign: "center" }}>{c.name}</span> : null}
+                {(() => { const a = aiKeep.get(String(c.hex).toLowerCase()); const nm = (useAiNames && a?.nome) || c.name; return nm
+                  ? <span style={{ fontSize: 9.5, color: "var(--muted)", lineHeight: 1.2, textAlign: "center" }}>{nm}{a?.papel === "primaria" ? " ★" : ""}</span> : null; })()}
               </button>
             ))}
+          </div>
+        </>
+      ) : null}
+
+      {aiDrop.length ? (
+        <div style={{ fontSize: 12, color: "var(--muted)", margin: "-6px 0 14px", lineHeight: 1.5 }}>
+          Deixei de fora {aiDrop.length === 1 ? "1 cor que parece" : `${aiDrop.length} cores que parecem`} de interface, não da marca
+          {aiDrop.slice(0, 4).map((x: any) => ` · ${x.hex}${x.porque ? ` (${x.porque})` : ""}`).join("")}. Marque se discordar.
+        </div>
+      ) : null}
+
+      {aiHas ? (
+        <>
+          <div style={{ fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", margin: "4px 0 8px" }}>O que entendi da sua marca</div>
+          <div style={{ display: "grid", gap: 8, marginBottom: 16 }}>
+            {ai.tomDeVoz ? (
+              <label style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer", background: "var(--surface-2)", border: "1px solid var(--border-2)", borderRadius: 10, padding: "10px 12px" }}>
+                <input type="checkbox" checked={onVoice} onChange={(e) => setOnVoice(e.target.checked)} style={{ marginTop: 3 }} />
+                <span><b style={{ fontSize: 12.5, color: "var(--text)" }}>Tom de voz</b><br /><span style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.5 }}>{ai.tomDeVoz}</span></span>
+              </label>
+            ) : null}
+            {ai.publico ? (
+              <label style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer", background: "var(--surface-2)", border: "1px solid var(--border-2)", borderRadius: 10, padding: "10px 12px" }}>
+                <input type="checkbox" checked={onAud} onChange={(e) => setOnAud(e.target.checked)} style={{ marginTop: 3 }} />
+                <span><b style={{ fontSize: 12.5, color: "var(--text)" }}>Público</b><br /><span style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.5 }}>{ai.publico}</span></span>
+              </label>
+            ) : null}
+            {ai.promessa ? (
+              <label style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer", background: "var(--surface-2)", border: "1px solid var(--border-2)", borderRadius: 10, padding: "10px 12px" }}>
+                <input type="checkbox" checked={onProm} onChange={(e) => setOnProm(e.target.checked)} style={{ marginTop: 3 }} />
+                <span><b style={{ fontSize: 12.5, color: "var(--text)" }}>Promessa</b><br /><span style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.5 }}>{ai.promessa}</span></span>
+              </label>
+            ) : null}
+            {(ai.regras || []).length ? (
+              <label style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer", background: "var(--surface-2)", border: "1px solid var(--border-2)", borderRadius: 10, padding: "10px 12px" }}>
+                <input type="checkbox" checked={onRules} onChange={(e) => setOnRules(e.target.checked)} style={{ marginTop: 3 }} />
+                <span><b style={{ fontSize: 12.5, color: "var(--text)" }}>Regras de comunicação ({ai.regras.length})</b>
+                  <ul style={{ margin: "4px 0 0", paddingLeft: 16, fontSize: 12.5, color: "var(--muted)", lineHeight: 1.5 }}>
+                    {ai.regras.map((r: string, i: number) => <li key={i}>{r}</li>)}
+                  </ul></span>
+              </label>
+            ) : null}
           </div>
         </>
       ) : null}
