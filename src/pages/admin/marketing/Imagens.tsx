@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import { mktApi, activeUnit } from "../../../lib/mktApi";
 import { prepararReferencia } from "./_img";
+import { MktModal } from "./_ui";
 
 // ============================================================================
 // Tela 4 — IMAGENS & CARROSSEL. Motor REAL = Gemini "Nano Banana Pro" (Crasto
@@ -665,7 +667,7 @@ export default function Imagens() {
         </>
       ) : null}
 
-      <Biblioteca lib={lib} catalogo={catalogo} brandProps={brandProps} onFav={toggleFav} />
+      <Biblioteca lib={lib} catalogo={catalogo} brandProps={brandProps} onFav={toggleFav} onUse={use} unitName={unit?.name} />
 
       {toast ? createPortal(<div style={{ position: "fixed", bottom: 22, left: "50%", transform: "translateX(-50%)", background: "#0B1A33", color: "#fff", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 10001, boxShadow: "0 10px 30px rgba(1,14,38,.35)" }}>{toast}</div>, document.body) : null}
     </div>
@@ -679,77 +681,112 @@ function aspectDoCatalogo(catalogo: any[], network?: string | null, slot?: strin
   return s?.aspect || (format === "story" ? "9:16" : "4:5");
 }
 
+// --- status de postagem (real, do post ligado à peça) ---
+const ORD_STATUS: Record<string, number> = { publicado: 4, agendado: 3, aprovar: 2, rascunho: 1 };
+function statusDoGrupo(pieces: any[]): string | null {
+  let best: string | null = null, bo = 0;
+  for (const p of pieces) { const o = ORD_STATUS[p.post_status] || 0; if (o > bo) { bo = o; best = p.post_status; } }
+  return best;
+}
+const statusLabel = (s: string | null) => (s === "publicado" ? "Publicado" : s === "agendado" ? "Agendado" : s === "aprovar" ? "Aguardando aprovação" : s === "rascunho" ? "A agendar" : "Ainda não postado");
+const statusClasse = (s: string | null) => (s === "publicado" ? "pub" : s === "agendado" ? "age" : (s === "rascunho" || s === "aprovar") ? "rasc" : "nao");
+
+const PERIODOS = [
+  { value: "tudo", label: "Qualquer período" },
+  { value: "hoje", label: "Hoje" },
+  { value: "7d", label: "Últimos 7 dias" },
+  { value: "30d", label: "Últimos 30 dias" },
+  { value: "mes", label: "Este mês" },
+];
+function noPeriodo(iso: string, periodo: string): boolean {
+  if (periodo === "tudo") return true;
+  const d = new Date(iso); if (isNaN(d.getTime())) return false;
+  const now = new Date();
+  if (periodo === "hoje") return mesmoDia(d, now);
+  if (periodo === "7d") return d.getTime() >= now.getTime() - 7 * 86400000;
+  if (periodo === "30d") return d.getTime() >= now.getTime() - 30 * 86400000;
+  if (periodo === "mes") return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  return true;
+}
+
 // ============================================================================
-// BIBLIOTECA — histórico de verdade: dia e hora, a ideia que gerou, agrupado por
-// geração, busca pela ideia, filtro por rede/formato, favoritos e barra de dias
-// lateral. Tudo cai aqui automaticamente; o filtro ativo é sempre visível e
-// limpável. Dado 100% real do backend — vazio é vazio honesto.
+// BIBLIOTECA — o acervo em LISTA. Cada post é uma linha recolhida (não explode a
+// tela quando há muitos): a ideia, o destino, quando foi feito e o status de
+// postagem. Expando a linha e aparecem as artes; clico numa arte e ela abre
+// grande, com a ficha e as ações (postar/agendar/repostar). Busca pela ideia,
+// filtro por período, por rede e favoritos. Tudo real do backend.
 // ============================================================================
-function Biblioteca({ lib, catalogo, brandProps, onFav }: {
+function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, unitName }: {
   lib: any[] | null;
   catalogo: { rede: string; slug: string; slots: any[] }[];
   brandProps: any;
   onFav: (id: string, on: boolean) => void;
+  onUse: (id: string) => void;
+  unitName?: string;
 }) {
+  const nav = useNavigate();
   const [busca, setBusca] = useState("");
+  const [periodo, setPeriodo] = useState("tudo");
   const [fRede, setFRede] = useState<string | null>(null);
-  const [fSlot, setFSlot] = useState<string | null>(null);
   const [soFav, setSoFav] = useState(false);
+  const [abertos, setAbertos] = useState<Record<string, boolean>>({});
+  const [viewer, setViewer] = useState<{ genId: string; idx: number } | null>(null);
 
   const redeNome = (slug?: string | null) => catalogo.find((r) => r.slug === slug)?.rede || null;
-  const slotNome = (net?: string | null, sl?: string | null) => {
-    const r = catalogo.find((x) => x.slug === net); return r?.slots.find((y: any) => y.slug === sl)?.nome || null;
-  };
+  const slotNome = (net?: string | null, sl?: string | null) => { const r = catalogo.find((x) => x.slug === net); return r?.slots.find((y: any) => y.slug === sl)?.nome || null; };
 
   if (lib == null) return (<><div className="img-sec">Biblioteca</div><div className="img-empty">Carregando…</div></>);
   if (!lib.length) return (<><div className="img-sec">Biblioteca</div><div className="img-empty">Nada por aqui ainda. Gere a sua primeira arte acima — ela fica salva na Biblioteca.</div></>);
 
-  // redes e formatos que EXISTEM no acervo (só filtra pelo que dá para achar)
   const redesPresentes = Array.from(new Set(lib.map((x) => x.network).filter(Boolean))) as string[];
-  const slotsPresentes = Array.from(new Set(lib.filter((x) => !fRede || x.network === fRede).map((x) => x.slot).filter(Boolean))) as string[];
-
   const termo = busca.trim().toLowerCase();
   const filt = lib.filter((im) => {
     if (soFav && !im.favorite) return false;
     if (fRede && im.network !== fRede) return false;
-    if (fSlot && im.slot !== fSlot) return false;
+    if (!noPeriodo(im.created_at, periodo)) return false;
     if (termo && !String(im.prompt || "").toLowerCase().includes(termo)) return false;
     return true;
   });
 
-  // agrupa por geração (a lista já vem do mais novo para o mais antigo)
+  // agrupa por geração (lib já vem do mais novo), depois por dia
   const gers: any[] = []; const idxG: Record<string, any> = {};
   for (const im of filt) {
     let g = idxG[im.generation_id];
     if (!g) { g = { genId: im.generation_id, created_at: im.created_at, prompt: im.prompt, network: im.network, slot: im.slot, format: im.format, pieces: [] }; idxG[im.generation_id] = g; gers.push(g); }
     g.pieces.push(im);
   }
-  for (const g of gers) g.pieces.sort((a: any, b: any) => (a.slide_index ?? 0) - (b.slide_index ?? 0));
-  // agrupa por dia
+  for (const g of gers) { g.pieces.sort((a: any, b: any) => (a.slide_index ?? 0) - (b.slide_index ?? 0)); g.status = statusDoGrupo(g.pieces); g.fav = g.pieces.some((p: any) => p.favorite); }
   const dias: any[] = []; const idxD: Record<string, any> = {};
   for (const g of gers) { const k = diaChave(g.created_at); let d = idxD[k]; if (!d) { d = { chave: k, label: diaLabel(g.created_at), gers: [] }; idxD[k] = d; dias.push(d); } d.gers.push(g); }
 
-  const temFiltro = !!(termo || fRede || fSlot || soFav);
-  const limpar = () => { setBusca(""); setFRede(null); setFSlot(null); setSoFav(false); };
+  const temFiltro = !!(termo || fRede || soFav || periodo !== "tudo");
+  const limpar = () => { setBusca(""); setFRede(null); setSoFav(false); setPeriodo("tudo"); };
+  const gerPorId = (genId: string) => gers.find((x) => x.genId === genId);
+  const abrir = (genId: string, idx: number) => setViewer({ genId, idx });
+
+  // ações conforme o status: não postado -> enviar; publicado -> repostar; sempre
+  // que já foi ao Calendário, um atalho para ver lá.
+  function AcoesPost({ g }: { g: any }) {
+    const pid = g.pieces[0]?.id;
+    return (
+      <>
+        {!g.status ? <button className="bk-mini pri" onClick={(e) => { e.stopPropagation(); if (pid) onUse(pid); }}>Enviar ao Calendário</button> : null}
+        {g.status === "publicado" ? <button className="bk-mini pri" onClick={(e) => { e.stopPropagation(); if (pid) onUse(pid); }}>Repostar</button> : null}
+        {g.status ? <button className="bk-mini" onClick={(e) => { e.stopPropagation(); nav("/admin/marketing/calendario"); }}>Ver no Calendário</button> : null}
+      </>
+    );
+  }
 
   return (
     <>
       <div className="img-sec">Biblioteca</div>
       <div className="img-lib-bar">
         <input className="img-lib-busca" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar pela ideia…" />
+        <SelectBox placeholder="Qualquer período" minWidth={170} value={periodo} onChange={setPeriodo} options={PERIODOS} />
         {redesPresentes.length ? (
-          <SelectBox placeholder="Todas as redes" minWidth={170}
-            value={fRede}
-            onChange={(v) => { const nova = v === "__todas" ? null : v; setFRede(nova); setFSlot(null); }}
-            options={[{ value: "__todas", label: "Todas as redes" }, ...redesPresentes.map((n) => ({ value: n, label: redeNome(n) || humanizar(n), icon: <RedeIcon slug={n} size={16} /> }))]}
-          />
-        ) : null}
-        {fRede && slotsPresentes.length > 1 ? (
-          <SelectBox placeholder="Todos os formatos" minWidth={190}
-            value={fSlot}
-            onChange={(v) => setFSlot(v === "__todos" ? null : v)}
-            options={[{ value: "__todos", label: "Todos os formatos" }, ...slotsPresentes.map((s) => ({ value: s, label: slotNome(fRede, s) || humanizar(s) }))]}
-          />
+          <SelectBox placeholder="Todas as redes" minWidth={170} value={fRede}
+            onChange={(v) => setFRede(v === "__todas" ? null : v)}
+            options={[{ value: "__todas", label: "Todas as redes" }, ...redesPresentes.map((n) => ({ value: n, label: redeNome(n) || humanizar(n), icon: <RedeIcon slug={n} size={16} /> }))]} />
         ) : null}
         <button className={"img-lib-fav" + (soFav ? " on" : "")} onClick={() => setSoFav((v) => !v)} title="Só os favoritos">★ Favoritos</button>
         {temFiltro ? <button className="img-lib-limpar" onClick={limpar}>Limpar filtros</button> : null}
@@ -758,46 +795,132 @@ function Biblioteca({ lib, catalogo, brandProps, onFav }: {
       {!dias.length ? (
         <div className="img-empty">Nenhuma arte encontrada com esse filtro. <button className="img-lib-linkbtn" onClick={limpar}>Limpar filtros</button></div>
       ) : (
-        <div className="img-lib-wrap">
-          {dias.length > 1 ? (
-            <div className="img-lib-rail">
-              {dias.map((d) => (
-                <button key={d.chave} onClick={() => document.getElementById("dia-" + d.chave)?.scrollIntoView({ behavior: "smooth", block: "start" })}>
-                  {d.label}<span>{d.gers.reduce((a: number, g: any) => a + g.pieces.length, 0)}</span>
-                </button>
+        <div className="img-lib-col">
+          {dias.map((d) => (
+            <div key={d.chave} className="img-lib-dia">
+              <div className="img-lib-dia-h">{d.label} <span className="img-lib-dia-n">{d.gers.length}</span></div>
+              {d.gers.map((g: any) => {
+                const aberto = !!abertos[g.genId];
+                const capa = g.pieces.find((p: any) => p.url) || g.pieces[0];
+                return (
+                  <div key={g.genId} className={"lib-row" + (aberto ? " aberta" : "")}>
+                    <div className="lib-row-h" onClick={() => setAbertos((a) => ({ ...a, [g.genId]: !a[g.genId] }))}>
+                      <button className="lib-row-cx" aria-label={aberto ? "Recolher" : "Expandir"}>{aberto ? "▾" : "▸"}</button>
+                      <div className="lib-row-thumb" onClick={(e) => { e.stopPropagation(); abrir(g.genId, 0); }}>
+                        {capa?.url ? <img src={capa.url} alt="" /> : null}
+                        {g.pieces.length > 1 ? <span className="lib-row-n">{g.pieces.length}</span> : null}
+                      </div>
+                      <div className="lib-row-main">
+                        <div className="lib-row-top">
+                          <span className="img-lib-badge">{g.network ? (redeNome(g.network) || rotuloFormato(g.format)) : rotuloFormato(g.format)}</span>
+                          {slotNome(g.network, g.slot) ? <span className="img-lib-badge2">{slotNome(g.network, g.slot)}</span> : null}
+                          <span className={"lib-status " + statusClasse(g.status)}>{statusLabel(g.status)}</span>
+                          <span className="img-lib-hora">{horaLabel(g.created_at)}</span>
+                        </div>
+                        <div className={"lib-row-idea" + (g.prompt ? "" : " vazio")}>{g.prompt || "Sem ideia escrita"}</div>
+                      </div>
+                      <div className="lib-row-acts" onClick={(e) => e.stopPropagation()}>
+                        <button className="bk-mini" onClick={() => abrir(g.genId, 0)}>Abrir</button>
+                        <AcoesPost g={g} />
+                      </div>
+                    </div>
+                    {aberto ? (
+                      <div className="lib-row-pieces">
+                        {g.pieces.map((im: any, i: number) => (
+                          <div className="img-lib-cel" key={im.id}>
+                            <div className="poster" onClick={() => abrir(g.genId, i)} style={{ cursor: "pointer" }}>
+                              {im.url ? <img src={im.url} alt={im.prompt ? "Arte: " + String(im.prompt).slice(0, 80) : "Arte gerada"} /> : null}
+                              {g.pieces.length > 1 ? <div className="slide-no">{i + 1}/{g.pieces.length}</div> : null}
+                            </div>
+                            <button className={"img-fav" + (im.favorite ? " on" : "")} title={im.favorite ? "Tirar dos favoritos" : "Favoritar"} onClick={() => onFav(im.id, !im.favorite)}>★</button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {viewer ? (
+        <Visualizador
+          ger={gerPorId(viewer.genId)} idx={viewer.idx} catalogo={catalogo} unitName={unitName}
+          onIdx={(i: number) => setViewer((v) => (v ? { ...v, idx: i } : v))}
+          onClose={() => setViewer(null)} onFav={onFav} onUse={onUse} onCalendario={() => nav("/admin/marketing/calendario")}
+          redeNome={redeNome} slotNome={slotNome}
+        />
+      ) : null}
+    </>
+  );
+}
+
+// Visualizador: a arte grande, navegação entre as peças, a ficha (destino, data,
+// status, referências usadas) e as ações. Abre via MktModal (createPortal no body).
+function Visualizador({ ger, idx, onIdx, onClose, onFav, onUse, onCalendario, redeNome, slotNome }: any) {
+  const [detalhe, setDetalhe] = useState<{ refs: any[] } | null>(null);
+  useEffect(() => {
+    if (!ger?.genId) return;
+    let vivo = true;
+    mktApi.get<any>("/marketing/images/generations/" + ger.genId + "/detalhe").then((d) => { if (vivo) setDetalhe({ refs: d?.refs || [] }); }).catch(() => { if (vivo) setDetalhe({ refs: [] }); });
+    return () => { vivo = false; };
+  }, [ger?.genId]);
+  if (!ger) return null;
+  const total = ger.pieces.length;
+  const i = Math.max(0, Math.min(idx, total - 1));
+  const im = ger.pieces[i];
+  const rede = ger.network ? (redeNome(ger.network) || rotuloFormato(ger.format)) : rotuloFormato(ger.format);
+  const fmt = slotNome(ger.network, ger.slot);
+  const quando = new Date(ger.created_at);
+  const dataTxt = isNaN(quando.getTime()) ? "" : quando.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" }) + " às " + horaLabel(ger.created_at);
+  const pid = ger.pieces[0]?.id;
+  return (
+    <MktModal wide title={ger.prompt ? String(ger.prompt).slice(0, 70) : "Arte da Biblioteca"} onClose={onClose}
+      footer={
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          {im?.url ? <a className="bk-mini" href={im.url} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>Baixar</a> : null}
+          {!ger.status ? <button className="bk-mini pri" onClick={() => { if (pid) onUse(pid); }}>Enviar ao Calendário</button> : null}
+          {ger.status === "publicado" ? <button className="bk-mini pri" onClick={() => { if (pid) onUse(pid); }}>Repostar</button> : null}
+          {ger.status ? <button className="bk-mini" onClick={onCalendario}>Ver no Calendário</button> : null}
+        </div>
+      }>
+      <div className="viz">
+        <div className="viz-arte">
+          {im?.url ? <img src={im.url} alt={ger.prompt ? "Arte: " + String(ger.prompt).slice(0, 80) : "Arte gerada"} /> : <div className="img-empty">Arte indisponível.</div>}
+          {total > 1 ? (
+            <div className="viz-nav">
+              <button onClick={() => onIdx((i - 1 + total) % total)} aria-label="Anterior">‹</button>
+              <span>{i + 1} / {total}</span>
+              <button onClick={() => onIdx((i + 1) % total)} aria-label="Próxima">›</button>
+            </div>
+          ) : null}
+          {total > 1 ? (
+            <div className="viz-tiras">
+              {ger.pieces.map((p: any, k: number) => (
+                <button key={p.id} className={"viz-tira" + (k === i ? " on" : "")} onClick={() => onIdx(k)} style={{ backgroundImage: p.url ? `url(${p.url})` : undefined }} aria-label={`Peça ${k + 1}`} />
               ))}
             </div>
           ) : null}
-          <div className="img-lib-col">
-            {dias.map((d) => (
-              <div key={d.chave} id={"dia-" + d.chave} className="img-lib-dia">
-                <div className="img-lib-dia-h">{d.label}</div>
-                {d.gers.map((g: any) => (
-                  <div key={g.genId} className="img-lib-ger">
-                    <div className="img-lib-ger-h">
-                      <span className="img-lib-badge">{g.network ? (redeNome(g.network) || rotuloFormato(g.format)) : rotuloFormato(g.format)}</span>
-                      {slotNome(g.network, g.slot) ? <span className="img-lib-badge2">{slotNome(g.network, g.slot)}</span> : null}
-                      <span className="img-lib-hora">{horaLabel(g.created_at)}</span>
-                      <span className={"img-lib-ideia" + (g.prompt ? "" : " vazio")}>{g.prompt || "Sem ideia escrita"}</span>
-                    </div>
-                    <div className="img-lib">
-                      {g.pieces.map((im: any, i: number) => (
-                        <div className="img-lib-cel" key={im.id}>
-                          {/* posição DENTRO do que está sendo mostrado (o grupo pode
-                              estar filtrado ou faltar um slide que falhou): o
-                              numerador nunca pode passar do total exibido */}
-                          <Poster {...brandProps} aspect={aspectDoCatalogo(catalogo, im.network, im.slot, im.format)} ci={i} slideNo={i + 1} slideTot={g.pieces.length > 1 ? g.pieces.length : 0} imgUrl={im.url} alt={im.prompt ? "Arte: " + String(im.prompt).slice(0, 80) : "Arte gerada"} />
-                          <button className={"img-fav" + (im.favorite ? " on" : "")} title={im.favorite ? "Tirar dos favoritos" : "Favoritar"} onClick={() => onFav(im.id, !im.favorite)}>★</button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
+        </div>
+        <div className="viz-ficha">
+          <div className="viz-linha"><span>Onde</span><b>{rede}{fmt ? " · " + fmt : ""}</b></div>
+          <div className="viz-linha"><span>Quando</span><b>{dataTxt || "—"}</b></div>
+          <div className="viz-linha"><span>Status</span><b className={"lib-status " + statusClasse(ger.status)}>{statusLabel(ger.status)}</b></div>
+          {ger.prompt ? <div className="viz-linha col"><span>Ideia</span><p>{ger.prompt}</p></div> : null}
+          <div className="viz-linha col">
+            <span>Referências usadas</span>
+            {detalhe == null ? <p className="viz-dim">carregando…</p>
+              : detalhe.refs.length ? (
+                <div className="viz-refs">{detalhe.refs.map((r: any, k: number) => <span key={k} style={{ backgroundImage: r.url ? `url(${r.url})` : undefined }} />)}</div>
+              ) : <p className="viz-dim">Nenhuma referência foi usada nesta arte.</p>}
+          </div>
+          <div style={{ marginTop: 4 }}>
+            <button className={"img-lib-fav" + (im?.favorite ? " on" : "")} onClick={() => im && onFav(im.id, !im.favorite)}>{im?.favorite ? "★ Favoritada" : "☆ Favoritar"}</button>
           </div>
         </div>
-      )}
-    </>
+      </div>
+    </MktModal>
   );
 }
