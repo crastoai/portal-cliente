@@ -69,8 +69,12 @@ export default function BrandKit() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [modal, setModal] = useState<null | { kind: string }>(null);
+  const [analysis, setAnalysis] = useState<any | null>(null);   // job de leitura do site
+  const [analyzing, setAnalyzing] = useState(false);
   const fileKind = useRef<string>("reference");
   const fileEl = useRef<HTMLInputElement>(null);
+  const jobPoll = useRef<number | undefined>(undefined);
+  useEffect(() => () => { if (jobPoll.current) window.clearInterval(jobPoll.current); }, []);
 
   // carrega unidades + kit da unidade ativa
   useEffect(() => {
@@ -141,11 +145,51 @@ export default function BrandKit() {
     reader.readAsDataURL(f); e.target.value = "";
   }
 
+  /** Lê os sites conectados e mostra o que encontrou. Nunca diz "pronto" sem resultado. */
   async function analyze() {
-    if (!unitId) return;
-    try { await mktApi.post("/marketing/brand-kit/analyze?unit=" + unitId, { sourceIds: (kit?.sources || []).map((s: any) => s.id) });
-      flash("Análise iniciada — a IA vai propor sua marca.");
-    } catch (e: any) { flash("Erro: " + (e.message || "falha")); }
+    if (!unitId || analyzing) return;
+    const sources = (kit?.sources || []) as any[];
+    if (!sources.some((s) => ["site", "ds"].includes(s.type) && s.url)) {
+      flash("Adicione o endereço do seu site em “Adicionar fonte” para eu poder ler.");
+      setActive("material"); return;
+    }
+    setAnalyzing(true); setAnalysis(null);
+    try {
+      const r = await mktApi.post<any>("/marketing/brand-kit/analyze?unit=" + unitId, { sourceIds: sources.map((s) => s.id) });
+      pollJob(r.job.id);
+    } catch (e: any) { setAnalyzing(false); flash("Não consegui iniciar a leitura: " + (e.message || "falha")); }
+  }
+
+  function pollJob(id: string) {
+    if (jobPoll.current) window.clearInterval(jobPoll.current);
+    let tries = 0;
+    const tick = async () => {
+      tries++;
+      try {
+        const j = await mktApi.get<any>("/marketing/brand-kit/jobs/" + id);
+        if (j.status === "done" || j.status === "failed") {
+          window.clearInterval(jobPoll.current); jobPoll.current = undefined;
+          setAnalyzing(false); setAnalysis(j);
+          if (j.status === "failed") flash((j.proposal?.notes || [])[0] || "Não consegui ler o site.");
+          else setModal({ kind: "analysis" });
+        } else if (tries > 40) {                       // ~2 min: honesto em vez de girar pra sempre
+          window.clearInterval(jobPoll.current); jobPoll.current = undefined;
+          setAnalyzing(false); flash("A leitura está demorando mais que o normal — tente de novo em instantes.");
+        }
+      } catch { /* falha de rede: a próxima tentativa resolve */ }
+    };
+    jobPoll.current = window.setInterval(tick, 3000);
+    tick();
+  }
+
+  async function applyAnalysis(pick: { logo: boolean; colors: string[]; fonts: string[] }) {
+    if (!unitId || !analysis) return;
+    try {
+      const r = await mktApi.post<any>(`/marketing/brand-kit/jobs/${analysis.id}/apply?unit=` + unitId, pick);
+      const up = await mktApi.get<Kit>("/marketing/brand-kit?unit=" + unitId); setKit(up);
+      setModal(null);
+      flash(r.applied?.length ? "Aplicado: " + r.applied.join(", ") + "." : "Nada selecionado.");
+    } catch (e: any) { flash("Erro ao aplicar: " + (e.message || "falha")); }
   }
 
   const unit = () => units.find((u) => u.id === unitId) || null;
@@ -210,7 +254,7 @@ export default function BrandKit() {
         </div>
         <div className="h-btn">
           <button className="bk-mini" onClick={() => setActive("material")}>Suba seu material</button>
-          <button className="bk-mini pri" onClick={analyze}>✨ Analisar e montar</button>
+          <button className="bk-mini pri" disabled={analyzing} onClick={analyze}>{analyzing ? "Lendo o site…" : "✨ Analisar e montar"}</button>
         </div>
       </div>
 
@@ -271,7 +315,7 @@ export default function BrandKit() {
             </div>
           )) : <div className="bk-empty"><b>Nenhuma fonte ainda</b>Adicione o site, o @ do Instagram ou um PDF para a IA ler.</div>}
           <div style={{ marginTop: 14 }}>
-            <button className="bk-mini pri" onClick={analyze}>✨ Analisar e montar</button>{" "}
+            <button className="bk-mini pri" disabled={analyzing} onClick={analyze}>{analyzing ? "Lendo o site…" : "✨ Analisar e montar"}</button>{" "}
             <button className="bk-mini" onClick={() => setModal({ kind: "source" })}>+ Adicionar fonte</button>
           </div>
           <div className="bk-gap" style={{ marginTop: 11 }}>A IA extrai cores, tipografia, tom e regras do que você conectar — e propõe; você aprova.</div>
@@ -483,6 +527,7 @@ export default function BrandKit() {
     if (k === "versions") return <VersionsModal unitId={unitId!} onClose={() => setModal(null)} />;
     if (k === "identity") return <IdentityModal unit={unit()!} onClose={() => setModal(null)} onSave={saveIdentity} />;
     if (k === "source") return <SourceModal onClose={() => setModal(null)} onAdd={addSource} />;
+    if (k === "analysis") return <AnalysisModal job={analysis} onClose={() => setModal(null)} onApply={applyAnalysis} />;
     if (k === "colors") return <ColorsModal colors={colors} onClose={() => setModal(null)} onSave={(cs) => { patchKit({ colors: cs }, "Cores salvas"); setModal(null); }} />;
     if (k === "fonts") return <FontsModal fonts={fonts} onClose={() => setModal(null)} onSave={(fs) => { patchKit({ fonts: fs }, "Fontes salvas"); setModal(null); }} />;
     if (k === "voice") return <TextModal title="Tom de voz" value={kit.voice || ""} placeholder="ex.: Especialista sério, direto, prova com número. Nunca jargão sem explicar." onClose={() => setModal(null)} onSave={(v) => { patchKit({ voice: v }, "Tom salvo"); setModal(null); }} />;
@@ -577,10 +622,98 @@ function SourceModal({ onClose, onAdd }: { onClose: () => void; onAdd: (type: st
       footer={<><button className="bk-mini" onClick={onClose}>Cancelar</button><button className="bk-mini pri" onClick={() => onAdd(type, url)} disabled={!url}>Adicionar</button></>}>
       <div className="bkf"><label>Tipo</label>
         <select value={type} onChange={(e) => setType(e.target.value)}>
-          <option value="site">Site</option><option value="ig">Instagram (@)</option><option value="wa">WhatsApp</option><option value="pdf">PDF (URL)</option>
+          <option value="site">Site</option><option value="ds">Design system</option><option value="ig">Instagram (@)</option><option value="wa">WhatsApp</option><option value="pdf">PDF (URL)</option>
         </select>
       </div>
       <div className="bkf"><label>Endereço</label><input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={type === "ig" ? "@suamarca" : "https://…"} /></div>
+    </MktModal>
+  );
+}
+
+/** O que a leitura do site encontrou — o cliente escolhe o que vira o Brand Kit dele. */
+function AnalysisModal({ job, onClose, onApply }: { job: any; onClose: () => void; onApply: (p: { logo: boolean; colors: string[]; fonts: string[] }) => void }) {
+  const p = job?.proposal || {};
+  const colors: any[] = p.colors || [];
+  const fonts: any[] = p.fonts || [];
+  const notes: string[] = p.notes || [];
+  const sources: any[] = p.sources || [];
+  const [useLogo, setUseLogo] = useState(!!p.logo);
+  const [onCol, setOnCol] = useState<boolean[]>(() => colors.map((_, i) => i < 6));
+  const [onFnt, setOnFnt] = useState<boolean[]>(() => fonts.map(() => true));
+  const nada = !p.logo && !colors.length && !fonts.length;
+  const nSel = (useLogo ? 1 : 0) + onCol.filter(Boolean).length + onFnt.filter(Boolean).length;
+  const lbl = { title: "Títulos", body: "Corpo", num: "Números / código" } as Record<string, string>;
+
+  return (
+    <MktModal title="O que encontrei na sua marca" onClose={onClose} wide
+      footer={<>
+        <button className="bk-mini" onClick={onClose}>Fechar</button>
+        <button className="bk-mini pri" disabled={!nSel} onClick={() => onApply({
+          logo: useLogo,
+          colors: colors.filter((_, i) => onCol[i]).map((c) => c.hex),      // só a seleção: os valores saem da proposta no servidor
+          fonts: fonts.filter((_, i) => onFnt[i]).map((f) => f.family),
+        })}>Aplicar ao meu Brand Kit</button>
+      </>}>
+      <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12 }}>
+        {sources.map((s, i) => (
+          <div key={i}>{s.ok ? "✅" : "⚠️"} {s.url}{s.ok ? "" : ` — ${s.reason || "não consegui ler"}`}</div>
+        ))}
+      </div>
+
+      {notes.length ? (
+        <div style={{ background: "var(--surface-2)", border: "1px solid var(--border-2)", borderRadius: 10, padding: "10px 12px", fontSize: 12.5, color: "var(--muted)", marginBottom: 14, lineHeight: 1.5 }}>
+          {notes.map((n, i) => <div key={i}>• {n}</div>)}
+        </div>
+      ) : null}
+
+      {nada ? (
+        <div style={{ fontSize: 13.5, color: "var(--text)" }}>Não consegui extrair identidade desse endereço. Suba o seu logo e defina as cores à mão — leva 2 minutos.</div>
+      ) : null}
+
+      {p.logo ? (
+        <>
+          <div style={{ fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", margin: "4px 0 8px" }}>Logo encontrado</div>
+          <label style={{ display: "flex", gap: 12, alignItems: "center", cursor: "pointer", marginBottom: 16 }}>
+            <input type="checkbox" checked={useLogo} onChange={(e) => setUseLogo(e.target.checked)} />
+            <span style={{ width: 96, height: 64, display: "grid", placeItems: "center", background: "var(--surface-2)", border: "1px solid var(--border-2)", borderRadius: 10, overflow: "hidden" }}>
+              {p.logo.url ? <img src={p.logo.url} alt="" style={{ maxWidth: "84%", maxHeight: "84%", objectFit: "contain" }} /> : "—"}
+            </span>
+            <span style={{ fontSize: 12.5, color: "var(--muted)" }}>{p.logo.from}<br /><span style={{ fontSize: 11 }}>vira o seu logo principal</span></span>
+          </label>
+        </>
+      ) : null}
+
+      {colors.length ? (
+        <>
+          <div style={{ fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", margin: "4px 0 8px" }}>Cores ({onCol.filter(Boolean).length} de {colors.length})</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+            {colors.map((c, i) => (
+              <button key={c.hex} onClick={() => setOnCol((v) => v.map((x, j) => (j === i ? !x : x)))}
+                title={c.name || c.hex}
+                style={{ border: onCol[i] ? "2px solid var(--blue-3)" : "1px solid var(--border-2)", background: "var(--surface)", borderRadius: 10, padding: 6, cursor: "pointer", display: "grid", gap: 4, justifyItems: "center", width: 92, opacity: onCol[i] ? 1 : 0.45 }}>
+                <span style={{ width: "100%", height: 34, borderRadius: 6, background: c.hex, border: "1px solid rgba(0,0,0,.12)" }} />
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "var(--text)" }}>{c.hex}</span>
+                {c.name ? <span style={{ fontSize: 9.5, color: "var(--muted)", lineHeight: 1.2, textAlign: "center" }}>{c.name}</span> : null}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
+
+      {fonts.length ? (
+        <>
+          <div style={{ fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", margin: "4px 0 8px" }}>Tipografia</div>
+          <div style={{ display: "grid", gap: 8 }}>
+            {fonts.map((f, i) => (
+              <label key={f.family} style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer", background: "var(--surface-2)", border: "1px solid var(--border-2)", borderRadius: 10, padding: "9px 12px" }}>
+                <input type="checkbox" checked={!!onFnt[i]} onChange={() => setOnFnt((v) => v.map((x, j) => (j === i ? !x : x)))} />
+                <span style={{ fontWeight: 600, color: "var(--text)", fontSize: 14 }}>{f.family}</span>
+                <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{lbl[f.role] || f.role}</span>
+              </label>
+            ))}
+          </div>
+        </>
+      ) : null}
     </MktModal>
   );
 }
