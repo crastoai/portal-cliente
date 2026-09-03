@@ -68,7 +68,7 @@ export default function BrandKit() {
   const [active, setActive] = useState<SecId>("logo");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [modal, setModal] = useState<null | { kind: string; i?: number }>(null);
+  const [modal, setModal] = useState<null | { kind: string; i?: number; coll?: string }>(null);
   const [analysis, setAnalysis] = useState<any | null>(null);   // job de leitura do site
   const [analyzing, setAnalyzing] = useState(false);
   const fileKind = useRef<string>("reference");
@@ -435,7 +435,11 @@ export default function BrandKit() {
         <p className="bk3-sub">As fontes da marca. A IA aplica em títulos, corpo e números.</p>
         <div className="bk3-card">
           {fonts.length ? fonts.map((f, i) => (
-            <div className="bk-font" key={i}><span className="f-s">{ROLE_LABEL[f.role] || f.role}</span><span className="f-n" style={{ fontFamily: fontStack(f.family) }}>{f.family}</span></div>
+            <button className="bk-font" key={i} title="Clique para ajustar ou remover"
+              style={{ width: "100%", border: 0, background: "transparent", padding: 0, cursor: "pointer", font: "inherit", textAlign: "left" }}
+              onClick={() => setModal({ kind: "font1", i })}>
+              <span className="f-s">{ROLE_LABEL[f.role] || f.role}</span><span className="f-n" style={{ fontFamily: fontStack(f.family) }}>{f.family}</span>
+            </button>
           )) : <div className="bk-empty"><b>Sem fontes ainda</b>Escolha as fontes de títulos, corpo e números.</div>}
         </div>
       </>
@@ -469,9 +473,13 @@ export default function BrandKit() {
         <div className="bk3-card"><div className="bk-h" style={{ marginBottom: 8 }}>Público-alvo</div>
           {kit.audience ? <div className="bk-txt">{kit.audience}</div> : <span style={{ color: "var(--muted-2)", fontSize: 13 }}>Ainda não definido.</span>}
           {personas.length ? <div className="bk-rows" style={{ marginTop: 12 }}>{personas.map((p, i) => (
-            <div className="bk-row" key={i}><div style={{ flex: 1 }}><div className="rw-t">{p.title}</div><div className="rw-d">Dor: {p.description}</div></div></div>
+            <button className="bk-row" key={i} title="Clique para editar ou remover esta persona"
+              style={{ width: "100%", border: 0, background: "transparent", padding: 0, cursor: "pointer", font: "inherit", textAlign: "left" }}
+              onClick={() => setModal({ kind: "persona1", i })}>
+              <div style={{ flex: 1 }}><div className="rw-t">{p.title}</div><div className="rw-d">{p.description ? "Dor: " + p.description : "sem descrição"}</div></div>
+            </button>
           ))}</div> : null}
-          <div style={{ marginTop: 10 }}><button className="bk-act" onClick={() => setModal({ kind: "personas" })}>Editar personas</button></div>
+          <div style={{ marginTop: 10 }}><button className="bk-act" onClick={() => setModal({ kind: "persona1", i: -1 })}>+ Nova persona</button></div>
         </div>
         <div className="bk3-card"><div className="bk-h" style={{ marginBottom: 8 }}>Promessa da marca <button className="bk-act" style={{ marginLeft: 6 }} onClick={() => setModal({ kind: "promise" })}>Editar</button></div>
           <div className="bk-txt">{kit.brand_promise || <span style={{ color: "var(--muted-2)" }}>Uma frase: o que a marca entrega de mais valioso.</span>}</div>
@@ -481,7 +489,14 @@ export default function BrandKit() {
   }
 
   function regrasEditor() {
-    const li = (a: any[]) => a.map((x, i) => <li key={i}>{x.text}</li>);
+    // cada regra é clicável: editar ou remover ali mesmo
+    const li = (a: any[], kind: string) => a.map((x, i) => (
+      <li key={i}>
+        <button title="Clique para editar ou remover esta regra"
+          style={{ border: 0, background: "transparent", padding: 0, cursor: "pointer", font: "inherit", color: "inherit", textAlign: "left" }}
+          onClick={() => setModal({ kind: "guide1", i: guidelines.indexOf(x), coll: kind })}>{x.text}</button>
+      </li>
+    ));
     return (
       <>
         <div className="bk3-h"><span className="e-t">Regras & compliance</span></div>
@@ -493,8 +508,8 @@ export default function BrandKit() {
           </div>
           {doList.length || dontList.length ? (
             <div className="bk-dodont">
-              <div className="bk-do"><div className="bk-dh do">✅ Sempre</div><ul>{li(doList)}</ul></div>
-              <div className="bk-do"><div className="bk-dh dont">❌ Nunca</div><ul>{li(dontList)}</ul></div>
+              <div className="bk-do"><div className="bk-dh do">✅ Sempre</div><ul>{li(doList, "do")}</ul></div>
+              <div className="bk-do"><div className="bk-dh dont">❌ Nunca</div><ul>{li(dontList, "dont")}</ul></div>
             </div>
           ) : <div className="bk-empty"><b>Sem regras de estilo ainda</b>Defina o que a marca sempre e nunca faz.</div>}
         </div>
@@ -575,6 +590,28 @@ export default function BrandKit() {
     if (k === "identity") return <IdentityModal unit={unit()!} onClose={() => setModal(null)} onSave={saveIdentity} />;
     if (k === "source") return <SourceModal onClose={() => setModal(null)} onAdd={addSource} />;
     if (k === "analysis") return <AnalysisModal job={analysis} onClose={() => setModal(null)} onApply={applyAnalysis} />;
+    if (k === "font1" && modal!.i != null) {
+      const i = modal!.i!;
+      return <ItemModal titulo="Fonte da marca" valor={fonts[i]} onClose={() => setModal(null)}
+        campos={[{ key: "role", label: "Onde é usada", opcoes: ["title", "body", "num"] }, { key: "family", label: "Nome da fonte", placeholder: "ex.: Montserrat" }]}
+        ajuda="title = títulos · body = corpo de texto · num = números e código."
+        onSave={(v) => { patchKit({ fonts: fonts.map((x, j) => (j === i ? { ...x, ...v } : x)) }, "Fonte atualizada"); setModal(null); }}
+        onDelete={() => { patchKit({ fonts: fonts.filter((_, j) => j !== i) }, "Fonte removida"); setModal(null); }} />;
+    }
+    if (k === "persona1" && modal!.i != null) {
+      const i = modal!.i!, nova = i < 0;
+      return <ItemModal titulo={nova ? "Nova persona" : "Editar persona"} valor={nova ? {} : personas[i]} onClose={() => setModal(null)}
+        campos={[{ key: "title", label: "Quem é", placeholder: "ex.: Dona de clínica com 2 unidades" }, { key: "description", label: "Dor / contexto", area: true, placeholder: "ex.: perde paciente porque ninguém responde fora do horário" }]}
+        onSave={(v) => { patchKit({ personas: nova ? [...personas, v] : personas.map((x, j) => (j === i ? { ...x, ...v } : x)) }, nova ? "Persona criada" : "Persona atualizada"); setModal(null); }}
+        onDelete={nova ? undefined : () => { patchKit({ personas: personas.filter((_, j) => j !== i) }, "Persona removida"); setModal(null); }} />;
+    }
+    if (k === "guide1" && modal!.i != null) {
+      const i = modal!.i!;
+      return <ItemModal titulo={modal!.coll === "do" ? "Regra · sempre fazer" : "Regra · nunca fazer"} valor={guidelines[i]} onClose={() => setModal(null)}
+        campos={[{ key: "text", label: "Regra", area: true }]}
+        onSave={(v) => { patchKit({ guidelines: guidelines.map((x, j) => (j === i ? { ...x, ...v } : x)) }, "Regra atualizada"); setModal(null); }}
+        onDelete={() => { patchKit({ guidelines: guidelines.filter((_, j) => j !== i) }, "Regra removida"); setModal(null); }} />;
+    }
     if (k === "color1" && modal!.i != null) {
       const i = modal!.i!;
       return <ColorEditModal color={colors[i]} onClose={() => setModal(null)}
@@ -685,6 +722,48 @@ function SourceModal({ onClose, onAdd }: { onClose: () => void; onAdd: (type: st
         </select>
       </div>
       <div className="bkf"><label>Endereço</label><input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={type === "ig" ? "@suamarca" : "https://…"} /></div>
+    </MktModal>
+  );
+}
+
+// --- padrão único de edição -------------------------------------------------
+// Regra da casa no Brand Kit: TODO item é clicável para editar, e o editor
+// SEMPRE traz "Remover". Sem isso o cliente fica preso com o que a IA propôs.
+// Um componente só, usado por fonte, persona, regra e afins — em vez de um
+// modal diferente (e inconsistente) por seção.
+type Campo = { key: string; label: string; area?: boolean; opcoes?: string[]; placeholder?: string };
+
+function ItemModal({ titulo, campos, valor, onClose, onSave, onDelete, ajuda }: {
+  titulo: string; campos: Campo[]; valor: any; ajuda?: string;
+  onClose: () => void; onSave: (v: any) => void; onDelete?: () => void;
+}) {
+  const [v, setV] = useState<any>({ ...(valor || {}) });
+  const set = (k: string, x: string) => setV((o: any) => ({ ...o, [k]: x }));
+  const st = { width: "100%", background: "var(--surface-2)", border: "1px solid var(--border-2)", borderRadius: 10, padding: "10px 12px", color: "var(--text)", fontFamily: "var(--font-ui)", fontSize: 14, outline: "none", boxSizing: "border-box" as const };
+  const vazio = campos.every((c) => !String(v[c.key] || "").trim());
+  return (
+    <MktModal title={titulo} onClose={onClose}
+      footer={<>
+        {onDelete ? <button className="bk-mini" style={{ marginRight: "auto" }} onClick={onDelete}>Remover</button> : null}
+        <button className="bk-mini" onClick={onClose}>Cancelar</button>
+        <button className="bk-mini pri" disabled={vazio} onClick={() => onSave(v)}>Salvar</button>
+      </>}>
+      {ajuda ? <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12, lineHeight: 1.5 }}>{ajuda}</div> : null}
+      {campos.map((c) => (
+        <div className="bkf" key={c.key}>
+          <label>{c.label}</label>
+          {c.opcoes ? (
+            <select value={v[c.key] || ""} onChange={(e) => set(c.key, e.target.value)} style={st}>
+              <option value="">—</option>
+              {c.opcoes.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          ) : c.area ? (
+            <textarea value={v[c.key] || ""} onChange={(e) => set(c.key, e.target.value)} placeholder={c.placeholder} rows={4} style={{ ...st, resize: "vertical" }} />
+          ) : (
+            <input type="text" value={v[c.key] || ""} onChange={(e) => set(c.key, e.target.value)} placeholder={c.placeholder} style={st} />
+          )}
+        </div>
+      ))}
     </MktModal>
   );
 }
@@ -976,7 +1055,12 @@ function TextModal({ title, value, placeholder, onClose, onSave }: { title: stri
   const [v, setV] = useState(value);
   return (
     <MktModal title={title} onClose={onClose}
-      footer={<><button className="bk-mini" onClick={onClose}>Cancelar</button><button className="bk-mini pri" onClick={() => onSave(v.trim())}>Salvar</button></>}>
+      footer={<>
+        {/* apagar tem que ser possível: sem isto o cliente fica preso com o texto que a IA propôs */}
+        {value ? <button className="bk-mini" style={{ marginRight: "auto" }} onClick={() => onSave("")}>Limpar</button> : null}
+        <button className="bk-mini" onClick={onClose}>Cancelar</button>
+        <button className="bk-mini pri" onClick={() => onSave(v.trim())}>Salvar</button>
+      </>}>
       <textarea value={v} onChange={(e) => setV(e.target.value)} placeholder={placeholder} rows={5}
         style={{ width: "100%", background: "var(--surface-2)", border: "1px solid var(--border-2)", borderRadius: 10, padding: "11px 13px", color: "var(--text)", fontFamily: "var(--font-ui)", fontSize: 14, outline: "none", boxSizing: "border-box", resize: "vertical" }} />
     </MktModal>
