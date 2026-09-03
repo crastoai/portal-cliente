@@ -69,6 +69,7 @@ export default function Imagens() {
   const [unit, setUnit] = useState<{ name?: string; handle?: string | null } | null>(null);
   const [colors, setColors] = useState<string[]>([]);
   const [font, setFont] = useState<string | null>(null);
+  const [refs, setRefs] = useState<any[]>([]);   // imagens de referência que entram na geração
   const [engine, setEngine] = useState<{ enabled: boolean; used?: number; cap?: number } | null>(null);
   const [fmt, setFmt] = useState("post");
   const [prompt, setPrompt] = useState("");
@@ -91,6 +92,7 @@ export default function Imagens() {
       const kit = await mktApi.get<any>("/marketing/brand-kit?unit=" + uid);
       setColors(((kit?.colors || []) as any[]).map((c) => c.hex).filter(Boolean));
       setFont(((kit?.fonts || []) as any[]).find((f) => f.role === "title")?.family || null);
+      setRefs(((kit?.assets || []) as any[]).filter((a) => a.kind === "reference").slice(0, 4));
     } catch { /* sem brand kit → paleta neutra */ }
   }
 
@@ -212,6 +214,17 @@ export default function Imagens() {
           <div className="bsw">{(colors.length ? colors : FALLBACK).slice(0, 6).map((c, i) => <span key={i} style={{ background: c }} />)}</div>
           <div className="bfont" style={{ fontFamily: font ? `'${font}', system-ui, sans-serif` : undefined }}>{font ? font + " · Aa" : "Fonte da marca"}</div>
           <div className="bnote">{onBrand ? "A arte e a copy saem na sua marca — cores, tipografia e @." : "Geração livre — sem forçar a identidade da marca."}</div>
+          {onBrand && refs.length ? (
+            <>
+              <div className="bh" style={{ marginTop: 14 }}>Referências em uso</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {refs.map((r) => (
+                  <span key={r.id} title="A IA usa o clima visual desta imagem" style={{ width: 44, height: 44, borderRadius: 8, backgroundImage: `url(${r.url})`, backgroundSize: "cover", backgroundPosition: "center", border: "1px solid var(--border-2)" }} />
+                ))}
+              </div>
+              <div className="bnote" style={{ marginTop: 6 }}>A IA pega daqui a luz, a textura e a composição — e cria algo novo nesse clima.</div>
+            </>
+          ) : null}
         </aside>
       </div>
 

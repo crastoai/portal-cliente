@@ -53,6 +53,33 @@ const SEC_ICON: Record<SecId, string> = {
 // escala de neutros (fixa) — mostrada no editor de Cores, igual ao protótipo
 const NEUTRALS = ["#101828", "#344054", "#667085", "#98A2B3", "#D0D5DD", "#F0F2F5"];
 const fontStack = (f: string) => `'${f}', system-ui, -apple-system, sans-serif`;
+
+/**
+ * Reduz a imagem antes de enviar. Foto de celular tem 4-8 MB e, inteira, ou não
+ * sobe ou é pesada demais para a IA usar como referência — e aí ela apareceria
+ * na tela como "em uso" sem nunca influenciar arte nenhuma. 1600px resolve.
+ * SVG e imagem já pequena passam intactos.
+ */
+const MAX_LADO = 1600;
+function encolher(dataUrl: string, mime: string): Promise<string> {
+  if (/svg/i.test(mime) || dataUrl.length < 700_000) return Promise.resolve(dataUrl);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const escala = Math.min(1, MAX_LADO / Math.max(img.width, img.height));
+      if (escala === 1) return resolve(dataUrl);
+      const cv = document.createElement("canvas");
+      cv.width = Math.round(img.width * escala); cv.height = Math.round(img.height * escala);
+      const ctx = cv.getContext("2d");
+      if (!ctx) return resolve(dataUrl);
+      ctx.drawImage(img, 0, 0, cv.width, cv.height);
+      // PNG mantém transparência (logo); o resto vira JPEG, bem mais leve
+      resolve(cv.toDataURL(/png/i.test(mime) ? "image/png" : "image/jpeg", 0.85));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
 const onColor = (hex: string) => {
   const h = (hex || "#000").replace("#", "");
   if (h.length < 6) return "#fff";
@@ -148,7 +175,9 @@ export default function BrandKit() {
     flash("Enviando…");
     const reader = new FileReader();
     reader.onload = async () => {
-      try { await mktApi.post("/marketing/brand-kit/assets?unit=" + unitId, { kind: fileKind.current, dataUrl: reader.result });
+      try {
+        const dataUrl = await encolher(String(reader.result), f.type);
+        await mktApi.post("/marketing/brand-kit/assets?unit=" + unitId, { kind: fileKind.current, dataUrl });
         const up = await mktApi.get<Kit>("/marketing/brand-kit?unit=" + unitId); setKit(up); flash("Imagem enviada");
       } catch (er: any) {
         const m = String(er?.message || "");
@@ -369,7 +398,11 @@ export default function BrandKit() {
           </div></div>
         </div>
         <div className="bk3-card"><div className="bk-h" style={{ marginBottom: 4 }}>Imagens de referência da marca</div>
-          <div className="bk-gap" style={{ marginBottom: 11 }}>Fotos, padrões, mockups — o que ajuda a IA a entender o clima visual da marca.</div>
+          <div className="bk-gap" style={{ marginBottom: 11 }}>
+            Fotos, padrões, mockups — o clima visual da marca. A IA olha estas imagens ao criar suas artes: ela pega daqui a
+            luz, a textura, a composição e o nível de realismo, e cria algo <b>novo</b> nesse mesmo mundo — não copia.
+            {refs.length ? <> Hoje: <b>{refs.length} em uso</b> (as 4 mais recentes entram na geração).</> : <> Nenhuma ainda — sem elas, a IA se guia só pelas cores e fontes.</>}
+          </div>
           <div className="bk-assets">
             {refs.map((a) => <div className="bk-asset" key={a.id} style={{ backgroundImage: `url(${a.url})` }}><span className="a-x" onClick={() => delAsset(a.id)}>×</span></div>)}
             <div className="bk-asset add" onClick={() => pick("reference")}>+</div>
@@ -384,7 +417,7 @@ export default function BrandKit() {
       <>
         <div className="bk3-h"><span className="e-t">Cores</span>
           <span className="bk-sp" />
-          <button className="bk-act" onClick={exportTokens}>Tokens</button>
+          <button className="bk-act" onClick={exportTokens}>Exportar cores</button>
           <button className="bk-mini pri" onClick={() => setModal({ kind: "colors" })}>Editar cores</button>
         </div>
         <p className="bk3-sub">A paleta da marca. A IA usa estas cores em posts, imagens e vídeos.</p>
