@@ -113,6 +113,9 @@ export default function Imagens() {
     if (l.href !== href) l.href = href;
   }, [font]);
 
+  // O servidor sempre chega a um fim (fecha o que passa de 12 min com o motivo),
+  // então acompanhamos um pouco além disso — nunca "para sempre".
+  const LIMITE_ACOMPANHAR = 210; // 210 x 4s = 14 min
   function startPoll(genId: string) {
     if (pollRef.current) window.clearInterval(pollRef.current);
     let tries = 0; setProcessing(true);
@@ -123,10 +126,13 @@ export default function Imagens() {
         setResults({ generation: r.generation, images: r.images });
         const busy = (r.images || []).some((im: any) => im.status === "pending" || im.status === "adjusting");
         setProcessing(busy);
-        if (!busy || r.generation?.status === "cancelled" || tries > 60) {
+        if (!busy || r.generation?.status === "cancelled") {
           window.clearInterval(pollRef.current); pollRef.current = undefined; setProcessing(false); loadLib(); loadStatus();
+        } else if (tries > LIMITE_ACOMPANHAR) {
+          window.clearInterval(pollRef.current); pollRef.current = undefined; setProcessing(false);
+          flash("A geração está demorando mais que o normal. Recarregue a página em instantes para ver o resultado.");
         }
-      } catch { if (tries > 60) { window.clearInterval(pollRef.current); setProcessing(false); } }
+      } catch { if (tries > LIMITE_ACOMPANHAR) { window.clearInterval(pollRef.current); pollRef.current = undefined; setProcessing(false); } }
     }, 4000);
   }
 
@@ -248,8 +254,10 @@ export default function Imagens() {
                     {done ? <a className="bk-mini" href={im.url} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>Baixar</a> : null}
                     {done ? <button className="bk-mini pri" onClick={() => use(im.id)}>Usar → Calendário</button> : null}
                     {im.status === "cancelled" ? <span className="img-motor">cancelada</span> : null}
-                    {im.status === "failed" ? <span className="img-motor">falhou — gere de novo</span> : null}
+                    {im.status === "failed" ? <button className="bk-mini pri" disabled={disabled || processing} onClick={generate}>Gerar de novo</button> : null}
                   </div>
+                  {/* a tela nunca fica muda: quando não sai a arte, aparece o porquê */}
+                  {im.error ? <div className="img-motor" style={{ marginTop: 6, color: im.status === "failed" ? "var(--danger, #B4232A)" : undefined }}>{im.error}</div> : null}
                   {done && !carr && adjustOpen[im.id] ? (
                     <div className="img-adjust">
                       <input type="text" value={adjust[im.id] || ""} onChange={(e) => setAdjust((a) => ({ ...a, [im.id]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter") adjustOne(im.id); }} placeholder="ex.: fundo mais claro, aumente o título, tire o ícone" />
