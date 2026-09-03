@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { mktApi, activeUnit } from "../../../lib/mktApi";
+import { prepararReferencia } from "./_img";
 
 // ============================================================================
 // Tela 4 — IMAGENS & CARROSSEL. Motor REAL = Gemini "Nano Banana Pro" (Crasto
@@ -81,6 +82,10 @@ export default function Imagens() {
   const [adjustOpen, setAdjustOpen] = useState<Record<string, boolean>>({});
   const [lib, setLib] = useState<any[] | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  // referências SÓ deste post — somam às fixas do Brand Kit, sem substituí-las
+  const [refsPost, setRefsPost] = useState<{ id: string; dataUrl: string }[]>([]);
+  const [lendoRef, setLendoRef] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
   const pollRef = useRef<number | undefined>(undefined);
   const flash = (m: string) => { setToast(m); window.setTimeout(() => setToast((t) => (t === m ? null : t)), 2600); };
 
@@ -136,11 +141,37 @@ export default function Imagens() {
     }, 4000);
   }
 
+  const MAX_REFS_POST = 6;
+  /** Aceita arquivos (botão ou arrastar) e colagem (Ctrl+V) — o mesmo caminho. */
+  async function juntarRefs(arquivos: File[]) {
+    const imgs = arquivos.filter((f) => f && f.type.startsWith("image/"));
+    if (!imgs.length) return;
+    const espaco = MAX_REFS_POST - refsPost.length;
+    if (espaco <= 0) { flash(`São no máximo ${MAX_REFS_POST} referências por post.`); return; }
+    setLendoRef(true);
+    try {
+      const novas: { id: string; dataUrl: string }[] = [];
+      for (const f of imgs.slice(0, espaco)) {
+        try { novas.push({ id: `${f.name}-${f.size}-${novas.length}-${Math.random().toString(36).slice(2, 7)}`, dataUrl: await prepararReferencia(f) }); }
+        catch { /* uma imagem ruim não derruba as outras */ }
+      }
+      if (novas.length) setRefsPost((r) => [...r, ...novas]);
+      if (imgs.length > espaco) flash(`Entraram ${espaco}: são no máximo ${MAX_REFS_POST} referências por post.`);
+    } finally { setLendoRef(false); }
+  }
+  function colarRef(e: React.ClipboardEvent) {
+    const arquivos = Array.from(e.clipboardData?.items || [])
+      .filter((it) => it.kind === "file" && it.type.startsWith("image/"))
+      .map((it) => it.getAsFile())
+      .filter(Boolean) as File[];
+    if (arquivos.length) { e.preventDefault(); void juntarRefs(arquivos); }
+  }
+
   async function generate() {
     if (!engine?.enabled) { flash("Gerador de imagens em configuração."); return; }
     setGenBusy(true); setResults(null); setAdjust({}); setAdjustOpen({});
     try {
-      const r = await mktApi.post<any>("/marketing/images/generate", { format: fmt, prompt: prompt.trim() || null, unitId, onBrand });
+      const r = await mktApi.post<any>("/marketing/images/generate", { format: fmt, prompt: prompt.trim() || null, unitId, onBrand, refs: refsPost.map((x) => x.dataUrl) });
       setResults({ generation: r.generation, images: r.images });
       startPoll(r.generation.id);
     } catch (e: any) {
@@ -203,6 +234,33 @@ export default function Imagens() {
           </div>
           <div className="img-lbl">Qual a ideia? (a IA escreve a copy)</div>
           <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="ex.: como a IA ajuda a PME a responder cliente fora do horário — a IA cria o título e a arte na sua marca" />
+
+          {/* Referências DESTE post. As fixas do Brand Kit continuam valendo —
+              estas entram por cima, e pesam mais, porque foram escolhidas agora. */}
+          <div className="img-lbl" style={{ marginTop: 14 }}>Referências deste post <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(opcional)</span></div>
+          <div className="img-refs" tabIndex={0} onPaste={colarRef}
+            onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("drag"); }}
+            onDragLeave={(e) => e.currentTarget.classList.remove("drag")}
+            onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove("drag"); void juntarRefs(Array.from(e.dataTransfer?.files || [])); }}>
+            {refsPost.map((r) => (
+              <span key={r.id} className="img-ref" style={{ backgroundImage: `url(${r.dataUrl})` }}>
+                <button type="button" title="Tirar esta referência" onClick={() => setRefsPost((x) => x.filter((y) => y.id !== r.id))}>×</button>
+              </span>
+            ))}
+            {refsPost.length < MAX_REFS_POST ? (
+              <button type="button" className="img-ref add" onClick={() => fileRef.current?.click()} disabled={lendoRef}>
+                <b>{lendoRef ? "…" : "+"}</b><small>subir</small>
+              </button>
+            ) : null}
+            <input ref={fileRef} type="file" accept="image/*" multiple hidden
+              onChange={(e) => { void juntarRefs(Array.from(e.target.files || [])); e.currentTarget.value = ""; }} />
+            <div className="img-refs-hint">
+              {refsPost.length
+                ? `${refsPost.length} de ${MAX_REFS_POST} — a IA usa o clima destas imagens nesta arte.`
+                : "Clique aqui e cole com Ctrl+V, arraste, ou suba do computador. Valem só para esta arte."}
+            </div>
+          </div>
+
           <div className="img-row">
             <button className={"img-toggle" + (onBrand ? " on" : "")} aria-label="Na identidade do meu Brand Kit" onClick={() => setOnBrand((v) => !v)} />
             <div>
@@ -220,9 +278,20 @@ export default function Imagens() {
           <div className="bsw">{(colors.length ? colors : FALLBACK).slice(0, 6).map((c, i) => <span key={i} style={{ background: c }} />)}</div>
           <div className="bfont" style={{ fontFamily: font ? `'${font}', system-ui, sans-serif` : undefined }}>{font ? font + " · Aa" : "Fonte da marca"}</div>
           <div className="bnote">{onBrand ? "A arte e a copy saem na sua marca — cores, tipografia e @." : "Geração livre — sem forçar a identidade da marca."}</div>
+          {refsPost.length ? (
+            <>
+              <div className="bh" style={{ marginTop: 14 }}>Só neste post</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {refsPost.map((r) => (
+                  <span key={r.id} title="Referência escolhida para esta arte" style={{ width: 44, height: 44, borderRadius: 8, backgroundImage: `url(${r.dataUrl})`, backgroundSize: "cover", backgroundPosition: "center", border: "1px solid var(--blue-2)" }} />
+                ))}
+              </div>
+              <div className="bnote" style={{ marginTop: 6 }}>Estas pesam mais que as fixas — você as escolheu para esta arte.</div>
+            </>
+          ) : null}
           {onBrand && refs.length ? (
             <>
-              <div className="bh" style={{ marginTop: 14 }}>Referências em uso</div>
+              <div className="bh" style={{ marginTop: 14 }}>Fixas da marca</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {refs.map((r) => (
                   <span key={r.id} title="A IA usa o clima visual desta imagem" style={{ width: 44, height: 44, borderRadius: 8, backgroundImage: `url(${r.url})`, backgroundSize: "cover", backgroundPosition: "center", border: "1px solid var(--border-2)" }} />

@@ -61,3 +61,16 @@
 .mkt-root .img-empty{background:var(--surface-2);border:1px dashed var(--border-2);border-radius:12px;padding:22px 18px;text-align:center;color:var(--muted);font-size:13px;line-height:1.55}
 
 @media(max-width:900px){.mkt-root .img-gen{grid-template-columns:1fr}.mkt-root .img-brand{position:static}.mkt-root .img-conn{flex-wrap:wrap}}
+
+/* referências DESTE post: colar (Ctrl+V), arrastar ou subir do computador.
+   Somam às referências fixas do Brand Kit — não substituem. */
+.mkt-root .img-refs{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--surface-2);border:1px dashed var(--border-2);border-radius:11px;padding:10px;outline:none;transition:border-color .15s,background .15s}
+.mkt-root .img-refs:focus-within,.mkt-root .img-refs.drag{border-color:var(--blue-2);background:rgba(110,156,232,.07)}
+.mkt-root .img-ref{position:relative;width:56px;height:56px;border-radius:9px;background-size:cover;background-position:center;border:1px solid var(--border-2);flex:0 0 auto}
+.mkt-root .img-ref>button{position:absolute;top:-6px;right:-6px;width:19px;height:19px;line-height:1;border-radius:50%;border:1px solid var(--border-2);background:var(--surface);color:var(--muted);font-size:13px;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center}
+.mkt-root .img-ref>button:hover{color:var(--danger,#b4232a);border-color:var(--danger,#b4232a)}
+.mkt-root .img-ref.add{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;background:var(--surface);border-style:dashed;cursor:pointer;color:var(--muted);font-family:var(--font-ui)}
+.mkt-root .img-ref.add:hover{border-color:var(--blue-2);color:var(--blue-3)}
+.mkt-root .img-ref.add b{font-size:17px;font-weight:600;line-height:1}
+.mkt-root .img-ref.add small{font-size:9.5px;letter-spacing:.02em}
+.mkt-root .img-refs-hint{flex:1;min-width:180px;font-size:12px;color:var(--muted);line-height:1.5}

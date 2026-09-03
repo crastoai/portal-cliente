@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { mktApi } from "../../../lib/mktApi";
 import { MktModal } from "./_ui";
+import { encolher, MAX_LADO, MAX_LADO_REF } from "./_img";
 
 // ============================================================================
 // Brand Kit (tela 2) — NATIVO no portal, ligado à marketing-api (banco `marketing`).
@@ -60,27 +61,7 @@ const fontStack = (f: string) => `'${f}', system-ui, -apple-system, sans-serif`;
  * na tela como "em uso" sem nunca influenciar arte nenhuma. 1600px resolve.
  * SVG e imagem já pequena passam intactos.
  */
-const MAX_LADO = 1600;
-const MAX_LADO_REF = 1024;   // referência só precisa passar o clima — quanto mais leve, mais cabem
-function encolher(dataUrl: string, mime: string, lado = MAX_LADO): Promise<string> {
-  if (/svg/i.test(mime) || dataUrl.length < 300_000) return Promise.resolve(dataUrl);
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      const escala = Math.min(1, lado / Math.max(img.width, img.height));
-      if (escala === 1) return resolve(dataUrl);
-      const cv = document.createElement("canvas");
-      cv.width = Math.round(img.width * escala); cv.height = Math.round(img.height * escala);
-      const ctx = cv.getContext("2d");
-      if (!ctx) return resolve(dataUrl);
-      ctx.drawImage(img, 0, 0, cv.width, cv.height);
-      // PNG mantém transparência (logo); o resto vira JPEG, bem mais leve
-      resolve(cv.toDataURL(/png/i.test(mime) ? "image/png" : "image/jpeg", 0.85));
-    };
-    img.onerror = () => resolve(dataUrl);
-    img.src = dataUrl;
-  });
-}
+// o preparo de imagem mora em _img.ts — Brand Kit e Imagens usam o MESMO
 const onColor = (hex: string) => {
   const h = (hex || "#000").replace("#", "");
   if (h.length < 6) return "#fff";
@@ -173,7 +154,8 @@ export default function BrandKit() {
     const dataUrl: string = await new Promise((res, rej) => {
       const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(f);
     });
-    const menor = await encolher(dataUrl, f.type, kind === "reference" ? MAX_LADO_REF : MAX_LADO);
+    const ehRef = kind === "reference";
+    const menor = await encolher(dataUrl, f.type, ehRef ? MAX_LADO_REF : MAX_LADO, ehRef);
     await mktApi.post("/marketing/brand-kit/assets?unit=" + unitId, { kind, dataUrl: menor });
     return true;
   }
