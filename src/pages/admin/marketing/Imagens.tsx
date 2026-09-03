@@ -85,6 +85,8 @@ export default function Imagens() {
   // referências SÓ deste post — somam às fixas do Brand Kit, sem substituí-las
   const [refsPost, setRefsPost] = useState<{ id: string; dataUrl: string }[]>([]);
   const [lendoRef, setLendoRef] = useState(false);
+  const [decorrido, setDecorrido] = useState("");
+  const inicioRef = useRef<number>(0);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const pollRef = useRef<number | undefined>(undefined);
   const flash = (m: string) => { setToast(m); window.setTimeout(() => setToast((t) => (t === m ? null : t)), 2600); };
@@ -110,6 +112,19 @@ export default function Imagens() {
     return () => { if (pollRef.current) window.clearInterval(pollRef.current); };
   }, []);
 
+  // relógio do "criando…": conta desde o início da geração e limpa ao terminar
+  useEffect(() => {
+    if (!processing) { setDecorrido(""); return; }
+    if (!inicioRef.current) inicioRef.current = Date.now();
+    const tick = () => {
+      const s = Math.max(0, Math.round((Date.now() - inicioRef.current) / 1000));
+      setDecorrido(s < 60 ? `${s}s` : `${Math.floor(s / 60)}min${String(s % 60).padStart(2, "0")}`);
+    };
+    tick();
+    const t = window.setInterval(tick, 1000);
+    return () => { window.clearInterval(t); };
+  }, [processing]);
+
   useEffect(() => {
     if (!font) return;
     const href = "https://fonts.googleapis.com/css2?family=" + encodeURIComponent(font).replace(/%20/g, "+") + ":wght@400;700&display=swap";
@@ -118,9 +133,10 @@ export default function Imagens() {
     if (l.href !== href) l.href = href;
   }, [font]);
 
-  // O servidor sempre chega a um fim (fecha o que passa de 12 min com o motivo),
-  // então acompanhamos um pouco além disso — nunca "para sempre".
-  const LIMITE_ACOMPANHAR = 210; // 210 x 4s = 14 min
+  // O servidor sempre chega a um fim (fecha o que estoura o prazo, com o motivo),
+  // então acompanhamos um pouco além disso — nunca "para sempre". Uma arte 2K
+  // com as referências da marca leva minutos; carrossel são 4 em fila.
+  const LIMITE_ACOMPANHAR = 330; // ~30 min, contando a folga do 2º intervalo
   function startPoll(genId: string) {
     if (pollRef.current) window.clearInterval(pollRef.current);
     let tries = 0; setProcessing(true);
@@ -169,7 +185,7 @@ export default function Imagens() {
 
   async function generate() {
     if (!engine?.enabled) { flash("Gerador de imagens em configuração."); return; }
-    setGenBusy(true); setResults(null); setAdjust({}); setAdjustOpen({});
+    setGenBusy(true); setResults(null); setAdjust({}); setAdjustOpen({}); inicioRef.current = Date.now();
     try {
       const r = await mktApi.post<any>("/marketing/images/generate", { format: fmt, prompt: prompt.trim() || null, unitId, onBrand, refs: refsPost.map((x) => x.dataUrl) });
       setResults({ generation: r.generation, images: r.images });
@@ -306,9 +322,17 @@ export default function Imagens() {
       {results ? (
         <>
           <div className="img-sec">
-            {isCarr ? "Carrossel" : "Resultado"}{processing ? " · gerando na identidade da sua marca…" : ""}
+            {isCarr ? "Carrossel" : "Resultado"}{processing ? " · criando na identidade da sua marca…" : ""}
             {processing ? <button className="bk-mini" style={{ marginLeft: 12, verticalAlign: "middle" }} onClick={cancel}>Cancelar</button> : null}
           </div>
+          {/* Estado honesto: quanto já passou e a permissão de ir embora. Uma arte
+              na identidade da marca leva alguns minutos — sem isto o cliente
+              acha que travou (foi exatamente o que aconteceu). */}
+          {processing ? (
+            <div className="img-motor" style={{ marginTop: -6, marginBottom: 10 }}>
+              {decorrido ? `${decorrido} · ` : ""}pode sair desta tela — a arte continua sendo criada e fica na Biblioteca.
+            </div>
+          ) : null}
           <div className="img-results">
             {imgs.map((im: any, i: number) => {
               const carr = im.format === "carrossel";
