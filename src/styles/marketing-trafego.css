@@ -42,6 +42,25 @@
 .mkt-root .roy-thumb b{position:relative;z-index:1;background:rgba(2,16,43,.6);padding:2px 6px;border-radius:6px}
 .mkt-root .roy-thumb .pill{position:relative;z-index:1;margin-top:4px}
 
+/* capa clicável — assistir o viral (thumb vira botão, sem mudar a aparência) */
+.mkt-root .roy-playable{padding:0;font:inherit;cursor:pointer;appearance:none}
+.mkt-root .roy-playable:focus-visible{outline:2px solid var(--blue-3);outline-offset:2px}
+.mkt-root .roy-play{position:absolute;inset:0;z-index:2;display:grid;place-items:center;font-size:22px;color:#fff;
+  background:rgba(2,16,43,.45);opacity:0;transition:opacity .16s ease}
+.mkt-root .roy-playable:hover .roy-play,
+.mkt-root .roy-playable:focus-visible .roy-play{opacity:1}
+
+/* título clicável (mesma aparência do .ap-pt, mas é botão) */
+.mkt-root .roy-title{display:block;width:100%;text-align:left;border:0;background:transparent;padding:0;
+  font-family:inherit;font-weight:600;font-size:16px;color:var(--heading);margin:9px 0 5px;cursor:pointer}
+.mkt-root .roy-title:hover{text-decoration:underline}
+
+/* player do viral (16:9) — vive DENTRO do modal, que é portado para o body */
+.mkt-modal-b .roy-player{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:11px;overflow:hidden}
+.mkt-modal-b .roy-player iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.mkt-modal-f .roy-player-ft{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;width:100%}
+.mkt-modal-f .roy-player-meta{font-size:12.5px;color:var(--muted)}
+
 /* esteira de adaptação */
 .mkt-root .roy-adapt{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px}
 .mkt-root .roy-flow{display:flex;align-items:stretch;gap:8px}

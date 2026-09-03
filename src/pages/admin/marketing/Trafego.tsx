@@ -12,7 +12,7 @@ import { MktModal } from "./_ui";
 // ============================================================================
 
 type Ctx = { unitName?: string; cnpj?: string; segment?: string; radarSource?: boolean; adaptEngine?: boolean };
-type Find = { id: string; title: string; channel?: string; url?: string; thumbnail?: string; views?: number; likes?: number; score?: number; published_at?: string; duration?: string };
+type Find = { id: string; title: string; channel?: string; url?: string; thumbnail?: string; views?: number; likes?: number; score?: number; published_at?: string; duration?: string; video_id?: string; embeddable?: boolean | null };
 type Acct = { platform: string; status?: string; validated_at?: string };
 
 const AD_PLATFORMS = [
@@ -44,6 +44,7 @@ export default function Trafego() {
   const [searching, setSearching] = useState(false);
   const [adaptingId, setAdaptingId] = useState<string | null>(null);
   const [scriptModal, setScriptModal] = useState<{ title: string; script: string } | null>(null);
+  const [playing, setPlaying] = useState<Find | null>(null);
   const [cfgOpen, setCfgOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const flash = (m: string) => { setToast(m); window.setTimeout(() => setToast((t) => (t === m ? null : t)), 3200); };
@@ -77,6 +78,7 @@ export default function Trafego() {
     setAdaptingId(f.id);
     try {
       const a = await mktApi.post<any>(`/marketing/ads/finds/${f.id}/adapt`, {});
+      setPlaying(null); // nunca dois modais abertos ao mesmo tempo
       setScriptModal({ title: f.title, script: a.adapted_script || "" });
       loadAdapt();
     } catch (e: any) {
@@ -84,6 +86,15 @@ export default function Trafego() {
       if (code === "adapt_engine_off") flash("O motor de roteiro ainda não está ligado.");
       else flash(e?.message || "Falha ao gerar o roteiro.");
     } finally { setAdaptingId(null); }
+  }
+
+  // Assistir: toca aqui dentro quando o dono do vídeo autoriza; senão manda pro YouTube
+  // (nunca abrimos um player que ficaria preto). `embeddable` nulo = tenta tocar.
+  function openVideo(f: Find) {
+    setScriptModal(null); // nunca dois modais abertos ao mesmo tempo
+    if (f.video_id && f.embeddable !== false) { setPlaying(f); return; }
+    if (f.url) window.open(f.url, "_blank", "noopener,noreferrer");
+    else flash("Este vídeo não tem link disponível.");
   }
 
   async function validateAccount(k: string) {
@@ -135,17 +146,25 @@ export default function Trafego() {
           <div className="ap-lbl">Top virais do seu segmento (YouTube)</div>
           {finds.length ? finds.map((f) => (
             <div className="ap-post" key={f.id}>
-              <div className="ap-thumb roy-thumb" style={f.thumbnail ? { backgroundImage: `url(${f.thumbnail})` } : undefined}>
+              <button
+                type="button"
+                className="ap-thumb roy-thumb roy-playable"
+                style={f.thumbnail ? { backgroundImage: `url(${f.thumbnail})` } : undefined}
+                onClick={() => openVideo(f)}
+                title={f.embeddable === false ? "Assistir no YouTube" : "Assistir"}
+                aria-label={`Assistir: ${f.title}`}
+              >
+                <span className="roy-play" aria-hidden="true">▶</span>
                 {f.duration ? <b>▶ {f.duration}</b> : <b>▶</b>}
                 {f.score != null ? <span className="pill">nota {String(f.score).replace(".", ",")}</span> : null}
-              </div>
+              </button>
               <div className="ap-pb">
                 <div className="ap-tags">
                   <span className="ap-tag">CONCORRENTE</span>
                   <span className="ap-chip mono">{fmtViews(f.views)} views</span>
                   {f.channel ? <span className="ap-chip">{f.channel}</span> : null}
                 </div>
-                <div className="ap-pt">{f.title}</div>
+                <button type="button" className="ap-pt roy-title" onClick={() => openVideo(f)}>{f.title}</button>
                 <div className="ap-pl">
                   {f.likes != null ? <>{fmtViews(f.likes)} curtidas · </> : null}
                   {f.published_at ? <>publicado {fmtDate(f.published_at)}</> : null}
@@ -153,6 +172,9 @@ export default function Trafego() {
                 <div className="ap-pf">
                   {f.url ? <a className="ap-when roy-link" href={f.url} target="_blank" rel="noreferrer">Abrir no YouTube ↗</a> : <span className="ap-when" />}
                   <span className="ap-acts">
+                    <button className="roy-b" onClick={() => openVideo(f)}>
+                      {f.embeddable === false ? "Assistir no YouTube" : "Assistir"}
+                    </button>
                     <button className="roy-b pri" disabled={adaptingId === f.id} onClick={() => adapt(f)}>
                       {adaptingId === f.id ? "Adaptando…" : "Adaptar p/ mim"}
                     </button>
@@ -271,6 +293,31 @@ export default function Trafego() {
         <MktModal title="Roteiro adaptado (na sua voz)" onClose={() => setScriptModal(null)}>
           <div className="roy-script-src">Referência: <b>{scriptModal.title}</b></div>
           <pre className="roy-script">{scriptModal.script}</pre>
+        </MktModal>
+      ) : null}
+
+      {playing ? (
+        <MktModal title={playing.title} onClose={() => setPlaying(null)} wide
+          footer={
+            <div className="roy-player-ft">
+              <span className="roy-player-meta">
+                {playing.channel ? <>{playing.channel} · </> : null}
+                {fmtViews(playing.views)} views
+                {playing.likes != null ? <> · {fmtViews(playing.likes)} curtidas</> : null}
+              </span>
+              {playing.url ? <a className="roy-link" href={playing.url} target="_blank" rel="noreferrer">Abrir no YouTube ↗</a> : null}
+            </div>
+          }
+        >
+          <div className="roy-player">
+            <iframe
+              src={`https://www.youtube-nocookie.com/embed/${playing.video_id}?autoplay=1&rel=0&modestbranding=1`}
+              title={playing.title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              referrerPolicy="strict-origin-when-cross-origin"
+            />
+          </div>
         </MktModal>
       ) : null}
 
