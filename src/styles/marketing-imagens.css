@@ -44,6 +44,13 @@
 .mkt-root .img-select-opt-tx{display:flex;flex-direction:column;flex:1 1 auto;min-width:0}
 .mkt-root .img-select-opt-lbl{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mkt-root .img-select-opt-sub{font-size:11.5px;color:var(--muted);font-weight:500}
+/* Quantos slides no carrossel (flexível) */
+.mkt-root .img-slides{display:flex;align-items:center;gap:8px;margin:8px 0 2px}
+.mkt-root .img-slides-lbl{font-size:13px;color:var(--text);font-weight:600}
+.mkt-root .img-slides-b{width:30px;height:30px;border-radius:8px;border:1px solid var(--border-2);background:var(--surface);color:var(--text);font-size:18px;line-height:1;cursor:pointer;font-family:var(--font-ui)}
+.mkt-root .img-slides-b:disabled{opacity:.4;cursor:not-allowed}
+.mkt-root .img-slides input{width:52px;text-align:center;border:1px solid var(--border-2);background:var(--surface);color:var(--text);border-radius:8px;padding:6px 4px;font-size:14px;font-weight:700;font-family:var(--font-ui)}
+.viz-refs-t{font-size:11px;color:var(--muted);font-weight:600;margin-bottom:4px}
 .mkt-root .img-row{display:flex;align-items:center;gap:10px;margin:14px 0}
 .mkt-root .img-toggle{width:38px;height:22px;border-radius:99px;background:var(--surface-3);border:0;cursor:pointer;position:relative;flex:0 0 auto}
 .mkt-root .img-toggle.on{background:var(--blue-2)}

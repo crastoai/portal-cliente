@@ -193,6 +193,8 @@ export default function Imagens() {
   const [catStatus, setCatStatus] = useState<"carregando" | "ok" | "erro">("carregando");
   const [rede, setRede] = useState("instagram");
   const [slotSel, setSlotSel] = useState("feed_retrato");
+  const [slides, setSlides] = useState(3);          // quantos slides no carrossel — flexível
+  const slidesTocadoRef = useRef(false);            // o cliente já ajustou o nº na mão
   const [prompt, setPrompt] = useState("");
   const [onBrand, setOnBrand] = useState(true);
   const [results, setResults] = useState<any | null>(null);
@@ -332,7 +334,7 @@ export default function Imagens() {
       try {
         const r = await mktApi.get<any>("/marketing/images/generations/" + genId);
         setResults({ generation: r.generation, images: r.images });
-        const busy = (r.images || []).some((im: any) => im.status === "pending" || im.status === "adjusting");
+        const busy = (r.images || []).some((im: any) => im.status === "pending" || im.status === "generating" || im.status === "adjusting");
         setProcessing(busy);
         if (!busy || r.generation?.status === "cancelled") {
           window.clearInterval(pollRef.current); pollRef.current = undefined; setProcessing(false); loadLib(); loadStatus();
@@ -384,7 +386,7 @@ export default function Imagens() {
     pediuAquiRef.current = true;
     setGenBusy(true); setResults(null); setRetomada(null); setAdjust({}); setAdjustOpen({}); inicioRef.current = Date.now();
     try {
-      const r = await mktApi.post<any>("/marketing/images/generate", { network: rede, slot: slotSel, prompt: prompt.trim() || null, unitId, onBrand, refs: refsPost.map((x) => x.dataUrl) });
+      const r = await mktApi.post<any>("/marketing/images/generate", { network: rede, slot: slotSel, slides: ehCarrossel ? slidesVal : undefined, prompt: prompt.trim() || null, unitId, onBrand, refs: refsPost.map((x) => x.dataUrl) });
       setResults({ generation: r.generation, images: r.images });
       startPoll(r.generation.id);
     } catch (e: any) {
@@ -428,9 +430,23 @@ export default function Imagens() {
     setResults(null); setRetomada(null); setAdjust({}); setAdjustOpen({});
   }
 
+  // entende "carrossel de 3 slides", "5 cards", "faça 4 telas" na ideia e ajusta
+  // o número — mas só enquanto o cliente não mexeu no controle com a própria mão
+  useEffect(() => {
+    if (slidesTocadoRef.current) return;
+    const t = prompt.toLowerCase();
+    let m = t.match(/(\d{1,2})\s*(?:slides?|cards?|telas?|imagens|p[áa]ginas)\b/);
+    if (!m) m = t.match(/carross\w*\s+(?:de|com)?\s*(\d{1,2})\b/);
+    if (m) { const n = parseInt(m[1], 10); if (n >= 2 && n <= 20) setSlides(n); }
+  }, [prompt]);
+
+  const usandoRef = useRef<Set<string>>(new Set());
   async function use(imageId: string) {
+    if (usandoRef.current.has(imageId)) return; // trava o duplo-clique: um post só
+    usandoRef.current.add(imageId);
     try { await mktApi.post("/marketing/images/" + imageId + "/use"); flash("Enviado para o Calendário (A agendar)"); loadLib(); }
     catch { flash("Não foi possível enviar agora. Tente novamente em instantes."); }
+    finally { usandoRef.current.delete(imageId); }
   }
 
   /**
@@ -460,6 +476,9 @@ export default function Imagens() {
   const redeAtual = catalogo.find((r) => r.slug === rede);
   const slotAtual = redeAtual?.slots.find((s: any) => s.slug === slotSel);
   const ehCarrossel = !!slotAtual?.carrossel;
+  const maxSlides = Math.min(slotAtual?.maxSlides || 20, 20);
+  const slidesVal = Math.max(2, Math.min(slides, maxSlides));
+  const mudarSlides = (n: number) => { slidesTocadoRef.current = true; setSlides(Math.max(2, Math.min(Math.round(n) || 2, maxSlides))); };
   // a proporção do resultado exibido vem do destino da GERAÇÃO (não do seletor):
   // numa retomada os dois podem diferir
   const aspectoResultado = aspectoDe(results?.generation?.network, results?.generation?.slot, results?.images?.[0]?.format);
@@ -527,6 +546,17 @@ export default function Imagens() {
           {slotAtual?.nota ? (
             <div className="img-motor" style={{ marginTop: 6, marginBottom: 4 }}>{slotAtual.nota}</div>
           ) : null}
+          {/* Carrossel flexível: o cliente escolhe QUANTOS slides (não é mais 4 fixo).
+              A ideia também é entendida ("carrossel de 3 slides" já ajusta o número). */}
+          {ehCarrossel ? (
+            <div className="img-slides">
+              <span className="img-slides-lbl">Quantos slides?</span>
+              <button type="button" className="img-slides-b" aria-label="Menos um slide" disabled={slidesVal <= 2} onClick={() => mudarSlides(slidesVal - 1)}>−</button>
+              <input type="number" min={2} max={maxSlides} value={slidesVal} onChange={(e) => mudarSlides(Number(e.target.value))} />
+              <button type="button" className="img-slides-b" aria-label="Mais um slide" disabled={slidesVal >= maxSlides} onClick={() => mudarSlides(slidesVal + 1)}>+</button>
+              <span className="img-motor" style={{ marginLeft: 4 }}>de 2 a {maxSlides}</span>
+            </div>
+          ) : null}
           <div className="img-lbl" style={{ marginTop: 12 }}>Qual a ideia? (a IA escreve a copy)</div>
           <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="ex.: como a IA ajuda a PME a responder cliente fora do horário — a IA cria o título e a arte na sua marca" />
 
@@ -563,7 +593,7 @@ export default function Imagens() {
               <div className="img-motor">{onBrand ? "As artes saem com as suas cores, tipografia e o seu @." : "Geração livre — sem forçar a identidade da marca."}</div>
             </div>
           </div>
-          <button className="bk-mini pri" style={{ width: "100%", padding: "11px 22px", fontSize: 14, opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer" }} disabled={disabled} onClick={generate}>{genBusy ? "Enviando…" : (ehCarrossel ? "✨ Gerar carrossel (4 slides)" : "✨ Gerar imagem")}</button>
+          <button className="bk-mini pri" style={{ width: "100%", padding: "11px 22px", fontSize: 14, opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer" }} disabled={disabled} onClick={generate}>{genBusy ? "Enviando…" : (ehCarrossel ? `✨ Gerar carrossel (${slidesVal} slides)` : "✨ Gerar imagem")}</button>
           {engine?.cap ? <div className="img-motor" style={{ textAlign: "right", marginTop: 8 }}>{engine.used ?? 0}/{engine.cap} imagens neste mês</div> : null}
         </div>
 
@@ -627,7 +657,7 @@ export default function Imagens() {
               const carr = im.format === "carrossel";
               const ci = carr ? (im.slide_index ?? i) : (im.variation_index ?? i);
               const done = im.status === "done" && im.url;
-              const overlay = im.status === "adjusting" ? "ajustando…" : (im.status === "pending" ? "gerando…" : null);
+              const overlay = im.status === "adjusting" ? "ajustando…" : ((im.status === "pending" || im.status === "generating") ? "gerando…" : null);
               return (
                 <div className="img-card" key={im.id}>
                   <Poster {...brandProps} aspect={aspectoResultado} ci={ci} slideNo={(im.slide_index ?? i) + 1} slideTot={carr ? total : 0} imgUrl={done ? im.url : undefined} loadingText={overlay} alt={done ? (results?.generation?.prompt ? "Arte: " + String(results.generation.prompt).slice(0, 80) : "Arte gerada") : undefined} />
@@ -732,6 +762,11 @@ function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, unitName }: {
   const [abertos, setAbertos] = useState<Record<string, boolean>>({});
   const [viewer, setViewer] = useState<{ genId: string; idx: number } | null>(null);
 
+  // se a geração aberta no visualizador sumiu do acervo (ex.: recarregou), fecha
+  useEffect(() => {
+    if (viewer && lib && !lib.some((x) => x.generation_id === viewer.genId)) setViewer(null);
+  }, [viewer, lib]);
+
   const redeNome = (slug?: string | null) => catalogo.find((r) => r.slug === slug)?.rede || null;
   const slotNome = (net?: string | null, sl?: string | null) => { const r = catalogo.find((x) => x.slug === net); return r?.slots.find((y: any) => y.slug === sl)?.nome || null; };
 
@@ -761,7 +796,15 @@ function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, unitName }: {
 
   const temFiltro = !!(termo || fRede || soFav || periodo !== "tudo");
   const limpar = () => { setBusca(""); setFRede(null); setSoFav(false); setPeriodo("tudo"); };
-  const gerPorId = (genId: string) => gers.find((x) => x.genId === genId);
+  // o visualizador resolve a geração pelo ACERVO INTEIRO (não pela lista já
+  // filtrada): assim ele não some se um filtro/desfavoritar tirar a arte da lista
+  const gerCompleto = (genId: string): any => {
+    const ps = (lib || []).filter((x) => x.generation_id === genId);
+    if (!ps.length) return null;
+    ps.sort((a: any, b: any) => (a.slide_index ?? 0) - (b.slide_index ?? 0));
+    const f = ps[0];
+    return { genId, created_at: f.created_at, prompt: f.prompt, network: f.network, slot: f.slot, format: f.format, pieces: ps, status: statusDoGrupo(ps) };
+  };
   const abrir = (genId: string, idx: number) => setViewer({ genId, idx });
 
   // ações conforme o status: não postado -> enviar; publicado -> repostar; sempre
@@ -847,7 +890,7 @@ function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, unitName }: {
 
       {viewer ? (
         <Visualizador
-          ger={gerPorId(viewer.genId)} idx={viewer.idx} catalogo={catalogo} unitName={unitName}
+          ger={gerCompleto(viewer.genId)} idx={viewer.idx} catalogo={catalogo} unitName={unitName}
           onIdx={(i: number) => setViewer((v) => (v ? { ...v, idx: i } : v))}
           onClose={() => setViewer(null)} onFav={onFav} onUse={onUse} onCalendario={() => nav("/admin/marketing/calendario")}
           redeNome={redeNome} slotNome={slotNome}
@@ -860,11 +903,11 @@ function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, unitName }: {
 // Visualizador: a arte grande, navegação entre as peças, a ficha (destino, data,
 // status, referências usadas) e as ações. Abre via MktModal (createPortal no body).
 function Visualizador({ ger, idx, onIdx, onClose, onFav, onUse, onCalendario, redeNome, slotNome }: any) {
-  const [detalhe, setDetalhe] = useState<{ refs: any[] } | null>(null);
+  const [detalhe, setDetalhe] = useState<{ refsPost: any[]; refsMarca: any[] } | null>(null);
   useEffect(() => {
     if (!ger?.genId) return;
     let vivo = true;
-    mktApi.get<any>("/marketing/images/generations/" + ger.genId + "/detalhe").then((d) => { if (vivo) setDetalhe({ refs: d?.refs || [] }); }).catch(() => { if (vivo) setDetalhe({ refs: [] }); });
+    mktApi.get<any>("/marketing/images/generations/" + ger.genId + "/detalhe").then((d) => { if (vivo) setDetalhe({ refsPost: d?.refsPost || [], refsMarca: d?.refsMarca || [] }); }).catch(() => { if (vivo) setDetalhe({ refsPost: [], refsMarca: [] }); });
     return () => { vivo = false; };
   }, [ger?.genId]);
   if (!ger) return null;
@@ -912,9 +955,22 @@ function Visualizador({ ger, idx, onIdx, onClose, onFav, onUse, onCalendario, re
           <div className="viz-linha col">
             <span>Referências usadas</span>
             {detalhe == null ? <p className="viz-dim">carregando…</p>
-              : detalhe.refs.length ? (
-                <div className="viz-refs">{detalhe.refs.map((r: any, k: number) => <span key={k} style={{ backgroundImage: r.url ? `url(${r.url})` : undefined }} />)}</div>
-              ) : <p className="viz-dim">Nenhuma referência foi usada nesta arte.</p>}
+              : (detalhe.refsPost.length || detalhe.refsMarca.length) ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {detalhe.refsPost.length ? (
+                    <div>
+                      <div className="viz-refs-t">Deste post</div>
+                      <div className="viz-refs">{detalhe.refsPost.map((r: any, k: number) => <span key={k} style={{ backgroundImage: r.url ? `url(${r.url})` : undefined }} />)}</div>
+                    </div>
+                  ) : null}
+                  {detalhe.refsMarca.length ? (
+                    <div>
+                      <div className="viz-refs-t">Da sua marca (logo e clima)</div>
+                      <div className="viz-refs">{detalhe.refsMarca.map((r: any, k: number) => <span key={k} title={r.tipo === "logo" ? "Logo da marca" : "Referência da marca"} style={{ backgroundImage: r.url ? `url(${r.url})` : undefined }} />)}</div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : <p className="viz-dim">Geração livre — sem referências e sem forçar a identidade da marca.</p>}
           </div>
           <div style={{ marginTop: 4 }}>
             <button className={"img-lib-fav" + (im?.favorite ? " on" : "")} onClick={() => im && onFav(im.id, !im.favorite)}>{im?.favorite ? "★ Favoritada" : "☆ Favoritar"}</button>
