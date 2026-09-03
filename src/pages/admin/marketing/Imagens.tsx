@@ -182,6 +182,8 @@ function SelectBox({ value, options, onChange, placeholder, minWidth }: {
 }
 
 export default function Imagens() {
+  const navegar = useNavigate();
+  const [resultViewerIdx, setResultViewerIdx] = useState<number | null>(null); // visualizador aberto a partir do Resultado
   const [unitId, setUnitId] = useState<string | null>(null);
   const [unit, setUnit] = useState<{ name?: string; handle?: string | null } | null>(null);
   const [colors, setColors] = useState<string[]>([]);
@@ -493,6 +495,14 @@ export default function Imagens() {
   // a proporção do resultado exibido vem do destino da GERAÇÃO (não do seletor):
   // numa retomada os dois podem diferir
   const aspectoResultado = aspectoDe(results?.generation?.network, results?.generation?.slot, results?.images?.[0]?.format);
+  // ger para abrir o visualizador direto do Resultado (recém-gerado, ainda não postado)
+  const redeNomeMain = (slug?: string | null) => catalogo.find((r) => r.slug === slug)?.rede || null;
+  const slotNomeMain = (net?: string | null, sl?: string | null) => { const r = catalogo.find((x) => x.slug === net); return r?.slots.find((y: any) => y.slug === sl)?.nome || null; };
+  const gerResultado = results?.generation ? {
+    genId: results.generation.id, created_at: results.generation.created_at, prompt: results.generation.prompt,
+    network: results.generation.network, slot: results.generation.slot, format: results.generation.format, status: null,
+    pieces: (results.images || []).filter((im: any) => im.status === "done" && im.url).sort((a: any, b: any) => (a.slide_index ?? a.variation_index ?? 0) - (b.slide_index ?? b.variation_index ?? 0)),
+  } : null;
   const imgs: any[] = results?.images || [];
   const isCarr = imgs[0]?.format === "carrossel";
   const total = imgs.length;
@@ -650,6 +660,10 @@ export default function Imagens() {
           <div className="img-sec">
             {isCarr ? "Carrossel" : "Resultado"}{processing ? (ajustando ? " · ajustando a arte…" : " · criando na identidade da sua marca…") : ""}
             {processing ? <button className="bk-mini" style={{ marginLeft: 12, verticalAlign: "middle" }} onClick={cancel}>Cancelar</button> : null}
+            {/* terminou: abrir o visualizador completo (ficha, legenda, versões, excluir) */}
+            {!processing && gerResultado && gerResultado.pieces.length ? (
+              <button className="bk-mini pri" style={{ marginLeft: 12, verticalAlign: "middle", textTransform: "none", letterSpacing: 0 }} onClick={() => setResultViewerIdx(0)}>{isCarr ? "Abrir carrossel" : "Abrir"}</button>
+            ) : null}
           </div>
           {/* Estado honesto: quanto já passou e a permissão de ir embora. Uma arte
               na identidade da marca leva alguns minutos — sem isto o cliente
@@ -722,6 +736,15 @@ export default function Imagens() {
 
       <Biblioteca lib={lib} catalogo={catalogo} brandProps={brandProps} onFav={toggleFav} onUse={use} onUsarPost={usarPost} onRecarregar={loadLib} onFlash={flash} unitName={unit?.name} />
 
+      {resultViewerIdx != null && gerResultado && gerResultado.pieces.length ? (
+        <Visualizador
+          ger={gerResultado} idx={resultViewerIdx} catalogo={catalogo} unitName={unit?.name}
+          onIdx={(v: number) => setResultViewerIdx(v)}
+          onClose={() => setResultViewerIdx(null)} onFav={toggleFav} onUse={use} onUsarPost={usarPost}
+          onCalendario={() => navegar("/admin/marketing/calendario")} onRecarregar={loadLib} onFlash={flash}
+          redeNome={redeNomeMain} slotNome={slotNomeMain}
+        />
+      ) : null}
       {toast ? createPortal(<div style={{ position: "fixed", bottom: 22, left: "50%", transform: "translateX(-50%)", background: "#0B1A33", color: "#fff", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 10001, boxShadow: "0 10px 30px rgba(1,14,38,.35)" }}>{toast}</div>, document.body) : null}
     </div>
   );
