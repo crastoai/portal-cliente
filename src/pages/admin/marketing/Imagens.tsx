@@ -167,12 +167,19 @@ export default function Imagens() {
     setLendoRef(true);
     try {
       const novas: { id: string; dataUrl: string }[] = [];
+      let recusadas = 0;
       for (const f of imgs.slice(0, espaco)) {
-        try { novas.push({ id: `${f.name}-${f.size}-${novas.length}-${Math.random().toString(36).slice(2, 7)}`, dataUrl: await prepararReferencia(f) }); }
-        catch { /* uma imagem ruim não derruba as outras */ }
+        if (f.size > 20 * 1024 * 1024) { recusadas++; continue; }
+        try {
+          const d = await prepararReferencia(f);
+          // rede de segurança: se ainda ficou pesada, a IA recusaria o pedido
+          if (d.length > 1_200_000) { recusadas++; continue; }
+          novas.push({ id: `${f.name}-${f.size}-${novas.length}-${Math.random().toString(36).slice(2, 7)}`, dataUrl: d });
+        } catch { recusadas++; }
       }
       if (novas.length) setRefsPost((r) => [...r, ...novas]);
-      if (imgs.length > espaco) flash(`Entraram ${espaco}: são no máximo ${MAX_REFS_POST} referências por post.`);
+      if (recusadas) flash(recusadas === 1 ? "Não consegui usar uma das imagens. Salve como JPG ou PNG e tente de novo." : `Não consegui usar ${recusadas} imagens. Salve como JPG ou PNG e tente de novo.`);
+      else if (imgs.length > espaco) flash(`Entraram ${espaco}: são no máximo ${MAX_REFS_POST} referências por post.`);
     } finally { setLendoRef(false); }
   }
   function colarRef(e: React.ClipboardEvent) {
@@ -268,7 +275,7 @@ export default function Imagens() {
                 <b>{lendoRef ? "…" : "+"}</b><small>subir</small>
               </button>
             ) : null}
-            <input ref={fileRef} type="file" accept="image/*" multiple hidden
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden
               onChange={(e) => { void juntarRefs(Array.from(e.target.files || [])); e.currentTarget.value = ""; }} />
             <div className="img-refs-hint">
               {refsPost.length
