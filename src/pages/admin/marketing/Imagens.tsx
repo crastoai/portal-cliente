@@ -785,6 +785,50 @@ function noPeriodo(iso: string, periodo: string): boolean {
   return true;
 }
 
+// Card em BLOCO: passa os slides do carrossel no hover (estilo Canva) e traz os
+// ícones de ação (favoritar, enviar ao Calendário, excluir) sem sair da grade.
+function BlocoCard({ g, redeNome, onAbrir, onFav, onUsarPost, onExcluir }: any) {
+  const [hi, setHi] = useState(0);
+  const timer = useRef<number | undefined>(undefined);
+  const capa = g.pieces.find((p: any) => p.url) || g.pieces[0];
+  const url = g.pieces[hi]?.url || capa?.url;
+  const favCapa = !!capa?.favorite;
+  const parar = () => { if (timer.current) { window.clearInterval(timer.current); timer.current = undefined; } };
+  useEffect(() => () => parar(), []);
+  const entrar = () => {
+    if (g.pieces.length < 2) return;
+    parar();
+    let k = 0;
+    timer.current = window.setInterval(() => { k = (k + 1) % g.pieces.length; setHi(k); }, 850);
+  };
+  const sair = () => { parar(); setHi(0); };
+  return (
+    <div className="img-bloco" onMouseEnter={entrar} onMouseLeave={sair} onClick={() => onAbrir(g.genId, 0)}>
+      <div className="img-bloco-thumb">
+        {url ? <img src={url} alt={g.prompt ? "Arte: " + String(g.prompt).slice(0, 60) : "Arte"} /> : null}
+        {g.pieces.length > 1 ? <span className="lib-row-n">{hi + 1}/{g.pieces.length}</span> : null}
+        <span className={"img-bloco-status lib-status " + statusClasse(g.status)}>{statusLabel(g.status)}</span>
+        <div className="img-bloco-acts" onClick={(e) => e.stopPropagation()}>
+          <button className={"iba" + (favCapa ? " on" : "")} title={favCapa ? "Tirar dos favoritos" : "Favoritar"} onClick={() => capa && onFav(capa.id, !favCapa)}>★</button>
+          {!g.status ? (
+            <button className="iba" title="Enviar ao Calendário" onClick={() => onUsarPost(g.genId)}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            </button>
+          ) : null}
+          <button className="iba del" title="Excluir post" onClick={() => onExcluir(g.genId)}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+          </button>
+        </div>
+      </div>
+      <div className="img-bloco-meta">
+        <span className="img-lib-badge">{g.network ? (redeNome(g.network) || rotuloFormato(g.format)) : rotuloFormato(g.format)}</span>
+        <span className="img-lib-hora">{horaLabel(g.created_at)}</span>
+      </div>
+      <div className={"img-bloco-idea" + (g.prompt ? "" : " vazio")}>{g.prompt || "Sem ideia escrita"}</div>
+    </div>
+  );
+}
+
 // ============================================================================
 // BIBLIOTECA — o acervo em LISTA. Cada post é uma linha recolhida (não explode a
 // tela quando há muitos): a ideia, o destino, quando foi feito e o status de
@@ -857,6 +901,11 @@ function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, onUsarPost, onRec
     return { genId, created_at: f.created_at, prompt: f.prompt, network: f.network, slot: f.slot, format: f.format, pieces: ps, status: statusDoGrupo(ps) };
   };
   const abrir = (genId: string, idx: number) => setViewer({ genId, idx });
+  async function excluirGer(genId: string) {
+    if (!window.confirm("Excluir este post e todas as suas artes da Biblioteca? Não dá para desfazer.")) return;
+    try { await mktApi.del("/marketing/images/generations/" + genId); onFlash?.("Post excluído."); onRecarregar?.(); }
+    catch (e: any) { onFlash?.(e?.status === 409 ? String(e.message) : "Não foi possível excluir agora. Tente novamente."); }
+  }
 
   // ações conforme o status: não postado -> enviar; publicado -> repostar; sempre
   // que já foi ao Calendário, um atalho para ver lá.
@@ -899,23 +948,9 @@ function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, onUsarPost, onRec
               <div className="img-lib-dia-h">{d.label} <span className="img-lib-dia-n">{d.gers.length}</span></div>
               {modo === "blocos" ? (
                 <div className="img-lib-blocos">
-                  {d.gers.map((g: any) => {
-                    const capa = g.pieces.find((p: any) => p.url) || g.pieces[0];
-                    return (
-                      <div key={g.genId} className="img-bloco" onClick={() => abrir(g.genId, 0)}>
-                        <div className="img-bloco-thumb">
-                          {capa?.url ? <img src={capa.url} alt={g.prompt ? "Arte: " + String(g.prompt).slice(0, 60) : "Arte"} /> : null}
-                          {g.pieces.length > 1 ? <span className="lib-row-n">{g.pieces.length}</span> : null}
-                          <span className={"img-bloco-status lib-status " + statusClasse(g.status)}>{statusLabel(g.status)}</span>
-                        </div>
-                        <div className="img-bloco-meta">
-                          <span className="img-lib-badge">{g.network ? (redeNome(g.network) || rotuloFormato(g.format)) : rotuloFormato(g.format)}</span>
-                          <span className="img-lib-hora">{horaLabel(g.created_at)}</span>
-                        </div>
-                        <div className={"img-bloco-idea" + (g.prompt ? "" : " vazio")}>{g.prompt || "Sem ideia escrita"}</div>
-                      </div>
-                    );
-                  })}
+                  {d.gers.map((g: any) => (
+                    <BlocoCard key={g.genId} g={g} redeNome={redeNome} onAbrir={abrir} onFav={onFav} onUsarPost={onUsarPost} onExcluir={excluirGer} />
+                  ))}
                 </div>
               ) : d.gers.map((g: any) => {
                 const aberto = !!abertos[g.genId];

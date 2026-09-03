@@ -80,6 +80,14 @@
 .mkt-root .img-bloco-thumb{position:relative;aspect-ratio:4/5;background:var(--surface-2)}
 .mkt-root .img-bloco-thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .mkt-root .img-bloco-status{position:absolute;top:7px;left:7px}
+/* ícones de ação no card (aparecem no hover) */
+.mkt-root .img-bloco-acts{position:absolute;top:6px;right:6px;display:flex;gap:5px;opacity:0;transition:opacity .12s}
+.mkt-root .img-bloco:hover .img-bloco-acts{opacity:1}
+.mkt-root .img-bloco-acts .iba{width:28px;height:28px;border-radius:50%;border:0;background:rgba(0,0,0,.5);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;line-height:1;padding:0}
+.mkt-root .img-bloco-acts .iba:hover{background:rgba(0,0,0,.72)}
+.mkt-root .img-bloco-acts .iba.on{color:#F0C14B}
+.mkt-root .img-bloco-acts .iba.del:hover{background:var(--danger,#B4232A)}
+@media (hover:none){.mkt-root .img-bloco-acts{opacity:1}}
 .mkt-root .img-bloco-meta{display:flex;align-items:center;gap:7px;padding:8px 9px 0}
 .mkt-root .img-bloco-idea{padding:5px 9px 10px;font-size:12px;color:var(--text);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .mkt-root .img-bloco-idea.vazio{color:var(--muted);font-style:italic}
