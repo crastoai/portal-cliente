@@ -182,7 +182,7 @@ export default function BrandKit() {
     tick();
   }
 
-  async function applyAnalysis(pick: { logos: string[]; colors: string[]; fonts: string[]; gradients: string[] }) {
+  async function applyAnalysis(pick: { logos: string[]; colors: string[]; fonts: string[]; gradients: string[]; replace: boolean }) {
     if (!unitId || !analysis) return;
     try {
       const r = await mktApi.post<any>(`/marketing/brand-kit/jobs/${analysis.id}/apply?unit=` + unitId, pick);
@@ -196,6 +196,7 @@ export default function BrandKit() {
 
   // ---- helpers de dados ----
   const colors: any[] = kit?.colors || [];
+  const gradients: any[] = kit?.gradients || [];
   const fonts: any[] = kit?.fonts || [];
   const guidelines: any[] = kit?.guidelines || [];
   const doList = guidelines.filter((g) => g.kind === "do");
@@ -316,7 +317,8 @@ export default function BrandKit() {
           )) : <div className="bk-empty"><b>Nenhuma fonte ainda</b>Adicione o site, o @ do Instagram ou um PDF para a IA ler.</div>}
           <div style={{ marginTop: 14 }}>
             <button className="bk-mini pri" disabled={analyzing} onClick={analyze}>{analyzing ? "Lendo o site…" : "✨ Analisar e montar"}</button>{" "}
-            <button className="bk-mini" onClick={() => setModal({ kind: "source" })}>+ Adicionar fonte</button>
+            <button className="bk-mini" onClick={() => setModal({ kind: "source" })}>+ Adicionar fonte</button>{" "}
+            {(analysis || kit?.lastJob)?.proposal ? <button className="bk-mini" onClick={() => { if (!analysis) setAnalysis(kit.lastJob); setModal({ kind: "analysis" }); }}>Ver o que encontrei</button> : null}
           </div>
           <div className="bk-gap" style={{ marginTop: 11 }}>A IA extrai cores, tipografia, tom e regras do que você conectar — e propõe; você aprova.</div>
         </div>
@@ -377,6 +379,20 @@ export default function BrandKit() {
           {colors.length ? <div className="bk-colors">
             {colors.map((c, i) => <span className="bk-sw" key={i} style={{ background: c.hex, color: onColor(c.hex) }}><i>{c.name}</i><b>{c.hex}</b></span>)}
           </div> : <div className="bk-empty"><b>Sem cores ainda</b>Adicione a paleta da marca (ou deixe a IA extrair do site).</div>}
+          {gradients.length ? (
+            <>
+              <div className="bk-cgroup">Degradês da marca</div>
+              <div style={{ display: "grid", gap: 8 }}>
+                {gradients.map((g, i) => (
+                  <div key={i} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <span style={{ flex: 1, height: 46, borderRadius: 10, background: g.css, border: "1px solid var(--border-2)", minWidth: 0 }} />
+                    <span style={{ width: 150, flex: "0 0 auto", fontSize: 12, color: "var(--muted)" }}>{g.name || "degradê da marca"}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="bk-gap" style={{ marginTop: 8 }}>A IA usa estes degradês como fundo das artes, do mesmo jeito que usa as cores.</div>
+            </>
+          ) : null}
           <div className="bk-cgroup">Neutros</div>
           <div className="bk-ramp">
             {NEUTRALS.map((c, i) => <span className="bk-rc" key={i} style={{ background: c }} />)}
@@ -493,6 +509,15 @@ export default function BrandKit() {
         <div className="bd-sec"><div className="bd-lbl">Marca</div>
           {colors.length ? <div className="bd-sw">{colors.map((c, i) => <span key={i} style={{ background: c.hex }} />)}</div> : <span className="ph" style={{ fontSize: 11, color: "var(--muted-2)" }}>sem cores</span>}
         </div>
+        {gradients.length ? (
+          <div className="bd-sec" style={{ paddingTop: 0 }}><div className="bd-lbl">Degradês</div>
+            <div style={{ display: "grid", gap: 6 }}>
+              {gradients.slice(0, 3).map((g, i) => (
+                <span key={i} title={g.name || "degradê da marca"} style={{ height: 26, borderRadius: 7, background: g.css, border: "1px solid var(--border-2)" }} />
+              ))}
+            </div>
+          </div>
+        ) : null}
         <div className="bd-sec" style={{ paddingTop: 0 }}><div className="bd-lbl">Tipografia</div>
           <div className="bd-type"><div className="t-h" style={{ fontFamily: titleF ? fontStack(titleF) : undefined, color: c0 }}>{uname}</div>
             <div className="t-b" style={{ fontFamily: bodyF ? fontStack(bodyF) : undefined }}>Texto de corpo na fonte da marca — o parágrafo que a IA usa nas peças.</div></div>
@@ -631,7 +656,7 @@ function SourceModal({ onClose, onAdd }: { onClose: () => void; onAdd: (type: st
 }
 
 /** O que a leitura do site encontrou — o cliente escolhe o que vira o Brand Kit dele. */
-function AnalysisModal({ job, onClose, onApply }: { job: any; onClose: () => void; onApply: (p: { logos: string[]; colors: string[]; fonts: string[]; gradients: string[] }) => void }) {
+function AnalysisModal({ job, onClose, onApply }: { job: any; onClose: () => void; onApply: (p: { logos: string[]; colors: string[]; fonts: string[]; gradients: string[]; replace: boolean }) => void }) {
   const p = job?.proposal || {};
   const colors: any[] = p.colors || [];
   const fonts: any[] = p.fonts || [];
@@ -644,6 +669,7 @@ function AnalysisModal({ job, onClose, onApply }: { job: any; onClose: () => voi
   const [onCol, setOnCol] = useState<boolean[]>(() => colors.map((_, i) => i < 6));
   const [onFnt, setOnFnt] = useState<boolean[]>(() => fonts.map(() => true));
   const [onGrad, setOnGrad] = useState<boolean[]>(() => grads.map(() => true));
+  const [replace, setReplace] = useState(false);
   const nada = !logoSlots.length && !colors.length && !fonts.length && !grads.length;
   const nSel = Object.values(onLogo).filter(Boolean).length + onCol.filter(Boolean).length + onFnt.filter(Boolean).length + onGrad.filter(Boolean).length;
   const lbl = { title: "Títulos", body: "Corpo", num: "Números / código" } as Record<string, string>;
@@ -651,12 +677,17 @@ function AnalysisModal({ job, onClose, onApply }: { job: any; onClose: () => voi
   return (
     <MktModal title="O que encontrei na sua marca" onClose={onClose} wide
       footer={<>
+        <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: "var(--muted)", marginRight: "auto", cursor: "pointer" }}>
+          <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} />
+          Substituir o que já existe (limpa o que não é da marca)
+        </label>
         <button className="bk-mini" onClick={onClose}>Fechar</button>
         <button className="bk-mini pri" disabled={!nSel} onClick={() => onApply({
           logos: logoSlots.filter((s) => onLogo[s]),                        // só a seleção: os valores saem da proposta no servidor
           colors: colors.filter((_, i) => onCol[i]).map((c) => c.hex),
           fonts: fonts.filter((_, i) => onFnt[i]).map((f) => f.family),
           gradients: grads.filter((_, i) => onGrad[i]).map((g) => g.css),
+          replace,
         })}>Aplicar ao meu Brand Kit</button>
       </>}>
       <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12 }}>
