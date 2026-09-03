@@ -487,7 +487,9 @@ export default function Imagens() {
   const total = imgs.length;
   // sem um destino resolvido (catálogo ainda carregando ou falhou) o Gerar fica
   // travado — nunca mandar um destino oculto que o cliente não viu escolher
-  const disabled = !engine?.enabled || genBusy || !slotAtual;
+  // trava o Gerar ENQUANTO uma geração está em andamento — sem isto, clicar de
+  // novo criava um carrossel duplicado a cada clique (o trabalho segue no fundo)
+  const disabled = !engine?.enabled || genBusy || !slotAtual || processing;
   // ajuste NÃO é criação: chamar os dois de "criando" faria a tela dizer que
   // uma arte já pronta está sendo feita de novo — e ela continua guardada
   const ajustando = imgs.some((im: any) => im.status === "adjusting");
@@ -697,7 +699,7 @@ export default function Imagens() {
         </>
       ) : null}
 
-      <Biblioteca lib={lib} catalogo={catalogo} brandProps={brandProps} onFav={toggleFav} onUse={use} unitName={unit?.name} />
+      <Biblioteca lib={lib} catalogo={catalogo} brandProps={brandProps} onFav={toggleFav} onUse={use} onRecarregar={loadLib} onFlash={flash} unitName={unit?.name} />
 
       {toast ? createPortal(<div style={{ position: "fixed", bottom: 22, left: "50%", transform: "translateX(-50%)", background: "#0B1A33", color: "#fff", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 10001, boxShadow: "0 10px 30px rgba(1,14,38,.35)" }}>{toast}</div>, document.body) : null}
     </div>
@@ -746,12 +748,14 @@ function noPeriodo(iso: string, periodo: string): boolean {
 // grande, com a ficha e as ações (postar/agendar/repostar). Busca pela ideia,
 // filtro por período, por rede e favoritos. Tudo real do backend.
 // ============================================================================
-function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, unitName }: {
+function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, onRecarregar, onFlash, unitName }: {
   lib: any[] | null;
   catalogo: { rede: string; slug: string; slots: any[] }[];
   brandProps: any;
   onFav: (id: string, on: boolean) => void;
   onUse: (id: string) => void;
+  onRecarregar: () => void;
+  onFlash: (m: string) => void;
   unitName?: string;
 }) {
   const nav = useNavigate();
@@ -892,7 +896,7 @@ function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, unitName }: {
         <Visualizador
           ger={gerCompleto(viewer.genId)} idx={viewer.idx} catalogo={catalogo} unitName={unitName}
           onIdx={(i: number) => setViewer((v) => (v ? { ...v, idx: i } : v))}
-          onClose={() => setViewer(null)} onFav={onFav} onUse={onUse} onCalendario={() => nav("/admin/marketing/calendario")}
+          onClose={() => setViewer(null)} onFav={onFav} onUse={onUse} onCalendario={() => nav("/admin/marketing/calendario")} onRecarregar={onRecarregar} onFlash={onFlash}
           redeNome={redeNome} slotNome={slotNome}
         />
       ) : null}
@@ -902,7 +906,7 @@ function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, unitName }: {
 
 // Visualizador: a arte grande, navegação entre as peças, a ficha (destino, data,
 // status, referências usadas) e as ações. Abre via MktModal (createPortal no body).
-function Visualizador({ ger, idx, onIdx, onClose, onFav, onUse, onCalendario, redeNome, slotNome }: any) {
+function Visualizador({ ger, idx, onIdx, onClose, onFav, onUse, onCalendario, onRecarregar, onFlash, redeNome, slotNome }: any) {
   const [detalhe, setDetalhe] = useState<{ refsPost: any[]; refsMarca: any[] } | null>(null);
   useEffect(() => {
     if (!ger?.genId) return;
@@ -910,20 +914,74 @@ function Visualizador({ ger, idx, onIdx, onClose, onFav, onUse, onCalendario, re
     mktApi.get<any>("/marketing/images/generations/" + ger.genId + "/detalhe").then((d) => { if (vivo) setDetalhe({ refsPost: d?.refsPost || [], refsMarca: d?.refsMarca || [] }); }).catch(() => { if (vivo) setDetalhe({ refsPost: [], refsMarca: [] }); });
     return () => { vivo = false; };
   }, [ger?.genId]);
-  if (!ger) return null;
-  const total = ger.pieces.length;
+  const total = ger?.pieces?.length || 0;
   const i = Math.max(0, Math.min(idx, total - 1));
-  const im = ger.pieces[i];
+  const im = ger?.pieces?.[i];
+
+  // linhagem (v1 → v2 → v3) da peça aberta + ajuste (cria nova versão)
+  const [versoes, setVersoes] = useState<any[]>([]);
+  const [vSel, setVSel] = useState(-1);          // -1 = versão atual (cabeça)
+  const [ajusteOn, setAjusteOn] = useState(false);
+  const [ajusteTxt, setAjusteTxt] = useState("");
+  const [ajustando, setAjustando] = useState(false);
+  const pollRef = useRef<number | undefined>(undefined);
+  const pararPoll = () => { if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = undefined; } };
+  useEffect(() => {
+    if (!im?.id) { setVersoes([]); return; }
+    // trocou de peça: zera o estado de ajuste (senão "ajustando…" ficaria preso
+    // na peça nova) e para o poll da peça anterior
+    let vivo = true; setVSel(-1); setAjusteOn(false); setAjusteTxt(""); setAjustando(false); pararPoll();
+    mktApi.get<any>("/marketing/images/" + im.id + "/versoes").then((d) => { if (vivo) setVersoes(d?.versoes || []); }).catch(() => { if (vivo) setVersoes([]); });
+    return () => { vivo = false; pararPoll(); };
+  }, [im?.id]);
+
+  async function enviarAjuste() {
+    const ins = ajusteTxt.trim(); if (!ins || !im?.id) return;
+    setAjustando(true); setAjusteOn(false);
+    const antes = versoes.length;
+    const slidePos = im.slide_index ?? im.variation_index ?? i;
+    try {
+      await mktApi.post("/marketing/images/" + im.id + "/adjust", { instruction: ins });
+      setAjusteTxt("");
+      // acompanha pelo STATUS real da peça (que sabe dizer se deu certo OU falhou),
+      // não só pelas versões prontas — assim a falha aparece, não fica muda
+      let tentativas = 0;
+      pollRef.current = window.setInterval(async () => {
+        tentativas++;
+        try {
+          const st = await mktApi.get<any>("/marketing/images/generations/" + ger.genId);
+          const peca = (st?.images || []).find((x: any) => (x.slide_index ?? x.variation_index ?? -99) === slidePos) || (st?.images || [])[i];
+          if (peca && peca.status !== "adjusting") {
+            pararPoll();
+            const d = await mktApi.get<any>("/marketing/images/" + im.id + "/versoes").catch(() => null);
+            const vs = d?.versoes || [];
+            if (vs.length > antes) { setVersoes(vs); setVSel(-1); }               // nova versão pronta
+            else if (peca.error) onFlash?.(peca.error);                            // ajuste falhou → avisa
+            else onFlash?.("O ajuste não deu certo — a arte anterior foi mantida.");
+            setAjustando(false); onRecarregar?.();
+          } else if (tentativas > 75) {
+            pararPoll(); setAjustando(false); onRecarregar?.();
+            onFlash?.("O ajuste está demorando. Recarregue a Biblioteca em instantes para ver o resultado.");
+          }
+        } catch { if (tentativas > 75) { pararPoll(); setAjustando(false); } }
+      }, 4000);
+    } catch { setAjustando(false); onFlash?.("Não foi possível ajustar agora. Tente novamente."); }
+  }
+
+  if (!ger || !im) return null;
   const rede = ger.network ? (redeNome(ger.network) || rotuloFormato(ger.format)) : rotuloFormato(ger.format);
   const fmt = slotNome(ger.network, ger.slot);
   const quando = new Date(ger.created_at);
   const dataTxt = isNaN(quando.getTime()) ? "" : quando.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" }) + " às " + horaLabel(ger.created_at);
   const pid = ger.pieces[0]?.id;
+  // a arte mostrada: a versão escolhida na linhagem, ou a cabeça (atual)
+  const arteUrl = vSel >= 0 && versoes[vSel] ? versoes[vSel].url : im.url;
   return (
     <MktModal wide title={ger.prompt ? String(ger.prompt).slice(0, 70) : "Arte da Biblioteca"} onClose={onClose}
       footer={
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          {im?.url ? <a className="bk-mini" href={im.url} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>Baixar</a> : null}
+          {arteUrl ? <a className="bk-mini" href={arteUrl} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>Baixar</a> : null}
+          <button className="bk-mini" disabled={ajustando} onClick={() => setAjusteOn((v) => !v)}>{ajustando ? "Ajustando…" : "Ajustar"}</button>
           {!ger.status ? <button className="bk-mini pri" onClick={() => { if (pid) onUse(pid); }}>Enviar ao Calendário</button> : null}
           {ger.status === "publicado" ? <button className="bk-mini pri" onClick={() => { if (pid) onUse(pid); }}>Repostar</button> : null}
           {ger.status ? <button className="bk-mini" onClick={onCalendario}>Ver no Calendário</button> : null}
@@ -931,18 +989,38 @@ function Visualizador({ ger, idx, onIdx, onClose, onFav, onUse, onCalendario, re
       }>
       <div className="viz">
         <div className="viz-arte">
-          {im?.url ? <img src={im.url} alt={ger.prompt ? "Arte: " + String(ger.prompt).slice(0, 80) : "Arte gerada"} /> : <div className="img-empty">Arte indisponível.</div>}
+          <div className="viz-arte-wrap">
+            {arteUrl ? <img src={arteUrl} alt={ger.prompt ? "Arte: " + String(ger.prompt).slice(0, 80) : "Arte gerada"} /> : <div className="img-empty">Arte indisponível.</div>}
+            {ajustando ? <div className="viz-ajustando"><div className="spin" />Refazendo a arte com o seu ajuste…</div> : null}
+          </div>
+          {/* Versões: cada ajuste é uma versão nova; a anterior fica guardada e navegável */}
+          {versoes.length > 1 ? (
+            <div className="viz-versoes">
+              <span className="viz-refs-t">Versões</span>
+              {versoes.map((v: any, k: number) => (
+                <button key={v.id} className={"viz-vbtn" + ((vSel < 0 ? k === versoes.length - 1 : k === vSel) ? " on" : "")} onClick={() => setVSel(k === versoes.length - 1 ? -1 : k)}>v{v.version}</button>
+              ))}
+              {vSel >= 0 && vSel < versoes.length - 1 ? <span className="img-motor">(versão anterior — a atual é a v{versoes[versoes.length - 1].version})</span> : null}
+            </div>
+          ) : null}
+          {ajusteOn ? (
+            <div className="viz-ajuste">
+              <input type="text" value={ajusteTxt} autoFocus placeholder="ex.: fundo mais claro, aumente o título, tire o ícone" onChange={(e) => setAjusteTxt(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") enviarAjuste(); }} />
+              <button className="bk-mini pri" onClick={enviarAjuste} disabled={!ajusteTxt.trim()}>Enviar ajuste</button>
+              <span className="img-motor">Vira uma nova versão — a atual continua guardada.</span>
+            </div>
+          ) : null}
           {total > 1 ? (
             <div className="viz-nav">
-              <button onClick={() => onIdx((i - 1 + total) % total)} aria-label="Anterior">‹</button>
+              <button disabled={ajustando} onClick={() => onIdx((i - 1 + total) % total)} aria-label="Anterior">‹</button>
               <span>{i + 1} / {total}</span>
-              <button onClick={() => onIdx((i + 1) % total)} aria-label="Próxima">›</button>
+              <button disabled={ajustando} onClick={() => onIdx((i + 1) % total)} aria-label="Próxima">›</button>
             </div>
           ) : null}
           {total > 1 ? (
             <div className="viz-tiras">
               {ger.pieces.map((p: any, k: number) => (
-                <button key={p.id} className={"viz-tira" + (k === i ? " on" : "")} onClick={() => onIdx(k)} style={{ backgroundImage: p.url ? `url(${p.url})` : undefined }} aria-label={`Peça ${k + 1}`} />
+                <button key={p.id} className={"viz-tira" + (k === i ? " on" : "")} onClick={() => { if (!ajustando) onIdx(k); }} style={{ backgroundImage: p.url ? `url(${p.url})` : undefined }} aria-label={`Peça ${k + 1}`} />
               ))}
             </div>
           ) : null}
