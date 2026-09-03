@@ -239,7 +239,10 @@ export default function BrandKit() {
 
   /** Lê os sites conectados e mostra o que encontrou. Nunca diz "pronto" sem resultado. */
   async function analyze() {
-    if (!unitId || analyzing) return;
+    if (analyzing) return;
+    // antes isto saía em SILÊNCIO enquanto a unidade não tinha carregado — o
+    // cliente clicava e não acontecia nada, sem nenhuma explicação
+    if (!unitId || !kit) { flash("Ainda estou carregando o seu Brand Kit — tente de novo em um instante."); return; }
     const sources = (kit?.sources || []) as any[];
     if (!sources.some((s) => ["site", "ds"].includes(s.type) && s.url)) {
       flash("Adicione o endereço do seu site em “Adicionar fonte” para eu poder ler.");
@@ -347,7 +350,7 @@ export default function BrandKit() {
         </div>
         <div className="h-btn">
           <button className="bk-mini" onClick={() => setActive("material")}>Suba seu material</button>
-          <button className="bk-mini pri" disabled={analyzing} onClick={analyze}>{analyzing ? "Lendo o site…" : "✨ Analisar e montar"}</button>
+          <button className="bk-mini pri" disabled={analyzing || !kit} onClick={analyze}>{analyzing ? "Lendo o site…" : "✨ Analisar e montar"}</button>
         </div>
       </div>
 
@@ -413,7 +416,7 @@ export default function BrandKit() {
             </div>
           )) : <div className="bk-empty"><b>Nenhuma fonte ainda</b>Adicione o site, o @ do Instagram ou um PDF para a IA ler.</div>}
           <div style={{ marginTop: 14 }}>
-            <button className="bk-mini pri" disabled={analyzing} onClick={analyze}>{analyzing ? "Lendo o site…" : "✨ Analisar e montar"}</button>{" "}
+            <button className="bk-mini pri" disabled={analyzing || !kit} onClick={analyze}>{analyzing ? "Lendo o site…" : "✨ Analisar e montar"}</button>{" "}
             <button className="bk-mini" onClick={() => setModal({ kind: "source" })}>+ Adicionar site</button>{" "}
             <button className="bk-mini" onClick={() => docEl.current?.click()}>+ Enviar documento</button>{" "}
             {(analysis || kit?.lastJob)?.proposal ? <button className="bk-mini" onClick={() => { if (!analysis) setAnalysis(kit.lastJob); setModal({ kind: "analysis" }); }}>Ver o que encontrei</button> : null}
@@ -576,7 +579,10 @@ export default function BrandKit() {
               <div style={{ flex: 1 }}><div className="rw-t">{p.title}</div><div className="rw-d">{p.description ? "Dor: " + p.description : "sem descrição"}</div></div>
             </button>
           ))}</div> : null}
-          <div style={{ marginTop: 10 }}><button className="bk-act" onClick={() => setModal({ kind: "persona1", i: -1 })}>+ Nova persona</button></div>
+          <div style={{ marginTop: 10 }}>
+            <button className="bk-act" onClick={() => setModal({ kind: "persona1", i: -1 })}>+ Nova persona</button>{" "}
+            <button className="bk-act" onClick={() => setModal({ kind: "personaFonte" })}>✨ A partir de uma fonte</button>
+          </div>
         </div>
         <div className="bk3-card"><div className="bk-h" style={{ marginBottom: 8 }}>Promessa da marca <button className="bk-act" style={{ marginLeft: 6 }} onClick={() => setModal({ kind: "promise" })}>Editar</button></div>
           <div className="bk-txt">{kit.brand_promise || <span style={{ color: "var(--muted-2)" }}>Uma frase: o que a marca entrega de mais valioso.</span>}</div>
@@ -701,6 +707,16 @@ export default function BrandKit() {
         campos={[{ key: "title", label: "Quem é", placeholder: "ex.: Dona de clínica com 2 unidades" }, { key: "description", label: "Dor / contexto", area: true, placeholder: "ex.: perde paciente porque ninguém responde fora do horário" }]}
         onSave={(v) => { patchKit({ personas: nova ? [...personas, v] : personas.map((x, j) => (j === i ? { ...x, ...v } : x)) }, nova ? "Persona criada" : "Persona atualizada"); setModal(null); }}
         onDelete={nova ? undefined : () => { patchKit({ personas: personas.filter((_, j) => j !== i) }, "Persona removida"); setModal(null); }} />;
+    }
+    if (k === "personaFonte") {
+      return <PersonaFonteModal
+        docs={(kit?.sources || []).filter((s: any) => s.type === "pdf")}
+        onClose={() => setModal(null)}
+        onGerar={async (p) => {
+          const r = await mktApi.post<any>("/marketing/brand-kit/personas/from-source?unit=" + unitId, p);
+          return r?.personas || [];
+        }}
+        onAdd={(ps) => { patchKit({ personas: [...personas, ...ps] }, ps.length > 1 ? `${ps.length} personas adicionadas` : "Persona adicionada"); setModal(null); }} />;
     }
     if (k === "guide1" && modal!.i != null) {
       const i = modal!.i!;
@@ -829,6 +845,72 @@ function SourceModal({ onClose, onAdd }: { onClose: () => void; onAdd: (type: st
 // Um componente só, usado por fonte, persona, regra e afins — em vez de um
 // modal diferente (e inconsistente) por seção.
 type Campo = { key: string; label: string; area?: boolean; opcoes?: string[]; placeholder?: string };
+
+/** Persona a partir de uma fonte: a IA lê um link ou um documento e propõe quem é o cliente. */
+function PersonaFonteModal({ docs, onClose, onGerar, onAdd }: {
+  docs: any[];
+  onClose: () => void;
+  onGerar: (p: { url?: string; sourceId?: string }) => Promise<any[]>;
+  onAdd: (ps: any[]) => void;
+}) {
+  const [url, setUrl] = useState("");
+  const [sourceId, setSourceId] = useState("");
+  const [lendo, setLendo] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [props, setProps] = useState<any[] | null>(null);
+  const [marcadas, setMarcadas] = useState<boolean[]>([]);
+  const st = { width: "100%", background: "var(--surface-2)", border: "1px solid var(--border-2)", borderRadius: 10, padding: "10px 12px", color: "var(--text)", fontFamily: "var(--font-ui)", fontSize: 14, outline: "none", boxSizing: "border-box" as const };
+
+  async function gerar() {
+    setErro(null); setLendo(true); setProps(null);
+    try {
+      const ps = await onGerar(sourceId ? { sourceId } : { url: url.trim() });
+      setProps(ps); setMarcadas(ps.map(() => true));
+      if (!ps.length) setErro("Não consegui identificar nenhuma persona nessa fonte.");
+    } catch (e: any) { setErro(e?.message || "Não consegui ler essa fonte."); }
+    finally { setLendo(false); }
+  }
+
+  return (
+    <MktModal title="Persona a partir de uma fonte" onClose={onClose} wide
+      footer={<>
+        <button className="bk-mini" onClick={onClose}>Fechar</button>
+        {props?.length
+          ? <button className="bk-mini pri" disabled={!marcadas.some(Boolean)} onClick={() => onAdd(props.filter((_, i) => marcadas[i]))}>Adicionar selecionadas</button>
+          : <button className="bk-mini pri" disabled={lendo || (!url.trim() && !sourceId)} onClick={gerar}>{lendo ? "Lendo…" : "Ler e propor"}</button>}
+      </>}>
+      <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12, lineHeight: 1.5 }}>
+        Aponte de onde eu tiro a persona: um endereço na internet (uma página de cliente, um artigo, um post) ou um documento que você já enviou. Eu leio e proponho — você escolhe o que entra.
+      </div>
+      <div className="bkf"><label>Endereço</label>
+        <input type="text" value={url} onChange={(e) => { setUrl(e.target.value); setSourceId(""); }} placeholder="https://…" style={st} /></div>
+      {docs.length ? (
+        <div className="bkf"><label>…ou um documento já enviado</label>
+          <select value={sourceId} onChange={(e) => { setSourceId(e.target.value); setUrl(""); }} style={st}>
+            <option value="">—</option>
+            {docs.map((d) => <option key={d.id} value={d.id}>{d.url || "documento"}</option>)}
+          </select></div>
+      ) : null}
+
+      {erro ? <div style={{ fontSize: 12.5, color: "var(--coral, #c0392b)", marginTop: 8 }}>{erro}</div> : null}
+
+      {props?.length ? (
+        <>
+          <div style={{ fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", margin: "16px 0 8px" }}>Encontrei ({props.length})</div>
+          <div style={{ display: "grid", gap: 8 }}>
+            {props.map((p, i) => (
+              <label key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer", background: "var(--surface-2)", border: "1px solid var(--border-2)", borderRadius: 10, padding: "10px 12px" }}>
+                <input type="checkbox" checked={!!marcadas[i]} onChange={() => setMarcadas((v) => v.map((x, j) => (j === i ? !x : x)))} style={{ marginTop: 3 }} />
+                <span><b style={{ fontSize: 13, color: "var(--text)" }}>{p.title}</b><br />
+                  <span style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.5 }}>{p.description}</span></span>
+              </label>
+            ))}
+          </div>
+        </>
+      ) : null}
+    </MktModal>
+  );
+}
 
 function ItemModal({ titulo, campos, valor, onClose, onSave, onDelete, ajuda }: {
   titulo: string; campos: Campo[]; valor: any; ajuda?: string;
