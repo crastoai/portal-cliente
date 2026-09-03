@@ -321,6 +321,10 @@ export default function Imagens() {
                 ))}
               </div>
               <div className="bnote" style={{ marginTop: 6 }}>A IA pega daqui a luz, a textura e a composição — e cria algo novo nesse clima.</div>
+              {/* sem isto a tela prometeria usar TODAS as referências, e o pedido
+                  leva no máximo 6 imagens: o logo entra primeiro, depois as do
+                  post, e as fixas ocupam o que sobrar */}
+              <div className="bnote" style={{ marginTop: 6, opacity: 0.85 }}>Cada arte leva até 6 imagens: o logo, as deste post e, no que sobrar, estas.</div>
             </>
           ) : null}
         </aside>
