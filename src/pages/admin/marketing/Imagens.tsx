@@ -41,6 +41,9 @@ function diaLabel(iso: string): string {
 }
 function horaLabel(iso: string): string { const d = new Date(iso); return isNaN(d.getTime()) ? "" : d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); }
 const rotuloFormato = (f?: string) => (f === "carrossel" ? "Carrossel" : f === "story" ? "Story" : "Post");
+// último recurso para nunca mostrar slug cru ("feed_retrato") na tela quando o
+// catálogo não resolve o nome: "Feed Retrato"
+const humanizar = (s: string) => String(s || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 // formato legado (sem rede/slot) → uma rede/slot coerente, para a retomada de
 // gerações antigas cair num destino real do catálogo
@@ -428,11 +431,27 @@ export default function Imagens() {
     catch { flash("Não foi possível enviar agora. Tente novamente em instantes."); }
   }
 
-  /** Marca/desmarca favorito, otimista: a estrela responde na hora, depois grava. */
-  async function toggleFav(imageId: string, on: boolean) {
+  /**
+   * Marca/desmarca favorito. A estrela responde na hora (otimista), mas os
+   * pedidos da MESMA peça vão em fila (um espera o outro): dois cliques rápidos
+   * (ligar/desligar) chegariam ao banco fora de ordem e a estrela divergiria do
+   * servidor. No fim, o estado vem da resposta do servidor — a verdade é dele.
+   */
+  const favFila = useRef<Record<string, Promise<any>>>({});
+  function toggleFav(imageId: string, on: boolean) {
     setLib((l) => (l ? l.map((x) => (x.id === imageId ? { ...x, favorite: on } : x)) : l));
-    try { await mktApi.post("/marketing/images/" + imageId + "/favorite", { favorite: on }); }
-    catch { setLib((l) => (l ? l.map((x) => (x.id === imageId ? { ...x, favorite: !on } : x)) : l)); flash("Não consegui salvar o favorito agora."); }
+    const anterior = favFila.current[imageId] || Promise.resolve();
+    const p = anterior.then(async () => {
+      try {
+        const r = await mktApi.post<any>("/marketing/images/" + imageId + "/favorite", { favorite: on });
+        const real = typeof r?.favorite === "boolean" ? r.favorite : on;
+        setLib((l) => (l ? l.map((x) => (x.id === imageId ? { ...x, favorite: real } : x)) : l));
+      } catch {
+        setLib((l) => (l ? l.map((x) => (x.id === imageId ? { ...x, favorite: !on } : x)) : l));
+        flash("Não consegui salvar o favorito agora.");
+      }
+    });
+    favFila.current[imageId] = p.catch(() => {});
   }
 
   const brandProps = { colors, font, unitName: unit?.name, handle: unit?.handle ? "@" + String(unit.handle).replace(/^@/, "") : null };
@@ -646,20 +665,139 @@ export default function Imagens() {
         </>
       ) : null}
 
-      <div className="img-sec">Biblioteca</div>
-      {lib == null ? (
-        <div className="img-empty">Carregando…</div>
-      ) : lib.length ? (
-        <div className="img-lib">
-          {lib.map((im: any, i: number) => (
-            <Poster key={im.id} {...brandProps} aspect={aspectoDe(im.network, im.slot, im.format)} ci={i} slideNo={1} slideTot={0} imgUrl={im.url} alt={im.prompt ? "Arte: " + String(im.prompt).slice(0, 80) : "Arte gerada"} />
-          ))}
-        </div>
-      ) : (
-        <div className="img-empty">Nada por aqui ainda. Gere a sua primeira arte acima — ela fica salva na Biblioteca.</div>
-      )}
+      <Biblioteca lib={lib} catalogo={catalogo} brandProps={brandProps} onFav={toggleFav} />
 
       {toast ? createPortal(<div style={{ position: "fixed", bottom: 22, left: "50%", transform: "translateX(-50%)", background: "#0B1A33", color: "#fff", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 10001, boxShadow: "0 10px 30px rgba(1,14,38,.35)" }}>{toast}</div>, document.body) : null}
     </div>
+  );
+}
+
+// proporção do slot pelo catálogo (para a prévia); irrelevante quando há imagem
+function aspectDoCatalogo(catalogo: any[], network?: string | null, slot?: string | null, format?: string | null): string {
+  const r = catalogo?.find((x) => x.slug === network);
+  const s = r?.slots.find((y: any) => y.slug === slot);
+  return s?.aspect || (format === "story" ? "9:16" : "4:5");
+}
+
+// ============================================================================
+// BIBLIOTECA — histórico de verdade: dia e hora, a ideia que gerou, agrupado por
+// geração, busca pela ideia, filtro por rede/formato, favoritos e barra de dias
+// lateral. Tudo cai aqui automaticamente; o filtro ativo é sempre visível e
+// limpável. Dado 100% real do backend — vazio é vazio honesto.
+// ============================================================================
+function Biblioteca({ lib, catalogo, brandProps, onFav }: {
+  lib: any[] | null;
+  catalogo: { rede: string; slug: string; slots: any[] }[];
+  brandProps: any;
+  onFav: (id: string, on: boolean) => void;
+}) {
+  const [busca, setBusca] = useState("");
+  const [fRede, setFRede] = useState<string | null>(null);
+  const [fSlot, setFSlot] = useState<string | null>(null);
+  const [soFav, setSoFav] = useState(false);
+
+  const redeNome = (slug?: string | null) => catalogo.find((r) => r.slug === slug)?.rede || null;
+  const slotNome = (net?: string | null, sl?: string | null) => {
+    const r = catalogo.find((x) => x.slug === net); return r?.slots.find((y: any) => y.slug === sl)?.nome || null;
+  };
+
+  if (lib == null) return (<><div className="img-sec">Biblioteca</div><div className="img-empty">Carregando…</div></>);
+  if (!lib.length) return (<><div className="img-sec">Biblioteca</div><div className="img-empty">Nada por aqui ainda. Gere a sua primeira arte acima — ela fica salva na Biblioteca.</div></>);
+
+  // redes e formatos que EXISTEM no acervo (só filtra pelo que dá para achar)
+  const redesPresentes = Array.from(new Set(lib.map((x) => x.network).filter(Boolean))) as string[];
+  const slotsPresentes = Array.from(new Set(lib.filter((x) => !fRede || x.network === fRede).map((x) => x.slot).filter(Boolean))) as string[];
+
+  const termo = busca.trim().toLowerCase();
+  const filt = lib.filter((im) => {
+    if (soFav && !im.favorite) return false;
+    if (fRede && im.network !== fRede) return false;
+    if (fSlot && im.slot !== fSlot) return false;
+    if (termo && !String(im.prompt || "").toLowerCase().includes(termo)) return false;
+    return true;
+  });
+
+  // agrupa por geração (a lista já vem do mais novo para o mais antigo)
+  const gers: any[] = []; const idxG: Record<string, any> = {};
+  for (const im of filt) {
+    let g = idxG[im.generation_id];
+    if (!g) { g = { genId: im.generation_id, created_at: im.created_at, prompt: im.prompt, network: im.network, slot: im.slot, format: im.format, pieces: [] }; idxG[im.generation_id] = g; gers.push(g); }
+    g.pieces.push(im);
+  }
+  for (const g of gers) g.pieces.sort((a: any, b: any) => (a.slide_index ?? 0) - (b.slide_index ?? 0));
+  // agrupa por dia
+  const dias: any[] = []; const idxD: Record<string, any> = {};
+  for (const g of gers) { const k = diaChave(g.created_at); let d = idxD[k]; if (!d) { d = { chave: k, label: diaLabel(g.created_at), gers: [] }; idxD[k] = d; dias.push(d); } d.gers.push(g); }
+
+  const temFiltro = !!(termo || fRede || fSlot || soFav);
+  const limpar = () => { setBusca(""); setFRede(null); setFSlot(null); setSoFav(false); };
+
+  return (
+    <>
+      <div className="img-sec">Biblioteca</div>
+      <div className="img-lib-bar">
+        <input className="img-lib-busca" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar pela ideia…" />
+        {redesPresentes.length ? (
+          <SelectBox placeholder="Todas as redes" minWidth={170}
+            value={fRede}
+            onChange={(v) => { const nova = v === "__todas" ? null : v; setFRede(nova); setFSlot(null); }}
+            options={[{ value: "__todas", label: "Todas as redes" }, ...redesPresentes.map((n) => ({ value: n, label: redeNome(n) || humanizar(n), icon: <RedeIcon slug={n} size={16} /> }))]}
+          />
+        ) : null}
+        {fRede && slotsPresentes.length > 1 ? (
+          <SelectBox placeholder="Todos os formatos" minWidth={190}
+            value={fSlot}
+            onChange={(v) => setFSlot(v === "__todos" ? null : v)}
+            options={[{ value: "__todos", label: "Todos os formatos" }, ...slotsPresentes.map((s) => ({ value: s, label: slotNome(fRede, s) || humanizar(s) }))]}
+          />
+        ) : null}
+        <button className={"img-lib-fav" + (soFav ? " on" : "")} onClick={() => setSoFav((v) => !v)} title="Só os favoritos">★ Favoritos</button>
+        {temFiltro ? <button className="img-lib-limpar" onClick={limpar}>Limpar filtros</button> : null}
+      </div>
+
+      {!dias.length ? (
+        <div className="img-empty">Nenhuma arte encontrada com esse filtro. <button className="img-lib-linkbtn" onClick={limpar}>Limpar filtros</button></div>
+      ) : (
+        <div className="img-lib-wrap">
+          {dias.length > 1 ? (
+            <div className="img-lib-rail">
+              {dias.map((d) => (
+                <button key={d.chave} onClick={() => document.getElementById("dia-" + d.chave)?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+                  {d.label}<span>{d.gers.reduce((a: number, g: any) => a + g.pieces.length, 0)}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <div className="img-lib-col">
+            {dias.map((d) => (
+              <div key={d.chave} id={"dia-" + d.chave} className="img-lib-dia">
+                <div className="img-lib-dia-h">{d.label}</div>
+                {d.gers.map((g: any) => (
+                  <div key={g.genId} className="img-lib-ger">
+                    <div className="img-lib-ger-h">
+                      <span className="img-lib-badge">{g.network ? (redeNome(g.network) || rotuloFormato(g.format)) : rotuloFormato(g.format)}</span>
+                      {slotNome(g.network, g.slot) ? <span className="img-lib-badge2">{slotNome(g.network, g.slot)}</span> : null}
+                      <span className="img-lib-hora">{horaLabel(g.created_at)}</span>
+                      <span className={"img-lib-ideia" + (g.prompt ? "" : " vazio")}>{g.prompt || "Sem ideia escrita"}</span>
+                    </div>
+                    <div className="img-lib">
+                      {g.pieces.map((im: any, i: number) => (
+                        <div className="img-lib-cel" key={im.id}>
+                          {/* posição DENTRO do que está sendo mostrado (o grupo pode
+                              estar filtrado ou faltar um slide que falhou): o
+                              numerador nunca pode passar do total exibido */}
+                          <Poster {...brandProps} aspect={aspectDoCatalogo(catalogo, im.network, im.slot, im.format)} ci={i} slideNo={i + 1} slideTot={g.pieces.length > 1 ? g.pieces.length : 0} imgUrl={im.url} alt={im.prompt ? "Arte: " + String(im.prompt).slice(0, 80) : "Arte gerada"} />
+                          <button className={"img-fav" + (im.favorite ? " on" : "")} title={im.favorite ? "Tirar dos favoritos" : "Favoritar"} onClick={() => onFav(im.id, !im.favorite)}>★</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
