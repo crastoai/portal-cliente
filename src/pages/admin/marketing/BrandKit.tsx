@@ -134,15 +134,29 @@ export default function BrandKit() {
   }
 
   function pick(kind: string) { fileKind.current = kind; fileEl.current?.click(); }
+  const MAX_IMG_MB = 12;
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]; if (!f || !unitId) return;
+    e.target.value = "";
+    // avisa ANTES de tentar: o arquivo cresce ~1/3 no envio, e o erro cru
+    // ("413") não diz nada a quem está do outro lado
+    if (f.size > MAX_IMG_MB * 1024 * 1024) {
+      flash(`Essa imagem tem ${(f.size / 1048576).toFixed(1)} MB — o limite é ${MAX_IMG_MB} MB. Reduza e tente de novo.`);
+      return;
+    }
+    if (!/^image\//.test(f.type)) { flash("Envie um arquivo de imagem (PNG, JPG, SVG ou WEBP)."); return; }
+    flash("Enviando…");
     const reader = new FileReader();
     reader.onload = async () => {
       try { await mktApi.post("/marketing/brand-kit/assets?unit=" + unitId, { kind: fileKind.current, dataUrl: reader.result });
         const up = await mktApi.get<Kit>("/marketing/brand-kit?unit=" + unitId); setKit(up); flash("Imagem enviada");
-      } catch (er: any) { flash("Erro: " + (er.message || "upload falhou")); }
+      } catch (er: any) {
+        const m = String(er?.message || "");
+        flash(/413|too large|payload/i.test(m) ? "A imagem é grande demais para enviar. Reduza o arquivo e tente de novo." : "Não consegui enviar: " + (m || "falha"));
+      }
     };
-    reader.readAsDataURL(f); e.target.value = "";
+    reader.onerror = () => flash("Não consegui ler esse arquivo.");
+    reader.readAsDataURL(f);
   }
 
   /** Lê os sites conectados e mostra o que encontrou. Nunca diz "pronto" sem resultado. */
