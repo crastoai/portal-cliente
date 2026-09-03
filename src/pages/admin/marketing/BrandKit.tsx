@@ -182,7 +182,7 @@ export default function BrandKit() {
     tick();
   }
 
-  async function applyAnalysis(pick: { logo: boolean; colors: string[]; fonts: string[] }) {
+  async function applyAnalysis(pick: { logos: string[]; colors: string[]; fonts: string[]; gradients: string[] }) {
     if (!unitId || !analysis) return;
     try {
       const r = await mktApi.post<any>(`/marketing/brand-kit/jobs/${analysis.id}/apply?unit=` + unitId, pick);
@@ -631,17 +631,21 @@ function SourceModal({ onClose, onAdd }: { onClose: () => void; onAdd: (type: st
 }
 
 /** O que a leitura do site encontrou — o cliente escolhe o que vira o Brand Kit dele. */
-function AnalysisModal({ job, onClose, onApply }: { job: any; onClose: () => void; onApply: (p: { logo: boolean; colors: string[]; fonts: string[] }) => void }) {
+function AnalysisModal({ job, onClose, onApply }: { job: any; onClose: () => void; onApply: (p: { logos: string[]; colors: string[]; fonts: string[]; gradients: string[] }) => void }) {
   const p = job?.proposal || {};
   const colors: any[] = p.colors || [];
   const fonts: any[] = p.fonts || [];
+  const grads: any[] = p.gradients || [];
   const notes: string[] = p.notes || [];
   const sources: any[] = p.sources || [];
-  const [useLogo, setUseLogo] = useState(!!p.logo);
+  const SLOT_LBL: Record<string, string> = { logo_principal: "Logo principal", logo_clara: "Versão clara (fundo escuro)", simbolo: "Símbolo / ícone", favicon: "Favicon" };
+  const logoSlots = Object.keys(SLOT_LBL).filter((s) => p.logos?.[s]);
+  const [onLogo, setOnLogo] = useState<Record<string, boolean>>(() => Object.fromEntries(logoSlots.map((s) => [s, true])));
   const [onCol, setOnCol] = useState<boolean[]>(() => colors.map((_, i) => i < 6));
   const [onFnt, setOnFnt] = useState<boolean[]>(() => fonts.map(() => true));
-  const nada = !p.logo && !colors.length && !fonts.length;
-  const nSel = (useLogo ? 1 : 0) + onCol.filter(Boolean).length + onFnt.filter(Boolean).length;
+  const [onGrad, setOnGrad] = useState<boolean[]>(() => grads.map(() => true));
+  const nada = !logoSlots.length && !colors.length && !fonts.length && !grads.length;
+  const nSel = Object.values(onLogo).filter(Boolean).length + onCol.filter(Boolean).length + onFnt.filter(Boolean).length + onGrad.filter(Boolean).length;
   const lbl = { title: "Títulos", body: "Corpo", num: "Números / código" } as Record<string, string>;
 
   return (
@@ -649,9 +653,10 @@ function AnalysisModal({ job, onClose, onApply }: { job: any; onClose: () => voi
       footer={<>
         <button className="bk-mini" onClick={onClose}>Fechar</button>
         <button className="bk-mini pri" disabled={!nSel} onClick={() => onApply({
-          logo: useLogo,
-          colors: colors.filter((_, i) => onCol[i]).map((c) => c.hex),      // só a seleção: os valores saem da proposta no servidor
+          logos: logoSlots.filter((s) => onLogo[s]),                        // só a seleção: os valores saem da proposta no servidor
+          colors: colors.filter((_, i) => onCol[i]).map((c) => c.hex),
           fonts: fonts.filter((_, i) => onFnt[i]).map((f) => f.family),
+          gradients: grads.filter((_, i) => onGrad[i]).map((g) => g.css),
         })}>Aplicar ao meu Brand Kit</button>
       </>}>
       <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12 }}>
@@ -670,16 +675,24 @@ function AnalysisModal({ job, onClose, onApply }: { job: any; onClose: () => voi
         <div style={{ fontSize: 13.5, color: "var(--text)" }}>Não consegui extrair identidade desse endereço. Suba o seu logo e defina as cores à mão — leva 2 minutos.</div>
       ) : null}
 
-      {p.logo ? (
+      {logoSlots.length ? (
         <>
-          <div style={{ fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", margin: "4px 0 8px" }}>Logo encontrado</div>
-          <label style={{ display: "flex", gap: 12, alignItems: "center", cursor: "pointer", marginBottom: 16 }}>
-            <input type="checkbox" checked={useLogo} onChange={(e) => setUseLogo(e.target.checked)} />
-            <span style={{ width: 96, height: 64, display: "grid", placeItems: "center", background: "var(--surface-2)", border: "1px solid var(--border-2)", borderRadius: 10, overflow: "hidden" }}>
-              {p.logo.url ? <img src={p.logo.url} alt="" style={{ maxWidth: "84%", maxHeight: "84%", objectFit: "contain" }} /> : "—"}
-            </span>
-            <span style={{ fontSize: 12.5, color: "var(--muted)" }}>{p.logo.from}<br /><span style={{ fontSize: 11 }}>vira o seu logo principal</span></span>
-          </label>
+          <div style={{ fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", margin: "4px 0 8px" }}>Logos encontrados ({logoSlots.length})</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(210px,1fr))", gap: 10, marginBottom: 16 }}>
+            {logoSlots.map((s) => (
+              <label key={s} style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer", background: "var(--surface-2)", border: "1px solid var(--border-2)", borderRadius: 10, padding: 10 }}>
+                <input type="checkbox" checked={!!onLogo[s]} onChange={() => setOnLogo((v) => ({ ...v, [s]: !v[s] }))} />
+                <span style={{ width: 74, height: 52, flex: "0 0 auto", display: "grid", placeItems: "center", borderRadius: 8, overflow: "hidden",
+                  background: s === "logo_clara" ? "#0B1A33" : "var(--surface)", border: "1px solid var(--border-2)" }}>
+                  {p.logos[s].url ? <img src={p.logos[s].url} alt="" style={{ maxWidth: "84%", maxHeight: "84%", objectFit: "contain" }} /> : "—"}
+                </span>
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text)", display: "block" }}>{SLOT_LBL[s]}</span>
+                  <span style={{ fontSize: 11, color: "var(--muted)" }}>{p.logos[s].from}</span>
+                </span>
+              </label>
+            ))}
+          </div>
         </>
       ) : null}
 
@@ -695,6 +708,21 @@ function AnalysisModal({ job, onClose, onApply }: { job: any; onClose: () => voi
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "var(--text)" }}>{c.hex}</span>
                 {c.name ? <span style={{ fontSize: 9.5, color: "var(--muted)", lineHeight: 1.2, textAlign: "center" }}>{c.name}</span> : null}
               </button>
+            ))}
+          </div>
+        </>
+      ) : null}
+
+      {grads.length ? (
+        <>
+          <div style={{ fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", margin: "4px 0 8px" }}>Degradês ({onGrad.filter(Boolean).length} de {grads.length})</div>
+          <div style={{ display: "grid", gap: 8, marginBottom: 16 }}>
+            {grads.map((g, i) => (
+              <label key={i} style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}>
+                <input type="checkbox" checked={!!onGrad[i]} onChange={() => setOnGrad((v) => v.map((x, j) => (j === i ? !x : x)))} />
+                <span style={{ flex: 1, height: 40, borderRadius: 8, background: g.css, border: "1px solid var(--border-2)", minWidth: 0 }} />
+                <span style={{ width: 130, fontSize: 11.5, color: "var(--muted)", flex: "0 0 auto" }}>{g.name || "degradê da marca"}</span>
+              </label>
             ))}
           </div>
         </>
