@@ -68,7 +68,7 @@ export default function BrandKit() {
   const [active, setActive] = useState<SecId>("logo");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [modal, setModal] = useState<null | { kind: string }>(null);
+  const [modal, setModal] = useState<null | { kind: string; i?: number }>(null);
   const [analysis, setAnalysis] = useState<any | null>(null);   // job de leitura do site
   const [analyzing, setAnalyzing] = useState(false);
   const fileKind = useRef<string>("reference");
@@ -377,17 +377,25 @@ export default function BrandKit() {
         <div className="bk3-card">
           <div className="bk-cgroup" style={{ marginTop: 0 }}>Cores da marca</div>
           {colors.length ? <div className="bk-colors">
-            {colors.map((c, i) => <span className="bk-sw" key={i} style={{ background: c.hex, color: onColor(c.hex) }}><i>{c.name}</i><b>{c.hex}</b></span>)}
+            {colors.map((c, i) => (
+              <button className="bk-sw" key={i} title="Clique para ajustar esta cor"
+                style={{ background: c.hex, color: onColor(c.hex), border: 0, cursor: "pointer", font: "inherit", textAlign: "left" }}
+                onClick={() => setModal({ kind: "color1", i })}>
+                <i>{c.name}</i><b>{c.hex}</b>
+              </button>
+            ))}
           </div> : <div className="bk-empty"><b>Sem cores ainda</b>Adicione a paleta da marca (ou deixe a IA extrair do site).</div>}
           {gradients.length ? (
             <>
               <div className="bk-cgroup">Degradês da marca</div>
               <div style={{ display: "grid", gap: 8 }}>
                 {gradients.map((g, i) => (
-                  <div key={i} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <button key={i} title="Clique para ajustar as cores deste degradê"
+                    style={{ display: "flex", gap: 10, alignItems: "center", background: "transparent", border: 0, padding: 0, cursor: "pointer", font: "inherit", textAlign: "left" }}
+                    onClick={() => setModal({ kind: "grad1", i })}>
                     <span style={{ flex: 1, height: 46, borderRadius: 10, background: g.css, border: "1px solid var(--border-2)", minWidth: 0 }} />
                     <span style={{ width: 150, flex: "0 0 auto", fontSize: 12, color: "var(--muted)" }}>{g.name || "degradê da marca"}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
               <div className="bk-gap" style={{ marginTop: 8 }}>A IA usa estes degradês como fundo das artes, do mesmo jeito que usa as cores.</div>
@@ -553,6 +561,18 @@ export default function BrandKit() {
     if (k === "identity") return <IdentityModal unit={unit()!} onClose={() => setModal(null)} onSave={saveIdentity} />;
     if (k === "source") return <SourceModal onClose={() => setModal(null)} onAdd={addSource} />;
     if (k === "analysis") return <AnalysisModal job={analysis} onClose={() => setModal(null)} onApply={applyAnalysis} />;
+    if (k === "color1" && modal!.i != null) {
+      const i = modal!.i!;
+      return <ColorEditModal color={colors[i]} onClose={() => setModal(null)}
+        onSave={(c) => { patchKit({ colors: colors.map((x, j) => (j === i ? c : x)) }, "Cor atualizada"); setModal(null); }}
+        onDelete={() => { patchKit({ colors: colors.filter((_, j) => j !== i) }, "Cor removida"); setModal(null); }} />;
+    }
+    if (k === "grad1" && modal!.i != null) {
+      const i = modal!.i!;
+      return <GradientEditModal grad={gradients[i]} onClose={() => setModal(null)}
+        onSave={(g) => { patchKit({ gradients: gradients.map((x, j) => (j === i ? g : x)) }, "Degradê atualizado"); setModal(null); }}
+        onDelete={() => { patchKit({ gradients: gradients.filter((_, j) => j !== i) }, "Degradê removido"); setModal(null); }} />;
+    }
     if (k === "colors") return <ColorsModal colors={colors} onClose={() => setModal(null)} onSave={(cs) => { patchKit({ colors: cs }, "Cores salvas"); setModal(null); }} />;
     if (k === "fonts") return <FontsModal fonts={fonts} onClose={() => setModal(null)} onSave={(fs) => { patchKit({ fonts: fs }, "Fontes salvas"); setModal(null); }} />;
     if (k === "voice") return <TextModal title="Tom de voz" value={kit.voice || ""} placeholder="ex.: Especialista sério, direto, prova com número. Nunca jargão sem explicar." onClose={() => setModal(null)} onSave={(v) => { patchKit({ voice: v }, "Tom salvo"); setModal(null); }} />;
@@ -651,6 +671,109 @@ function SourceModal({ onClose, onAdd }: { onClose: () => void; onAdd: (type: st
         </select>
       </div>
       <div className="bkf"><label>Endereço</label><input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={type === "ig" ? "@suamarca" : "https://…"} /></div>
+    </MktModal>
+  );
+}
+
+// --- edição direta de cor e de degradê -------------------------------------
+// Um degradê é texto CSS. Em vez de remontar (e arriscar perder ângulo, paradas
+// e camadas), trocamos SÓ os pedaços de cor no lugar onde estão.
+const COLOR_TOKEN = /#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)|hsla?\([^)]*\)/g;
+
+function tokenToHex(tok: string): string {
+  const t = tok.trim();
+  if (t.startsWith("#")) {
+    const h = t.slice(1);
+    if (h.length === 3) return "#" + h.split("").map((c) => c + c).join("");
+    return "#" + h.slice(0, 6);
+  }
+  const n = (t.match(/[\d.]+/g) || []).map(Number);
+  if (n.length >= 3) return "#" + n.slice(0, 3).map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("");
+  return "#000000";
+}
+/** Mantém a transparência do original (rgba continua rgba). */
+function hexIntoToken(orig: string, hex: string): string {
+  const t = orig.trim();
+  if (/^rgba?\(/i.test(t)) {
+    const n = (t.match(/[\d.]+/g) || []).map(Number);
+    const a = n.length >= 4 ? n[3] : null;
+    const h = hex.replace("#", "");
+    const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+    return a == null ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${a})`;
+  }
+  return hex;
+}
+function colorTokens(css: string) {
+  const out: { tok: string; start: number; end: number }[] = [];
+  for (const m of css.matchAll(COLOR_TOKEN)) out.push({ tok: m[0], start: m.index!, end: m.index! + m[0].length });
+  return out;
+}
+
+function ColorEditModal({ color, onClose, onSave, onDelete }: { color: any; onClose: () => void; onSave: (c: any) => void; onDelete: () => void }) {
+  const [hex, setHex] = useState(String(color?.hex || "#000000").toLowerCase());
+  const [name, setName] = useState(color?.name || "");
+  const valid = /^#[0-9a-f]{6}$/i.test(hex);
+  const inputStyle = { width: "100%", background: "var(--surface-2)", border: "1px solid var(--border-2)", borderRadius: 10, padding: "9px 12px", color: "var(--text)", fontFamily: "var(--font-ui)", fontSize: 14, outline: "none", boxSizing: "border-box" as const };
+  return (
+    <MktModal title="Ajustar cor" onClose={onClose}
+      footer={<>
+        <button className="bk-mini" style={{ marginRight: "auto" }} onClick={onDelete}>Remover cor</button>
+        <button className="bk-mini" onClick={onClose}>Cancelar</button>
+        <button className="bk-mini pri" disabled={!valid} onClick={() => onSave({ name: name.trim(), hex: hex.toLowerCase() })}>Salvar</button>
+      </>}>
+      <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 14 }}>
+        <input type="color" value={valid ? hex : "#000000"} onChange={(e) => setHex(e.target.value)}
+          style={{ width: 76, height: 76, border: "1px solid var(--border-2)", borderRadius: 12, background: "transparent", cursor: "pointer", padding: 4 }} />
+        <div style={{ flex: 1, display: "grid", gap: 8 }}>
+          <div className="bkf" style={{ margin: 0 }}><label>Código da cor</label>
+            <input type="text" value={hex} onChange={(e) => setHex(e.target.value.trim())} placeholder="#010E26" style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} /></div>
+          <div className="bkf" style={{ margin: 0 }}><label>Nome (opcional)</label>
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="ex.: azul da marca" style={inputStyle} /></div>
+        </div>
+      </div>
+      {!valid ? <div style={{ fontSize: 12, color: "var(--danger, #c0392b)" }}>Use um código no formato #RRGGBB.</div> : null}
+    </MktModal>
+  );
+}
+
+function GradientEditModal({ grad, onClose, onSave, onDelete }: { grad: any; onClose: () => void; onSave: (g: any) => void; onDelete: () => void }) {
+  const [css, setCss] = useState(String(grad?.css || ""));
+  const [name, setName] = useState(grad?.name || "");
+  const stops = colorTokens(css);
+  const setStop = (idx: number, hex: string) => {
+    const s = stops[idx]; if (!s) return;
+    setCss(css.slice(0, s.start) + hexIntoToken(s.tok, hex) + css.slice(s.end));
+  };
+  const inputStyle = { width: "100%", background: "var(--surface-2)", border: "1px solid var(--border-2)", borderRadius: 10, padding: "9px 12px", color: "var(--text)", fontFamily: "var(--font-ui)", fontSize: 14, outline: "none", boxSizing: "border-box" as const };
+  return (
+    <MktModal title="Ajustar degradê" onClose={onClose} wide
+      footer={<>
+        <button className="bk-mini" style={{ marginRight: "auto" }} onClick={onDelete}>Remover degradê</button>
+        <button className="bk-mini" onClick={onClose}>Cancelar</button>
+        <button className="bk-mini pri" disabled={!css.trim()} onClick={() => onSave({ name: name.trim(), css: css.trim() })}>Salvar</button>
+      </>}>
+      <div style={{ height: 88, borderRadius: 12, background: css, border: "1px solid var(--border-2)", marginBottom: 14 }} />
+      <div className="bkf"><label>Nome (opcional)</label>
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="ex.: aurora" style={inputStyle} /></div>
+
+      <div style={{ fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", margin: "14px 0 8px" }}>
+        Cores deste degradê ({stops.length})
+      </div>
+      {stops.length ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+          {stops.map((s, i) => (
+            <label key={i} style={{ display: "grid", gap: 5, justifyItems: "center", cursor: "pointer" }}>
+              <input type="color" value={tokenToHex(s.tok)} onChange={(e) => setStop(i, e.target.value)}
+                style={{ width: 54, height: 44, border: "1px solid var(--border-2)", borderRadius: 9, background: "transparent", cursor: "pointer", padding: 3 }} />
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--muted)" }}>{tokenToHex(s.tok)}</span>
+              {/^rgba\(/i.test(s.tok) ? <span style={{ fontSize: 9, color: "var(--muted-2)" }}>transparente</span> : null}
+            </label>
+          ))}
+        </div>
+      ) : <div style={{ fontSize: 12.5, color: "var(--muted)" }}>Este degradê não tem cores diretas para ajustar.</div>}
+      <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 12, lineHeight: 1.5 }}>
+        Mudando uma cor aqui, o degradê é atualizado na hora acima. A direção e as posições continuam como estão.
+      </div>
     </MktModal>
   );
 }
