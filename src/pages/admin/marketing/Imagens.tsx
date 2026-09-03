@@ -449,6 +449,16 @@ export default function Imagens() {
     finally { usandoRef.current.delete(imageId); }
   }
 
+  /** Manda a GERAÇÃO INTEIRA (o carrossel todo, não um slide) para o Calendário. */
+  async function usarPost(genId: string, caption?: string) {
+    const chave = "g:" + genId;
+    if (usandoRef.current.has(chave)) return;
+    usandoRef.current.add(chave);
+    try { await mktApi.post("/marketing/images/generations/" + genId + "/use", { caption }); flash("Enviado para o Calendário (A agendar)"); loadLib(); }
+    catch { flash("Não foi possível enviar agora. Tente novamente em instantes."); }
+    finally { usandoRef.current.delete(chave); }
+  }
+
   /**
    * Marca/desmarca favorito. A estrela responde na hora (otimista), mas os
    * pedidos da MESMA peça vão em fila (um espera o outro): dois cliques rápidos
@@ -666,7 +676,8 @@ export default function Imagens() {
                   <div className="img-acts">
                     {done && !carr ? <button className="bk-mini" onClick={() => setAdjustOpen((a) => ({ ...a, [im.id]: !a[im.id] }))}>Ajustar</button> : null}
                     {done ? <a className="bk-mini" href={im.url} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>Baixar</a> : null}
-                    {done ? <button className="bk-mini pri" onClick={() => use(im.id)}>Usar → Calendário</button> : null}
+                    {/* num carrossel, o post inteiro vai junto (botão único abaixo); num post, aqui mesmo */}
+                    {done && !carr ? <button className="bk-mini pri" onClick={() => results?.generation?.id && usarPost(results.generation.id)}>Usar → Calendário</button> : null}
                     {im.status === "cancelled" ? <span className="img-motor">cancelada</span> : null}
                     {im.status === "failed" ? <button className="bk-mini pri" disabled={disabled || processing} onClick={generate}>Gerar de novo</button> : null}
                   </div>
@@ -688,10 +699,19 @@ export default function Imagens() {
             })}
           </div>
           {isCarr && imgs.some((im) => im.status === "done") ? (
-            <div style={{ marginTop: 12 }}>
-              <button className="bk-mini pri" style={{ padding: "10px 18px" }} disabled={processing} onClick={adjustCarrossel}>Aplicar ajustes aos slides</button>
-              <span className="img-motor" style={{ marginLeft: 10 }}>Escreva o ajuste em cada slide que quiser mudar e envie tudo de uma vez.</span>
-            </div>
+            <>
+              <div style={{ marginTop: 12 }}>
+                <button className="bk-mini pri" style={{ padding: "10px 18px" }} disabled={processing} onClick={adjustCarrossel}>Aplicar ajustes aos slides</button>
+                <span className="img-motor" style={{ marginLeft: 10 }}>Escreva o ajuste em cada slide que quiser mudar e envie tudo de uma vez.</span>
+              </div>
+              {/* o carrossel inteiro (todos os slides) vai como UM post para o Calendário */}
+              {!processing ? (
+                <div style={{ marginTop: 10 }}>
+                  <button className="bk-mini pri" style={{ padding: "10px 18px" }} onClick={() => results?.generation?.id && usarPost(results.generation.id)}>Enviar carrossel ao Calendário</button>
+                  <span className="img-motor" style={{ marginLeft: 10 }}>Abra o carrossel na Biblioteca para gerar a legenda automática e agendar.</span>
+                </div>
+              ) : null}
+            </>
           ) : null}
           <div style={{ marginTop: 12 }}>
             <button className="bk-mini" disabled={disabled || processing} onClick={generate}>Gerar de novo</button>
@@ -699,7 +719,7 @@ export default function Imagens() {
         </>
       ) : null}
 
-      <Biblioteca lib={lib} catalogo={catalogo} brandProps={brandProps} onFav={toggleFav} onUse={use} onRecarregar={loadLib} onFlash={flash} unitName={unit?.name} />
+      <Biblioteca lib={lib} catalogo={catalogo} brandProps={brandProps} onFav={toggleFav} onUse={use} onUsarPost={usarPost} onRecarregar={loadLib} onFlash={flash} unitName={unit?.name} />
 
       {toast ? createPortal(<div style={{ position: "fixed", bottom: 22, left: "50%", transform: "translateX(-50%)", background: "#0B1A33", color: "#fff", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 10001, boxShadow: "0 10px 30px rgba(1,14,38,.35)" }}>{toast}</div>, document.body) : null}
     </div>
@@ -748,12 +768,13 @@ function noPeriodo(iso: string, periodo: string): boolean {
 // grande, com a ficha e as ações (postar/agendar/repostar). Busca pela ideia,
 // filtro por período, por rede e favoritos. Tudo real do backend.
 // ============================================================================
-function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, onRecarregar, onFlash, unitName }: {
+function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, onUsarPost, onRecarregar, onFlash, unitName }: {
   lib: any[] | null;
   catalogo: { rede: string; slug: string; slots: any[] }[];
   brandProps: any;
   onFav: (id: string, on: boolean) => void;
   onUse: (id: string) => void;
+  onUsarPost: (genId: string, caption?: string) => void;
   onRecarregar: () => void;
   onFlash: (m: string) => void;
   unitName?: string;
@@ -814,11 +835,10 @@ function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, onRecarregar, onF
   // ações conforme o status: não postado -> enviar; publicado -> repostar; sempre
   // que já foi ao Calendário, um atalho para ver lá.
   function AcoesPost({ g }: { g: any }) {
-    const pid = g.pieces[0]?.id;
     return (
       <>
-        {!g.status ? <button className="bk-mini pri" onClick={(e) => { e.stopPropagation(); if (pid) onUse(pid); }}>Enviar ao Calendário</button> : null}
-        {g.status === "publicado" ? <button className="bk-mini pri" onClick={(e) => { e.stopPropagation(); if (pid) onUse(pid); }}>Repostar</button> : null}
+        {!g.status ? <button className="bk-mini pri" onClick={(e) => { e.stopPropagation(); onUsarPost(g.genId); }}>Enviar ao Calendário</button> : null}
+        {g.status === "publicado" ? <button className="bk-mini pri" onClick={(e) => { e.stopPropagation(); onUsarPost(g.genId); }}>Repostar</button> : null}
         {g.status ? <button className="bk-mini" onClick={(e) => { e.stopPropagation(); nav("/admin/marketing/calendario"); }}>Ver no Calendário</button> : null}
       </>
     );
@@ -896,7 +916,7 @@ function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, onRecarregar, onF
         <Visualizador
           ger={gerCompleto(viewer.genId)} idx={viewer.idx} catalogo={catalogo} unitName={unitName}
           onIdx={(i: number) => setViewer((v) => (v ? { ...v, idx: i } : v))}
-          onClose={() => setViewer(null)} onFav={onFav} onUse={onUse} onCalendario={() => nav("/admin/marketing/calendario")} onRecarregar={onRecarregar} onFlash={onFlash}
+          onClose={() => setViewer(null)} onFav={onFav} onUse={onUse} onCalendario={() => nav("/admin/marketing/calendario")} onUsarPost={onUsarPost} onRecarregar={onRecarregar} onFlash={onFlash}
           redeNome={redeNome} slotNome={slotNome}
         />
       ) : null}
@@ -906,7 +926,7 @@ function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, onRecarregar, onF
 
 // Visualizador: a arte grande, navegação entre as peças, a ficha (destino, data,
 // status, referências usadas) e as ações. Abre via MktModal (createPortal no body).
-function Visualizador({ ger, idx, onIdx, onClose, onFav, onUse, onCalendario, onRecarregar, onFlash, redeNome, slotNome }: any) {
+function Visualizador({ ger, idx, onIdx, onClose, onFav, onUse, onCalendario, onUsarPost, onRecarregar, onFlash, redeNome, slotNome }: any) {
   const [detalhe, setDetalhe] = useState<{ refsPost: any[]; refsMarca: any[] } | null>(null);
   useEffect(() => {
     if (!ger?.genId) return;
@@ -968,6 +988,30 @@ function Visualizador({ ger, idx, onIdx, onClose, onFav, onUse, onCalendario, on
     } catch { setAjustando(false); onFlash?.("Não foi possível ajustar agora. Tente novamente."); }
   }
 
+  // legenda automática (Yaya): analisa a arte + a marca + a ideia e escreve a legenda
+  const [legenda, setLegenda] = useState("");
+  const [gerandoLeg, setGerandoLeg] = useState(false);
+  useEffect(() => { setLegenda(""); }, [ger?.genId]);
+  async function gerarLegenda() {
+    if (!ger?.genId) return;
+    setGerandoLeg(true);
+    try { const r = await mktApi.post<any>("/marketing/images/generations/" + ger.genId + "/legenda", {}); setLegenda(String(r?.legenda || "")); }
+    catch { onFlash?.("Não consegui gerar a legenda agora. Tente novamente."); }
+    finally { setGerandoLeg(false); }
+  }
+  async function excluirPost() {
+    if (!ger?.genId) return;
+    if (!window.confirm("Excluir este post e todas as suas artes da Biblioteca? Não dá para desfazer.")) return;
+    try { await mktApi.del("/marketing/images/generations/" + ger.genId); onFlash?.("Post excluído."); onClose(); onRecarregar?.(); }
+    catch (e: any) { onFlash?.(e?.status === 409 ? String(e.message) : "Não foi possível excluir agora. Tente novamente."); }
+  }
+  async function excluirSlide() {
+    if (!im?.id) return;
+    if (!window.confirm("Excluir este slide do carrossel? Não dá para desfazer.")) return;
+    try { await mktApi.del("/marketing/images/" + im.id); onFlash?.("Slide excluído."); onRecarregar?.(); onIdx(Math.max(0, i - 1)); }
+    catch (e: any) { onFlash?.(e?.status === 409 ? String(e.message) : "Não foi possível excluir agora. Tente novamente."); }
+  }
+
   if (!ger || !im) return null;
   const rede = ger.network ? (redeNome(ger.network) || rotuloFormato(ger.format)) : rotuloFormato(ger.format);
   const fmt = slotNome(ger.network, ger.slot);
@@ -979,12 +1023,16 @@ function Visualizador({ ger, idx, onIdx, onClose, onFav, onUse, onCalendario, on
   return (
     <MktModal wide title={ger.prompt ? String(ger.prompt).slice(0, 70) : "Arte da Biblioteca"} onClose={onClose}
       footer={
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", width: "100%" }}>
           {arteUrl ? <a className="bk-mini" href={arteUrl} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>Baixar</a> : null}
           <button className="bk-mini" disabled={ajustando} onClick={() => setAjusteOn((v) => !v)}>{ajustando ? "Ajustando…" : "Ajustar"}</button>
-          {!ger.status ? <button className="bk-mini pri" onClick={() => { if (pid) onUse(pid); }}>Enviar ao Calendário</button> : null}
-          {ger.status === "publicado" ? <button className="bk-mini pri" onClick={() => { if (pid) onUse(pid); }}>Repostar</button> : null}
+          {/* o carrossel INTEIRO vai para o Calendário (não um slide solto), com a legenda */}
+          {!ger.status ? <button className="bk-mini pri" onClick={() => onUsarPost(ger.genId, legenda || undefined)}>{total > 1 ? "Enviar carrossel ao Calendário" : "Enviar ao Calendário"}</button> : null}
+          {/* já é rascunho: o botão salva a legenda no post que já está no Calendário (sem duplicar) */}
+          {ger.status === "rascunho" ? <button className="bk-mini pri" disabled={!legenda} onClick={() => onUsarPost(ger.genId, legenda || undefined)}>Salvar legenda no Calendário</button> : null}
+          {ger.status === "publicado" ? <button className="bk-mini pri" onClick={() => onUsarPost(ger.genId, legenda || undefined)}>Repostar</button> : null}
           {ger.status ? <button className="bk-mini" onClick={onCalendario}>Ver no Calendário</button> : null}
+          <button className="bk-mini danger" onClick={excluirPost} style={{ marginLeft: "auto" }}>Excluir post</button>
         </div>
       }>
       <div className="viz">
@@ -1024,8 +1072,24 @@ function Visualizador({ ger, idx, onIdx, onClose, onFav, onUse, onCalendario, on
               ))}
             </div>
           ) : null}
+          {total > 1 ? <button className="viz-del-slide" onClick={excluirSlide}>Excluir este slide</button> : null}
         </div>
         <div className="viz-ficha">
+          {/* Legenda automática: a Yaya lê a arte + a marca + a ideia e escreve */}
+          <div className="viz-linha col">
+            <span>Legenda {total > 1 ? "do carrossel" : "do post"}</span>
+            {legenda ? (
+              <>
+                <textarea className="viz-legenda" value={legenda} onChange={(e) => setLegenda(e.target.value)} rows={5} />
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="bk-mini" disabled={gerandoLeg} onClick={gerarLegenda}>{gerandoLeg ? "Gerando…" : "Gerar de novo"}</button>
+                  <span className="img-motor">{legenda.length} caracteres · vai junto para o Calendário.</span>
+                </div>
+              </>
+            ) : (
+              <button className="bk-mini pri" disabled={gerandoLeg} onClick={gerarLegenda}>{gerandoLeg ? "A Yaya está escrevendo…" : "✨ Gerar legenda automática"}</button>
+            )}
+          </div>
           <div className="viz-linha"><span>Onde</span><b>{rede}{fmt ? " · " + fmt : ""}</b></div>
           <div className="viz-linha"><span>Quando</span><b>{dataTxt || "—"}</b></div>
           <div className="viz-linha"><span>Status</span><b className={"lib-status " + statusClasse(ger.status)}>{statusLabel(ger.status)}</b></div>
