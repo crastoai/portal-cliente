@@ -11,12 +11,30 @@ import { prepararReferencia } from "./_img";
 // assíncrona (polling). Recursos: pedir AJUSTE (por imagem / por slide) e CANCELAR.
 // ============================================================================
 
-const FORMATS = [
-  { key: "post", label: "▤ Post 4:5" },
-  { key: "story", label: "▯ Story 9:16" },
-  { key: "carrossel", label: "❏ Carrossel" },
-];
 const FALLBACK = ["#0B1A33", "#2E6F9E", "#6E9CE8"];
+
+// proporção "L:A" → razão largura/altura; e daí um quadro para a prévia (SVG),
+// mais estreito quando é retrato para o placeholder não ficar gigante
+function razaoAspecto(a: string): number {
+  const m = /^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/.exec(a || "");
+  if (!m) return 4 / 5;
+  const w = parseFloat(m[1]), h = parseFloat(m[2]);
+  return h > 0 ? w / h : 4 / 5;
+}
+function quadroPrevia(aspect: string): { w: number; h: number } {
+  const r = razaoAspecto(aspect);            // >1 paisagem, <1 retrato
+  const base = r < 1 ? 250 : 300;            // retrato mais estreito
+  let h = Math.round(base / r);
+  h = Math.max(130, Math.min(560, h));       // nem alto demais, nem baixo demais
+  return { w: base, h };
+}
+// formato legado (sem rede/slot) → uma rede/slot coerente, para a retomada de
+// gerações antigas cair num destino real do catálogo
+const LEGADO_PARA_DESTINO: Record<string, { network: string; slot: string }> = {
+  post: { network: "instagram", slot: "feed_retrato" },
+  story: { network: "instagram", slot: "stories" },
+  carrossel: { network: "instagram", slot: "carrossel" },
+};
 
 function lum(hex: string) {
   const h = (hex || "#000").replace("#", "");
@@ -53,13 +71,12 @@ function wrapLines(txt: string, per: number, max: number): string[] {
 }
 
 // Peça: imagem real (quando pronta) OU prévia na identidade da marca (enquanto gera/ajusta).
-function Poster({ fmt, ci, slideNo, slideTot, colors, font, unitName, handle, imgUrl, loadingText }: any) {
-  const isStory = fmt === "story";
-  if (imgUrl) return <div className={"poster" + (isStory ? " ar916" : " ar45")}><img src={imgUrl} alt="" />{slideTot ? <div className="slide-no">{slideNo}/{slideTot}</div> : null}</div>;
+function Poster({ aspect, ci, slideNo, slideTot, colors, font, unitName, handle, imgUrl, loadingText, alt }: any) {
+  if (imgUrl) return <div className="poster"><img src={imgUrl} alt={alt || ""} />{slideTot ? <div className="slide-no">{slideNo}/{slideTot}</div> : null}</div>;
   const cols = colors && colors.length ? colors : FALLBACK;
   const n = cols.length;
   const bg = cols[ci % n], accent = cols[(ci + 2) % n], fg = onColor(bg);
-  const w = isStory ? 230 : 300, h = isStory ? 410 : 375; // 9:16 / 4:5
+  const { w, h } = quadroPrevia(aspect || "4:5"); // a prévia acompanha a proporção do formato escolhido
   const fam = font ? `'${font}', system-ui, sans-serif` : "system-ui, sans-serif";
   const lines = wrapLines("a arte na sua marca", Math.round(w / 13), 3);
   const fs = Math.round(w * 0.078);
@@ -88,7 +105,11 @@ export default function Imagens() {
   const [font, setFont] = useState<string | null>(null);
   const [refs, setRefs] = useState<any[]>([]);   // imagens de referência que entram na geração
   const [engine, setEngine] = useState<{ enabled: boolean; used?: number; cap?: number } | null>(null);
-  const [fmt, setFmt] = useState("post");
+  // catálogo rede→formato (vem do backend, o front só renderiza) + a escolha atual
+  const [catalogo, setCatalogo] = useState<{ rede: string; slug: string; slots: any[] }[]>([]);
+  const [catStatus, setCatStatus] = useState<"carregando" | "ok" | "erro">("carregando");
+  const [rede, setRede] = useState("instagram");
+  const [slotSel, setSlotSel] = useState("feed_retrato");
   const [prompt, setPrompt] = useState("");
   const [onBrand, setOnBrand] = useState(true);
   const [results, setResults] = useState<any | null>(null);
@@ -107,7 +128,7 @@ export default function Imagens() {
   // a arte acabou de sair
   const [retomada, setRetomada] = useState<string | null>(null);
   const pediuAquiRef = useRef(false);   // o cliente já pediu uma arte NESTA visita
-  const fmtTocadoRef = useRef(false);   // ele já escolheu o formato com a própria mão
+  const destinoTocadoRef = useRef(false); // ele já escolheu a rede/formato com a própria mão
   const marcaTocadaRef = useRef(false); // ele já ligou/desligou a identidade da marca
   const naTelaRef = useRef(true);       // a tela ainda está aberta
   const inicioRef = useRef<number>(0);
@@ -117,6 +138,21 @@ export default function Imagens() {
 
   async function loadStatus() { try { const s = await mktApi.get<any>("/marketing/images/status"); setEngine({ enabled: !!s.enabled, used: s.used_this_month, cap: s.monthly_cap }); } catch { setEngine({ enabled: false }); } }
   async function loadLib() { try { setLib(await mktApi.get<any[]>("/marketing/images/library")); } catch { setLib([]); } }
+  async function loadFormatos() {
+    try {
+      const r = await mktApi.get<any>("/marketing/images/formatos");
+      if (r?.redes?.length) { setCatalogo(r.redes); setCatStatus("ok"); }
+      else setCatStatus("erro");
+    } catch { setCatStatus("erro"); }
+  }
+  // a proporção (rótulo) de um destino, para dimensionar a prévia; cai no padrão
+  // quando é geração antiga sem rede/slot
+  function aspectoDe(network?: string | null, slot?: string | null, format?: string | null): string {
+    const r = catalogo.find((x) => x.slug === network);
+    const s = r?.slots.find((y: any) => y.slug === slot);
+    if (s?.aspect) return s.aspect;
+    return format === "story" ? "9:16" : "4:5";
+  }
   async function loadBrand(uid: string | null) {
     if (!uid) return;
     try {
@@ -150,7 +186,12 @@ export default function Imagens() {
       setResults({ generation: g, images: r.images || [] });
       setRetomada(quandoFoi(g.created_at));
       // não pisar no que o cliente já escolheu ou escreveu nesta visita
-      if (!fmtTocadoRef.current && g.format) setFmt(g.format);
+      // restaura o destino do pedido reencontrado, sem pisar no que ele já escolheu:
+      // rede/slot da geração, ou — se for antiga — um destino coerente pelo formato
+      if (!destinoTocadoRef.current) {
+        const dest = (g.network && g.slot) ? { network: g.network, slot: g.slot } : LEGADO_PARA_DESTINO[g.format as string];
+        if (dest) { setRede(dest.network); setSlotSel(dest.slot); }
+      }
       setPrompt((p) => (p.trim() ? p : String(g.prompt || "")));
       if (!marcaTocadaRef.current && typeof g.on_brand === "boolean") setOnBrand(g.on_brand);
       // o contador tem de dizer a verdade: o começo vem do relógio do servidor,
@@ -162,7 +203,10 @@ export default function Imagens() {
 
   useEffect(() => {
     naTelaRef.current = true;
-    loadStatus(); loadLib(); void retomar();
+    loadStatus(); loadLib();
+    // o catálogo antes da retomada: senão, ao voltar no meio de uma geração
+    // não-4:5, a prévia apareceria com a proporção errada até o catálogo chegar
+    (async () => { await loadFormatos(); await retomar(); })();
     activeUnit().then(async (uid) => {
       setUnitId(uid); loadBrand(uid);
       try { const us = await mktApi.get<any[]>("/marketing/business-units"); const u = (us || []).find((x) => x.id === uid) || (us || [])[0]; if (u) setUnit({ name: u.name, handle: u.handle }); } catch { /* ok */ }
@@ -257,7 +301,7 @@ export default function Imagens() {
     pediuAquiRef.current = true;
     setGenBusy(true); setResults(null); setRetomada(null); setAdjust({}); setAdjustOpen({}); inicioRef.current = Date.now();
     try {
-      const r = await mktApi.post<any>("/marketing/images/generate", { format: fmt, prompt: prompt.trim() || null, unitId, onBrand, refs: refsPost.map((x) => x.dataUrl) });
+      const r = await mktApi.post<any>("/marketing/images/generate", { network: rede, slot: slotSel, prompt: prompt.trim() || null, unitId, onBrand, refs: refsPost.map((x) => x.dataUrl) });
       setResults({ generation: r.generation, images: r.images });
       startPoll(r.generation.id);
     } catch (e: any) {
@@ -307,10 +351,18 @@ export default function Imagens() {
   }
 
   const brandProps = { colors, font, unitName: unit?.name, handle: unit?.handle ? "@" + String(unit.handle).replace(/^@/, "") : null };
+  const redeAtual = catalogo.find((r) => r.slug === rede);
+  const slotAtual = redeAtual?.slots.find((s: any) => s.slug === slotSel);
+  const ehCarrossel = !!slotAtual?.carrossel;
+  // a proporção do resultado exibido vem do destino da GERAÇÃO (não do seletor):
+  // numa retomada os dois podem diferir
+  const aspectoResultado = aspectoDe(results?.generation?.network, results?.generation?.slot, results?.images?.[0]?.format);
   const imgs: any[] = results?.images || [];
   const isCarr = imgs[0]?.format === "carrossel";
   const total = imgs.length;
-  const disabled = !engine?.enabled || genBusy;
+  // sem um destino resolvido (catálogo ainda carregando ou falhou) o Gerar fica
+  // travado — nunca mandar um destino oculto que o cliente não viu escolher
+  const disabled = !engine?.enabled || genBusy || !slotAtual;
   // ajuste NÃO é criação: chamar os dois de "criando" faria a tela dizer que
   // uma arte já pronta está sendo feita de novo — e ela continua guardada
   const ajustando = imgs.some((im: any) => im.status === "adjusting");
@@ -334,10 +386,36 @@ export default function Imagens() {
 
       <div className="img-gen">
         <div className="img-panel">
-          <div className="img-fmt">
-            {FORMATS.map((f) => <button key={f.key} className={f.key === fmt ? "on" : ""} onClick={() => { fmtTocadoRef.current = true; setFmt(f.key); }}>{f.label}</button>)}
-          </div>
-          <div className="img-lbl">Qual a ideia? (a IA escreve a copy)</div>
+          {/* Destino manda no formato: escolho a REDE e ela traz os formatos certos. */}
+          <div className="img-lbl">Onde vai ser publicado?</div>
+          {catalogo.length ? (
+            <div className="img-fmt">
+              {catalogo.map((r) => (
+                <button key={r.slug} className={r.slug === rede ? "on" : ""}
+                  onClick={() => { destinoTocadoRef.current = true; setRede(r.slug); const primeiro = r.slots[0]?.slug; if (primeiro) setSlotSel(primeiro); }}>{r.rede}</button>
+              ))}
+            </div>
+          ) : (
+            // vazio honesto, com motivo — nunca a pergunta sem opção e sem explicação
+            <div className="img-motor" style={{ marginBottom: 8 }}>
+              {catStatus === "erro" ? "Não consegui carregar os formatos agora. Recarregue a página." : "Carregando os formatos…"}
+            </div>
+          )}
+          {redeAtual ? (
+            <div className="img-fmt" style={{ marginTop: -6 }}>
+              {redeAtual.slots.map((s: any) => (
+                <button key={s.slug} className={s.slug === slotSel ? "on" : ""}
+                  onClick={() => { destinoTocadoRef.current = true; setSlotSel(s.slug); }}
+                  title={s.nota || ""}>{s.nome}{s.carrossel ? " ▦" : ""}</button>
+              ))}
+            </div>
+          ) : null}
+          {slotAtual ? (
+            <div className="img-motor" style={{ marginTop: 2, marginBottom: 4 }}>
+              {slotAtual.forma || ""}{slotAtual.px ? ` · ${slotAtual.px}px` : ""}{slotAtual.nota ? ` — ${slotAtual.nota}` : ""}
+            </div>
+          ) : null}
+          <div className="img-lbl" style={{ marginTop: 12 }}>Qual a ideia? (a IA escreve a copy)</div>
           <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="ex.: como a IA ajuda a PME a responder cliente fora do horário — a IA cria o título e a arte na sua marca" />
 
           {/* Referências DESTE post. As fixas do Brand Kit continuam valendo —
@@ -373,7 +451,7 @@ export default function Imagens() {
               <div className="img-motor">{onBrand ? "As artes saem com as suas cores, tipografia e o seu @." : "Geração livre — sem forçar a identidade da marca."}</div>
             </div>
           </div>
-          <button className="bk-mini pri" style={{ width: "100%", padding: "11px 22px", fontSize: 14, opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer" }} disabled={disabled} onClick={generate}>{genBusy ? "Enviando…" : (fmt === "carrossel" ? "✨ Gerar carrossel (4 slides)" : "✨ Gerar imagem")}</button>
+          <button className="bk-mini pri" style={{ width: "100%", padding: "11px 22px", fontSize: 14, opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer" }} disabled={disabled} onClick={generate}>{genBusy ? "Enviando…" : (ehCarrossel ? "✨ Gerar carrossel (4 slides)" : "✨ Gerar imagem")}</button>
           {engine?.cap ? <div className="img-motor" style={{ textAlign: "right", marginTop: 8 }}>{engine.used ?? 0}/{engine.cap} imagens neste mês</div> : null}
         </div>
 
@@ -440,7 +518,7 @@ export default function Imagens() {
               const overlay = im.status === "adjusting" ? "ajustando…" : (im.status === "pending" ? "gerando…" : null);
               return (
                 <div className="img-card" key={im.id}>
-                  <Poster {...brandProps} fmt={im.format} ci={ci} slideNo={(im.slide_index ?? i) + 1} slideTot={carr ? total : 0} imgUrl={done ? im.url : undefined} loadingText={overlay} />
+                  <Poster {...brandProps} aspect={aspectoResultado} ci={ci} slideNo={(im.slide_index ?? i) + 1} slideTot={carr ? total : 0} imgUrl={done ? im.url : undefined} loadingText={overlay} alt={done ? (results?.generation?.prompt ? "Arte: " + String(results.generation.prompt).slice(0, 80) : "Arte gerada") : undefined} />
                   <div className="img-acts">
                     {done && !carr ? <button className="bk-mini" onClick={() => setAdjustOpen((a) => ({ ...a, [im.id]: !a[im.id] }))}>Ajustar</button> : null}
                     {done ? <a className="bk-mini" href={im.url} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>Baixar</a> : null}
@@ -483,7 +561,7 @@ export default function Imagens() {
       ) : lib.length ? (
         <div className="img-lib">
           {lib.map((im: any, i: number) => (
-            <Poster key={im.id} {...brandProps} fmt={im.format} ci={i} slideNo={1} slideTot={0} imgUrl={im.url} />
+            <Poster key={im.id} {...brandProps} aspect={aspectoDe(im.network, im.slot, im.format)} ci={i} slideNo={1} slideTot={0} imgUrl={im.url} alt={im.prompt ? "Arte: " + String(im.prompt).slice(0, 80) : "Arte gerada"} />
           ))}
         </div>
       ) : (
