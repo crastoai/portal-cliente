@@ -241,10 +241,11 @@ export default function Imagens() {
   async function loadBrand(uid: string | null) {
     if (!uid) return;
     try {
-      const kit = await mktApi.get<any>("/marketing/brand-kit?unit=" + uid);
+      // _cb evita cache: uma cor recém-adicionada no Brand Kit precisa aparecer já
+      const kit = await mktApi.get<any>("/marketing/brand-kit?unit=" + uid + "&_cb=" + Date.now());
       setColors(((kit?.colors || []) as any[]).map((c) => c.hex).filter(Boolean));
       setFont(((kit?.fonts || []) as any[]).find((f) => f.role === "title")?.family || null);
-      setRefs(((kit?.assets || []) as any[]).filter((a) => a.kind === "reference").slice(0, 4));
+      setRefs(((kit?.assets || []) as any[]).filter((a) => a.kind === "reference").slice(0, 6));
     } catch { /* sem brand kit → paleta neutra */ }
   }
 
@@ -612,7 +613,7 @@ export default function Imagens() {
         <aside className="img-brand">
           <div className="bh">Na identidade de</div>
           <div className="bnm">{unit?.name || "Sua marca"}</div>
-          <div className="bsw">{(colors.length ? colors : FALLBACK).slice(0, 6).map((c, i) => <span key={i} style={{ background: c }} />)}</div>
+          <div className="bsw">{(colors.length ? colors : FALLBACK).slice(0, 12).map((c, i) => <span key={i} style={{ background: c }} />)}</div>
           <div className="bfont" style={{ fontFamily: font ? `'${font}', system-ui, sans-serif` : undefined }}>{font ? font + " · Aa" : "Fonte da marca"}</div>
           <div className="bnote">{onBrand ? "A arte e a copy saem na sua marca — cores, tipografia e @." : "Geração livre — sem forçar a identidade da marca."}</div>
           {refsPost.length ? (
@@ -786,6 +787,8 @@ function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, onUsarPost, onRec
   const [soFav, setSoFav] = useState(false);
   const [abertos, setAbertos] = useState<Record<string, boolean>>({});
   const [viewer, setViewer] = useState<{ genId: string; idx: number } | null>(null);
+  const [modo, setModo] = useState<"lista" | "blocos">(() => { try { return (localStorage.getItem("mkt.img.modo") as any) || "lista"; } catch { return "lista"; } });
+  const trocarModo = (m: "lista" | "blocos") => { setModo(m); try { localStorage.setItem("mkt.img.modo", m); } catch { /* ok */ } };
 
   // se a geração aberta no visualizador sumiu do acervo (ex.: recarregou), fecha
   useEffect(() => {
@@ -857,6 +860,11 @@ function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, onUsarPost, onRec
         ) : null}
         <button className={"img-lib-fav" + (soFav ? " on" : "")} onClick={() => setSoFav((v) => !v)} title="Só os favoritos">★ Favoritos</button>
         {temFiltro ? <button className="img-lib-limpar" onClick={limpar}>Limpar filtros</button> : null}
+        {/* ver em lista (linhas) ou em blocos (grade de miniaturas) */}
+        <div className="img-lib-modo" style={{ marginLeft: "auto" }}>
+          <button className={modo === "lista" ? "on" : ""} onClick={() => trocarModo("lista")} title="Ver em lista" aria-label="Ver em lista">☰</button>
+          <button className={modo === "blocos" ? "on" : ""} onClick={() => trocarModo("blocos")} title="Ver em blocos" aria-label="Ver em blocos">▦</button>
+        </div>
       </div>
 
       {!dias.length ? (
@@ -866,7 +874,27 @@ function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, onUsarPost, onRec
           {dias.map((d) => (
             <div key={d.chave} className="img-lib-dia">
               <div className="img-lib-dia-h">{d.label} <span className="img-lib-dia-n">{d.gers.length}</span></div>
-              {d.gers.map((g: any) => {
+              {modo === "blocos" ? (
+                <div className="img-lib-blocos">
+                  {d.gers.map((g: any) => {
+                    const capa = g.pieces.find((p: any) => p.url) || g.pieces[0];
+                    return (
+                      <div key={g.genId} className="img-bloco" onClick={() => abrir(g.genId, 0)}>
+                        <div className="img-bloco-thumb">
+                          {capa?.url ? <img src={capa.url} alt={g.prompt ? "Arte: " + String(g.prompt).slice(0, 60) : "Arte"} /> : null}
+                          {g.pieces.length > 1 ? <span className="lib-row-n">{g.pieces.length}</span> : null}
+                          <span className={"img-bloco-status lib-status " + statusClasse(g.status)}>{statusLabel(g.status)}</span>
+                        </div>
+                        <div className="img-bloco-meta">
+                          <span className="img-lib-badge">{g.network ? (redeNome(g.network) || rotuloFormato(g.format)) : rotuloFormato(g.format)}</span>
+                          <span className="img-lib-hora">{horaLabel(g.created_at)}</span>
+                        </div>
+                        <div className={"img-bloco-idea" + (g.prompt ? "" : " vazio")}>{g.prompt || "Sem ideia escrita"}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : d.gers.map((g: any) => {
                 const aberto = !!abertos[g.genId];
                 const capa = g.pieces.find((p: any) => p.url) || g.pieces[0];
                 return (
@@ -944,6 +972,7 @@ function Visualizador({ ger, idx, onIdx, onClose, onFav, onUse, onCalendario, on
   const [ajusteOn, setAjusteOn] = useState(false);
   const [ajusteTxt, setAjusteTxt] = useState("");
   const [ajustando, setAjustando] = useState(false);
+  const [ajusteTodos, setAjusteTodos] = useState(false); // aplicar o ajuste a TODO o carrossel
   const pollRef = useRef<number | undefined>(undefined);
   const pararPoll = () => { if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = undefined; } };
   useEffect(() => {
@@ -957,33 +986,41 @@ function Visualizador({ ger, idx, onIdx, onClose, onFav, onUse, onCalendario, on
 
   async function enviarAjuste() {
     const ins = ajusteTxt.trim(); if (!ins || !im?.id) return;
+    const todos = ajusteTodos && total > 1;
     setAjustando(true); setAjusteOn(false);
     const antes = versoes.length;
     const slidePos = im.slide_index ?? im.variation_index ?? i;
     try {
-      await mktApi.post("/marketing/images/" + im.id + "/adjust", { instruction: ins });
+      if (todos) {
+        // o MESMO ajuste em todos os slides de uma vez → nova versão de cada
+        const adjustments = ger.pieces.map((p: any) => ({ imageId: p.id, instruction: ins }));
+        await mktApi.post("/marketing/images/generations/" + ger.genId + "/adjust", { adjustments });
+      } else {
+        await mktApi.post("/marketing/images/" + im.id + "/adjust", { instruction: ins });
+      }
       setAjusteTxt("");
-      // acompanha pelo STATUS real da peça (que sabe dizer se deu certo OU falhou),
-      // não só pelas versões prontas — assim a falha aparece, não fica muda
+      // acompanha pelo STATUS real (sabe dizer se deu certo OU falhou); para
+      // "todos", espera nenhum slide continuar 'ajustando'
       let tentativas = 0;
       pollRef.current = window.setInterval(async () => {
         tentativas++;
         try {
           const st = await mktApi.get<any>("/marketing/images/generations/" + ger.genId);
-          const peca = (st?.images || []).find((x: any) => (x.slide_index ?? x.variation_index ?? -99) === slidePos) || (st?.images || [])[i];
-          if (peca && peca.status !== "adjusting") {
+          const imgs = st?.images || [];
+          const aindaAjustando = todos ? imgs.some((x: any) => x.status === "adjusting") : ((imgs.find((x: any) => (x.slide_index ?? x.variation_index ?? -99) === slidePos) || imgs[i])?.status === "adjusting");
+          if (!aindaAjustando) {
             pararPoll();
             const d = await mktApi.get<any>("/marketing/images/" + im.id + "/versoes").catch(() => null);
             const vs = d?.versoes || [];
-            if (vs.length > antes) { setVersoes(vs); setVSel(-1); }               // nova versão pronta
-            else if (peca.error) onFlash?.(peca.error);                            // ajuste falhou → avisa
-            else onFlash?.("O ajuste não deu certo — a arte anterior foi mantida.");
+            if (vs.length > antes) { setVersoes(vs); setVSel(-1); }
+            const algumErro = imgs.find((x: any) => x.error)?.error;
+            if (vs.length <= antes && algumErro) onFlash?.(algumErro);
             setAjustando(false); onRecarregar?.();
-          } else if (tentativas > 75) {
+          } else if (tentativas > 90) {
             pararPoll(); setAjustando(false); onRecarregar?.();
             onFlash?.("O ajuste está demorando. Recarregue a Biblioteca em instantes para ver o resultado.");
           }
-        } catch { if (tentativas > 75) { pararPoll(); setAjustando(false); } }
+        } catch { if (tentativas > 90) { pararPoll(); setAjustando(false); } }
       }, 4000);
     } catch { setAjustando(false); onFlash?.("Não foi possível ajustar agora. Tente novamente."); }
   }
@@ -1053,9 +1090,12 @@ function Visualizador({ ger, idx, onIdx, onClose, onFav, onUse, onCalendario, on
           ) : null}
           {ajusteOn ? (
             <div className="viz-ajuste">
-              <input type="text" value={ajusteTxt} autoFocus placeholder="ex.: fundo mais claro, aumente o título, tire o ícone" onChange={(e) => setAjusteTxt(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") enviarAjuste(); }} />
+              <input type="text" value={ajusteTxt} autoFocus placeholder={ajusteTodos ? "ex.: deixe todos mais claros, mesma tipografia" : "ex.: fundo mais claro, aumente o título, tire o ícone"} onChange={(e) => setAjusteTxt(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") enviarAjuste(); }} />
               <button className="bk-mini pri" onClick={enviarAjuste} disabled={!ajusteTxt.trim()}>Enviar ajuste</button>
-              <span className="img-motor">Vira uma nova versão — a atual continua guardada.</span>
+              {total > 1 ? (
+                <label className="viz-ajuste-todos"><input type="checkbox" checked={ajusteTodos} onChange={(e) => setAjusteTodos(e.target.checked)} /> aplicar a todos os {total} slides</label>
+              ) : null}
+              <span className="img-motor" style={{ flexBasis: "100%" }}>Vira uma nova versão — a atual continua guardada.{total > 1 ? " Sem marcar, ajusta só este slide." : ""}</span>
             </div>
           ) : null}
           {total > 1 ? (

@@ -52,7 +52,7 @@
 .mkt-root .img-slides input{width:52px;text-align:center;border:1px solid var(--border-2);background:var(--surface);color:var(--text);border-radius:8px;padding:6px 4px;font-size:14px;font-weight:700;font-family:var(--font-ui)}
 .viz-refs-t{font-size:11px;color:var(--muted);font-weight:600;margin-bottom:4px}
 /* Visualizador: ajuste e versões */
-.viz-arte-wrap{position:relative}
+.viz-arte-wrap{position:relative;display:inline-block;max-width:100%}
 .viz-ajustando{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(1,14,38,.5);color:#fff;font-size:13px;font-weight:600;border-radius:12px;backdrop-filter:blur(1px)}
 .viz-ajustando .spin{width:26px;height:26px;border:3px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:mkt-spin 1s linear infinite}
 @keyframes mkt-spin{to{transform:rotate(360deg)}}
@@ -66,6 +66,23 @@
 .viz-legenda{width:100%;border:1px solid var(--border-2);background:var(--surface);color:var(--text);border-radius:9px;padding:9px 11px;font-size:13px;line-height:1.5;font-family:var(--font-ui);resize:vertical;min-height:96px}
 .viz-legenda:focus{outline:none;border-color:var(--blue-2);box-shadow:0 0 0 3px rgba(110,156,232,.15)}
 .viz-del-slide{align-self:flex-start;border:0;background:transparent;color:var(--danger,#B4232A);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-ui);text-decoration:underline;padding:2px 0}
+.viz-ajuste-todos{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text);cursor:pointer;white-space:nowrap}
+.viz-ajuste-todos input{width:15px;height:15px;cursor:pointer}
+/* alternador lista/blocos */
+.mkt-root .img-lib-modo{display:inline-flex;gap:2px;border:1px solid var(--border-2);border-radius:9px;overflow:hidden}
+.mkt-root .img-lib-modo button{border:0;background:var(--surface);color:var(--muted);font-size:15px;line-height:1;cursor:pointer;padding:7px 11px;font-family:var(--font-ui)}
+.mkt-root .img-lib-modo button.on{background:rgba(110,156,232,.16);color:var(--blue-3)}
+[data-theme="dark"] .mkt-root .img-lib-modo button.on{color:var(--blue)}
+/* biblioteca em BLOCOS */
+.mkt-root .img-lib-blocos{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px;margin-bottom:8px}
+.mkt-root .img-bloco{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface);cursor:pointer;transition:border-color .12s,transform .12s}
+.mkt-root .img-bloco:hover{border-color:var(--blue-2);transform:translateY(-2px)}
+.mkt-root .img-bloco-thumb{position:relative;aspect-ratio:4/5;background:var(--surface-2)}
+.mkt-root .img-bloco-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.mkt-root .img-bloco-status{position:absolute;top:7px;left:7px}
+.mkt-root .img-bloco-meta{display:flex;align-items:center;gap:7px;padding:8px 9px 0}
+.mkt-root .img-bloco-idea{padding:5px 9px 10px;font-size:12px;color:var(--text);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mkt-root .img-bloco-idea.vazio{color:var(--muted);font-style:italic}
 .mkt-root .bk-mini.danger,.mkt-modal-box .bk-mini.danger{border-color:rgba(180,35,42,.4);color:var(--danger,#B4232A)}
 .mkt-root .bk-mini.danger:hover,.mkt-modal-box .bk-mini.danger:hover{background:rgba(180,35,42,.08)}
 .mkt-root .img-row{display:flex;align-items:center;gap:10px;margin:14px 0}
@@ -169,9 +186,9 @@
 @media (max-width:640px){.mkt-root .lib-row-acts .bk-mini{padding:6px 9px;font-size:11px}}
 
 /* ---- Visualizador (modal) ---- */
-.mkt-root .viz,.mkt-modal-box .viz{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(240px,1fr);gap:20px}
-.viz-arte{display:flex;flex-direction:column;gap:10px;min-width:0}
-.viz-arte>img{width:100%;max-height:56vh;object-fit:contain;border-radius:12px;background:var(--surface-2);display:block}
+.mkt-root .viz,.mkt-modal-box .viz{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;align-items:start}
+.viz-arte{display:flex;flex-direction:column;gap:10px;min-width:0;align-items:center}
+.viz-arte-wrap>img{max-width:100%;max-height:46vh;width:auto;object-fit:contain;border-radius:12px;background:var(--surface-2);display:block}
 .viz-nav{display:flex;align-items:center;justify-content:center;gap:16px;color:var(--muted);font-size:12.5px;font-weight:600}
 .viz-nav button{width:32px;height:32px;border-radius:50%;border:1px solid var(--border-2);background:var(--surface);color:var(--text);font-size:16px;cursor:pointer;line-height:1}
 .viz-nav button:hover{border-color:var(--blue-2)}
