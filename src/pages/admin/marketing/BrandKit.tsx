@@ -100,6 +100,7 @@ export default function BrandKit() {
   const [analyzing, setAnalyzing] = useState(false);
   const fileKind = useRef<string>("reference");
   const fileEl = useRef<HTMLInputElement>(null);
+  const docEl = useRef<HTMLInputElement>(null);
   const jobPoll = useRef<number | undefined>(undefined);
   useEffect(() => () => { if (jobPoll.current) window.clearInterval(jobPoll.current); }, []);
 
@@ -183,6 +184,30 @@ export default function BrandKit() {
         const m = String(er?.message || "");
         flash(/413|too large|payload/i.test(m) ? "A imagem é grande demais para enviar. Reduza o arquivo e tente de novo." : "Não consegui enviar: " + (m || "falha"));
       }
+    };
+    reader.onerror = () => flash("Não consegui ler esse arquivo.");
+    reader.readAsDataURL(f);
+  }
+
+  /** Documento da marca (manual, playbook) — a IA lê o arquivo e tira daí a essência. */
+  const MAX_DOC_MB = 20;
+  async function onDoc(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]; if (!f || !unitId) return;
+    e.target.value = "";
+    if (/\.docx?$/i.test(f.name) || /officedocument|msword/i.test(f.type)) {
+      flash("Não consigo ler Word. Salve como PDF e envie de novo — aí eu leio tudo."); return;
+    }
+    if (f.size > MAX_DOC_MB * 1024 * 1024) {
+      flash(`Esse arquivo tem ${(f.size / 1048576).toFixed(1)} MB — o limite é ${MAX_DOC_MB} MB.`); return;
+    }
+    flash("Enviando documento…");
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        await mktApi.post("/marketing/brand-kit/sources/file?unit=" + unitId, { name: f.name, dataUrl: reader.result });
+        const up = await mktApi.get<Kit>("/marketing/brand-kit?unit=" + unitId); setKit(up);
+        flash("Documento adicionado — clique em “Analisar e montar” para eu ler.");
+      } catch (er: any) { flash(er?.message || "Não consegui enviar o documento."); }
     };
     reader.onerror = () => flash("Não consegui ler esse arquivo.");
     reader.readAsDataURL(f);
@@ -327,6 +352,7 @@ export default function BrandKit() {
       </div>
 
       <input ref={fileEl} type="file" accept="image/*" style={{ display: "none" }} onChange={onFile} />
+      <input ref={docEl} type="file" accept=".pdf,.txt,.md,.csv,.rtf,application/pdf,text/plain,text/markdown,text/csv,application/rtf" style={{ display: "none" }} onChange={onDoc} />
       {toast ? createPortal(<div style={{ position: "fixed", bottom: 22, left: "50%", transform: "translateX(-50%)", background: "#0B1A33", color: "#fff", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 10001, boxShadow: "0 10px 30px rgba(1,14,38,.35)" }}>{toast}</div>, document.body) : null}
       {modal ? modalNode() : null}
     </div>
@@ -347,12 +373,16 @@ export default function BrandKit() {
     return (
       <>
         <div className="bk3-h"><span className="e-t">Material & fontes</span></div>
-        <p className="bk3-sub">O que a IA vai ler para montar sua marca: site, Instagram, WhatsApp e PDFs. Adicione fontes e clique em analisar.</p>
+        <p className="bk3-sub">O que a IA vai ler para montar sua marca. <b>Site</b>: tira o logo, as cores e a tipografia. <b>Documento</b> (manual de marca, playbook, apresentação): tira posicionamento, público, promessa e regras — e tem prioridade sobre o site quando os dois discordarem. Aceita PDF, TXT, Markdown, CSV e RTF; Word precisa ser salvo como PDF.</p>
         <div className="bk3-card">
           {sources.length ? sources.map((s) => (
             <div className="bk-src" key={s.id}>
               <span className="s-ico">{s.type === "ig" ? "📸" : s.type === "wa" ? "💬" : s.type === "pdf" ? "📄" : "🌐"}</span>
-              <span><span className="s-n">{s.url || s.type}</span><span className="s-d">{s.type}</span></span>
+              <span><span className="s-n">{s.url || s.type}</span>
+                <span className="s-d">{s.type === "pdf" ? "documento — leio o conteúdo e tiro daqui posicionamento e regras"
+                  : s.type === "ds" ? "design system — leio a identidade visual"
+                  : s.type === "site" ? "site — leio a identidade e o texto"
+                  : s.type}</span></span>
               <span className="bk-sp" />
               <span className={"s-tag " + (s.status === "read" ? "ok" : "pend")}>{s.status === "read" ? "lido" : "pendente"}</span>
               <button className="bk-act" style={{ marginLeft: 8 }} onClick={() => removeSource(s.id)}>remover</button>
@@ -360,7 +390,8 @@ export default function BrandKit() {
           )) : <div className="bk-empty"><b>Nenhuma fonte ainda</b>Adicione o site, o @ do Instagram ou um PDF para a IA ler.</div>}
           <div style={{ marginTop: 14 }}>
             <button className="bk-mini pri" disabled={analyzing} onClick={analyze}>{analyzing ? "Lendo o site…" : "✨ Analisar e montar"}</button>{" "}
-            <button className="bk-mini" onClick={() => setModal({ kind: "source" })}>+ Adicionar fonte</button>{" "}
+            <button className="bk-mini" onClick={() => setModal({ kind: "source" })}>+ Adicionar site</button>{" "}
+            <button className="bk-mini" onClick={() => docEl.current?.click()}>+ Enviar documento</button>{" "}
             {(analysis || kit?.lastJob)?.proposal ? <button className="bk-mini" onClick={() => { if (!analysis) setAnalysis(kit.lastJob); setModal({ kind: "analysis" }); }}>Ver o que encontrei</button> : null}
           </div>
           <div className="bk-gap" style={{ marginTop: 11 }}>A IA extrai cores, tipografia, tom e regras do que você conectar — e propõe; você aprova.</div>
