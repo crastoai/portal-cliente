@@ -61,12 +61,13 @@ const fontStack = (f: string) => `'${f}', system-ui, -apple-system, sans-serif`;
  * SVG e imagem já pequena passam intactos.
  */
 const MAX_LADO = 1600;
-function encolher(dataUrl: string, mime: string): Promise<string> {
-  if (/svg/i.test(mime) || dataUrl.length < 700_000) return Promise.resolve(dataUrl);
+const MAX_LADO_REF = 1024;   // referência só precisa passar o clima — quanto mais leve, mais cabem
+function encolher(dataUrl: string, mime: string, lado = MAX_LADO): Promise<string> {
+  if (/svg/i.test(mime) || dataUrl.length < 300_000) return Promise.resolve(dataUrl);
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
-      const escala = Math.min(1, MAX_LADO / Math.max(img.width, img.height));
+      const escala = Math.min(1, lado / Math.max(img.width, img.height));
       if (escala === 1) return resolve(dataUrl);
       const cv = document.createElement("canvas");
       cv.width = Math.round(img.width * escala); cv.height = Math.round(img.height * escala);
@@ -163,30 +164,53 @@ export default function BrandKit() {
 
   function pick(kind: string) { fileKind.current = kind; fileEl.current?.click(); }
   const MAX_IMG_MB = 12;
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]; if (!f || !unitId) return;
-    e.target.value = "";
-    // avisa ANTES de tentar: o arquivo cresce ~1/3 no envio, e o erro cru
-    // ("413") não diz nada a quem está do outro lado
-    if (f.size > MAX_IMG_MB * 1024 * 1024) {
-      flash(`Essa imagem tem ${(f.size / 1048576).toFixed(1)} MB — o limite é ${MAX_IMG_MB} MB. Reduza e tente de novo.`);
-      return;
-    }
-    if (!/^image\//.test(f.type)) { flash("Envie um arquivo de imagem (PNG, JPG, SVG ou WEBP)."); return; }
-    flash("Enviando…");
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const dataUrl = await encolher(String(reader.result), f.type);
-        await mktApi.post("/marketing/brand-kit/assets?unit=" + unitId, { kind: fileKind.current, dataUrl });
-        const up = await mktApi.get<Kit>("/marketing/brand-kit?unit=" + unitId); setKit(up); flash("Imagem enviada");
-      } catch (er: any) {
+
+  /** Envia UMA imagem já reduzida. Devolve se deu certo (para contar no lote). */
+  async function enviarImagem(f: File, kind: string): Promise<boolean> {
+    if (!unitId) return false;
+    if (!/^image\//.test(f.type)) { flash(`"${f.name}" não é imagem — envie PNG, JPG, SVG ou WEBP.`); return false; }
+    if (f.size > MAX_IMG_MB * 1024 * 1024) { flash(`"${f.name}" tem ${(f.size / 1048576).toFixed(1)} MB — o limite é ${MAX_IMG_MB} MB.`); return false; }
+    const dataUrl: string = await new Promise((res, rej) => {
+      const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(f);
+    });
+    const menor = await encolher(dataUrl, f.type, kind === "reference" ? MAX_LADO_REF : MAX_LADO);
+    await mktApi.post("/marketing/brand-kit/assets?unit=" + unitId, { kind, dataUrl: menor });
+    return true;
+  }
+
+  /** Lote: várias de uma vez (seleção múltipla ou colagem). */
+  async function enviarVarias(arquivos: File[], kind: string) {
+    if (!unitId || !arquivos.length) return;
+    flash(arquivos.length > 1 ? `Enviando ${arquivos.length} imagens…` : "Enviando…");
+    let ok = 0;
+    for (const f of arquivos) {
+      try { if (await enviarImagem(f, kind)) ok++; }
+      catch (er: any) {
         const m = String(er?.message || "");
-        flash(/413|too large|payload/i.test(m) ? "A imagem é grande demais para enviar. Reduza o arquivo e tente de novo." : "Não consegui enviar: " + (m || "falha"));
+        flash(/413|too large|payload/i.test(m) ? `"${f.name}" é grande demais para enviar.` : `Não consegui enviar "${f.name}".`);
       }
-    };
-    reader.onerror = () => flash("Não consegui ler esse arquivo.");
-    reader.readAsDataURL(f);
+    }
+    if (ok) {
+      const up = await mktApi.get<Kit>("/marketing/brand-kit?unit=" + unitId); setKit(up);
+      flash(ok > 1 ? `${ok} imagens enviadas` : "Imagem enviada");
+    }
+  }
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const fs = Array.from(e.target.files || []); e.target.value = "";
+    // logo/símbolo/favicon é um só; referência aceita várias de uma vez
+    await enviarVarias(fileKind.current === "reference" ? fs : fs.slice(0, 1), fileKind.current);
+  }
+
+  /** Colar (Ctrl+V) uma imagem da área de transferência direto nas referências. */
+  async function onPasteRef(e: React.ClipboardEvent) {
+    const imgs = Array.from(e.clipboardData?.items || [])
+      .filter((it) => it.kind === "file" && it.type.startsWith("image/"))
+      .map((it) => it.getAsFile())
+      .filter(Boolean) as File[];
+    if (!imgs.length) return;
+    e.preventDefault();
+    await enviarVarias(imgs, "reference");
   }
 
   /** Documento da marca (manual, playbook) — a IA lê o arquivo e tira daí a essência. */
@@ -351,7 +375,7 @@ export default function BrandKit() {
         <div className="bk3-prev">{board()}</div>
       </div>
 
-      <input ref={fileEl} type="file" accept="image/*" style={{ display: "none" }} onChange={onFile} />
+      <input ref={fileEl} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={onFile} />
       <input ref={docEl} type="file" accept=".pdf,.txt,.md,.csv,.rtf,application/pdf,text/plain,text/markdown,text/csv,application/rtf" style={{ display: "none" }} onChange={onDoc} />
       {toast ? createPortal(<div style={{ position: "fixed", bottom: 22, left: "50%", transform: "translateX(-50%)", background: "#0B1A33", color: "#fff", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 10001, boxShadow: "0 10px 30px rgba(1,14,38,.35)" }}>{toast}</div>, document.body) : null}
       {modal ? modalNode() : null}
@@ -434,9 +458,18 @@ export default function BrandKit() {
             luz, a textura, a composição e o nível de realismo, e cria algo <b>novo</b> nesse mesmo mundo — não copia.
             {refs.length ? <> Hoje: <b>{refs.length} em uso</b> (as 4 mais recentes entram na geração).</> : <> Nenhuma ainda — sem elas, a IA se guia só pelas cores e fontes.</>}
           </div>
-          <div className="bk-assets">
-            {refs.map((a) => <div className="bk-asset" key={a.id} style={{ backgroundImage: `url(${a.url})` }}><span className="a-x" onClick={() => delAsset(a.id)}>×</span></div>)}
-            <div className="bk-asset add" onClick={() => pick("reference")}>+</div>
+          {/* área colável: com o foco aqui, Ctrl+V joga a imagem da área de
+              transferência direto como referência, sem precisar salvar arquivo */}
+          <div tabIndex={0} onPaste={onPasteRef} style={{ outline: "none", borderRadius: 12, padding: 4, margin: -4 }}
+            onFocus={(e) => { e.currentTarget.style.boxShadow = "0 0 0 2px var(--blue-2)"; }}
+            onBlur={(e) => { e.currentTarget.style.boxShadow = "none"; }}>
+            <div className="bk-assets">
+              {refs.map((a) => <div className="bk-asset" key={a.id} style={{ backgroundImage: `url(${a.url})` }}><span className="a-x" onClick={() => delAsset(a.id)}>×</span></div>)}
+              <div className="bk-asset add" onClick={() => pick("reference")}>+</div>
+            </div>
+            <div className="bk-gap" style={{ marginTop: 9 }}>
+              Dá para escolher <b>várias de uma vez</b> — ou clicar aqui e <b>colar com Ctrl+V</b> uma imagem que você copiou.
+            </div>
           </div>
         </div>
       </>
