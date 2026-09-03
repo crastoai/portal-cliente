@@ -25,6 +25,22 @@ function lum(hex: string) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 const onColor = (hex: string) => (lum(hex) > 0.6 ? "#0B1A33" : "#FFFFFF");
+
+// chave onde fica guardado o pedido que o cliente JÁ VIU e fechou — para a tela
+// não reabrir sozinha o mesmo resultado a cada visita
+const VISTO = "mkt.img.pedido-visto";
+
+/** "hoje às 19:35" · "ontem às 14:02" · "em 01/09 às 10:12" */
+function quandoFoi(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "há pouco";
+  const hora = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const dia = (x: Date) => `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`;
+  const agora = new Date();
+  if (dia(d) === dia(agora)) return `hoje às ${hora}`;
+  if (dia(d) === dia(new Date(agora.getTime() - 86400000))) return `ontem às ${hora}`;
+  return `em ${d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} às ${hora}`;
+}
 function wrapLines(txt: string, per: number, max: number): string[] {
   const words = (txt || "").split(/\s+/).filter(Boolean);
   const lines: string[] = []; let cur = "";
@@ -86,6 +102,14 @@ export default function Imagens() {
   const [refsPost, setRefsPost] = useState<{ id: string; dataUrl: string }[]>([]);
   const [lendoRef, setLendoRef] = useState(false);
   const [decorrido, setDecorrido] = useState("");
+  // quando a tela reencontra um pedido feito antes (recarregou a página, voltou
+  // depois): guarda quando ele foi feito, para dizer isso em vez de fingir que
+  // a arte acabou de sair
+  const [retomada, setRetomada] = useState<string | null>(null);
+  const pediuAquiRef = useRef(false);   // o cliente já pediu uma arte NESTA visita
+  const fmtTocadoRef = useRef(false);   // ele já escolheu o formato com a própria mão
+  const marcaTocadaRef = useRef(false); // ele já ligou/desligou a identidade da marca
+  const naTelaRef = useRef(true);       // a tela ainda está aberta
   const inicioRef = useRef<number>(0);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const pollRef = useRef<number | undefined>(undefined);
@@ -103,13 +127,47 @@ export default function Imagens() {
     } catch { /* sem brand kit → paleta neutra */ }
   }
 
+  /**
+   * Reencontra o pedido ao abrir a tela. A tela promete que dá para sair no meio
+   * da criação — quem sempre cumpriu essa promessa foi o servidor; era a tela
+   * que perdia o fio ao recarregar e dava a impressão de trabalho perdido.
+   * Ainda criando → volta a acompanhar, com o relógio contado pelo servidor.
+   * Já pronta → aparece pronta (pode ter ficado pronta com a aba fechada).
+   */
+  async function retomar() {
+    try {
+      const r = await mktApi.get<any>("/marketing/images/generations/atual");
+      const g = r?.generation;
+      // um pedido novo feito agora manda: nunca sobrepor o que o cliente acabou de pedir.
+      // e se ele já saiu da tela enquanto a resposta vinha, não começar a acompanhar
+      // nada — o acompanhamento ficaria rodando sozinho, sem tela para mostrar.
+      if (!g || pediuAquiRef.current || !naTelaRef.current) return;
+      const criando = Number(r.pending || 0) > 0;
+      // resultado já concluído que ele viu e fechou: a tela abre limpa (continua na Biblioteca)
+      let visto: string | null = null;
+      try { visto = localStorage.getItem(VISTO); } catch { /* navegador sem armazenamento */ }
+      if (!criando && visto === g.id) return;
+      setResults({ generation: g, images: r.images || [] });
+      setRetomada(quandoFoi(g.created_at));
+      // não pisar no que o cliente já escolheu ou escreveu nesta visita
+      if (!fmtTocadoRef.current && g.format) setFmt(g.format);
+      setPrompt((p) => (p.trim() ? p : String(g.prompt || "")));
+      if (!marcaTocadaRef.current && typeof g.on_brand === "boolean") setOnBrand(g.on_brand);
+      // o contador tem de dizer a verdade: o começo vem do relógio do servidor,
+      // não do momento em que esta página foi carregada
+      inicioRef.current = Date.now() - Math.max(0, Number(g.elapsed_sec) || 0) * 1000;
+      if (criando) startPoll(g.id);
+    } catch { /* sem retomada a tela abre normalmente */ }
+  }
+
   useEffect(() => {
-    loadStatus(); loadLib();
+    naTelaRef.current = true;
+    loadStatus(); loadLib(); void retomar();
     activeUnit().then(async (uid) => {
       setUnitId(uid); loadBrand(uid);
       try { const us = await mktApi.get<any[]>("/marketing/business-units"); const u = (us || []).find((x) => x.id === uid) || (us || [])[0]; if (u) setUnit({ name: u.name, handle: u.handle }); } catch { /* ok */ }
     }).catch(() => {});
-    return () => { if (pollRef.current) window.clearInterval(pollRef.current); };
+    return () => { naTelaRef.current = false; if (pollRef.current) window.clearInterval(pollRef.current); };
   }, []);
 
   // relógio do "criando…": conta desde o início da geração e limpa ao terminar
@@ -136,7 +194,9 @@ export default function Imagens() {
   // O servidor sempre chega a um fim (fecha o que estoura o prazo, com o motivo),
   // então acompanhamos um pouco além disso — nunca "para sempre". Uma arte 2K
   // com as referências da marca leva minutos; carrossel são 4 em fila.
-  const LIMITE_ACOMPANHAR = 330; // ~30 min, contando a folga do 2º intervalo
+  // precisa passar do prazo do servidor (28 min), senão a tela desiste de uma
+  // arte que ainda vai sair — e é justamente a desistência que parece perda
+  const LIMITE_ACOMPANHAR = 460; // ~30 min a cada 4s
   function startPoll(genId: string) {
     if (pollRef.current) window.clearInterval(pollRef.current);
     let tries = 0; setProcessing(true);
@@ -151,7 +211,7 @@ export default function Imagens() {
           window.clearInterval(pollRef.current); pollRef.current = undefined; setProcessing(false); loadLib(); loadStatus();
         } else if (tries > LIMITE_ACOMPANHAR) {
           window.clearInterval(pollRef.current); pollRef.current = undefined; setProcessing(false);
-          flash("A geração está demorando mais que o normal. Recarregue a página em instantes para ver o resultado.");
+          flash("Esta arte está demorando mais que o normal. Recarregue a página: ela volta a aparecer aqui do jeito que estiver.");
         }
       } catch { if (tries > LIMITE_ACOMPANHAR) { window.clearInterval(pollRef.current); pollRef.current = undefined; setProcessing(false); } }
     }, 4000);
@@ -192,7 +252,10 @@ export default function Imagens() {
 
   async function generate() {
     if (!engine?.enabled) { flash("Gerador de imagens em configuração."); return; }
-    setGenBusy(true); setResults(null); setAdjust({}); setAdjustOpen({}); inicioRef.current = Date.now();
+    // a partir daqui manda o pedido novo: uma retomada que chegue atrasada não
+    // pode substituir na tela o que o cliente acabou de pedir
+    pediuAquiRef.current = true;
+    setGenBusy(true); setResults(null); setRetomada(null); setAdjust({}); setAdjustOpen({}); inicioRef.current = Date.now();
     try {
       const r = await mktApi.post<any>("/marketing/images/generate", { format: fmt, prompt: prompt.trim() || null, unitId, onBrand, refs: refsPost.map((x) => x.dataUrl) });
       setResults({ generation: r.generation, images: r.images });
@@ -214,6 +277,9 @@ export default function Imagens() {
   async function adjustOne(imageId: string) {
     const ins = (adjust[imageId] || "").trim(); if (!ins) { flash("Descreva o ajuste."); return; }
     const id = results?.generation?.id;
+    // o relógio passa a contar ESTE ajuste — senão, numa arte reencontrada de
+    // horas atrás, a tela diria que o ajuste já está levando horas
+    inicioRef.current = Date.now(); setRetomada(null);
     try { await mktApi.post("/marketing/images/" + imageId + "/adjust", { instruction: ins }); flash("Ajuste enviado — a IA está refazendo a arte"); setAdjust((a) => ({ ...a, [imageId]: "" })); setAdjustOpen((a) => ({ ...a, [imageId]: false })); if (id) startPoll(id); }
     catch { flash("Não foi possível ajustar agora. Tente novamente."); }
   }
@@ -222,8 +288,17 @@ export default function Imagens() {
     const id = results?.generation?.id; if (!id) return;
     const adjustments = (results?.images || []).filter((im: any) => (adjust[im.id] || "").trim()).map((im: any) => ({ imageId: im.id, instruction: (adjust[im.id] || "").trim() }));
     if (!adjustments.length) { flash("Descreva o ajuste em pelo menos um slide."); return; }
+    inicioRef.current = Date.now(); setRetomada(null);
     try { await mktApi.post("/marketing/images/generations/" + id + "/adjust", { adjustments }); flash("Ajustes enviados — a IA está refazendo os slides"); setAdjust({}); startPoll(id); }
     catch { flash("Não foi possível ajustar agora. Tente novamente."); }
+  }
+
+  /** Fecha o resultado reencontrado — a arte continua guardada na Biblioteca. */
+  function fecharRetomada() {
+    const id = results?.generation?.id;
+    try { if (id) localStorage.setItem(VISTO, String(id)); } catch { /* navegador sem armazenamento */ }
+    if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = undefined; }
+    setResults(null); setRetomada(null); setAdjust({}); setAdjustOpen({});
   }
 
   async function use(imageId: string) {
@@ -236,6 +311,13 @@ export default function Imagens() {
   const isCarr = imgs[0]?.format === "carrossel";
   const total = imgs.length;
   const disabled = !engine?.enabled || genBusy;
+  // ajuste NÃO é criação: chamar os dois de "criando" faria a tela dizer que
+  // uma arte já pronta está sendo feita de novo — e ela continua guardada
+  const ajustando = imgs.some((im: any) => im.status === "adjusting");
+  const aviso = ajustando
+    ? "o ajuste que você pediu está sendo feito. Pode sair desta tela: a arte anterior continua guardada até o ajuste ficar pronto."
+    : (retomada ? `você pediu esta arte ${retomada} e ela ainda está sendo criada — ` : "") +
+      "pode sair desta tela: a arte continua sendo criada e fica na Biblioteca.";
 
   return (
     <div className="mkt-root">
@@ -253,7 +335,7 @@ export default function Imagens() {
       <div className="img-gen">
         <div className="img-panel">
           <div className="img-fmt">
-            {FORMATS.map((f) => <button key={f.key} className={f.key === fmt ? "on" : ""} onClick={() => setFmt(f.key)}>{f.label}</button>)}
+            {FORMATS.map((f) => <button key={f.key} className={f.key === fmt ? "on" : ""} onClick={() => { fmtTocadoRef.current = true; setFmt(f.key); }}>{f.label}</button>)}
           </div>
           <div className="img-lbl">Qual a ideia? (a IA escreve a copy)</div>
           <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="ex.: como a IA ajuda a PME a responder cliente fora do horário — a IA cria o título e a arte na sua marca" />
@@ -285,7 +367,7 @@ export default function Imagens() {
           </div>
 
           <div className="img-row">
-            <button className={"img-toggle" + (onBrand ? " on" : "")} aria-label="Na identidade do meu Brand Kit" onClick={() => setOnBrand((v) => !v)} />
+            <button className={"img-toggle" + (onBrand ? " on" : "")} aria-label="Na identidade do meu Brand Kit" onClick={() => { marcaTocadaRef.current = true; setOnBrand((v) => !v); }} />
             <div>
               <div style={{ fontSize: 13, color: "var(--text)", fontWeight: 600 }}>Na identidade do meu Brand Kit</div>
               <div className="img-motor">{onBrand ? "As artes saem com as suas cores, tipografia e o seu @." : "Geração livre — sem forçar a identidade da marca."}</div>
@@ -333,7 +415,7 @@ export default function Imagens() {
       {results ? (
         <>
           <div className="img-sec">
-            {isCarr ? "Carrossel" : "Resultado"}{processing ? " · criando na identidade da sua marca…" : ""}
+            {isCarr ? "Carrossel" : "Resultado"}{processing ? (ajustando ? " · ajustando a arte…" : " · criando na identidade da sua marca…") : ""}
             {processing ? <button className="bk-mini" style={{ marginLeft: 12, verticalAlign: "middle" }} onClick={cancel}>Cancelar</button> : null}
           </div>
           {/* Estado honesto: quanto já passou e a permissão de ir embora. Uma arte
@@ -341,7 +423,13 @@ export default function Imagens() {
               acha que travou (foi exatamente o que aconteceu). */}
           {processing ? (
             <div className="img-motor" style={{ marginTop: -6, marginBottom: 10 }}>
-              {decorrido ? `${decorrido} · ` : ""}pode sair desta tela — a arte continua sendo criada e fica na Biblioteca.
+              {decorrido ? `${decorrido} · ` : ""}{aviso}
+            </div>
+          ) : retomada ? (
+            /* nada se perdeu: este é o último pedido, reencontrado ao abrir a tela */
+            <div className="img-motor" style={{ marginTop: -6, marginBottom: 10 }}>
+              Este é o seu último pedido, feito {retomada}.
+              <button className="bk-mini" style={{ marginLeft: 10, verticalAlign: "middle" }} onClick={fecharRetomada}>Fechar</button>
             </div>
           ) : null}
           <div className="img-results">
