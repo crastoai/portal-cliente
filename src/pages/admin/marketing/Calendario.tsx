@@ -256,6 +256,7 @@ function PostModal({ unitId, editId, initDate, post, onClose, onSaved, flash }: 
   const [chSet, setChSet] = useState<Set<string>>(new Set(post?.ch || []));
   const [busy, setBusy] = useState(false);
   const [gerLeg, setGerLeg] = useState(false);
+  const [gerTit, setGerTit] = useState(false);
   const [slides, setSlides] = useState<any[]>([]);
   const [slideIdx, setSlideIdx] = useState(0);
   const scheduled = !!post?.d;
@@ -274,6 +275,16 @@ function PostModal({ unitId, editId, initDate, post, onClose, onSaved, flash }: 
     const net = CH_NET[Array.from(chSet)[0] as string] || "instagram";
     try { const w = await mktApi.get<any>("/marketing/posting-windows?network=" + net); setTime(String(w?.recommended || "19:00").slice(0, 5)); flash("Melhor horário sugerido para " + net); }
     catch { setTime("19:00"); }
+  }
+
+  // título curto de verdade (não o prompt) a partir da arte vinculada
+  async function gerarTituloAuto() {
+    if (!post?.pieceRef) return;
+    setGerTit(true);
+    try {
+      const r = await mktApi.post<any>("/marketing/images/generations/" + post.pieceRef + "/titulo", {});
+      if (r?.titulo) { setTitle(r.titulo); flash("Título gerado ✓"); } else flash("Não consegui gerar o título agora.");
+    } catch { flash("Não consegui gerar o título agora. Tente de novo."); } finally { setGerTit(false); }
   }
 
   // legenda automática (a Yaya) a partir da arte vinculada
@@ -329,49 +340,72 @@ function PostModal({ unitId, editId, initDate, post, onClose, onSaved, flash }: 
 
   return (
     <MktModal title={editId ? "Editar publicação" : "Nova publicação"} onClose={onClose} footer={footer} wide>
-      {/* prévia da arte vinculada — carrossel navegável (todos os slides) */}
-      {nSlides ? (
-        <div className="calm-preview">
-          <img src={slides[Math.min(slideIdx, nSlides - 1)]?.url} alt="" />
-          {nSlides > 1 ? (
-            <>
-              <button type="button" className="calm-nav prev" onClick={() => setSlideIdx((i) => (i - 1 + nSlides) % nSlides)} aria-label="Slide anterior">‹</button>
-              <button type="button" className="calm-nav next" onClick={() => setSlideIdx((i) => (i + 1) % nSlides)} aria-label="Próximo slide">›</button>
-              <span className="calm-slides">{Math.min(slideIdx, nSlides - 1) + 1}/{nSlides}</span>
-              <div className="calm-dots">{slides.map((_, i) => <span key={i} className={i === slideIdx ? "on" : ""} onClick={() => setSlideIdx(i)} />)}</div>
-            </>
-          ) : null}
-        </div>
-      ) : post?.thumb ? (
-        <div className="calm-preview"><img src={post.thumb} alt="" />{post.slides > 1 ? <span className="calm-slides">{post.slides} slides</span> : null}</div>
-      ) : null}
-      <div className="calf-field full calf-trilha"><label>Trilha</label>
-        <div className="seg">
-          {(["org", "paid", "mail"] as const).map((w) => <button key={w} className={who === w ? "on" : ""} onClick={() => setWho(w)}>{WHO_LABEL[w]}</button>)}
-        </div>
-      </div>
-      <div className="calf-grid">
-        <div className="calf-field"><label>Tipo</label><select value={type} onChange={(e) => setType(e.target.value)}>{TYPES.map((t) => <option key={t}>{t}</option>)}</select></div>
-        <div className="calf-field"><label>Status</label><select value={st} onChange={(e) => setSt(e.target.value)}>{ST_EDITAVEIS.map((k) => <option key={k} value={k}>{ST_LABEL[k]}</option>)}</select></div>
-        <div className="calf-field full"><label>Título</label><input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ex.: 5 erros de IA que a sua PME comete" /></div>
-        <div className="calf-field full"><label>Canais</label><div className="calf-chips">{CANAIS.map((c) => <button key={c.label} className={"calf-chip" + (chSet.has(c.label) ? " on" : "")} onClick={() => toggleCh(c.label)}><RedeIcon slug={c.slug} size={15} />{c.nome}</button>)}</div></div>
-        <div className="calf-field full"><label>Quando</label>
-          <div className="calf-datetime">
-            <div className="calf-field"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-            <div className="calf-field" style={{ maxWidth: 130 }}><input type="time" value={time} onChange={(e) => setTime(e.target.value)} /></div>
-            <button className="calf-smart" onClick={smartTime}>✨ Horário inteligente</button>
+      <div className="pm">
+        {/* ————— ESQUERDA: a arte ————— */}
+        <div className="pm-art">
+          {nSlides ? (
+            <div className="pm-canvas">
+              <img src={slides[Math.min(slideIdx, nSlides - 1)]?.url} alt="" />
+              {nSlides > 1 ? (
+                <>
+                  <button type="button" className="calm-nav prev" onClick={() => setSlideIdx((i) => (i - 1 + nSlides) % nSlides)} aria-label="Slide anterior">‹</button>
+                  <button type="button" className="calm-nav next" onClick={() => setSlideIdx((i) => (i + 1) % nSlides)} aria-label="Próximo slide">›</button>
+                  <span className="calm-slides">{Math.min(slideIdx, nSlides - 1) + 1}/{nSlides}</span>
+                </>
+              ) : null}
+            </div>
+          ) : post?.thumb ? (
+            <div className="pm-canvas"><img src={post.thumb} alt="" /></div>
+          ) : (
+            <div className="pm-empty"><span>🖼️</span><b>Sem arte vinculada</b><small>Vincule uma arte de Imagens ou um Corte para ver a prévia aqui.</small></div>
+          )}
+          {nSlides > 1 ? <div className="calm-dots">{slides.map((_, i) => <span key={i} className={i === slideIdx ? "on" : ""} onClick={() => setSlideIdx(i)} />)}</div> : null}
+          <div className="pm-piece">
+            {post?.piece === "brand" ? <span className="pm-piece-tag brand">🖼️ {nSlides > 1 ? `Carrossel · ${nSlides} slides` : "Arte do Brand Kit"}</span>
+              : post?.piece === "corte" ? <span className="pm-piece-tag corte">🎬 Corte de Vídeos Virais</span>
+                : (
+                  <select className="pm-select" value={piece} onChange={(e) => setPiece(e.target.value)} title="Peça vinculada">
+                    <option value="">Sem peça — a equipe cria</option>
+                    <option value="corte">🎬 Corte (Vídeos Virais)</option>
+                    <option value="brand">🖼️ Arte do Brand Kit (Imagens)</option>
+                    <option value="upload">⬆️ Enviar arquivo</option>
+                  </select>
+                )}
           </div>
         </div>
-        <div className="calf-field full"><label>Peça vinculada</label>
-          <select value={piece} onChange={(e) => setPiece(e.target.value)}>
-            <option value="">Nenhuma — a equipe cria</option>
-            <option value="corte">🎬 Corte (Vídeos Virais)</option>
-            <option value="brand">🖼️ Arte do Brand Kit (Imagens)</option>
-            <option value="upload">⬆️ Enviar arquivo</option>
-          </select>
-          <div className="calf-piece" style={{ marginTop: 8 }}>💡 Aqui entra o Corte aprovado em Vídeos Virais ou a arte de Imagens — é o que amarra os módulos.</div>
+
+        {/* ————— DIREITA: o formulário ————— */}
+        <div className="pm-form">
+          <div className="pm-field">
+            <div className="pm-lbl">Título {post?.piece === "brand" && post?.pieceRef ? <button type="button" className="pm-ai" onClick={gerarTituloAuto} disabled={gerTit}>{gerTit ? "gerando…" : "✨ gerar"}</button> : null}</div>
+            <input className="pm-input" type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ex.: 5 erros de IA que a sua PME comete" />
+          </div>
+
+          <div className="pm-field">
+            <div className="pm-lbl">Legenda {post?.piece === "brand" && post?.pieceRef ? <button type="button" className="pm-ai" onClick={gerarLegendaAuto} disabled={gerLeg}>{gerLeg ? "gerando…" : "✨ gerar com IA"}</button> : null}</div>
+            <textarea className="pm-textarea" value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="a legenda do post, no tom do seu Brand Kit — com hashtags…" />
+          </div>
+
+          <div className="pm-field">
+            <div className="pm-lbl">Canais</div>
+            <div className="calf-chips">{CANAIS.map((c) => <button key={c.label} type="button" className={"calf-chip" + (chSet.has(c.label) ? " on" : "")} onClick={() => toggleCh(c.label)}><RedeIcon slug={c.slug} size={15} />{c.nome}</button>)}</div>
+          </div>
+
+          <div className="pm-field">
+            <div className="pm-lbl">Quando</div>
+            <div className="pm-when">
+              <input className="pm-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <input className="pm-input pm-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+              <button type="button" className="pm-smart" onClick={smartTime}>✨ Horário inteligente</button>
+            </div>
+          </div>
+
+          <div className="pm-meta">
+            <div className="pm-field"><div className="pm-lbl">Trilha</div><div className="seg seg-sm">{(["org", "paid", "mail"] as const).map((w) => <button key={w} type="button" className={who === w ? "on" : ""} onClick={() => setWho(w)}>{WHO_LABEL[w]}</button>)}</div></div>
+            <div className="pm-field"><div className="pm-lbl">Tipo</div><select className="pm-select" value={type} onChange={(e) => setType(e.target.value)}>{TYPES.map((t) => <option key={t}>{t}</option>)}</select></div>
+            <div className="pm-field"><div className="pm-lbl">Status</div><select className="pm-select" value={st} onChange={(e) => setSt(e.target.value)}>{ST_EDITAVEIS.map((k) => <option key={k} value={k}>{ST_LABEL[k]}</option>)}</select></div>
+          </div>
         </div>
-        <div className="calf-field full"><label>Legenda {post?.piece === "brand" && post?.pieceRef ? <button type="button" className="calm-leg-btn" onClick={gerarLegendaAuto} disabled={gerLeg}>{gerLeg ? "gerando…" : "✨ gerar automática"}</button> : null}</label><textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="a legenda do post, no tom do seu Brand Kit…" /></div>
       </div>
     </MktModal>
   );
