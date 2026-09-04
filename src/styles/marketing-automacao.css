@@ -25,7 +25,7 @@
 
 /* card de post p/ aprovar */
 .mkt-root .ap-post{display:flex;gap:16px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px}
-.mkt-root .ap-thumb{width:96px;flex:0 0 auto;border-radius:11px;aspect-ratio:1/1.08;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:#cdd9ee;font-size:11px;text-align:center;background:linear-gradient(160deg,#0a1f45,#02102b);border:1px solid var(--border-2)}
+.mkt-root .ap-thumb{position:relative;overflow:hidden;width:96px;flex:0 0 auto;border-radius:11px;aspect-ratio:1/1.08;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:#cdd9ee;font-size:11px;text-align:center;background:linear-gradient(160deg,#0a1f45,#02102b);border:1px solid var(--border-2)}
 .mkt-root .ap-thumb b{color:#fff;font-size:12px}
 .mkt-root .ap-pb{flex:1;min-width:0}
 .mkt-root .ap-tags{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -73,3 +73,10 @@
 .mkt-root .ap-esteira li::before{counter-increment:est;content:counter(est);position:absolute;left:0;top:8px;width:19px;height:19px;border-radius:50%;background:var(--surface-2);border:1px solid var(--border-2);color:var(--muted);font-family:var(--font-mono);font-size:10px;display:grid;place-items:center;font-weight:600}
 
 @media(max-width:900px){.mkt-root .ap-grid{grid-template-columns:1fr}.mkt-root .ap-aside{position:static}.mkt-root .ap-header{flex-direction:column;align-items:stretch}}
+
+/* selo de contagem de slides sobre a arte real do card de automação */
+.mkt-root .ap-th-badge{position:absolute;top:5px;right:5px;background:rgba(1,14,38,.72);color:#fff;font-size:10px;font-weight:700;border-radius:5px;padding:1px 5px;letter-spacing:.02em}
+
+/* aviso honesto no card de aprovação (ex.: rede não conectada, slides faltando) */
+.mkt-root .ap-note{font-size:11.5px;color:#B45309;background:rgba(234,179,8,.12);border:1px solid rgba(234,179,8,.28);border-radius:6px;padding:3px 7px;margin:2px 0 5px;font-weight:600}
+[data-theme="dark"] .mkt-root .ap-note{color:#FBBF24}

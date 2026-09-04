@@ -35,9 +35,27 @@ export default function Automacao() {
     setRunning(true);
     try {
       const r = await mktApi.post<any>("/marketing/automation/run", {});
-      flash(r.mode === "B" ? `Gerados ${r.generated} · publicados ${r.published}${r.blocked ? ` · ${r.blocked} bloqueado(s)` : ""}` : `Gerados ${r.generated} — aguardando sua aprovação`);
-      loadApprove();
-    } catch { flash("Não foi possível gerar agora."); } finally { setRunning(false); }
+      if (!r?.generated) { flash(r?.note || "Não consegui gerar agora."); setRunning(false); return; }
+      flash(`Criando ${r.generated} peça(s) — a IA está gerando a arte…`);
+      // a arte é assíncrona: vamos completando (legenda + aprovar/agendar) conforme fica pronta
+      let tentativas = 0;
+      const poll = async () => {
+        tentativas++;
+        let f: any = {};
+        try { f = await mktApi.post<any>("/marketing/automation/finalize", {}); } catch { /* tenta de novo */ }
+        loadApprove();
+        const partes: string[] = [];
+        if (f.aprovar) partes.push(`${f.aprovar} p/ aprovar`);
+        if (f.agendado) partes.push(`${f.agendado} agendado(s)`);
+        if (f.falhou) partes.push(`${f.falhou} falhou`);
+        if (f.gerando) partes.push(`${f.gerando} gerando a arte…`);
+        if (partes.length) flash(partes.join(" · "));
+        if ((f.gerando || 0) > 0 && tentativas < 16) { window.setTimeout(poll, 9000); return; }
+        setRunning(false);
+        if (!f.gerando) flash(mode === "B" ? "Pronto — as peças foram agendadas no melhor horário (veja no Calendário)." : "Pronto — suas peças estão aqui aguardando aprovação.");
+      };
+      window.setTimeout(poll, 7000);
+    } catch { flash("Não foi possível gerar agora."); setRunning(false); }
   }
 
   async function approvePost(id: string) {
@@ -91,18 +109,22 @@ export default function Automacao() {
 
           <div className="ap-lbl">Para aprovar (1 toque)</div>
           {cfg.approval_channel === "whatsapp" && cfg.whatsapp_num ? (
-            <div className="ap-wa">📲 Também enviado no seu WhatsApp <b>{cfg.whatsapp_num}</b> — responda “OK” para publicar.</div>
+            <div className="ap-wa">📲 Aviso no WhatsApp <b>{cfg.whatsapp_num}</b> quando houver peça para aprovar <span style={{ opacity: .7 }}>(em breve; por ora aprove aqui no painel)</span>.</div>
           ) : null}
           <div style={{ marginBottom: 12 }}>
             <button className="bk-mini pri" disabled={running} onClick={runNow}>{running ? "Gerando…" : `✨ Gerar ${cadence} agora`}</button>
-            <span className="ap-cn" style={{ marginLeft: 10 }}>{mode === "B" ? "No Modo B publica direto (após a verificação da marca)." : "No Modo A ficam aqui para você aprovar."}</span>
+            <span className="ap-cn" style={{ marginLeft: 10 }}>{mode === "B" ? "No Modo B agenda no melhor horário (após a verificação da marca)." : "No Modo A ficam aqui para você aprovar."}</span>
           </div>
           {approve.length ? approve.map((p) => (
             <div className="ap-post" key={p.id}>
-              <div className="ap-thumb"><b>{p.type === "carrossel" ? "▤ CARROSSEL" : (p.type === "Story" ? "▯ STORY" : "▶ REEL")}</b><span>na sua marca</span></div>
+              <div className="ap-thumb">
+                {p.thumb_url ? <img src={p.thumb_url} alt={p.title || "arte"} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "inherit" }} /> : <><b>{(p.type || "").toLowerCase() === "carrossel" ? "▤ CARROSSEL" : (p.type === "Story" ? "▯ STORY" : "▤ POST")}</b><span>gerando a arte…</span></>}
+                {p.thumb_url && p.slides > 1 ? <span className="ap-th-badge">▤ {p.slides}</span> : null}
+              </div>
               <div className="ap-pb">
                 <div className="ap-tags"><span className="ap-tag">{(p.type || "POST").toUpperCase()}</span></div>
                 <div className="ap-pt">{p.title}</div>
+                {p.external_ids?.auto_note ? <div className="ap-note">⚠️ {p.external_ids.auto_note}</div> : null}
                 <div className="ap-pl">{p.caption || "Legenda na identidade do seu Brand Kit."}</div>
                 <div className="ap-pf">
                   <span className="ap-nets">{(p.channels || []).map((c: string) => <i key={c} className={"np " + (NP[c] || "ig")}>{c === "IG" ? "IG" : c === "FB" ? "f" : c === "TikTok" ? "TT" : c === "LinkedIn" ? "in" : "▶"}</i>)}</span>
@@ -130,7 +152,7 @@ export default function Automacao() {
 
           <div className="ap-card">
             <div className="ap-ch">Comentário → DM (captura)</div>
-            <div className="ap-ct">Quem comenta a palavra recebe o material na DM e vira lead no CRM.</div>
+            <div className="ap-ct">Cadastre as palavras-chave agora. <b>Em breve:</b> quem comentar a palavra recebe o material na DM e vira lead no CRM.</div>
             <div className="ap-kw">
               {keywords.length ? keywords.map((k) => <span key={k.id}>{k.keyword}<span className="kx" onClick={() => delKw(k.id)}>×</span></span>) : <span style={{ background: "transparent", color: "var(--muted-2)", fontFamily: "var(--font-ui)" }}>nenhuma palavra ainda</span>}
             </div>
@@ -138,17 +160,17 @@ export default function Automacao() {
               <input type="text" value={kwDraft} onChange={(e) => setKwDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addKw(); }} placeholder="ex.: AGENTE" />
               <button className="bk-mini" onClick={addKw}>Adicionar</button>
             </div>
-            <div className="ap-cn">A palavra é ligada ao post na publicação. Quem comentar recebe o material na DM.</div>
+            <div className="ap-cn">As palavras ficam salvas e serão ligadas aos posts quando a captura por comentário entrar no ar.</div>
           </div>
 
           <div className="ap-card">
             <div className="ap-ch">Como a IA cria (esteira)</div>
             <ol className="ap-esteira">
-              <li><b>Tema</b> — assunto em alta para o seu público</li>
-              <li><b>Roteiro</b> — no molde gancho → prova → punch</li>
-              <li><b>Voz &amp; arte</b> — na identidade do seu Brand Kit</li>
-              <li><b>Montagem</b> — o vídeo/estático pronto</li>
-              <li><b>Verificação</b> — passa pela regra da sua marca</li>
+              <li><b>Tema</b> — a IA escolhe um assunto relevante ao seu setor</li>
+              <li><b>Arte</b> — gera a imagem/carrossel na identidade do seu Brand Kit</li>
+              <li><b>Legenda</b> — escreve o texto olhando a arte, na voz da marca</li>
+              <li><b>Verificação</b> — passa pela regra do seu setor</li>
+              <li><b>Publicação</b> — Modo A você aprova; Modo B agenda no melhor horário</li>
             </ol>
           </div>
         </aside>
