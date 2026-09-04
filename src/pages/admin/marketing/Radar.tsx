@@ -35,6 +35,8 @@ const FMT_ICON: Record<string, string> = { reel: "▶", carrossel: "▤", estati
 export default function Radar() {
   const [refs, setRefs] = useState<any[]>([]);
   const [foco, setFoco] = useState("");
+  const [formato, setFormato] = useState("");   // reel | carrossel | estatico | story | video
+  const [rede, setRede] = useState("");         // instagram | tiktok | youtube | ...
   const [searching, setSearching] = useState(false);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
@@ -74,7 +76,7 @@ export default function Radar() {
 
   async function atualizar() {
     try {
-      const r = await mktApi.post<any>("/marketing/research/radar", { tema: foco.trim() || undefined });
+      const r = await mktApi.post<any>("/marketing/research/radar", { tema: foco.trim() || undefined, formato: formato || undefined, rede: rede || undefined }, { timeoutMs: 120000 });
       if (r?.searching) { setSearching(true); flash(r.already ? "Já estou pesquisando — aguarde." : "Pesquisando referências reais no seu segmento…"); pararPolling(); pollRef.current = window.setTimeout(() => checarStatus(true), 3000); }
       else flash(r?.note || "Não consegui iniciar a pesquisa agora.");
     } catch { flash("Não consegui iniciar a pesquisa agora. Tente de novo."); }
@@ -102,7 +104,24 @@ export default function Radar() {
 
       <div className="rad-bar">
         <input className="rad-foco" type="text" value={foco} onChange={(e) => setFoco(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !searching) atualizar(); }} disabled={searching}
-          placeholder="Foco opcional (ex.: WhatsApp, tráfego pago, atendimento) — vazio = todo o seu segmento" />
+          placeholder="Foco opcional (ex.: WhatsApp, tráfego pago) — vazio = todo o segmento" />
+        <select className="rad-select" value={formato} onChange={(e) => setFormato(e.target.value)} disabled={searching} title="Formato">
+          <option value="">Todos os formatos</option>
+          <option value="reel">▶ Reels</option>
+          <option value="carrossel">▤ Carrossel</option>
+          <option value="estatico">▢ Estático</option>
+          <option value="story">▯ Stories</option>
+          <option value="video">🎬 Vídeo longo</option>
+        </select>
+        <select className="rad-select" value={rede} onChange={(e) => setRede(e.target.value)} disabled={searching} title="Rede">
+          <option value="">Todas as redes</option>
+          <option value="instagram">Instagram</option>
+          <option value="tiktok">TikTok</option>
+          <option value="youtube">YouTube</option>
+          <option value="linkedin">LinkedIn</option>
+          <option value="facebook">Facebook</option>
+          <option value="pinterest">Pinterest</option>
+        </select>
         {searching
           ? <button className="rad-cancel" onClick={cancelar}>Cancelar</button>
           : <button className="bk-mini pri" onClick={atualizar}>🔎 Atualizar radar</button>}

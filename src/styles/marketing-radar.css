@@ -68,3 +68,12 @@
 .mkt-modal-box .rad-embed.alto iframe{height:640px}
 .mkt-modal-box .rad-embed-none{padding:40px;text-align:center;color:var(--muted)}
 .mkt-modal-box .rad-embed-none a{color:var(--blue-3);font-weight:600}
+
+/* Selects de filtro (formato / rede) na barra do Radar */
+.mkt-root .rad-select{appearance:none;-webkit-appearance:none;cursor:pointer;border:1px solid var(--border-2);background:var(--surface);color:var(--text);border-radius:10px;padding:10px 30px 10px 12px;font-size:13px;font-weight:600;font-family:var(--font-ui);white-space:nowrap;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a94a6' stroke-width='2.2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+.mkt-root .rad-select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(110,156,232,.16)}
+.mkt-root .rad-select:disabled{opacity:.55;cursor:default}
+[data-theme="dark"] .mkt-root .rad-select{background-color:rgba(255,255,255,.04);color:#EAF1FB;border-color:rgba(255,255,255,.14)}
+[data-theme="dark"] .mkt-root .rad-select option{background:#14161C;color:#EAF1FB}
+@media (max-width:760px){ .mkt-root .rad-bar{flex-wrap:wrap} .mkt-root .rad-foco{min-width:100%} }
