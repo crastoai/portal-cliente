@@ -200,12 +200,14 @@ export default function Imagens() {
   const slidesTocadoRef = useRef(false);            // o cliente já ajustou o nº na mão
   const [prompt, setPrompt] = useState("");
   const [estilo, setEstilo] = useState("");         // estilo/formato livre: "estilo tweet", meme, citação… (a IA interpreta)
+  const refInspRef = useRef<string | null>(null);   // referência do Radar que inspirou (leva a estratégia até a legenda)
   // pré-preenchimento vindo do Radar de Referências ("criar post inspirado") — editável
   useEffect(() => {
     const p: any = (location.state as any)?.prefill;
     if (!p) return;
     if (p.prompt) setPrompt(String(p.prompt));
     if (p.estilo) setEstilo(String(p.estilo));
+    if (p.refId) refInspRef.current = String(p.refId);
     if (p.formato === "carrossel") { setRede("instagram"); setSlotSel("carrossel"); }
     try { window.history.replaceState({}, ""); } catch { /* */ }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -400,7 +402,8 @@ export default function Imagens() {
     pediuAquiRef.current = true;
     setGenBusy(true); setResults(null); setRetomada(null); setAdjust({}); setAdjustOpen({}); inicioRef.current = Date.now();
     try {
-      const r = await mktApi.post<any>("/marketing/images/generate", { network: rede, slot: slotSel, slides: ehCarrossel ? slidesVal : undefined, prompt: prompt.trim() || null, estilo: estilo.trim() || undefined, unitId, onBrand, refs: refsPost.map((x) => x.dataUrl) });
+      const r = await mktApi.post<any>("/marketing/images/generate", { network: rede, slot: slotSel, slides: ehCarrossel ? slidesVal : undefined, prompt: prompt.trim() || null, estilo: estilo.trim() || undefined, unitId, onBrand, refId: refInspRef.current || undefined, refs: refsPost.map((x) => x.dataUrl) });
+      refInspRef.current = null; // a referência inspiradora vale só para esta geração
       setResults({ generation: r.generation, images: r.images });
       startPoll(r.generation.id);
     } catch (e: any) {

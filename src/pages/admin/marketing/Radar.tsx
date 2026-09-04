@@ -70,7 +70,7 @@ export default function Radar() {
     flash("Montando um post inspirado nesta referência…");
     try {
       const b = await mktApi.post<any>("/marketing/research/refs/" + ref.id + "/brief", {}, { timeoutMs: 60000 });
-      nav("/admin/marketing/imagens", { state: { prefill: { prompt: b?.prompt || ref.angle || "", estilo: b?.estilo || "", formato: b?.formato || (ref.format === "carrossel" ? "carrossel" : "estatico") } } });
+      nav("/admin/marketing/imagens", { state: { prefill: { prompt: b?.prompt || ref.angle || "", estilo: b?.estilo || "", formato: b?.formato || (ref.format === "carrossel" ? "carrossel" : "estatico"), refId: b?.refId || ref.id } } });
     } catch { flash("Não consegui montar o post agora. Tente de novo."); } finally { setCriando(null); }
   }
 
