@@ -25,10 +25,15 @@ VÁRIAS AÇÕES DE UMA VEZ: quando um documento pede vários cadastros (ex.: pre
 
 CONTAS PARCELADAS: se o cliente/contrato paga em N vezes, use criar_conta com amount = VALOR TOTAL do contrato, payment_installments = número de parcelas e due_date = data da 1ª parcela (opcional payment_day_of_month = dia fixo de vencimento). O sistema gera as N parcelas automaticamente. Não crie N contas separadas.
 
+VÁRIOS ANEXOS: quando a mensagem contém MAIS DE UM arquivo, processe CADA UM individualmente — extraia os dados de cada documento, proponha a ação correspondente de CADA um, tudo no MESMO turno. Nunca analise apenas o primeiro e ignore os demais.
+
 DOCUMENTOS (multimodal):
 - NOTA FISCAL → extraia emitente/fornecedor, CNPJ, número da NF, emissão, vencimento, valor total, itens; classifique a pagar/receber e proponha criar_conta preenchida (invoice_number = número da NF; due_date = vencimento).
 - CONTRATO (social ou de prestação de serviço) → extraia razão social, CNPJ, abertura, endereço, SÓCIOS (nome, CPF, %), PESSOAS de contato e TELEFONES. Para preencher a ficha do cliente, proponha DE UMA VEZ: atualizar_cliente (dados da empresa + plano), adicionar_cnpj (o CNPJ), adicionar_socio (cada sócio), adicionar_pessoa (cada contato) e adicionar_telefone (cada telefone). Se o contrato tem valor e parcelas, proponha também criar_conta a receber (parcelada). Descubra o cliente pelo contexto (cliente aberto) ou buscar_cliente. Só grave o que está no documento.
-- COMPROVANTE de pagamento (Pix/TED/boleto) → extraia valor, data, hora, pagador, recebedor e o E2E/ID. Descubra a qual parcela em aberto ele corresponde (listar_contas) e proponha dar_baixa_conta. Confira se o RECEBEDOR é mesmo a Crasto antes de propor.
+- COMPROVANTE de pagamento (Pix/TED/boleto) → extraia valor, data, hora, pagador, recebedor e o E2E/ID. Veja o contexto:
+  · Se o Crasto pede para REGISTRAR como despesa/custo → use criar_custo (recorrente, mensal ou conforme pedido) ou criar_transacao type=expense (se for pontual). A despesa ficará no controle mensal.
+  · Se o Crasto quer DAR BAIXA em algo que já existe → use listar_contas para achar a parcela e proponha dar_baixa_conta. Confira se o RECEBEDOR é mesmo a Crasto antes de propor.
+  · Na dúvida, pergunte: "Devo registrar como um custo novo ou dar baixa numa conta existente?"
 - EXTRATO BANCÁRIO ou FATURA DE CARTÃO → leia TODAS as linhas, uma a uma, sem resumir nem pular. Antes de propor qualquer coisa, chame listar_custos e listar_contas para saber o que JÁ existe. Depois apresente uma TABELA linha a linha com: data, descrição, valor, e a sua classificação:
   · receita de cliente · custo · INTERNA (transferência entre contas da própria empresa/sócio, aplicação, resgate, PAGAMENTO DA FATURA DO PRÓPRIO CARTÃO — não é receita nem despesa) · imposto · pessoal (fora da empresa) · não identificado.
   Na dúvida use "não identificado" e PERGUNTE — nunca chute a classificação.
@@ -182,7 +187,8 @@ export class AssistantService {
       if (!(orig > 0)) return { erro: 'faltou o valor (amount_original) do custo' };
       const currency = ['USD', 'EUR', 'BRL'].includes(a?.currency) ? a.currency : 'BRL';
       const rate = currency === 'BRL' ? 1 : Number(a?.exchange_rate) || 1;
-      const payload: any = { description: desc, currency, amount_original: orig, exchange_rate: rate, amount_brl: +(orig * rate).toFixed(2), cost_type: a?.cost_type || 'fixo', cost_nature: 'recorrente', recurrence: a?.recurrence || 'mensal', is_active: true };
+      const recurrence = a?.recurrence || 'mensal';
+      const payload: any = { description: desc, currency, amount_original: orig, exchange_rate: rate, amount_brl: +(orig * rate).toFixed(2), cost_type: a?.cost_type || 'fixo', cost_nature: recurrence === 'pontual' ? 'pontual' : 'recorrente', recurrence, is_active: true };
       for (const k of ['vendor_name', 'category', 'next_payment_date', 'notes']) if (a?.[k]) payload[k] = a[k];
       return { kind: name, payload, resumo: `Custo · ${desc} · ${currency} ${orig}${currency !== 'BRL' ? ` (≈ ${this.brl(payload.amount_brl)})` : ''} · ${payload.recurrence}` };
     }
