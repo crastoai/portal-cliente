@@ -102,14 +102,30 @@
 .mkt-root .rail-n{background:var(--surface-3);border-radius:999px;padding:1px 8px;font-size:11px;color:var(--muted);font-family:var(--font-mono)}
 .mkt-root .rail-hint{font-size:11.5px;color:var(--muted-2);margin-bottom:12px;line-height:1.45}
 .mkt-root .rail-empty{font-size:12.5px;color:var(--muted-2);text-align:center;padding:22px 0}
-.mkt-root .bl-card{border-left:3px solid;border-radius:9px;padding:9px 10px;margin-bottom:8px;cursor:grab;background:var(--surface-2)}
+.mkt-root .bl-card{display:flex;gap:9px;border-left:3px solid;border-radius:9px;padding:8px 9px;margin-bottom:8px;cursor:grab;background:var(--surface-2)}
 .mkt-root .bl-card:hover{background:var(--surface-3)}
 .mkt-root .bl-card:active{cursor:grabbing}
 .mkt-root .bl-card.org{border-color:var(--blue-2)} .mkt-root .bl-card.paid{border-color:var(--coral)} .mkt-root .bl-card.mail{border-color:var(--green)}
-.mkt-root .bl-src{font-size:10px;font-weight:700;color:var(--muted-2);text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px}
-.mkt-root .bl-t{font-size:12px;color:var(--heading);line-height:1.3}
+/* prévia da arte do card "A agendar" */
+.mkt-root .bl-thumb{position:relative;flex:0 0 auto;width:54px;height:54px;border-radius:8px;overflow:hidden;background:var(--surface-3);display:flex;align-items:center;justify-content:center}
+.mkt-root .bl-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.mkt-root .bl-thumb-ph{font-size:20px}
+.mkt-root .bl-thumb-n{position:absolute;bottom:2px;right:2px;background:rgba(0,0,0,.6);color:#fff;font-size:9px;font-weight:700;border-radius:4px;padding:0 4px}
+.mkt-root .bl-src{position:absolute;top:2px;left:2px;background:rgba(0,0,0,.55);color:#fff;font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.02em;border-radius:4px;padding:1px 4px}
+.mkt-root .bl-body{flex:1 1 auto;min-width:0}
+.mkt-root .bl-t{font-size:12px;color:var(--heading);line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .mkt-root .bl-t b{font-weight:700}
-.mkt-root .bl-ch{font-size:10.5px;color:var(--muted-2);margin-top:3px}
+.mkt-root .bl-ch{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.mkt-root .bl-chip{font-size:9.5px;font-weight:600;color:var(--blue-3);background:rgba(110,156,232,.14);border-radius:5px;padding:1px 6px}
+.mkt-root .bl-acts{display:flex;gap:6px;margin-top:6px}
+.mkt-root .bl-act{border:1px solid var(--border-2);background:var(--surface);color:var(--heading);border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font-ui)}
+.mkt-root .bl-act:hover{border-color:var(--blue-2);color:var(--blue-3)}
+/* prévia no modal + botão gerar legenda */
+.mkt-modal-box .calm-preview{position:relative;text-align:center;margin-bottom:14px}
+.mkt-modal-box .calm-preview img{max-height:34vh;max-width:100%;width:auto;border-radius:12px;background:var(--surface-2);display:inline-block}
+.mkt-modal-box .calm-slides{position:absolute;top:8px;right:calc(50% - 130px);background:rgba(0,0,0,.6);color:#fff;font-size:11px;font-weight:700;border-radius:6px;padding:2px 8px}
+.mkt-modal-box .calm-leg-btn{margin-left:8px;border:0;background:transparent;color:var(--blue-3);font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font-ui);text-transform:none;letter-spacing:0}
+.mkt-modal-box .calm-leg-btn:disabled{opacity:.6;cursor:default}
 .mkt-root .calW-day.drop-hover,.mkt-root .calM-cell.drop-hover{background:rgba(110,156,232,.14)!important;box-shadow:0 0 0 2px var(--blue-2) inset}
 
 /* filtros + colorir-por */

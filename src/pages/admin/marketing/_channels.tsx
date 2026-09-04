@@ -57,7 +57,9 @@ export function ChannelsPanel({ flash }: { flash: (m: string) => void }) {
     catch { flash("Não foi possível desconectar agora."); }
   }
 
-  const connectedOf = (key: string) => (accounts || []).find((a) => a.platform === key && a.status === "connected");
+  // conectada = presente para aquela rede e não em estado quebrado (o back já
+  // marca `connected`); tolerante aos vários status que o Post for Me devolve
+  const connectedOf = (key: string) => (accounts || []).find((a: any) => String(a.platform).toLowerCase() === key && a.connected !== false && !["disconnected", "error", "revoked", "expired"].includes(String(a.status || "").toLowerCase()));
 
   if (!enabled) return <div className="ap-hint">Conexão de redes em configuração. Em breve você poderá conectar Instagram, Facebook e outras.</div>;
 

@@ -25,13 +25,16 @@ const keyOf = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.
 const parseKey = (s: string) => { const p = s.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); };
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const localToISO = (dateKey: string, time: string) => { try { return new Date(`${dateKey}T${(time || "09:00")}:00`).toISOString(); } catch { return new Date().toISOString(); } };
+// canal do post → slug da rede (para o horário inteligente por rede)
+const CH_NET: Record<string, string> = { IG: "instagram", FB: "facebook", TikTok: "tiktok", LinkedIn: "linkedin", YouTube: "youtube", X: "x", Pinterest: "pinterest", WhatsApp: "whatsapp" };
 function schedParts(iso: string) { const d = new Date(iso); return { key: keyOf(d), time: `${pad(d.getHours())}:${pad(d.getMinutes())}` }; }
 
 // normaliza um post do back p/ o modelo do calendário
 function norm(p: any) {
   const sched = p.scheduled_at ? schedParts(p.scheduled_at) : null;
   return { id: p.id, who: p.track || "org", type: p.type || "Post", title: p.title || "(sem título)", caption: p.caption || "",
-    st: p.status || "rascunho", ch: p.channels || [], piece: p.piece_kind || "", d: sched?.key || null, t: sched?.time || "09:00" };
+    st: p.status || "rascunho", ch: p.channels || [], piece: p.piece_kind || "", pieceRef: p.piece_ref || null,
+    thumb: p.thumb_url || null, slides: p.slides || 0, d: sched?.key || null, t: sched?.time || "09:00" };
 }
 
 export default function Calendario() {
@@ -63,6 +66,7 @@ export default function Calendario() {
 
   // ---- ações no back ----
   async function scheduleBack(id: string, when: string) { try { await mktApi.post("/marketing/posts/" + id + "/schedule", { when }); flash("Agendado"); load(); } catch { flash("Não foi possível agendar."); } }
+  const agendarHoje = (id: string) => scheduleBack(id, localToISO(todayKey, "09:00"));
   async function moveBack(id: string, when: string) { try { await mktApi.patch("/marketing/posts/" + id, { scheduled_at: when }); load(); } catch { flash("Não foi possível mover."); } }
   async function unscheduleBack(id: string) { try { await mktApi.post("/marketing/posts/" + id + "/unschedule"); flash("Voltou para A agendar"); load(); } catch { flash("Não foi possível desagendar."); } }
 
@@ -206,9 +210,20 @@ export default function Calendario() {
           <div className="rail-hint">Peças prontas (Cortes aprovados, artes do Brand Kit) e rascunhos. Arraste para uma data.</div>
           {backlog.length ? backlog.map((b) => (
             <div key={b.id} className={"bl-card " + b.who} draggable onDragStart={(e) => onDragStart(e, "bk", b.id)} onClick={() => setModal({ editId: b.id })}>
-              <div className="bl-src">{b.piece === "corte" ? "🎬 Corte" : b.piece === "brand" ? "🖼️ Brand Kit" : "✎ Rascunho"}</div>
-              <div className="bl-t"><b>{b.type}</b> · {b.title}</div>
-              <div className="bl-ch">{(b.ch || []).join(" · ")}</div>
+              {/* prévia da arte de verdade — não mais só um emoji */}
+              <div className="bl-thumb">
+                {b.thumb ? <img src={b.thumb} alt="" /> : <span className="bl-thumb-ph">{b.piece === "corte" ? "🎬" : b.piece === "brand" ? "🖼️" : "✎"}</span>}
+                {b.slides > 1 ? <span className="bl-thumb-n">{b.slides}</span> : null}
+                <span className="bl-src">{b.piece === "corte" ? "Corte" : b.piece === "brand" ? (b.slides > 1 ? "Carrossel" : "Brand Kit") : "Rascunho"}</span>
+              </div>
+              <div className="bl-body">
+                <div className="bl-t"><b>{b.type}</b> · {b.title}</div>
+                <div className="bl-ch">{(b.ch || []).map((c: string) => <span key={c} className="bl-chip">{c}</span>)}</div>
+                <div className="bl-acts" onClick={(e) => e.stopPropagation()}>
+                  <button className="bl-act" onClick={() => setModal({ editId: b.id })}>Agendar</button>
+                  <button className="bl-act" onClick={() => agendarHoje(b.id)}>Hoje</button>
+                </div>
+              </div>
             </div>
           )) : <div className="rail-empty">Nada aguardando. As peças que você criar em Vídeos e Imagens caem aqui.</div>}
         </aside>
@@ -235,13 +250,24 @@ function PostModal({ unitId, editId, initDate, post, onClose, onSaved, flash }: 
   const [caption, setCaption] = useState(post?.caption || "");
   const [chSet, setChSet] = useState<Set<string>>(new Set(post?.ch || []));
   const [busy, setBusy] = useState(false);
+  const [gerLeg, setGerLeg] = useState(false);
   const scheduled = !!post?.d;
 
   const toggleCh = (c: string) => setChSet((s) => { const n = new Set(s); n.has(c) ? n.delete(c) : n.add(c); return n; });
 
   async function smartTime() {
-    try { const w = await mktApi.get<any[]>("/marketing/posting-windows"); const slot = (w || [])[0]?.slot; setTime(slot ? String(slot).slice(0, 5) : "19:00"); flash("Melhor horário sugerido"); }
+    const net = CH_NET[Array.from(chSet)[0] as string] || "instagram";
+    try { const w = await mktApi.get<any>("/marketing/posting-windows?network=" + net); setTime(String(w?.recommended || "19:00").slice(0, 5)); flash("Melhor horário sugerido para " + net); }
     catch { setTime("19:00"); }
+  }
+
+  // legenda automática (a Yaya) a partir da arte vinculada
+  async function gerarLegendaAuto() {
+    if (!post?.pieceRef) { flash("Vincule uma arte do Brand Kit para gerar a legenda."); return; }
+    setGerLeg(true);
+    try { const r = await mktApi.post<any>("/marketing/images/generations/" + post.pieceRef + "/legenda", {}); if (r?.legenda) setCaption(r.legenda); else flash("Não consegui gerar a legenda agora."); }
+    catch { flash("Só consigo gerar a legenda de uma arte de post/carrossel do Brand Kit."); }
+    finally { setGerLeg(false); }
   }
 
   async function save() {
@@ -282,6 +308,13 @@ function PostModal({ unitId, editId, initDate, post, onClose, onSaved, flash }: 
 
   return (
     <MktModal title={editId ? "Editar publicação" : "Nova publicação"} onClose={onClose} footer={footer} wide>
+      {/* prévia da arte vinculada — o que vai ser publicado */}
+      {post?.thumb ? (
+        <div className="calm-preview">
+          <img src={post.thumb} alt="" />
+          {post.slides > 1 ? <span className="calm-slides">{post.slides} slides</span> : null}
+        </div>
+      ) : null}
       <div className="calf-field full calf-trilha"><label>Trilha</label>
         <div className="seg">
           {(["org", "paid", "mail"] as const).map((w) => <button key={w} className={who === w ? "on" : ""} onClick={() => setWho(w)}>{WHO_LABEL[w]}</button>)}
@@ -308,7 +341,7 @@ function PostModal({ unitId, editId, initDate, post, onClose, onSaved, flash }: 
           </select>
           <div className="calf-piece" style={{ marginTop: 8 }}>💡 Aqui entra o Corte aprovado em Vídeos Virais ou a arte de Imagens — é o que amarra os módulos.</div>
         </div>
-        <div className="calf-field full"><label>Legenda</label><textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="a legenda do post, no tom do seu Brand Kit…" /></div>
+        <div className="calf-field full"><label>Legenda {post?.piece === "brand" && post?.pieceRef ? <button type="button" className="calm-leg-btn" onClick={gerarLegendaAuto} disabled={gerLeg}>{gerLeg ? "gerando…" : "✨ gerar automática"}</button> : null}</label><textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="a legenda do post, no tom do seu Brand Kit…" /></div>
       </div>
     </MktModal>
   );
