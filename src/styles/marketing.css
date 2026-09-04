@@ -19,10 +19,20 @@
   color: var(--text); font-family: var(--font-ui); font-size: 15px; line-height: 1.5;
 }
 [data-theme="dark"] .mkt-root {
-  --surface:rgba(12,28,60,.55); --surface-2:rgba(9,22,48,.72); --surface-3:rgba(16,34,68,.6);
-  --border:rgba(110,156,232,.16); --border-2:rgba(110,156,232,.30);
-  --text:#EAF1FB; --heading:#FFFFFF; --muted:#9DB0CE; --muted-2:#6E80A0; --eyebrow:#6E9CE8;
-  --glow:0 0 22px rgba(110,156,232,.30);
+  /* Alinhado à paleta DARK global do portal (tokens.css) — antes o Marketing usava
+     navy translúcido + glow azul e destoava do resto. Referencia os --crasto-* para
+     ficar idêntico ao portal e acompanhar mudanças de tema automaticamente. */
+  --surface:var(--crasto-surface);            /* card base · #14161C */
+  --surface-2:var(--crasto-surface-elev);     /* painel elevado · #1C1F27 */
+  --surface-3:var(--crasto-bg);               /* canvas/well · #0B0D12 */
+  --border:var(--crasto-border-hairline);     /* rgba(255,255,255,.06) */
+  --border-2:var(--crasto-border);            /* rgba(255,255,255,.12) */
+  --text:var(--crasto-text-body);             /* #D0D5DD */
+  --heading:var(--crasto-text-primary);       /* #F4F6FA */
+  --muted:var(--crasto-text-muted);           /* #AEB8C6 */
+  --muted-2:var(--crasto-text-faint);         /* #9CA5B5 */
+  --eyebrow:var(--crasto-blue);
+  --glow:0 1px 3px rgba(0,0,0,.45);           /* sombra neutra sutil · sem glow azul */
 }
 
 .mkt-root .mono { font-family: var(--font-mono); }
