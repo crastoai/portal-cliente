@@ -105,6 +105,7 @@ export default function Radar() {
           <div className="rad-grid">
             {refs.map((r) => (
               <div className="rad-card" key={r.id}>
+                {r.thumbnail ? <div className="rad-thumb"><img src={r.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer" onError={(e) => { (e.currentTarget.closest(".rad-thumb") as HTMLElement)?.style.setProperty("display", "none"); }} /></div> : null}
                 <div className="rad-top">
                   <span className="rad-fmt">{FMT_ICON[String(r.format || "").toLowerCase()] || "◆"} {r.format || "post"}</span>
                   {r.example_handle ? <span className="rad-handle">{String(r.example_handle).replace(/^@?/, "@")}</span> : null}

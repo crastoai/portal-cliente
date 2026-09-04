@@ -29,3 +29,7 @@
 .mkt-root .rad-loading small{font-size:12.5px;max-width:440px;line-height:1.5}
 .mkt-root .rad-spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--border-2);border-top-color:var(--blue);animation:rad-rot .8s linear infinite}
 @keyframes rad-rot{to{transform:rotate(360deg)}}
+
+/* Prévia (imagem real) da referência no card */
+.mkt-root .rad-thumb{margin:-16px -16px 4px;border-radius:14px 14px 0 0;overflow:hidden;background:var(--surface-2);aspect-ratio:16/9;display:flex;align-items:center;justify-content:center}
+.mkt-root .rad-thumb img{width:100%;height:100%;object-fit:cover;display:block}
