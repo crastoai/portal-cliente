@@ -113,7 +113,7 @@ export default function Automacao() {
           ) : null}
           <div style={{ marginBottom: 12 }}>
             <button className="bk-mini pri" disabled={running} onClick={runNow}>{running ? "Gerando…" : `✨ Gerar ${cadence} agora`}</button>
-            <span className="ap-cn" style={{ marginLeft: 10 }}>{mode === "B" ? "No Modo B agenda no melhor horário (após a verificação da marca)." : "No Modo A ficam aqui para você aprovar."}</span>
+            <span className="ap-cn" style={{ marginLeft: 10 }}>{active ? "▶ Roda sozinho todo dia. " : "⏸ Pausado — não roda sozinho. "}{mode === "B" ? "No Modo B agenda no melhor horário (após a verificação da marca)." : "No Modo A ficam aqui para você aprovar."} Ou gere agora:</span>
           </div>
           {approve.length ? approve.map((p) => (
             <div className="ap-post" key={p.id}>
