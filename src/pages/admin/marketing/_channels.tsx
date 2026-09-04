@@ -57,9 +57,9 @@ export function ChannelsPanel({ flash }: { flash: (m: string) => void }) {
     catch { flash("Não foi possível desconectar agora."); }
   }
 
-  // conectada = presente para aquela rede e não em estado quebrado (o back já
-  // marca `connected`); tolerante aos vários status que o Post for Me devolve
-  const connectedOf = (key: string) => (accounts || []).find((a: any) => String(a.platform).toLowerCase() === key && a.connected !== false && !["disconnected", "error", "revoked", "expired"].includes(String(a.status || "").toLowerCase()));
+  // contas conectadas de uma rede — pode haver VÁRIAS por rede (ex.: dois Instagrams);
+  // tolerante aos vários status que o Post for Me devolve como "ok"
+  const accsOf = (key: string) => (accounts || []).filter((a: any) => String(a.platform).toLowerCase() === key && a.connected !== false && !["disconnected", "error", "revoked", "expired"].includes(String(a.status || "").toLowerCase()));
 
   if (!enabled) return <div className="ap-hint">Conexão de redes em configuração. Em breve você poderá conectar Instagram, Facebook e outras.</div>;
 
@@ -67,13 +67,18 @@ export function ChannelsPanel({ flash }: { flash: (m: string) => void }) {
     <>
       <div className="ap-accounts">
         {PLATFORMS.map((p) => {
-          const acc = connectedOf(p.key);
+          const list = accsOf(p.key);
           return (
             <div className="ap-acc" key={p.key}>
               <span className={"ap-ic " + p.ic}>{p.abbr}</span>
               <div className="ap-acc-n">{p.label}</div>
-              {acc ? (
-                <div className="ap-acc-s on">{acc.username ? "@" + String(acc.username).replace(/^@/, "") : "conectado"}<button className="ap-disc" onClick={() => disconnect(acc.id)}>desconectar</button></div>
+              {list.length ? (
+                <>
+                  {list.map((acc: any) => (
+                    <div className="ap-acc-s on" key={acc.id}>{acc.username ? "@" + String(acc.username).replace(/^@/, "") : "conectado"}<button className="ap-disc" onClick={() => disconnect(acc.id)}>desconectar</button></div>
+                  ))}
+                  <button className="ap-connect" disabled={busy === p.key} onClick={() => connect(p)}>{busy === p.key ? "Abrindo…" : "+ conectar outra conta"}</button>
+                </>
               ) : (
                 <>
                   <div className="ap-acc-s off">não conectado</div>
@@ -84,7 +89,7 @@ export function ChannelsPanel({ flash }: { flash: (m: string) => void }) {
           );
         })}
       </div>
-      <div className="ap-hint">Conecte pelo menos 1 rede. A gente só publica onde você aprovar. Cada empresa vê e gerencia apenas as suas próprias contas.</div>
+      <div className="ap-hint">Conecte quantas contas quiser por rede (ex.: dois Instagrams). Na hora de publicar, você escolhe em quais postar. A gente só publica onde você aprovar; cada empresa vê e gerencia apenas as suas próprias contas.</div>
     </>
   );
 }

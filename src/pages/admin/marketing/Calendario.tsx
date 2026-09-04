@@ -36,6 +36,7 @@ function norm(p: any) {
   const sched = p.scheduled_at ? schedParts(p.scheduled_at) : null;
   return { id: p.id, who: p.track || "org", type: p.type || "Post", title: p.title || "(sem título)", caption: p.caption || "",
     st: p.status || "rascunho", ch: p.channels || [], piece: p.piece_kind || "", pieceRef: p.piece_ref || null,
+    accSel: Array.isArray(p.external_ids?.accounts) ? p.external_ids.accounts : null,
     thumb: p.thumb_url || null, slides: p.slides || 0, d: sched?.key || null, t: sched?.time || "09:00" };
 }
 
@@ -265,6 +266,10 @@ function PostModal({ unitId, editId, initDate, post, onClose, onSaved, flash }: 
   const [piece, setPiece] = useState(post?.piece || "");
   const [caption, setCaption] = useState(post?.caption || "");
   const [chSet, setChSet] = useState<Set<string>>(new Set(post?.ch || []));
+  // contas conectadas (Post for Me) + seleção de contas por post (padrão: todas as da rede)
+  const [accts, setAccts] = useState<any[]>([]);
+  const [accSet, setAccSet] = useState<Set<string>>(new Set(Array.isArray(post?.accSel) ? post.accSel : []));
+  const accInit = useRef(false);
   const [busy, setBusy] = useState(false);
   const [gerLeg, setGerLeg] = useState(false);
   const [gerTit, setGerTit] = useState(false);
@@ -280,7 +285,41 @@ function PostModal({ unitId, editId, initDate, post, onClose, onSaved, flash }: 
   }, [post?.pieceRef, post?.piece]);
   const nSlides = slides.length;
 
-  const toggleCh = (c: string) => setChSet((s) => { const n = new Set(s); n.has(c) ? n.delete(c) : n.add(c); return n; });
+  // rede (label do chip) → slug do Post for Me; contas conectadas dessa rede
+  const slugOf = (label: string) => (CANAIS.find((c) => c.label === label)?.slug) || slugDoCanal(label);
+  const accsOfLabel = (label: string) => {
+    const s = slugOf(label);
+    return (accts || []).filter((a: any) => String(a.platform).toLowerCase() === s && a.connected !== false && !["disconnected", "error", "revoked", "expired"].includes(String(a.status || "").toLowerCase()));
+  };
+
+  // carrega as contas conectadas (para escolher entre 2+ contas da mesma rede)
+  useEffect(() => { mktApi.get<any>("/marketing/channels").then((r) => setAccts(r?.accounts || [])).catch(() => setAccts([])); }, []);
+  // default: sem seleção salva, marca TODAS as contas das redes já escolhidas (padrão = postar em todas)
+  useEffect(() => {
+    if (accInit.current || !accts.length) return;
+    accInit.current = true;
+    if (!(Array.isArray(post?.accSel) && post.accSel.length)) {
+      const ini = new Set<string>();
+      chSet.forEach((label) => accsOfLabel(label).forEach((a: any) => ini.add(a.id)));
+      setAccSet(ini);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accts]);
+
+  // marcar/desmarcar uma REDE liga/desliga também todas as contas dela (padrão = todas)
+  const toggleCh = (c: string) => {
+    const turningOn = !chSet.has(c);
+    setChSet((s) => { const n = new Set(s); turningOn ? n.add(c) : n.delete(c); return n; });
+    const ids = accsOfLabel(c).map((a: any) => a.id);
+    setAccSet((as) => { const na = new Set(as); ids.forEach((id) => (turningOn ? na.add(id) : na.delete(id))); return na; });
+  };
+  // marcar/desmarcar UMA conta; se a rede ficar sem nenhuma marcada, desliga a rede (e vice-versa)
+  const toggleAcc = (id: string, label: string) => {
+    const na = new Set(accSet); na.has(id) ? na.delete(id) : na.add(id);
+    setAccSet(na);
+    const anyLeft = accsOfLabel(label).some((a: any) => na.has(a.id));
+    setChSet((s) => { const n = new Set(s); anyLeft ? n.add(label) : n.delete(label); return n; });
+  };
 
   async function smartTime() {
     const net = CH_NET[Array.from(chSet)[0] as string] || "instagram";
@@ -318,7 +357,7 @@ function PostModal({ unitId, editId, initDate, post, onClose, onSaved, flash }: 
     const body: any = {
       unit_id: unitId || null,
       track: who, type, status: st, title: title.trim() || "(sem título)", caption: caption.trim() || null,
-      channels: Array.from(chSet), piece_kind: piece || null,
+      channels: Array.from(chSet), accounts: Array.from(accSet), piece_kind: piece || null,
       scheduled_at: st === "rascunho" && !date ? null : (date ? localToISO(date, time) : null),
     };
     try {
@@ -400,6 +439,19 @@ function PostModal({ unitId, editId, initDate, post, onClose, onSaved, flash }: 
           <div className="pm-field">
             <div className="pm-lbl">Canais</div>
             <div className="calf-chips">{CANAIS.map((c) => <button key={c.label} type="button" className={"calf-chip" + (chSet.has(c.label) ? " on" : "")} onClick={() => toggleCh(c.label)}><RedeIcon slug={c.slug} size={15} />{c.nome}</button>)}</div>
+            {/* escolha de contas — só aparece na rede com MAIS DE UMA conta (é aí que há o que escolher); padrão = todas marcadas */}
+            {CANAIS.filter((c) => chSet.has(c.label) && accsOfLabel(c.label).length > 1).map((c) => (
+              <div className="pm-accts" key={c.label}>
+                <div className="pm-accts-h"><RedeIcon slug={c.slug} size={13} /> Em quais contas do {c.nome} publicar</div>
+                <div className="calf-chips">
+                  {accsOfLabel(c.label).map((a: any) => (
+                    <button key={a.id} type="button" className={"calf-chip" + (accSet.has(a.id) ? " on" : "")} onClick={() => toggleAcc(a.id, c.label)}>
+                      {accSet.has(a.id) ? "✓ " : ""}@{String(a.username || a.id).replace(/^@/, "")}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="pm-field">
