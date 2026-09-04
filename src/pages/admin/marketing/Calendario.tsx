@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { mktApi, activeUnit } from "../../../lib/mktApi";
 import { MktModal } from "./_ui";
 import { ChannelsModal } from "./_channels";
+import { RedeIcon, CANAIS, slugDoCanal } from "./_icons";
 
 // ============================================================================
 // Tela 5 — CALENDÁRIO de Marketing. NATIVO no portal, ligado à marketing-api.
@@ -16,7 +17,6 @@ import { ChannelsModal } from "./_channels";
 
 const DOW = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 const MON = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
-const CHANNELS = ["IG", "TikTok", "YouTube", "LinkedIn", "FB", "Meta", "Google", "E-mail base"];
 const TYPES = ["Post", "Reel", "Carrossel", "Story", "Anúncio", "E-mail"];
 const ST_LABEL: Record<string, string> = { rascunho: "Rascunho", agendado: "Agendado", aprovar: "Aprovar", publicado: "Publicado", falhou: "Falhou" };
 // estados que o usuário escolhe à mão no modal (falhou é do sistema, não é opção manual)
@@ -112,7 +112,7 @@ export default function Calendario() {
       <span className={"p-st " + p.st}>{ST_LABEL[p.st] || p.st}</span>
       <span className="p-time">{p.t}</span>
       <span className="p-t"><b>{p.type}</b> · {p.title}</span>
-      <span className="p-ch">{(p.ch || []).join(" · ")}</span>
+      <span className="p-ch">{(p.ch || []).map((c: string) => <RedeIcon key={c} slug={slugDoCanal(c)} size={13} />)}</span>
     </div>
   );
 
@@ -223,7 +223,7 @@ export default function Calendario() {
               </div>
               <div className="bl-body">
                 <div className="bl-t"><b>{b.type}</b> · {b.title}</div>
-                <div className="bl-ch">{(b.ch || []).map((c: string) => <span key={c} className="bl-chip">{c}</span>)}</div>
+                <div className="bl-ch">{(b.ch || []).map((c: string) => <span key={c} className="bl-chip"><RedeIcon slug={slugDoCanal(c)} size={13} />{c}</span>)}</div>
                 <div className="bl-acts" onClick={(e) => e.stopPropagation()}>
                   <button className="bl-act" onClick={() => setModal({ editId: b.id })}>Agendar</button>
                   <button className="bl-act" onClick={() => agendarHoje(b.id)}>Hoje</button>
@@ -256,7 +256,17 @@ function PostModal({ unitId, editId, initDate, post, onClose, onSaved, flash }: 
   const [chSet, setChSet] = useState<Set<string>>(new Set(post?.ch || []));
   const [busy, setBusy] = useState(false);
   const [gerLeg, setGerLeg] = useState(false);
+  const [slides, setSlides] = useState<any[]>([]);
+  const [slideIdx, setSlideIdx] = useState(0);
   const scheduled = !!post?.d;
+
+  // busca todos os slides do carrossel/post ligado, p/ navegar na prévia
+  useEffect(() => {
+    setSlides([]); setSlideIdx(0);
+    if (post?.piece === "brand" && post?.pieceRef)
+      mktApi.get<any>("/marketing/images/generations/" + post.pieceRef + "/slides").then((r) => setSlides(r?.slides || [])).catch(() => setSlides([]));
+  }, [post?.pieceRef, post?.piece]);
+  const nSlides = slides.length;
 
   const toggleCh = (c: string) => setChSet((s) => { const n = new Set(s); n.has(c) ? n.delete(c) : n.add(c); return n; });
 
@@ -270,9 +280,15 @@ function PostModal({ unitId, editId, initDate, post, onClose, onSaved, flash }: 
   async function gerarLegendaAuto() {
     if (!post?.pieceRef) { flash("Vincule uma arte do Brand Kit para gerar a legenda."); return; }
     setGerLeg(true);
-    try { const r = await mktApi.post<any>("/marketing/images/generations/" + post.pieceRef + "/legenda", {}); if (r?.legenda) setCaption(r.legenda); else flash("Não consegui gerar a legenda agora."); }
-    catch { flash("Só consigo gerar a legenda de uma arte de post/carrossel do Brand Kit."); }
-    finally { setGerLeg(false); }
+    flash("Gerando a legenda com a IA…");
+    try {
+      const r = await mktApi.post<any>("/marketing/images/generations/" + post.pieceRef + "/legenda", {});
+      if (r?.legenda) { setCaption(r.legenda); flash("Legenda gerada ✓"); }
+      else flash("Não consegui gerar a legenda agora. Tente de novo.");
+    } catch (e: any) {
+      const motivo = e?.body?.message || e?.body?.reason;
+      flash(motivo ? String(motivo) : "Não consegui gerar a legenda agora. Tente de novo em instantes.");
+    } finally { setGerLeg(false); }
   }
 
   async function save() {
@@ -313,12 +329,21 @@ function PostModal({ unitId, editId, initDate, post, onClose, onSaved, flash }: 
 
   return (
     <MktModal title={editId ? "Editar publicação" : "Nova publicação"} onClose={onClose} footer={footer} wide>
-      {/* prévia da arte vinculada — o que vai ser publicado */}
-      {post?.thumb ? (
+      {/* prévia da arte vinculada — carrossel navegável (todos os slides) */}
+      {nSlides ? (
         <div className="calm-preview">
-          <img src={post.thumb} alt="" />
-          {post.slides > 1 ? <span className="calm-slides">{post.slides} slides</span> : null}
+          <img src={slides[Math.min(slideIdx, nSlides - 1)]?.url} alt="" />
+          {nSlides > 1 ? (
+            <>
+              <button type="button" className="calm-nav prev" onClick={() => setSlideIdx((i) => (i - 1 + nSlides) % nSlides)} aria-label="Slide anterior">‹</button>
+              <button type="button" className="calm-nav next" onClick={() => setSlideIdx((i) => (i + 1) % nSlides)} aria-label="Próximo slide">›</button>
+              <span className="calm-slides">{Math.min(slideIdx, nSlides - 1) + 1}/{nSlides}</span>
+              <div className="calm-dots">{slides.map((_, i) => <span key={i} className={i === slideIdx ? "on" : ""} onClick={() => setSlideIdx(i)} />)}</div>
+            </>
+          ) : null}
         </div>
+      ) : post?.thumb ? (
+        <div className="calm-preview"><img src={post.thumb} alt="" />{post.slides > 1 ? <span className="calm-slides">{post.slides} slides</span> : null}</div>
       ) : null}
       <div className="calf-field full calf-trilha"><label>Trilha</label>
         <div className="seg">
@@ -329,7 +354,7 @@ function PostModal({ unitId, editId, initDate, post, onClose, onSaved, flash }: 
         <div className="calf-field"><label>Tipo</label><select value={type} onChange={(e) => setType(e.target.value)}>{TYPES.map((t) => <option key={t}>{t}</option>)}</select></div>
         <div className="calf-field"><label>Status</label><select value={st} onChange={(e) => setSt(e.target.value)}>{ST_EDITAVEIS.map((k) => <option key={k} value={k}>{ST_LABEL[k]}</option>)}</select></div>
         <div className="calf-field full"><label>Título</label><input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ex.: 5 erros de IA que a sua PME comete" /></div>
-        <div className="calf-field full"><label>Canais</label><div className="calf-chips">{CHANNELS.map((c) => <button key={c} className={"calf-chip" + (chSet.has(c) ? " on" : "")} onClick={() => toggleCh(c)}>{c}</button>)}</div></div>
+        <div className="calf-field full"><label>Canais</label><div className="calf-chips">{CANAIS.map((c) => <button key={c.label} className={"calf-chip" + (chSet.has(c.label) ? " on" : "")} onClick={() => toggleCh(c.label)}><RedeIcon slug={c.slug} size={15} />{c.nome}</button>)}</div></div>
         <div className="calf-field full"><label>Quando</label>
           <div className="calf-datetime">
             <div className="calf-field"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>

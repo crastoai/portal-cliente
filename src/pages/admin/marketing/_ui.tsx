@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 // ============================================================================
@@ -33,12 +33,17 @@ export function MktModal({
     return () => { document.body.style.overflow = prev; window.removeEventListener("keydown", onKey); };
   }, [onClose]);
 
+  // fecha só quando o clique COMEÇA e TERMINA no fundo. Sem isto, selecionar texto
+  // dentro de um campo e soltar o mouse fora (no backdrop) fechava o modal no meio
+  // da edição — o defeito que o cliente via ao editar a legenda/título.
+  const inicioNoFundo = useRef(false);
   return createPortal(
     <div
       className="mkt-modal-backdrop"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onMouseDown={(e) => { inicioNoFundo.current = e.target === e.currentTarget; }}
+      onClick={(e) => { if (e.target === e.currentTarget && inicioNoFundo.current) onClose(); }}
     >
-      <div className={"mkt-modal-box" + (wide ? " wide" : "")} onClick={(e) => e.stopPropagation()}>
+      <div className={"mkt-modal-box" + (wide ? " wide" : "")} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
         <div className="mkt-modal-h">
           <span className="mm-t">{title}</span>
           <button className="mm-x" onClick={onClose} aria-label="Fechar">×</button>
