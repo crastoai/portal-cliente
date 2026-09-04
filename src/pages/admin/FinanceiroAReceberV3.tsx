@@ -33,8 +33,14 @@ const mesesContrato = (r: any) => {
   if (m > 0) return m;
   return Number(r.payment_installments || 0) || arr(r.payment_schedule).length || 0;
 };
-// MRR = só recorrência verdadeira (recurrence='mensal'); avulsos/pontuais ficam fora (seguem no caixa/recebido).
-const isRecurring = (r: any) => r.recurrence === "mensal";
+// MRR = recorrência verdadeira. Primário: recurrence='mensal'. Fallback: infere de installments+vigência.
+const isRecurring = (r: any) => {
+  const rec = String(r.recurrence || "").toLowerCase();
+  if (rec === "mensal" || rec === "monthly") return true;
+  if (rec === "pontual" || rec === "anual") return false;
+  if (!rec && Number(r.payment_installments || 0) > 1 && Number(r.contract_validity_value || 0) > 0 && /^(meses|months|month)$/i.test(r.contract_validity_unit || "")) return true;
+  return false;
+};
 // Mensalidade RECONHECIDA (competência): dentro da vigência, total do contrato ÷ meses de contrato.
 // Ex.: Carneiro R$10.000 ÷ 12 = ~R$833/mês, mesmo que as parcelas (caixa) sejam 5×R$2.000.
 const mensalDe = (r: any) => {

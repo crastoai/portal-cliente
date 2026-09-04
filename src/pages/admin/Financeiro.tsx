@@ -397,7 +397,13 @@ export default function Financeiro() {
   const payItems = [...pay.map(acctToItem), ...costs.map(costToItem)];
   // Conta recorrente = ASSINATURA de verdade (campo recurrence), NÃO "tem parcelas". Um deal pontual
   // parcelado (workshop, projeto one-off) não é recorrente. Espelha `mensalDe` da Visão geral. (Crasto 12/08)
-  const isRecurring = (a: any) => ["monthly", "mensal", "yearly", "anual"].includes(String(a?.recurrence || "").toLowerCase());
+  const isRecurring = (a: any) => {
+    const rec = String(a?.recurrence || "").toLowerCase();
+    if (["monthly", "mensal", "yearly", "anual"].includes(rec)) return true;
+    if (rec === "pontual") return false;
+    if (!rec && Number(a?.payment_installments || 0) > 1 && Number(a?.contract_validity_value || 0) > 0 && /^(meses|months|month)$/i.test(a?.contract_validity_unit || "")) return true;
+    return false;
+  };
   const recSource = tab === "receber" && recOnly ? rec.filter(isRecurring) : rec;
   // Filtro dos cards de baixo aplicado à LISTA (os totais/chips seguem mostrando o valor cheio).
   const passStatus = (i: any) => statusF === "todos" ? true : statusF === "vencidos" ? vencidoDe(i) > 0 : statusF === "hoje" ? hojeDe(i) > 0 : statusF === "avencer" ? avencerDe(i) > 0 : Number(i.amount_paid || 0) > 0;

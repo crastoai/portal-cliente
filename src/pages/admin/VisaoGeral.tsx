@@ -65,11 +65,12 @@ export default function VisaoGeral() {
   // Recebíveis = tudo que ainda está EM ABERTO (total − já pago). Nada fictício: se não há
   // contas, os dois somam 0 e é a verdade.
   const receber = (data?.receber ?? []).filter((a: any) => a.status !== "cancelled");
+  const inferRecurring = (a: any) => { const r = String(a?.recurrence || "").toLowerCase(); if (r) return r; if (Number(a?.payment_installments || 0) > 1 && Number(a?.contract_validity_value || 0) > 0 && /^(meses|months|month)$/i.test(a?.contract_validity_unit || "")) return "mensal"; return ""; };
   const mensalDe = (a: any) => {
-    const r = String(a?.recurrence || "").toLowerCase();
+    const r = inferRecurring(a);
     if (r === "mensal" || r === "monthly") { const p = Array.isArray(a?.payment_schedule) ? a.payment_schedule : []; return p.length ? Number(p[0]?.amount || 0) : Number(a.amount || 0); }
     if (r === "anual" || r === "yearly") return Number(a.amount || 0) / 12;
-    return 0; // pontual/avulso não é recorrente → fora do MRR
+    return 0;
   };
   const mrr = receber.reduce((s: number, a: any) => s + mensalDe(a), 0);
   const aReceber = receber.reduce((s: number, a: any) => s + (Number(a.amount || 0) - Number(a.amount_paid || 0)), 0);
