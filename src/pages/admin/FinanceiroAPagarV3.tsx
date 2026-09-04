@@ -90,6 +90,20 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [busyP, setBusyP] = useState(false);
   const [parcEdit, setParcEdit] = useState<{ itemId: string; idx: number; date: string; amount: string } | null>(null);
+  // ---- marcar custo simples (sem parcelas) como pago/não pago neste mês ----
+  const markCostPaid = async (i: Item, paid: boolean) => {
+    const raw = rawOf(i); if (!raw) return;
+    setBusyP(true);
+    try {
+      if (i.rawKind === "cost") {
+        const nextMonth = paid ? (() => { const d = new Date(today + "T00:00:00"); d.setMonth(d.getMonth() + 1); const day = raw.next_payment_date ? String(raw.next_payment_date).slice(8, 10) : "01"; return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${day}`; })() : raw.next_payment_date;
+        await services.finance.costs.save({ ...raw, amount_paid: paid ? Number(raw.amount_brl || 0) : 0, payment_date: paid ? new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }) + "T12:00:00" : null, next_payment_date: nextMonth });
+      } else {
+        await services.finance.accounts.save({ ...raw, amount_paid: paid ? Number(raw.amount || 0) : 0, payment_date: paid ? new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }) + "T12:00:00" : null, status: paid ? "paid" : "pending" });
+      }
+      reload?.();
+    } catch (e: any) { alert("Erro: " + (e?.message || e)); } finally { setBusyP(false); }
+  };
   const toggleExp = (id: string) => setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const rawOf = (i: Item) => i.rawKind === "cost" ? (costs || []).find((c: any) => c.id === i.rawId) : (pay || []).find((a: any) => a.id === i.rawId);
   const saveSchedule = async (i: Item, ps: any[]) => {
@@ -135,7 +149,12 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
       const ps = Array.isArray(c.payment_schedule) ? c.payment_schedule : [];
       const total = ps.length ? psSum(ps) : Number(c.amount_brl || 0), pago = ps.length ? psPago(ps) : Number(c.amount_paid || 0), rest = Math.max(0, total - pago);
       const rec = ps.length ? "parcelado" : (c.recurrence === "anual" ? "anual" : c.recurrence === "pontual" ? "pontual" : "mensal");
-      return { id: "c_" + c.id, rawId: c.id, empresa: c.vendor_name || "—", sub: (c.purpose || c.description || "assinatura"), categoria: catLabel(c.category), rec, contratacao: ymd(c.reference_date) || ymd(c.created_at), venc: ymd(c.next_payment_date), pag: ymd(c.payment_date), total, pago, restante: rest, status: statusOf(c.next_payment_date, rest, pago >= total - 0.005), ps, rawKind: "cost" };
+      const paidDate = ymd(c.payment_date);
+      const paidThisMonth = rec === "mensal" && !ps.length && paidDate && paidDate.slice(0, 7) === mes;
+      const costPaid = rec === "mensal" && !ps.length ? !!paidThisMonth : (pago >= total - 0.005);
+      const costPago = costPaid ? pago : 0;
+      const costRest = costPaid ? 0 : total;
+      return { id: "c_" + c.id, rawId: c.id, empresa: c.vendor_name || "—", sub: (c.purpose || c.description || "assinatura"), categoria: catLabel(c.category), rec, contratacao: ymd(c.reference_date) || ymd(c.created_at), venc: ymd(c.next_payment_date), pag: paidDate, total, pago: costPago, restante: costRest, status: statusOf(c.next_payment_date, costRest, costPaid), ps, rawKind: "cost" };
     });
     return [...A, ...C];
   }, [pay, costs]);
@@ -473,7 +492,7 @@ export default function FinanceiroAPagarV3({ pay, costs, onEdit, reload }: { pay
                   <td className="r">{BRL(i.total)}</td>
                   <td className="r green">{i.pago ? BRL(i.pago) : "R$ 0,00"}</td>
                   <td className={"r " + (i.restante > 0 ? (i.status === "Vencido" ? "red" : "amber") : "")}>{BRL(i.restante)}</td>
-                  <td><span className={"st " + stCls(i.status)}>{i.status}</span> <button className="fv3-editbtn" title="Editar na origem" onClick={(e) => { e.stopPropagation(); onEdit?.(i.rawId); }}><IcoPencil size={14} /></button></td>
+                  <td><span className={"st " + stCls(i.status)}>{i.status}</span>{(!i.ps || !i.ps.length) && i.rawKind === "cost" && i.rec === "mensal" && <button className={"picon toggle" + (i.status === "Pago" ? " on" : "")} title={i.status === "Pago" ? "Desfazer pagamento deste mês" : "Marcar como pago"} disabled={busyP} onClick={(e) => { e.stopPropagation(); markCostPaid(i, i.status !== "Pago"); }} style={{ marginLeft: 4 }}><IcoCheckCircle filled={i.status === "Pago"} size={16} /></button>} <button className="fv3-editbtn" title="Editar na origem" onClick={(e) => { e.stopPropagation(); onEdit?.(i.rawId); }}><IcoPencil size={14} /></button></td>
                 </tr>
                 {i.ps && i.ps.length > 0 && expanded.has(i.id) && i.ps.map((p: any, idx: number) => {
                   const isEd = !!parcEdit && parcEdit.itemId === i.id && parcEdit.idx === idx;
