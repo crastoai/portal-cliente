@@ -3,6 +3,7 @@ import MarketingCockpit from "./Cockpit";
 import BrandKit from "./BrandKit";
 import Videos from "./Videos";
 import Imagens from "./Imagens";
+import Radar from "./Radar";
 import Calendario from "./Calendario";
 import Automacao from "./Automacao";
 import Trafego from "./Trafego";
@@ -30,6 +31,8 @@ export default function Marketing() {
       return <Videos view="roteiros" />;
     case "imagens":
       return <Imagens />;
+    case "radar":
+      return <Radar />;
     case "calendario":
       return <Calendario />;
     case "automacao":
@@ -51,7 +54,7 @@ export default function Marketing() {
 function titulo(s?: string) {
   const m: Record<string, string> = {
     "brand-kit": "Brand Kit", videos: "Vídeos Virais", cortes: "Cortes",
-    avatar: "Meus Avatares/Clone", roteiros: "Gerador de Roteiros", imagens: "Imagens & Carrossel",
+    avatar: "Meus Avatares/Clone", roteiros: "Gerador de Roteiros", imagens: "Imagens & Carrossel", radar: "Radar de Referências",
     calendario: "Calendário de Marketing", automacao: "Agendamento & Automação", "midia-paga": "Mídia Paga (Tráfego Pago)",
   };
   return (s && m[s]) || "Marketing";

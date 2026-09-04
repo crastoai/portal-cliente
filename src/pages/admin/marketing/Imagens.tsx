@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { mktApi, activeUnit } from "../../../lib/mktApi";
 import { prepararReferencia } from "./_img";
 import { MktModal } from "./_ui";
@@ -183,6 +183,7 @@ function SelectBox({ value, options, onChange, placeholder, minWidth }: {
 
 export default function Imagens() {
   const navegar = useNavigate();
+  const location = useLocation();
   const [resultViewerIdx, setResultViewerIdx] = useState<number | null>(null); // visualizador aberto a partir do Resultado
   const [unitId, setUnitId] = useState<string | null>(null);
   const [unit, setUnit] = useState<{ name?: string; handle?: string | null } | null>(null);
@@ -199,6 +200,15 @@ export default function Imagens() {
   const slidesTocadoRef = useRef(false);            // o cliente já ajustou o nº na mão
   const [prompt, setPrompt] = useState("");
   const [estilo, setEstilo] = useState("");         // estilo/formato livre: "estilo tweet", meme, citação… (a IA interpreta)
+  // pré-preenchimento vindo do Radar de Referências ("criar post inspirado") — editável
+  useEffect(() => {
+    const p: any = (location.state as any)?.prefill;
+    if (!p) return;
+    if (p.prompt) setPrompt(String(p.prompt));
+    if (p.estilo) setEstilo(String(p.estilo));
+    if (p.formato === "carrossel") { setRede("instagram"); setSlotSel("carrossel"); }
+    try { window.history.replaceState({}, ""); } catch { /* */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [onBrand, setOnBrand] = useState(true);
   const [results, setResults] = useState<any | null>(null);
   const [genBusy, setGenBusy] = useState(false);

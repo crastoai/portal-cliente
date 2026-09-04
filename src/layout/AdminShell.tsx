@@ -57,6 +57,7 @@ const NAV: NavItem[] = [
           { to: "/admin/marketing/roteiros", label: "Gerador de Roteiros" },
         ] },
         { to: "/admin/marketing/imagens", label: "Imagens & Carrossel", icon: Image },
+        { to: "/admin/marketing/radar", label: "Radar de Referências", icon: TrendingUp },
       ] },
       { label: "Distribuir", children: [
         { to: "/admin/marketing/calendario", label: "Calendário", icon: Calendar },
