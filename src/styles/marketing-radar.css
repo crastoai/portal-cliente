@@ -33,3 +33,38 @@
 /* Prévia (imagem real) da referência no card */
 .mkt-root .rad-thumb{margin:-16px -16px 4px;border-radius:14px 14px 0 0;overflow:hidden;background:var(--surface-2);aspect-ratio:16/9;display:flex;align-items:center;justify-content:center}
 .mkt-root .rad-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* ===== Radar v2: card com prévia no topo + contraste correto no dark ===== */
+.mkt-root .rad-card{padding:0;overflow:hidden}
+.mkt-root .rad-thumb{margin:0;border-radius:14px 14px 0 0;overflow:hidden;background:var(--surface-2);aspect-ratio:1/1;position:relative;display:flex;align-items:center;justify-content:center}
+.mkt-root .rad-thumb.clica{cursor:pointer}
+.mkt-root .rad-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.mkt-root .rad-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;color:var(--muted-2);background:linear-gradient(160deg,var(--surface-3),var(--surface-2))}
+.mkt-root .rad-play{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:52px;height:52px;border-radius:50%;background:rgba(11,26,51,.72);color:#fff;display:grid;place-items:center;font-size:22px;backdrop-filter:blur(2px);pointer-events:none}
+.mkt-root .rad-body{padding:15px 16px;display:flex;flex-direction:column;gap:8px}
+.mkt-root .rad-fmt{font-size:11px;font-weight:700;color:var(--blue-3);background:rgba(110,156,232,.16);border-radius:6px;padding:3px 9px;text-transform:capitalize}
+.mkt-root .rad-handle{font-size:12px;color:var(--muted);font-weight:600}
+.mkt-root .rad-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;padding-top:8px}
+.mkt-root .rad-src{font-size:12.5px;color:var(--blue-3);text-decoration:none;font-weight:700}
+.mkt-root .rad-src:hover{text-decoration:underline}
+.mkt-root .rad-ver{border:1px solid var(--border-2);background:var(--surface-2);color:var(--text);border-radius:9px;padding:7px 13px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:var(--font-ui);white-space:nowrap}
+.mkt-root .rad-ver:hover{border-color:var(--blue);color:var(--blue-3)}
+/* botão principal: FILLED (não fica apagado em nenhum tema) */
+.mkt-root .rad-usar{border:0;background:linear-gradient(135deg,#6E9CE8,#4E93D4);color:#fff;border-radius:999px;padding:8px 15px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font-ui);box-shadow:0 2px 8px rgba(46,111,158,.25)}
+.mkt-root .rad-usar:hover{filter:brightness(1.06)} .mkt-root .rad-usar:disabled{opacity:.6;cursor:default;filter:none}
+
+/* CONTRASTE NO DARK: azuis mais claros, chips/handles legíveis */
+[data-theme="dark"] .mkt-root .rad-fmt{color:#9EC1FF;background:rgba(110,156,232,.22)}
+[data-theme="dark"] .mkt-root .rad-handle{color:var(--crasto-text-muted,#AEB8C6)}
+[data-theme="dark"] .mkt-root .rad-src{color:#9EC1FF}
+[data-theme="dark"] .mkt-root .rad-ver{background:rgba(255,255,255,.04);color:#EAF1FB;border-color:rgba(255,255,255,.14)}
+[data-theme="dark"] .mkt-root .rad-ver:hover{border-color:var(--blue);color:#9EC1FF}
+[data-theme="dark"] .mkt-root .rad-title{color:#F4F6FA}
+[data-theme="dark"] .mkt-root .rad-hook{color:#EAF1FB}
+
+/* Visualizador (embed) da referência */
+.mkt-modal-box .rad-embed{display:flex;justify-content:center}
+.mkt-modal-box .rad-embed iframe{width:100%;max-width:420px;height:560px;border:0;border-radius:12px;background:var(--surface-2)}
+.mkt-modal-box .rad-embed.alto iframe{height:640px}
+.mkt-modal-box .rad-embed-none{padding:40px;text-align:center;color:var(--muted)}
+.mkt-modal-box .rad-embed-none a{color:var(--blue-3);font-weight:600}

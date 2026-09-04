@@ -2,6 +2,25 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { mktApi } from "../../../lib/mktApi";
+import { MktModal } from "./_ui";
+
+// monta a URL de EMBED (reproduzir/visualizar dentro do portal) a partir do link do post
+function embedDe(url?: string): { src: string; alto: boolean } | null {
+  if (!url) return null;
+  let m = url.match(/instagram\.com\/(p|reel|reels|tv)\/([\w-]+)/i);
+  if (m) return { src: `https://www.instagram.com/${m[1] === "reels" ? "reel" : m[1]}/${m[2]}/embed`, alto: true };
+  m = url.match(/tiktok\.com\/@[\w.-]+\/video\/(\d+)/i) || url.match(/tiktok\.com\/(?:embed\/v2|v)\/(\d+)/i);
+  if (m) return { src: `https://www.tiktok.com/embed/v2/${m[1]}`, alto: true };
+  m = url.match(/youtube\.com\/shorts\/([\w-]+)|youtube\.com\/watch\?v=([\w-]+)|youtu\.be\/([\w-]+)/i);
+  if (m) return { src: `https://www.youtube.com/embed/${m[1] || m[2] || m[3]}`, alto: false };
+  return null;
+}
+// link "ver referência": o post se houver, senão o perfil (@handle)
+function linkRef(r: any): string | null {
+  if (r.example_url) return r.example_url;
+  const h = String(r.example_handle || "").replace(/^@/, "").trim();
+  return h && !h.includes(" ") ? `https://www.instagram.com/${h}/` : null;
+}
 
 // ============================================================================
 // RADAR DE REFERÊNCIAS — o "cérebro de agência". Mostra tendências/posts que estão
@@ -20,6 +39,7 @@ export default function Radar() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
   const [criando, setCriando] = useState<string | null>(null);
+  const [verRef, setVerRef] = useState<any | null>(null); // referência aberta no visualizador (embed)
   const pollRef = useRef<number | undefined>(undefined);
   const mountedRef = useRef(true);
   const nav = useNavigate();
@@ -103,26 +123,56 @@ export default function Radar() {
           </div>
         ) : (
           <div className="rad-grid">
-            {refs.map((r) => (
+            {refs.map((r) => {
+              const emb = embedDe(r.example_url);
+              const reel = String(r.format || "").toLowerCase() === "reel";
+              const link = linkRef(r);
+              return (
               <div className="rad-card" key={r.id}>
-                {r.thumbnail ? <div className="rad-thumb"><img src={r.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer" onError={(e) => { (e.currentTarget.closest(".rad-thumb") as HTMLElement)?.style.setProperty("display", "none"); }} /></div> : null}
-                <div className="rad-top">
-                  <span className="rad-fmt">{FMT_ICON[String(r.format || "").toLowerCase()] || "◆"} {r.format || "post"}</span>
-                  {r.example_handle ? <span className="rad-handle">{String(r.example_handle).replace(/^@?/, "@")}</span> : null}
+                <div className={"rad-thumb" + (emb ? " clica" : "")} onClick={() => { if (emb) setVerRef(r); }}>
+                  {r.thumbnail
+                    ? <><img src={r.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer" onError={(e) => { const im = e.currentTarget; im.style.display = "none"; (im.nextElementSibling as HTMLElement)?.style.setProperty("display", "flex"); }} />
+                        <div className="rad-ph" style={{ display: "none" }}>{FMT_ICON[String(r.format || "").toLowerCase()] || "◆"}</div></>
+                    : <div className="rad-ph">{FMT_ICON[String(r.format || "").toLowerCase()] || "◆"}</div>}
+                  {emb ? <span className="rad-play">{reel ? "▶" : "⛶"}</span> : null}
                 </div>
-                <div className="rad-title">{r.title || r.angle}</div>
-                {r.hook ? <div className="rad-hook">“{r.hook}”</div> : null}
-                {r.why ? <div className="rad-why"><b>Por que funciona:</b> {r.why}</div> : null}
-                <div className="rad-foot">
-                  {r.example_url ? <a className="rad-src" href={r.example_url} target="_blank" rel="noreferrer">ver referência ↗</a> : <span />}
-                  <button className="rad-usar" disabled={criando === r.id} onClick={() => criarInspirado(r)}>{criando === r.id ? "…" : "✨ criar post inspirado"}</button>
+                <div className="rad-body">
+                  <div className="rad-top">
+                    <span className="rad-fmt">{FMT_ICON[String(r.format || "").toLowerCase()] || "◆"} {r.format || "post"}</span>
+                    {r.example_handle ? <span className="rad-handle">{String(r.example_handle).replace(/^@?/, "@")}</span> : null}
+                  </div>
+                  <div className="rad-title">{r.title || r.angle}</div>
+                  {r.hook ? <div className="rad-hook">“{r.hook}”</div> : null}
+                  {r.why ? <div className="rad-why"><b>Por que funciona:</b> {r.why}</div> : null}
+                  <div className="rad-foot">
+                    {emb ? <button className="rad-ver" onClick={() => setVerRef(r)}>{reel ? "▶ Reproduzir" : "⛶ Visualizar"}</button>
+                      : link ? <a className="rad-src" href={link} target="_blank" rel="noreferrer">ver referência ↗</a> : <span />}
+                    <button className="rad-usar" disabled={criando === r.id} onClick={() => criarInspirado(r)}>{criando === r.id ? "…" : "✨ criar post inspirado"}</button>
+                  </div>
                 </div>
               </div>
-            ))}
+            ); })}
           </div>
         )}
 
       <div className="rad-nota">As referências vêm de pesquisa pública do seu segmento (com fontes). A arte gerada é <b>original</b>, adaptada à sua marca — nunca uma cópia.</div>
+
+      {verRef ? (() => {
+        const emb = embedDe(verRef.example_url); const link = linkRef(verRef);
+        return (
+          <MktModal title={verRef.title || "Referência"} onClose={() => setVerRef(null)} wide footer={
+            <>
+              {link ? <a className="bk-mini" href={link} target="_blank" rel="noreferrer">Abrir original ↗</a> : null}
+              <button className="bk-mini" onClick={() => setVerRef(null)}>Fechar</button>
+              <button className="bk-mini pri" onClick={() => { const r = verRef; setVerRef(null); criarInspirado(r); }}>✨ criar post inspirado</button>
+            </>
+          }>
+            {emb ? <div className={"rad-embed" + (emb.alto ? " alto" : "")}><iframe src={emb.src} title="referência" allow="autoplay; encrypted-media; clipboard-write; picture-in-picture" allowFullScreen loading="lazy" /></div>
+              : <div className="rad-embed"><div className="rad-embed-none">Não consegui carregar a prévia — <a href={link || "#"} target="_blank" rel="noreferrer">abrir no app ↗</a></div></div>}
+            {verRef.why ? <div className="rad-why" style={{ marginTop: 12 }}><b>Por que funciona:</b> {verRef.why}</div> : null}
+          </MktModal>
+        );
+      })() : null}
 
       {toast ? createPortal(<div style={{ position: "fixed", bottom: 22, left: "50%", transform: "translateX(-50%)", background: "#0B1A33", color: "#fff", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 10001, boxShadow: "0 10px 30px rgba(1,14,38,.35)" }}>{toast}</div>, document.body) : null}
     </div>
