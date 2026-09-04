@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { mktApi } from "../../../lib/mktApi";
 import { MktModal } from "./_ui";
@@ -23,38 +23,52 @@ export default function Automacao() {
   const [cfgOpen, setCfgOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const flash = (m: string) => { setToast(m); window.setTimeout(() => setToast((t) => (t === m ? null : t)), 2600); };
+  const pollRef = useRef<number | undefined>(undefined);   // id do polling do finalize (p/ cancelar)
+  const mountedRef = useRef(true);                          // não mexer no estado após desmontar
 
   async function loadCfg() { try { setCfg(await mktApi.get<any>("/marketing/automation/config")); } catch { setCfg({}); } }
   async function loadApprove() { try { const b = await mktApi.get<any[]>("/marketing/posts/backlog"); setApprove((b || []).filter((p) => p.status === "aprovar")); } catch { setApprove([]); } }
   async function loadKw() { try { setKeywords(await mktApi.get<any[]>("/marketing/automation/keywords")); } catch { setKeywords([]); } }
-  useEffect(() => { loadCfg(); loadApprove(); loadKw(); }, []);
+  useEffect(() => {
+    mountedRef.current = true; loadCfg(); loadApprove(); loadKw();
+    return () => { mountedRef.current = false; if (pollRef.current) window.clearTimeout(pollRef.current); };
+  }, []);
 
   async function setMode(mode: "A" | "B") { try { setCfg(await mktApi.put<any>("/marketing/automation/config", { mode })); flash("Modo " + mode + (mode === "B" ? " · automático" : " · aprovar")); } catch { flash("Não foi possível trocar o modo."); } }
 
   async function runNow() {
     setRunning(true);
     try {
-      const r = await mktApi.post<any>("/marketing/automation/run", {});
+      const r = await mktApi.post<any>("/marketing/automation/run", {}, { timeoutMs: 120000 });
       if (!r?.generated) { flash(r?.note || "Não consegui gerar agora."); setRunning(false); return; }
       flash(`Criando ${r.generated} peça(s) — a IA está gerando a arte…`);
       // a arte é assíncrona: vamos completando (legenda + aprovar/agendar) conforme fica pronta
       let tentativas = 0;
+      let algumOk = false; // só diz "Pronto" se algo REALMENTE concluiu (não mente)
       const poll = async () => {
+        if (!mountedRef.current) return; // saiu da tela: para o polling
         tentativas++;
-        let f: any = {};
-        try { f = await mktApi.post<any>("/marketing/automation/finalize", {}); } catch { /* tenta de novo */ }
+        let f: any = null;
+        try { f = await mktApi.post<any>("/marketing/automation/finalize", {}, { timeoutMs: 120000 }); } catch { /* tenta de novo no próximo tick */ }
+        if (!mountedRef.current) return;
         loadApprove();
-        const partes: string[] = [];
-        if (f.aprovar) partes.push(`${f.aprovar} p/ aprovar`);
-        if (f.agendado) partes.push(`${f.agendado} agendado(s)`);
-        if (f.falhou) partes.push(`${f.falhou} falhou`);
-        if (f.gerando) partes.push(`${f.gerando} gerando a arte…`);
-        if (partes.length) flash(partes.join(" · "));
-        if ((f.gerando || 0) > 0 && tentativas < 16) { window.setTimeout(poll, 9000); return; }
+        if (f) {
+          if ((f.aprovar || 0) + (f.agendado || 0) + (f.falhou || 0) > 0) algumOk = true;
+          const partes: string[] = [];
+          if (f.aprovar) partes.push(`${f.aprovar} p/ aprovar`);
+          if (f.agendado) partes.push(`${f.agendado} agendado(s)`);
+          if (f.falhou) partes.push(`${f.falhou} falhou`);
+          if (f.gerando) partes.push(`${f.gerando} gerando a arte…`);
+          if (partes.length) flash(partes.join(" · "));
+        }
+        const aindaGerando = f ? (f.gerando || 0) > 0 : true; // sem resposta = ainda tentando
+        if (aindaGerando && tentativas < 16) { pollRef.current = window.setTimeout(poll, 9000); return; }
         setRunning(false);
-        if (!f.gerando) flash(mode === "B" ? "Pronto — as peças foram agendadas no melhor horário (veja no Calendário)." : "Pronto — suas peças estão aqui aguardando aprovação.");
+        if (!f) flash("Demorou mais que o esperado. As peças continuam sendo criadas — recarregue em instantes.");
+        else if (algumOk) flash(mode === "B" ? "Pronto — as peças foram agendadas no melhor horário (veja no Calendário)." : "Pronto — suas peças estão aqui aguardando aprovação.");
+        else flash("As peças ainda estão sendo criadas — recarregue em instantes.");
       };
-      window.setTimeout(poll, 7000);
+      pollRef.current = window.setTimeout(poll, 7000);
     } catch { flash("Não foi possível gerar agora."); setRunning(false); }
   }
 

@@ -29,7 +29,7 @@ export default function Radar() {
     setBusy(true);
     flash("Pesquisando o que está viralizando no seu segmento…");
     try {
-      const r = await mktApi.post<any>("/marketing/research/radar", { tema: foco.trim() || undefined });
+      const r = await mktApi.post<any>("/marketing/research/radar", { tema: foco.trim() || undefined }, { timeoutMs: 120000 });
       if (r?.refs?.length) { setRefs(r.refs); flash(`${r.refs.length} referências encontradas ✓`); }
       else flash(r?.note || "Não trouxe referências desta vez. Tente de novo.");
     } catch { flash("Não consegui pesquisar agora. Tente de novo em instantes."); } finally { setBusy(false); }
@@ -39,7 +39,7 @@ export default function Radar() {
     setCriando(ref.id);
     flash("Montando um post inspirado nesta referência…");
     try {
-      const b = await mktApi.post<any>("/marketing/research/refs/" + ref.id + "/brief", {});
+      const b = await mktApi.post<any>("/marketing/research/refs/" + ref.id + "/brief", {}, { timeoutMs: 60000 });
       // pré-preenche o gerador de imagem (editável) — não gera nada sozinho
       nav("/admin/marketing/imagens", { state: { prefill: { prompt: b?.prompt || ref.angle || "", estilo: b?.estilo || "", formato: b?.formato || (ref.format === "carrossel" ? "carrossel" : "estatico") } } });
     } catch { flash("Não consegui montar o post agora. Tente de novo."); } finally { setCriando(null); }

@@ -80,10 +80,10 @@ export default function Calendario() {
   // ---- ações no back ----
   // motivo honesto do provedor (sem rede conectada, arte não pronta, regra da marca) sobe pra tela
   const motivo = (e: any, fb: string) => ((e?.status === 422 || e?.body?.blocked) && e?.body?.reason) ? String(e.body.reason) : fb;
-  async function scheduleBack(id: string, when: string) { try { await mktApi.post("/marketing/posts/" + id + "/schedule", { when }); flash("Agendado ✓"); load(); } catch (e: any) { flash(motivo(e, "Não foi possível agendar.")); } }
+  async function scheduleBack(id: string, when: string) { try { await mktApi.post("/marketing/posts/" + id + "/schedule", { when }, { timeoutMs: 120000 }); flash("Agendado ✓"); load(); } catch (e: any) { flash(motivo(e, "Não foi possível agendar.")); } }
   const agendarHoje = (id: string) => scheduleBack(id, localToISO(todayKey, "09:00"));
   // mover um post já agendado = reagendar no provedor (cancela o antigo, recria na nova hora)
-  async function moveBack(id: string, when: string) { try { await mktApi.post("/marketing/posts/" + id + "/schedule", { when }); load(); } catch (e: any) { flash(motivo(e, "Não foi possível mover.")); load(); } }
+  async function moveBack(id: string, when: string) { try { await mktApi.post("/marketing/posts/" + id + "/schedule", { when }, { timeoutMs: 120000 }); load(); } catch (e: any) { flash(motivo(e, "Não foi possível mover.")); load(); } }
   async function unscheduleBack(id: string) { try { await mktApi.post("/marketing/posts/" + id + "/unschedule"); flash("Voltou para A agendar"); load(); } catch (e: any) { flash(motivo(e, "Não foi possível desagendar.")); load(); } }
 
   // ---- drag & drop ----
@@ -293,7 +293,7 @@ function PostModal({ unitId, editId, initDate, post, onClose, onSaved, flash }: 
     if (!post?.pieceRef) return;
     setGerTit(true);
     try {
-      const r = await mktApi.post<any>("/marketing/images/generations/" + post.pieceRef + "/titulo", {});
+      const r = await mktApi.post<any>("/marketing/images/generations/" + post.pieceRef + "/titulo", {}, { timeoutMs: 90000 });
       if (r?.titulo) { setTitle(r.titulo); flash("Título gerado ✓"); } else flash("Não consegui gerar o título agora.");
     } catch { flash("Não consegui gerar o título agora. Tente de novo."); } finally { setGerTit(false); }
   }
@@ -304,7 +304,7 @@ function PostModal({ unitId, editId, initDate, post, onClose, onSaved, flash }: 
     setGerLeg(true);
     flash("Gerando a legenda com a IA…");
     try {
-      const r = await mktApi.post<any>("/marketing/images/generations/" + post.pieceRef + "/legenda", {});
+      const r = await mktApi.post<any>("/marketing/images/generations/" + post.pieceRef + "/legenda", {}, { timeoutMs: 90000 });
       if (r?.legenda) { setCaption(r.legenda); flash("Legenda gerada ✓"); }
       else flash("Não consegui gerar a legenda agora. Tente de novo.");
     } catch (e: any) {
@@ -333,7 +333,7 @@ function PostModal({ unitId, editId, initDate, post, onClose, onSaved, flash }: 
   }
   async function publish() {
     if (!editId) return; setBusy(true);
-    try { await mktApi.post("/marketing/posts/" + editId + "/publish"); flash("Enviada para publicação nas redes ✓"); onSaved(); }
+    try { await mktApi.post("/marketing/posts/" + editId + "/publish", {}, { timeoutMs: 120000 }); flash("Enviada para publicação nas redes ✓"); onSaved(); }
     catch (e: any) {
       if (e?.status === 422 || e?.body?.blocked) flash(e?.body?.reason || "Ajuste a peça e tente de novo.");
       else flash("Não foi possível publicar agora. Tente novamente.");
