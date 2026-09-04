@@ -1,12 +1,14 @@
 import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
 import { JwtOrgGuard } from '../common/jwt-org.guard';
-import { AdminGuard } from '../common/admin.guard';
+import { FinanceAccessGuard } from '../common/finance-access.guard';
 import { ProofsService } from './proofs.service';
 
-// Comprovantes (Fatia 1) — 🔒 ADMIN-ONLY. Só LEITURA por IA; a baixa da parcela é
-// feita pelo caminho já existente (fin_account_upsert) após o operador CONFIRMAR.
+// Comprovantes/Conciliação — parte do MÓDULO Financeiro (vendável). Gate por
+// FinanceAccessGuard (org tem o módulo + papel). Só LEITURA por IA; a baixa da parcela é
+// feita pelo caminho já existente (fin_account_upsert) após o operador CONFIRMAR. O contexto
+// da empresa (contexto()) já é escopado por RLS no usuário que pediu.
 @Controller('finance/proofs')
-@UseGuards(JwtOrgGuard, AdminGuard)
+@UseGuards(JwtOrgGuard, FinanceAccessGuard)
 export class ProofsController {
   constructor(private readonly proofs: ProofsService) {}
 

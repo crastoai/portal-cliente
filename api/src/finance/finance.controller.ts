@@ -1,29 +1,36 @@
 import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { JwtOrgGuard } from '../common/jwt-org.guard';
 import { AdminGuard } from '../common/admin.guard';
+import { FinanceAccessGuard } from '../common/finance-access.guard';
 import { RlsDbService } from '../common/rls-db.service';
 import { AiCostSyncService } from './ai-cost-sync.service';
 
 // Bounded context FINANCE (schema finance — NÃO exposto ao PostgREST) — Contas a Pagar/Receber,
-// custos, tesouraria, custo de IA. 🔒 ADMIN-ONLY: AdminGuard barra não-admin (403); todo acesso via
-// RPC SECURITY DEFINER que revalida is_crasto_admin. O dado sensível (margem/comissão) nunca sai por RLS.
+// custos, tesouraria, documentos e custo de IA.
+// MÓDULO VENDÁVEL (multitenant): as rotas do módulo (accounts/costs/documents/transactions) passam
+// pelo FinanceAccessGuard (org tem o módulo + papel pode ver); o ISOLAMENTO é no banco (RPCs escopam
+// por owner_org_id = fin_scope_org()). 🔒 NÚCLEO CRASTO: as rotas de custo de IA / billing / gcp-map
+// ganham AdminGuard method-level — são ferramental da Crasto, nunca do cliente.
 @Controller('finance')
-@UseGuards(JwtOrgGuard, AdminGuard)
+@UseGuards(JwtOrgGuard, FinanceAccessGuard)
 export class FinanceController {
   constructor(private readonly db: RlsDbService, private readonly aiSync: AiCostSyncService) {}
   private uid(req: any): string { return req.user.id; }
 
   // Puxa o custo REAL de IA das APIs de billing (Anthropic + OpenAI) para o mês (ou período).
   @Post('ai-cost/sync')
+  @UseGuards(AdminGuard)
   aiCostSync(@Req() req: any, @Body() b: any) { return this.aiSync.sync(this.uid(req), { from: b?.from, to: b?.to }); }
 
   // VISÃO DE DONO — métricas de negócio (economia DeepSeek, run-rate, custo por lead/conversa).
   @Get('ai-cost/insights')
+  @UseGuards(AdminGuard)
   aiCostInsights(@Req() req: any, @Query('from') from: string, @Query('to') to: string) { return this.aiSync.insights(this.uid(req), { from, to }); }
 
   // Guarda no cofre a ADMIN key de billing (só anthropic_admin/openai_admin). A chave nunca
   // volta ao front; set_provider_secret cria a integração + o segredo no Vault.
   @Post('ai-cost/billing-key')
+  @UseGuards(AdminGuard)
   billingKey(@Body() b: any) {
     const p = String(b?.provider || ''); const secret = String(b?.secret || '');
     if (!['anthropic_admin', 'openai_admin'].includes(p)) return { ok: false, error: 'provedor inválido' };
@@ -32,6 +39,7 @@ export class FinanceController {
   }
   // Só diz SE cada admin key está salva (nunca o valor).
   @Get('ai-cost/billing-status')
+  @UseGuards(AdminGuard)
   billingStatus() {
     return this.db.asService(async (c) => {
       const has = async (p: string) => !!(await c.query(`select public.reveal_provider_key($1) as k`, [p])).rows[0]?.k;
@@ -74,19 +82,25 @@ export class FinanceController {
 
   // ── custo de IA (painel) ──
   @Get('ai-cost')
+  @UseGuards(AdminGuard)
   aiCost(@Req() req: any, @Query('from') from: string, @Query('to') to: string) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select public.admin_ai_cost($1,$2) as r', [from || null, to || null])).rows[0]?.r ?? {}); }
   @Post('ai-cost')
+  @UseGuards(AdminGuard)
   aiCostSave(@Req() req: any, @Body() b: any) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select public.fin_ai_cost_upsert($1) as r', [b])).rows[0]?.r); }
   @Delete('ai-cost/:id')
+  @UseGuards(AdminGuard)
   aiCostDelete(@Req() req: any, @Param('id') id: string) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select public.fin_ai_cost_delete($1) as r', [id])).rows[0]?.r); }
 
   // ── mapa project_id GCP → organização (custo real do Gemini por-cliente) ──
   // O admin cadastra 1× por projeto e o sync automaticamente separa os custos. Sem mapa,
   // o custo do projeto cai em "Interno / plataforma".
   @Get('gcp-map')
+  @UseGuards(AdminGuard)
   gcpMap(@Req() req: any) { return this.db.asUser(this.uid(req), async (c) => (await c.query('select * from public.admin_gcp_project_map()')).rows); }
   @Post('gcp-map')
+  @UseGuards(AdminGuard)
   gcpMapSave(@Req() req: any, @Body() b: any) { return this.db.asUser(this.uid(req), async (c) => { await c.query('select public.admin_gcp_project_map_upsert($1)', [b]); return { ok: true }; }); }
   @Delete('gcp-map/:projectId')
+  @UseGuards(AdminGuard)
   gcpMapDelete(@Req() req: any, @Param('projectId') id: string) { return this.db.asUser(this.uid(req), async (c) => { await c.query('select public.admin_gcp_project_map_delete($1)', [id]); return { ok: true }; }); }
 }

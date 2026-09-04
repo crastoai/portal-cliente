@@ -19,6 +19,7 @@ import Modulos from "./pages/client/Modulos";
 import Implementacao from "./pages/client/Implementacao";
 import Catalogo from "./pages/client/Catalogo";
 import Financeiro from "./pages/client/Financeiro";
+import FinanceiroModulo from "./pages/client/FinanceiroModulo";
 import Marketing from "./pages/admin/marketing/Marketing";
 import Usuarios from "./pages/client/Usuarios";
 import Suporte from "./pages/client/Suporte";
@@ -134,6 +135,10 @@ export default function App() {
             <Route path="implementacao" element={<Implementacao />} />
             <Route path="solucoes" element={<Catalogo />} />
             <Route path="financeiro" element={<Financeiro />} />
+            {/* Módulo Financeiro (caixa da empresa do cliente, multitenant) — distinto do
+                espelho acima (/app/financeiro = faturas com a Crasto). Só quem tem o módulo
+                habilitado chega aqui pelo sidebar; a API (FinanceAccessGuard) reforça. */}
+            <Route path="financas" element={<FinanceiroModulo />} />
             <Route path="usuarios" element={<Usuarios />} />
             <Route path="suporte" element={<Suporte />} />
             <Route path="perfil" element={<Perfil />} />

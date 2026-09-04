@@ -206,6 +206,9 @@ export default function ClientShell() {
     if (owned && owned.active) {
       // WhatsApp CRM abre EMBARCADO (rota interna → iframe); demais externos/SSO.
       if (m.crm) return emAndamento(owned) ? { tag: t("em andamento"), onClick: () => navigate("/app/modulos") } : { to: "/app/crm", children: crmChildren };
+      // Financeiro é módulo NATIVO do Portal (multitenant) — não tem URL externa; abre a
+      // tela interna /app/financas (caixa da própria empresa). Igual ao CRM, porém sem iframe.
+      if (m.key === "financeiro") return emAndamento(owned) ? { tag: t("em andamento"), onClick: () => navigate("/app/modulos") } : { to: "/app/financas" };
       return abrir(owned);
     }
     if (owned) return { tag: t("em breve"), onClick: () => navigate("/app/modulos") };
