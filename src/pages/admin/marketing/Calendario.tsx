@@ -61,7 +61,18 @@ export default function Calendario() {
       setPosts((sc || []).map(norm)); setBacklog((bl || []).map(norm));
     } catch { setPosts([]); setBacklog([]); }
   }
-  useEffect(() => { activeUnit().then(setUnitId).catch(() => {}); load(); }, []);
+  // ao abrir (e a cada 60s), reconcilia com o provedor: agendados já publicados viram
+  // "Publicado" sozinhos no sistema (com o link do post), sem precisar mexer em nada
+  async function reconcile() {
+    try { const r = await mktApi.post<any>("/marketing/posts/reconcile", {}); if ((r?.publicados || 0) > 0) flash(`${r.publicados} publicação(ões) confirmada(s) ✓`); }
+    catch { /* silencioso */ } finally { load(); }
+  }
+  useEffect(() => {
+    activeUnit().then(setUnitId).catch(() => {});
+    reconcile();
+    const t = window.setInterval(reconcile, 60000);
+    return () => window.clearInterval(t);
+  }, []);
 
   const pubsOn = (key: string) => posts.filter((p) => p.d === key && filWho.has(p.who) && filSt.has(p.st)).sort((a, b) => a.t.localeCompare(b.t));
   const colorClass = (p: any) => (colorBy === "status" ? "cst-" + p.st : p.who);
