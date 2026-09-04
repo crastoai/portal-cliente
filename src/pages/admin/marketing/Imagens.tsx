@@ -198,6 +198,7 @@ export default function Imagens() {
   const [slides, setSlides] = useState(3);          // quantos slides no carrossel — flexível
   const slidesTocadoRef = useRef(false);            // o cliente já ajustou o nº na mão
   const [prompt, setPrompt] = useState("");
+  const [estilo, setEstilo] = useState("");         // estilo/formato livre: "estilo tweet", meme, citação… (a IA interpreta)
   const [onBrand, setOnBrand] = useState(true);
   const [results, setResults] = useState<any | null>(null);
   const [genBusy, setGenBusy] = useState(false);
@@ -389,7 +390,7 @@ export default function Imagens() {
     pediuAquiRef.current = true;
     setGenBusy(true); setResults(null); setRetomada(null); setAdjust({}); setAdjustOpen({}); inicioRef.current = Date.now();
     try {
-      const r = await mktApi.post<any>("/marketing/images/generate", { network: rede, slot: slotSel, slides: ehCarrossel ? slidesVal : undefined, prompt: prompt.trim() || null, unitId, onBrand, refs: refsPost.map((x) => x.dataUrl) });
+      const r = await mktApi.post<any>("/marketing/images/generate", { network: rede, slot: slotSel, slides: ehCarrossel ? slidesVal : undefined, prompt: prompt.trim() || null, estilo: estilo.trim() || undefined, unitId, onBrand, refs: refsPost.map((x) => x.dataUrl) });
       setResults({ generation: r.generation, images: r.images });
       startPoll(r.generation.id);
     } catch (e: any) {
@@ -582,6 +583,15 @@ export default function Imagens() {
           ) : null}
           <div className="img-lbl" style={{ marginTop: 12 }}>Qual a ideia? (a IA escreve a copy)</div>
           <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="ex.: como a IA ajuda a PME a responder cliente fora do horário — a IA cria o título e a arte na sua marca" />
+          <div className="img-estilo">
+            <label className="img-estilo-lbl">Estilo <span>(opcional — a IA interpreta o que você pedir)</span></label>
+            <input type="text" value={estilo} onChange={(e) => setEstilo(e.target.value)} placeholder="ex.: estilo print de tweet, meme, citação, foto realista, ilustração 3D…" />
+            <div className="img-estilo-chips">
+              {["Foto realista", "Ilustração", "Tipográfico", "Meme", "Print de tweet", "Citação", "Infográfico", "3D"].map((s) => (
+                <button key={s} type="button" className={estilo === s ? "on" : ""} onClick={() => setEstilo((v) => (v === s ? "" : s))}>{s}</button>
+              ))}
+            </div>
+          </div>
 
           {/* Referências DESTE post. As fixas do Brand Kit continuam valendo —
               estas entram por cima, e pesam mais, porque foram escolhidas agora. */}
