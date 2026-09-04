@@ -1,8 +1,62 @@
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { mktApi } from "../../../lib/mktApi";
 import { MktModal } from "./_ui";
+import { RedeIcon } from "./_icons";
+
+type PickOpt = { value: string; label: string; icon?: ReactNode };
+
+// Seletor customizado que mostra o LOGO real da rede (o <select> nativo só renderiza texto na option).
+function PickSelect({ value, options, onChange, disabled, title }: { value: string; options: PickOpt[]; onChange: (v: string) => void; disabled?: boolean; title?: string }) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const cur = options.find((o) => o.value === value) || options[0];
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (wrap.current && !wrap.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDoc); document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+  return (
+    <div className="rad-pick" ref={wrap}>
+      <button type="button" className="rad-pick-btn" disabled={disabled} title={title} aria-haspopup="listbox" aria-expanded={open} onClick={() => !disabled && setOpen((v) => !v)}>
+        <span className="rad-pick-cur">{cur?.icon ? <span className="rad-pick-ico">{cur.icon}</span> : null}{cur?.label}</span>
+        <svg className="rad-pick-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+      </button>
+      {open ? (
+        <div className="rad-pick-pop" role="listbox">
+          {options.map((o) => (
+            <button type="button" role="option" aria-selected={o.value === value} key={o.value || "_"} className={"rad-pick-opt" + (o.value === value ? " sel" : "")} onClick={() => { onChange(o.value); setOpen(false); }}>
+              {o.icon ? <span className="rad-pick-ico">{o.icon}</span> : <span className="rad-pick-ico" />}{o.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+const FMT_OPTS: PickOpt[] = [
+  { value: "", label: "Todos os formatos", icon: <span>▦</span> },
+  { value: "reel", label: "Reels", icon: <span>▶</span> },
+  { value: "carrossel", label: "Carrossel", icon: <span>▤</span> },
+  { value: "estatico", label: "Estático", icon: <span>▢</span> },
+  { value: "story", label: "Stories", icon: <span>▯</span> },
+  { value: "video", label: "Vídeo longo", icon: <span>🎬</span> },
+];
+const rIco = (slug: string) => <RedeIcon slug={slug} size={16} />;
+const REDE_OPTS: PickOpt[] = [
+  { value: "", label: "Todas as redes", icon: <span>🌐</span> },
+  { value: "instagram", label: "Instagram", icon: rIco("instagram") },
+  { value: "tiktok", label: "TikTok", icon: rIco("tiktok") },
+  { value: "youtube", label: "YouTube", icon: rIco("youtube") },
+  { value: "linkedin", label: "LinkedIn", icon: rIco("linkedin") },
+  { value: "facebook", label: "Facebook", icon: rIco("facebook") },
+  { value: "pinterest", label: "Pinterest", icon: rIco("pinterest") },
+];
 
 // monta a URL de EMBED (reproduzir/visualizar dentro do portal) a partir do link do post
 function embedDe(url?: string): { src: string; alto: boolean } | null {
@@ -105,23 +159,8 @@ export default function Radar() {
       <div className="rad-bar">
         <input className="rad-foco" type="text" value={foco} onChange={(e) => setFoco(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !searching) atualizar(); }} disabled={searching}
           placeholder="Foco opcional (ex.: WhatsApp, tráfego pago) — vazio = todo o segmento" />
-        <select className="rad-select" value={formato} onChange={(e) => setFormato(e.target.value)} disabled={searching} title="Formato">
-          <option value="">Todos os formatos</option>
-          <option value="reel">▶ Reels</option>
-          <option value="carrossel">▤ Carrossel</option>
-          <option value="estatico">▢ Estático</option>
-          <option value="story">▯ Stories</option>
-          <option value="video">🎬 Vídeo longo</option>
-        </select>
-        <select className="rad-select" value={rede} onChange={(e) => setRede(e.target.value)} disabled={searching} title="Rede">
-          <option value="">Todas as redes</option>
-          <option value="instagram">Instagram</option>
-          <option value="tiktok">TikTok</option>
-          <option value="youtube">YouTube</option>
-          <option value="linkedin">LinkedIn</option>
-          <option value="facebook">Facebook</option>
-          <option value="pinterest">Pinterest</option>
-        </select>
+        <PickSelect value={formato} options={FMT_OPTS} onChange={setFormato} disabled={searching} title="Formato" />
+        <PickSelect value={rede} options={REDE_OPTS} onChange={setRede} disabled={searching} title="Rede" />
         {searching
           ? <button className="rad-cancel" onClick={cancelar}>Cancelar</button>
           : <button className="bk-mini pri" onClick={atualizar}>🔎 Atualizar radar</button>}

@@ -76,4 +76,21 @@
 .mkt-root .rad-select:disabled{opacity:.55;cursor:default}
 [data-theme="dark"] .mkt-root .rad-select{background-color:rgba(255,255,255,.04);color:#EAF1FB;border-color:rgba(255,255,255,.14)}
 [data-theme="dark"] .mkt-root .rad-select option{background:#14161C;color:#EAF1FB}
+/* Seletor com LOGO real da rede (o <select> nativo não renderiza ícone dentro da option) */
+.mkt-root .rad-pick{position:relative;display:inline-flex}
+.mkt-root .rad-pick-btn{display:inline-flex;align-items:center;gap:8px;cursor:pointer;border:1px solid var(--border-2);background:var(--surface);color:var(--text);border-radius:10px;padding:10px 12px;font-size:13px;font-weight:600;font-family:var(--font-ui);white-space:nowrap}
+.mkt-root .rad-pick-btn .rad-pick-cur{display:inline-flex;align-items:center;gap:7px}
+.mkt-root .rad-pick-btn .rad-pick-chev{margin-left:2px;opacity:.6}
+.mkt-root .rad-pick-btn:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(110,156,232,.16)}
+.mkt-root .rad-pick-btn:disabled{opacity:.55;cursor:default}
+.mkt-root .rad-pick-pop{position:absolute;top:calc(100% + 6px);left:0;min-width:190px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 34px rgba(1,14,38,.18);padding:6px;z-index:60;max-height:320px;overflow:auto}
+.mkt-root .rad-pick-opt{display:flex;align-items:center;gap:9px;width:100%;text-align:left;border:0;background:transparent;color:var(--text);border-radius:8px;padding:9px 10px;font-size:13px;font-weight:600;font-family:var(--font-ui);cursor:pointer}
+.mkt-root .rad-pick-opt:hover{background:var(--surface-2)}
+.mkt-root .rad-pick-opt.sel{background:rgba(110,156,232,.14);color:var(--heading)}
+.mkt-root .rad-pick-opt .rad-pick-ico{width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+[data-theme="dark"] .mkt-root .rad-pick-btn{background-color:rgba(255,255,255,.04);color:#EAF1FB;border-color:rgba(255,255,255,.14)}
+[data-theme="dark"] .mkt-root .rad-pick-pop{background:#14161C;border-color:rgba(255,255,255,.14);box-shadow:0 14px 40px rgba(0,0,0,.5)}
+[data-theme="dark"] .mkt-root .rad-pick-opt{color:#EAF1FB}
+[data-theme="dark"] .mkt-root .rad-pick-opt:hover{background:rgba(255,255,255,.06)}
+[data-theme="dark"] .mkt-root .rad-pick-opt.sel{background:rgba(110,156,232,.2)}
 @media (max-width:760px){ .mkt-root .rad-bar{flex-wrap:wrap} .mkt-root .rad-foco{min-width:100%} }
