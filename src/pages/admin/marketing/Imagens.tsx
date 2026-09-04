@@ -722,14 +722,17 @@ export default function Imagens() {
                   {/* a tela nunca fica muda: quando não sai a arte, aparece o porquê */}
                   {im.error ? <div className="img-motor" style={{ marginTop: 6, color: im.status === "failed" ? "var(--danger, #B4232A)" : undefined }}>{im.error}</div> : null}
                   {done && !carr && adjustOpen[im.id] ? (
-                    <div className="img-adjust">
-                      <input type="text" value={adjust[im.id] || ""} onChange={(e) => setAdjust((a) => ({ ...a, [im.id]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter") adjustOne(im.id); }} placeholder="ex.: fundo mais claro, aumente o título, tire o ícone" />
-                      <button className="bk-mini pri" onClick={() => adjustOne(im.id)}>Enviar ajuste</button>
+                    <div className="img-adjust col">
+                      <textarea className="img-adjust-ta" rows={2} value={adjust[im.id] || ""} onChange={(e) => setAdjust((a) => ({ ...a, [im.id]: e.target.value }))} placeholder="Diga só o que mudar — imagem OU texto. Ex.: “deixe o fundo mais claro” (muda só a imagem) · “troque o título para: Sua PME em 2026” (muda só o texto)." />
+                      <div className="img-adjust-row">
+                        <span className="img-motor">A IA mexe só no que você pedir — o resto fica igual.</span>
+                        <button className="bk-mini pri" disabled={!(adjust[im.id] || "").trim()} onClick={() => adjustOne(im.id)}>Enviar ajuste</button>
+                      </div>
                     </div>
                   ) : null}
                   {done && carr ? (
                     <div className="img-adjust">
-                      <input type="text" value={adjust[im.id] || ""} onChange={(e) => setAdjust((a) => ({ ...a, [im.id]: e.target.value }))} placeholder={`Ajuste do slide ${(im.slide_index ?? i) + 1} (opcional)`} />
+                      <textarea className="img-adjust-ta" rows={2} value={adjust[im.id] || ""} onChange={(e) => setAdjust((a) => ({ ...a, [im.id]: e.target.value }))} placeholder={`Slide ${(im.slide_index ?? i) + 1} — só o que mudar (ex.: “fundo mais claro” muda só a imagem · “troque o título” muda só o texto). Vazio = não mexe.`} />
                     </div>
                   ) : null}
                 </div>
@@ -740,7 +743,7 @@ export default function Imagens() {
             <>
               <div style={{ marginTop: 12 }}>
                 <button className="bk-mini pri" style={{ padding: "10px 18px" }} disabled={processing} onClick={adjustCarrossel}>Aplicar ajustes aos slides</button>
-                <span className="img-motor" style={{ marginLeft: 10 }}>Escreva o ajuste em cada slide que quiser mudar e envie tudo de uma vez.</span>
+                <span className="img-motor" style={{ marginLeft: 10 }}>Em cada slide, escreva só o que quer mudar — imagem ou texto — e envie tudo de uma vez. A IA mexe só no que você pediu; o resto fica igual.</span>
               </div>
               {/* o carrossel inteiro (todos os slides) vai como UM post para o Calendário */}
               {!processing ? (
@@ -1171,7 +1174,7 @@ function Visualizador({ ger, idx, onIdx, onClose, onFav, onUse, onCalendario, on
           ) : null}
           {ajusteOn ? (
             <div className="viz-ajuste">
-              <input type="text" value={ajusteTxt} autoFocus placeholder={ajusteTodos ? "ex.: deixe todos mais claros, mesma tipografia" : "ex.: fundo mais claro, aumente o título, tire o ícone"} onChange={(e) => setAjusteTxt(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") enviarAjuste(); }} />
+              <textarea className="img-adjust-ta" rows={2} value={ajusteTxt} autoFocus placeholder={ajusteTodos ? "O que mudar em todos os slides — imagem OU texto. Ex.: “deixe todos mais claros” (só imagem)" : "Diga só o que mudar — imagem OU texto. Ex.: “fundo mais claro” (só imagem) · “troque o título” (só texto)"} onChange={(e) => setAjusteTxt(e.target.value)} onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") enviarAjuste(); }} />
               <button className="bk-mini pri" onClick={enviarAjuste} disabled={!ajusteTxt.trim()}>Enviar ajuste</button>
               {total > 1 ? (
                 <label className="viz-ajuste-todos"><input type="checkbox" checked={ajusteTodos} onChange={(e) => setAjusteTodos(e.target.checked)} /> aplicar a todos os {total} slides</label>
