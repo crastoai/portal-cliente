@@ -18,7 +18,9 @@ const DOW = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 const MON = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 const CHANNELS = ["IG", "TikTok", "YouTube", "LinkedIn", "FB", "Meta", "Google", "E-mail base"];
 const TYPES = ["Post", "Reel", "Carrossel", "Story", "Anúncio", "E-mail"];
-const ST_LABEL: Record<string, string> = { rascunho: "Rascunho", agendado: "Agendado", aprovar: "Aprovar", publicado: "Publicado" };
+const ST_LABEL: Record<string, string> = { rascunho: "Rascunho", agendado: "Agendado", aprovar: "Aprovar", publicado: "Publicado", falhou: "Falhou" };
+// estados que o usuário escolhe à mão no modal (falhou é do sistema, não é opção manual)
+const ST_EDITAVEIS = ["rascunho", "agendado", "aprovar", "publicado"] as const;
 const WHO_LABEL: Record<string, string> = { org: "Orgânico · Pat", paid: "Pago · Roy", mail: "E-mail" };
 const pad = (n: number) => String(n).padStart(2, "0");
 const keyOf = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -43,7 +45,7 @@ export default function Calendario() {
   const [posts, setPosts] = useState<any[]>([]);     // agendados
   const [backlog, setBacklog] = useState<any[]>([]);  // sem data
   const [filWho, setFilWho] = useState<Set<string>>(new Set(["org", "paid", "mail"]));
-  const [filSt, setFilSt] = useState<Set<string>>(new Set(["rascunho", "agendado", "aprovar", "publicado"]));
+  const [filSt, setFilSt] = useState<Set<string>>(new Set(["rascunho", "agendado", "aprovar", "publicado", "falhou"]));
   const [colorBy, setColorBy] = useState<"trilha" | "status">("trilha");
   const [modal, setModal] = useState<null | { editId?: string; d?: string }>(null);
   const [chOpen, setChOpen] = useState(false);
@@ -65,10 +67,13 @@ export default function Calendario() {
   const colorClass = (p: any) => (colorBy === "status" ? "cst-" + p.st : p.who);
 
   // ---- ações no back ----
-  async function scheduleBack(id: string, when: string) { try { await mktApi.post("/marketing/posts/" + id + "/schedule", { when }); flash("Agendado"); load(); } catch { flash("Não foi possível agendar."); } }
+  // motivo honesto do provedor (sem rede conectada, arte não pronta, regra da marca) sobe pra tela
+  const motivo = (e: any, fb: string) => ((e?.status === 422 || e?.body?.blocked) && e?.body?.reason) ? String(e.body.reason) : fb;
+  async function scheduleBack(id: string, when: string) { try { await mktApi.post("/marketing/posts/" + id + "/schedule", { when }); flash("Agendado ✓"); load(); } catch (e: any) { flash(motivo(e, "Não foi possível agendar.")); } }
   const agendarHoje = (id: string) => scheduleBack(id, localToISO(todayKey, "09:00"));
-  async function moveBack(id: string, when: string) { try { await mktApi.patch("/marketing/posts/" + id, { scheduled_at: when }); load(); } catch { flash("Não foi possível mover."); } }
-  async function unscheduleBack(id: string) { try { await mktApi.post("/marketing/posts/" + id + "/unschedule"); flash("Voltou para A agendar"); load(); } catch { flash("Não foi possível desagendar."); } }
+  // mover um post já agendado = reagendar no provedor (cancela o antigo, recria na nova hora)
+  async function moveBack(id: string, when: string) { try { await mktApi.post("/marketing/posts/" + id + "/schedule", { when }); load(); } catch (e: any) { flash(motivo(e, "Não foi possível mover.")); load(); } }
+  async function unscheduleBack(id: string) { try { await mktApi.post("/marketing/posts/" + id + "/unschedule"); flash("Voltou para A agendar"); load(); } catch (e: any) { flash(motivo(e, "Não foi possível desagendar.")); load(); } }
 
   // ---- drag & drop ----
   const onDragStart = (e: React.DragEvent, kind: string, id: string) => { drag.current = kind + ":" + id; try { e.dataTransfer.setData("text/plain", drag.current); e.dataTransfer.effectAllowed = "move"; } catch { /* */ } };
@@ -197,7 +202,7 @@ export default function Calendario() {
         <span className="cf-lbl">Filtrar</span>
         {(["org", "paid", "mail"] as const).map((w) => <button key={w} className={"cf-chip" + (filWho.has(w) ? " on" : "")} onClick={() => toggle(filWho, w, setFilWho)}><i className={"cl-dot " + w} />{w === "org" ? "Orgânico" : w === "paid" ? "Pago" : "E-mail"}</button>)}
         <span className="cf-div" />
-        {(["rascunho", "agendado", "aprovar", "publicado"] as const).map((s) => <button key={s} className={"cf-chip" + (filSt.has(s) ? " on" : "")} onClick={() => toggle(filSt, s, setFilSt)}>{ST_LABEL[s]}</button>)}
+        {(["rascunho", "agendado", "aprovar", "publicado", "falhou"] as const).map((s) => <button key={s} className={"cf-chip" + (filSt.has(s) ? " on" : "")} onClick={() => toggle(filSt, s, setFilSt)}>{ST_LABEL[s]}</button>)}
         <span className="calx-sp" />
         <span className="cf-lbl">Colorir por</span>
         <div className="seg seg-sm"><button className={colorBy === "trilha" ? "on" : ""} onClick={() => setColorBy("trilha")}>Trilha</button><button className={colorBy === "status" ? "on" : ""} onClick={() => setColorBy("status")}>Status</button></div>
@@ -286,13 +291,13 @@ function PostModal({ unitId, editId, initDate, post, onClose, onSaved, flash }: 
   }
   async function del() {
     if (!editId) return; setBusy(true);
-    try { await mktApi.del("/marketing/posts/" + editId); flash("Excluída"); onSaved(); } catch { flash("Não foi possível excluir."); } finally { setBusy(false); }
+    try { await mktApi.del("/marketing/posts/" + editId); flash("Excluída"); onSaved(); } catch (e: any) { flash(((e?.status === 422 || e?.body?.blocked) && e?.body?.reason) ? String(e.body.reason) : "Não foi possível excluir."); } finally { setBusy(false); }
   }
   async function publish() {
     if (!editId) return; setBusy(true);
-    try { await mktApi.post("/marketing/posts/" + editId + "/publish"); flash("Publicada ✓ (aprovada pela verificação da marca)"); onSaved(); }
+    try { await mktApi.post("/marketing/posts/" + editId + "/publish"); flash("Enviada para publicação nas redes ✓"); onSaved(); }
     catch (e: any) {
-      if (e?.status === 422 || e?.body?.blocked) flash("Bloqueada pela verificação da marca: " + (e?.body?.reason || "ajuste a peça e tente de novo"));
+      if (e?.status === 422 || e?.body?.blocked) flash(e?.body?.reason || "Ajuste a peça e tente de novo.");
       else flash("Não foi possível publicar agora. Tente novamente.");
     } finally { setBusy(false); }
   }
@@ -322,7 +327,7 @@ function PostModal({ unitId, editId, initDate, post, onClose, onSaved, flash }: 
       </div>
       <div className="calf-grid">
         <div className="calf-field"><label>Tipo</label><select value={type} onChange={(e) => setType(e.target.value)}>{TYPES.map((t) => <option key={t}>{t}</option>)}</select></div>
-        <div className="calf-field"><label>Status</label><select value={st} onChange={(e) => setSt(e.target.value)}>{Object.entries(ST_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+        <div className="calf-field"><label>Status</label><select value={st} onChange={(e) => setSt(e.target.value)}>{ST_EDITAVEIS.map((k) => <option key={k} value={k}>{ST_LABEL[k]}</option>)}</select></div>
         <div className="calf-field full"><label>Título</label><input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ex.: 5 erros de IA que a sua PME comete" /></div>
         <div className="calf-field full"><label>Canais</label><div className="calf-chips">{CHANNELS.map((c) => <button key={c} className={"calf-chip" + (chSet.has(c) ? " on" : "")} onClick={() => toggleCh(c)}>{c}</button>)}</div></div>
         <div className="calf-field full"><label>Quando</label>

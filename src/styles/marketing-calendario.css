@@ -192,3 +192,9 @@
 :root[data-theme="dark"] .mkt-modal-backdrop .ap-connect,:root[data-theme="dark"] .mkt-root .ap-connect{color:var(--blue)}
 .mkt-modal-backdrop .ap-hint,.mkt-root .ap-hint{font-size:12px;color:var(--muted);line-height:1.5;margin-top:14px}
 @media(max-width:640px){.mkt-modal-backdrop .ap-accounts,.mkt-root .ap-accounts{grid-template-columns:1fr}}
+
+/* Status "falhou" — vermelho visível (a publicação foi recusada; o motivo fica no post) */
+.mkt-root .p-st.falhou{background:rgba(220,38,38,.15);color:#B91C1C}
+[data-theme="dark"] .mkt-root .p-st.falhou{color:#F87171}
+.mkt-root .pub.cst-falhou{background:rgba(220,38,38,.10);border-color:#DC2626}
+.mkt-root .calM-pub.cst-falhou{background:rgba(220,38,38,.12)} .mkt-root .calM-pub.cst-falhou .m-dot{background:#DC2626}
