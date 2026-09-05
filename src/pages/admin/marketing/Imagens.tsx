@@ -513,7 +513,7 @@ export default function Imagens() {
   const redeNomeMain = (slug?: string | null) => catalogo.find((r) => r.slug === slug)?.rede || null;
   const slotNomeMain = (net?: string | null, sl?: string | null) => { const r = catalogo.find((x) => x.slug === net); return r?.slots.find((y: any) => y.slug === sl)?.nome || null; };
   const gerResultado = results?.generation ? {
-    genId: results.generation.id, created_at: results.generation.created_at, prompt: results.generation.prompt,
+    genId: results.generation.id, created_at: results.generation.created_at, prompt: results.generation.prompt, title: results.generation.title,
     network: results.generation.network, slot: results.generation.slot, format: results.generation.format, status: null,
     pieces: (results.images || []).filter((im: any) => im.status === "done" && im.url).sort((a: any, b: any) => (a.slide_index ?? a.variation_index ?? 0) - (b.slide_index ?? b.variation_index ?? 0)),
   } : null;
@@ -850,7 +850,7 @@ function BlocoCard({ g, redeNome, onAbrir, onFav, onUsarPost, onExcluir }: any) 
         <span className="img-lib-badge">{g.network ? (redeNome(g.network) || rotuloFormato(g.format)) : rotuloFormato(g.format)}</span>
         <span className="img-lib-hora">{horaLabel(g.created_at)}</span>
       </div>
-      <div className={"img-bloco-idea" + (g.prompt ? "" : " vazio")}>{g.prompt || "Sem ideia escrita"}</div>
+      <div className={"img-bloco-idea" + ((g.title || g.prompt) ? "" : " vazio")}>{g.title || g.prompt || "Sem título"}</div>
     </div>
   );
 }
@@ -908,7 +908,7 @@ function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, onUsarPost, onRec
   const gers: any[] = []; const idxG: Record<string, any> = {};
   for (const im of filt) {
     let g = idxG[im.generation_id];
-    if (!g) { g = { genId: im.generation_id, created_at: im.created_at, prompt: im.prompt, network: im.network, slot: im.slot, format: im.format, pieces: [] }; idxG[im.generation_id] = g; gers.push(g); }
+    if (!g) { g = { genId: im.generation_id, created_at: im.created_at, prompt: im.prompt, title: im.title, network: im.network, slot: im.slot, format: im.format, pieces: [] }; idxG[im.generation_id] = g; gers.push(g); }
     g.pieces.push(im);
   }
   for (const g of gers) { g.pieces.sort((a: any, b: any) => (a.slide_index ?? 0) - (b.slide_index ?? 0)); g.status = statusDoGrupo(g.pieces); g.fav = g.pieces.some((p: any) => p.favorite); }
@@ -924,7 +924,7 @@ function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, onUsarPost, onRec
     if (!ps.length) return null;
     ps.sort((a: any, b: any) => (a.slide_index ?? 0) - (b.slide_index ?? 0));
     const f = ps[0];
-    return { genId, created_at: f.created_at, prompt: f.prompt, network: f.network, slot: f.slot, format: f.format, pieces: ps, status: statusDoGrupo(ps) };
+    return { genId, created_at: f.created_at, prompt: f.prompt, title: f.title, network: f.network, slot: f.slot, format: f.format, pieces: ps, status: statusDoGrupo(ps) };
   };
   const abrir = (genId: string, idx: number) => setViewer({ genId, idx });
   async function excluirGer(genId: string) {
@@ -996,7 +996,7 @@ function Biblioteca({ lib, catalogo, brandProps, onFav, onUse, onUsarPost, onRec
                           <span className={"lib-status " + statusClasse(g.status)}>{statusLabel(g.status)}</span>
                           <span className="img-lib-hora">{horaLabel(g.created_at)}</span>
                         </div>
-                        <div className={"lib-row-idea" + (g.prompt ? "" : " vazio")}>{g.prompt || "Sem ideia escrita"}</div>
+                        <div className={"lib-row-idea" + ((g.title || g.prompt) ? "" : " vazio")}>{g.title || g.prompt || "Sem título"}</div>
                       </div>
                       <div className="lib-row-acts" onClick={(e) => e.stopPropagation()}>
                         <button className="bk-mini" onClick={() => abrir(g.genId, 0)}>Abrir</button>
@@ -1142,7 +1142,7 @@ function Visualizador({ ger, idx, onIdx, onClose, onFav, onUse, onCalendario, on
   // a arte mostrada: a versão escolhida na linhagem, ou a cabeça (atual)
   const arteUrl = vSel >= 0 && versoes[vSel] ? versoes[vSel].url : im.url;
   return (
-    <MktModal wide title={ger.prompt ? String(ger.prompt).slice(0, 70) : "Arte da Biblioteca"} onClose={onClose}
+    <MktModal wide title={(ger.title || ger.prompt) ? String(ger.title || ger.prompt).slice(0, 70) : "Arte da Biblioteca"} onClose={onClose}
       footer={
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", width: "100%" }}>
           {arteUrl ? <a className="bk-mini" href={arteUrl} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>Baixar</a> : null}
