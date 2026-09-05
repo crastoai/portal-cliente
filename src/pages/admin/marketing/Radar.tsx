@@ -93,6 +93,7 @@ export default function Radar() {
   const [rede, setRede] = useState("");         // instagram | tiktok | youtube | ...
   const [searching, setSearching] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);   // motivo do vazio (persistente na tela)
   const [toast, setToast] = useState<string | null>(null);
   const [criando, setCriando] = useState<string | null>(null);
   const [verRef, setVerRef] = useState<any | null>(null); // referência aberta no visualizador (embed)
@@ -111,6 +112,7 @@ export default function Radar() {
     if (s) {
       setRefs(s.refs || []);
       setSearching(!!s.searching);
+      if (!s.searching) setErro(s.error || null);
       if (s.searching) {
         pollRef.current = window.setTimeout(() => checarStatus(true), 4000); // continua acompanhando
       } else {
@@ -129,6 +131,7 @@ export default function Radar() {
   }, []);
 
   async function atualizar() {
+    setErro(null);
     try {
       const r = await mktApi.post<any>("/marketing/research/radar", { tema: foco.trim() || undefined, formato: formato || undefined, rede: rede || undefined }, { timeoutMs: 120000 });
       if (r?.searching) { setSearching(true); flash(r.already ? "Já estou pesquisando — aguarde." : "Pesquisando referências reais no seu segmento…"); pararPolling(); pollRef.current = window.setTimeout(() => checarStatus(true), 3000); }
@@ -175,9 +178,9 @@ export default function Radar() {
       ) : loading ? <div className="rad-empty">Carregando…</div>
         : !refs.length ? (
           <div className="rad-empty">
-            <span style={{ fontSize: 34 }}>📡</span>
-            <b>Seu radar ainda está vazio</b>
-            <small>Clique em <b>Atualizar radar</b> — a IA pesquisa os posts que estão bombando no seu segmento e te mostra o porquê de cada um.</small>
+            <span style={{ fontSize: 34 }}>{erro ? "🔍" : "📡"}</span>
+            <b>{erro ? "Nada externo desta vez" : "Seu radar ainda está vazio"}</b>
+            <small>{erro || <>Clique em <b>Atualizar radar</b> — a IA pesquisa os posts que estão bombando no seu segmento e te mostra o porquê de cada um.</>}</small>
           </div>
         ) : (
           <div className="rad-grid">
